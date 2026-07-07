@@ -11,12 +11,18 @@ db = SQLAlchemy()
 
 def create_app():
     app = Flask(__name__)
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-        "DATABASE_URL", "sqlite:///resume.db"
-    )
+
+    db_url = os.environ.get("DATABASE_URL", "sqlite:///resume.db")
+    # Render/Heroku-style Postgres URLs start with postgres:// — SQLAlchemy needs postgresql://
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    # Comma-separated list of allowed origins, e.g. "https://yourdomain.com,https://www.yourdomain.com"
+    allowed_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
 
     db.init_app(app)
 
@@ -30,3 +36,4 @@ def create_app():
         db.create_all()
 
     return app
+

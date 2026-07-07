@@ -42,29 +42,23 @@ const FONTS = [
 const DEFAULT_STYLE = { accent: "navy", fontSize: 11, lineHeight: 1.4, font: "calibri" };
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
+// One accent (gold, matches the actual resume ink) — everything else is neutral.
+// Colour shows up as a rule, a dot, or a weight change, never a tinted bg+border pair.
 const C = {
-  bg:      "#090C13",
-  panel:   "#0E1118",
-  surface: "#131720",
-  raised:  "#181E2A",
-  border:  "rgba(255,255,255,0.07)",
-  borderHi:"rgba(255,255,255,0.13)",
-  text:    "#EAE6DE",
-  muted:   "#8492A6",
-  faint:   "rgba(132,146,166,0.4)",
-  gold:    "#C8A84B",
-  goldBg:  "rgba(200,168,75,0.1)",
-  goldBr:  "rgba(200,168,75,0.25)",
-  blue:    "#3B82F6",
-  blueBg:  "rgba(59,130,246,0.1)",
-  blueBr:  "rgba(59,130,246,0.25)",
-  green:   "#22C55E",
-  greenBg: "rgba(34,197,94,0.08)",
-  greenBr: "rgba(34,197,94,0.2)",
-  red:     "#EF4444",
-  redBg:   "rgba(239,68,68,0.08)",
-  redBr:   "rgba(239,68,68,0.2)",
-  sans:    "-apple-system,'SF Pro Display',Inter,system-ui,sans-serif",
+  bg:      "#0C0D10",
+  panel:   "#111318",
+  surface: "#15171D",
+  raised:  "#1B1E26",
+  border:  "rgba(255,255,255,0.08)",
+  borderHi:"rgba(255,255,255,0.16)",
+  text:    "#E8E3D8",
+  muted:   "#8A8F98",
+  faint:   "rgba(138,143,152,0.55)",
+  gold:    "#B9975B",
+  red:     "#C4695A",
+  green:   "#7A9B76",
+  sans:    "'Helvetica Neue',Arial,sans-serif",
+  serif:   "'Iowan Old Style','Palatino Linotype',Georgia,serif",
   mono:    "'SF Mono','JetBrains Mono','Courier New',monospace",
 };
 
@@ -138,32 +132,34 @@ function Spinner({ size = 20, color = C.blue }) {
 }
 
 // ── Button ─────────────────────────────────────────────────────────────────────
+// Only one filled button exists ("gold" — the single call-to-action per screen).
+// Everything else is an outline or plain text; no colour-tinted boxes.
 function Btn({ children, onClick, disabled, variant = "primary", small, icon, loading }) {
   const v = {
-    primary: { bg: C.blue,   border: C.blueBr,  fg: "#fff"   },
-    gold:    { bg: C.goldBg, border: C.goldBr,  fg: C.gold   },
-    ghost:   { bg: "transparent", border: C.border, fg: C.muted },
-    danger:  { bg: C.redBg,  border: C.redBr,   fg: C.red    },
-    success: { bg: C.greenBg,border: C.greenBr, fg: C.green  },
+    primary: { bg: C.text,        border: C.text,         fg: C.bg    },
+    gold:    { bg: C.gold,        border: C.gold,          fg: "#1A1710" },
+    ghost:   { bg: "transparent", border: C.border,        fg: C.muted },
+    danger:  { bg: "transparent", border: "transparent",   fg: C.red   },
+    success: { bg: "transparent", border: C.border,        fg: C.green },
   }[variant];
   return (
-    <motion.button
-      whileTap={!disabled ? { scale: 0.96 } : undefined}
+    <button
       onClick={disabled ? undefined : onClick}
       style={{
         display: "inline-flex", alignItems: "center", justifyContent: "center",
-        gap: 6, padding: small ? "8px 14px" : "12px 16px",
+        gap: 7, padding: small ? "8px 14px" : "12px 16px",
         minHeight: small ? 36 : 44, // WCAG AA minimum tap target
-        borderRadius: 10, border: `1px solid ${v.border}`,
+        borderRadius: 6, border: `1px solid ${v.border}`,
         background: v.bg, color: v.fg,
-        fontSize: small ? 13 : 14, fontWeight: 600, fontFamily: C.sans,
+        fontSize: small ? 12.5 : 13.5, fontWeight: 600, fontFamily: C.sans,
+        letterSpacing: "0.01em",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.4 : 1, width: small ? "auto" : "100%",
-        transition: "opacity 0.15s", boxSizing: "border-box",
+        transition: "opacity 0.15s, border-color 0.15s", boxSizing: "border-box",
       }}>
       {loading ? <Spinner size={14} color={v.fg} /> : icon && <Icon name={icon} size={14} color={v.fg} />}
       {children}
-    </motion.button>
+    </button>
   );
 }
 
@@ -174,8 +170,8 @@ function Field({ label, required, hint, value, onChange, placeholder, multiline,
   const float = focused || hasValue;
   const base = {
     width: "100%", background: C.surface,
-    border: `1px solid ${focused ? C.blueBr : C.border}`,
-    borderRadius: 8, padding: float ? "16px 11px 6px" : "11px 11px",
+    border: `1px solid ${focused ? C.borderHi : C.border}`,
+    borderRadius: 5, padding: float ? "16px 11px 6px" : "11px 11px",
     minHeight: 44, // WCAG AA tap target
     color: C.text, fontSize: 14.5,
     fontFamily: mono ? C.mono : C.sans,
@@ -193,16 +189,15 @@ function Field({ label, required, hint, value, onChange, placeholder, multiline,
   return (
     <div style={{ marginBottom: 8, position: "relative" }}>
       <span aria-hidden style={{
-        position: "absolute", left: 12, top: float ? 6 : "50%",
+        position: "absolute", left: 11, top: float ? 6 : "50%",
         transform: float ? "none" : "translateY(-50%)",
-        fontSize: float ? 9.5 : 14.5, fontWeight: float ? 600 : 400,
+        fontSize: float ? 10.5 : 14.5, fontWeight: 500,
         color: float ? C.faint : C.muted,
-        fontFamily: float ? C.mono : C.sans,
-        letterSpacing: float ? "0.06em" : "normal",
+        fontFamily: C.sans,
         pointerEvents: "none", transition: "all 0.12s",
         whiteSpace: "nowrap",
       }}>
-        {label}{required && <span style={{ color: C.red }}> *</span>}{hint && float && <span style={{ color: C.faint, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}> · {hint}</span>}
+        {label}{required && <span style={{ color: C.red }}> *</span>}{hint && float && <span style={{ color: C.faint, fontWeight: 400 }}> · {hint}</span>}
       </span>
       {multiline
         ? <textarea {...events} rows={rows} style={{ ...base, resize: "vertical" }} />
@@ -216,30 +211,20 @@ function Field({ label, required, hint, value, onChange, placeholder, multiline,
 function Steps({ current }) {
   const steps = ["Your Info", "Job Posting"];
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
-        {steps.map((_, i) => (
-          <div key={i} style={{ flex: 1, height: 3, borderRadius: 2,
-            background: i + 1 <= current ? C.blue : C.border,
-            transition: "background 0.2s" }} />
-        ))}
-      </div>
-      <span style={{ fontSize: 11, fontFamily: C.mono, color: C.faint, letterSpacing: "0.04em" }}>
-        Step {current} of {steps.length} · {steps[current - 1]}
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between",
+      marginBottom: 18, paddingBottom: 10, borderBottom: `1px solid ${C.border}` }}>
+      <span style={{ fontFamily: C.serif, fontSize: 16, fontStyle: "italic", color: C.text }}>
+        {steps[current - 1]}
       </span>
+      <span style={{ fontSize: 11.5, color: C.faint }}>{current} / {steps.length}</span>
     </div>
   );
 }
 
-// ── Keyword pill ───────────────────────────────────────────────────────────────
+// ── Keyword list — plain words, no pill chrome ──────────────────────────────────
 function KwPill({ word }) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4,
-      fontSize: 11, padding: "3px 9px", borderRadius: 20,
-      background: C.blueBg, border: `1px solid ${C.blueBr}`, color: C.blue,
-      fontFamily: C.mono, letterSpacing: "0.02em", whiteSpace: "nowrap" }}>
-      <Icon name="Tag" size={10} color={C.blue} />{word}
-    </span>
+    <span style={{ fontSize: 12.5, color: C.text, whiteSpace: "nowrap" }}>{word}</span>
   );
 }
 
@@ -985,28 +970,29 @@ export default function ResumeGuestMode({ onClose }) {
         <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none" }}>
           {step === 3 && genResult && (
             <div style={{ padding: "16px 16px 18px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
-                <div style={{ width: 30, height: 30, borderRadius: "50%", background: C.greenBg,
-                  border: `1px solid ${C.greenBr}`, display: "flex", alignItems: "center",
-                  justifyContent: "center", flexShrink: 0 }}>
-                  <Icon name="Check" size={14} color={C.green} />
-                </div>
-                <div>
-                  <p style={{ color: C.text, fontSize: 13.5, fontWeight: 700, margin: 0 }}>Resume ready</p>
-                  <p style={{ color: C.muted, fontSize: 11.5, margin: 0 }}>
-                    {isPhone ? "Open Preview to edit" : "Click any text to edit"}
-                    {genResult.job_location && ` · ${genResult.job_location}`}
-                  </p>
-                </div>
+              <div style={{ marginBottom: 16, paddingBottom: 14, borderBottom: `1px solid ${C.border}` }}>
+                <p style={{ color: C.text, fontFamily: C.serif, fontStyle: "italic", fontSize: 18, margin: "0 0 4px",
+                  display: "flex", alignItems: "center", gap: 8 }}>
+                  <Icon name="Check" size={15} color={C.green} /> Resume ready
+                </p>
+                <p style={{ color: C.muted, fontSize: 12.5, margin: 0 }}>
+                  {isPhone ? "Open Preview to edit" : "Click any text to edit"}
+                  {genResult.job_location && ` · ${genResult.job_location}`}
+                </p>
               </div>
 
               {genResult.keywords?.length > 0 && (
-                <div style={{ marginBottom: 14 }}>
-                  <p style={{ fontFamily: C.mono, fontSize: 9.5, color: C.faint, letterSpacing: "0.08em", margin: "0 0 7px" }}>
-                    KEYWORDS MATCHED
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: "0 0 6px" }}>
+                    Keywords matched
                   </p>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                    {genResult.keywords.map(k => <KwPill key={k} word={k} />)}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 0" }}>
+                    {genResult.keywords.map((k, i) => (
+                      <React.Fragment key={k}>
+                        {i > 0 && <span style={{ color: C.faint, margin: "0 7px" }}>·</span>}
+                        <KwPill word={k} />
+                      </React.Fragment>
+                    ))}
                   </div>
                 </div>
               )}
@@ -1037,10 +1023,9 @@ export default function ResumeGuestMode({ onClose }) {
               <Steps current={step} />
 
               {error && (
-                <div role="alert" style={{ display: "flex", gap: 8, padding: "10px 12px", borderRadius: 8,
-                  background: C.redBg, border: `1px solid ${C.redBr}`,
-                  color: C.red, fontSize: 12.5, marginBottom: 12, lineHeight: 1.5 }}>
-                  <Icon name="AlertCircle" size={14} color={C.red} />
+                <div role="alert" style={{ display: "flex", gap: 8, padding: "2px 0 2px 11px",
+                  borderLeft: `2px solid ${C.red}`,
+                  color: C.red, fontSize: 12.5, marginBottom: 14, lineHeight: 1.5 }}>
                   {error}
                 </div>
               )}
@@ -1112,51 +1097,50 @@ export default function ResumeGuestMode({ onClose }) {
             letterSpacing: "0.07em", margin: "0 0 14px" }}>RESUME STYLE</p>
 
           {/* Font family */}
-          <p style={{ fontFamily: C.mono, fontSize: 9.5, color: C.faint,
-            letterSpacing: "0.08em", margin: "0 0 7px" }}>FONT FAMILY</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
-            {FONTS.map(f => (
+          <p style={{ fontFamily: C.sans, fontSize: 12, color: C.muted, margin: "0 0 7px" }}>Font family</p>
+          <div style={{ display: "flex", flexDirection: "column", marginBottom: 18, border: `1px solid ${C.border}`, borderRadius: 5, overflow: "hidden" }}>
+            {FONTS.map((f, i) => (
               <button key={f.id} onClick={() => setDocStyle(s => ({ ...s, font: f.id }))}
-                style={{ padding: "9px 11px", borderRadius: 8, textAlign: "left", cursor: "pointer",
-                  background: docStyle.font === f.id ? C.goldBg : C.surface,
-                  border: `1px solid ${docStyle.font === f.id ? C.goldBr : C.border}`,
-                  color: docStyle.font === f.id ? C.gold : C.muted,
-                  fontSize: 13, fontFamily: f.css }}>
+                style={{ padding: "10px 12px", textAlign: "left", cursor: "pointer",
+                  background: "transparent", border: "none",
+                  borderTop: i === 0 ? "none" : `1px solid ${C.border}`,
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  color: docStyle.font === f.id ? C.text : C.muted,
+                  fontWeight: docStyle.font === f.id ? 700 : 400,
+                  fontSize: 14, fontFamily: f.css }}>
                 {f.label}
+                {docStyle.font === f.id && <Icon name="Check" size={13} color={C.gold} />}
               </button>
             ))}
           </div>
 
           {/* Font size */}
-          <p style={{ fontFamily: C.mono, fontSize: 9.5, color: C.faint,
-            letterSpacing: "0.08em", margin: "0 0 7px" }}>FONT SIZE · {docStyle.fontSize}pt</p>
+          <p style={{ fontFamily: C.sans, fontSize: 12, color: C.muted, margin: "0 0 7px" }}>
+            Font size <span style={{ color: C.faint }}>· {docStyle.fontSize}pt</span>
+          </p>
           <input type="range" min={9} max={13} step={0.5} value={docStyle.fontSize}
             onChange={e => setDocStyle(s => ({ ...s, fontSize: parseFloat(e.target.value) }))}
-            style={{ width: "100%", accentColor: C.gold, marginBottom: 4 }} />
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-            <span style={{ fontFamily: C.mono, fontSize: 9, color: C.faint }}>9pt</span>
-            <span style={{ fontFamily: C.mono, fontSize: 9, color: C.faint }}>13pt</span>
-          </div>
+            style={{ width: "100%", accentColor: C.gold, marginBottom: 18 }} />
 
           {/* Line spacing */}
-          <p style={{ fontFamily: C.mono, fontSize: 9.5, color: C.faint,
-            letterSpacing: "0.08em", margin: "0 0 7px" }}>LINE SPACING · {docStyle.lineHeight}×</p>
+          <p style={{ fontFamily: C.sans, fontSize: 12, color: C.muted, margin: "0 0 7px" }}>
+            Line spacing <span style={{ color: C.faint }}>· {docStyle.lineHeight}×</span>
+          </p>
           <input type="range" min={1.1} max={1.8} step={0.05} value={docStyle.lineHeight}
             onChange={e => setDocStyle(s => ({ ...s, lineHeight: parseFloat(e.target.value) }))}
-            style={{ width: "100%", accentColor: C.gold, marginBottom: 16 }} />
+            style={{ width: "100%", accentColor: C.gold, marginBottom: 18 }} />
 
           {/* Accent color */}
-          <p style={{ fontFamily: C.mono, fontSize: 9.5, color: C.faint,
-            letterSpacing: "0.08em", margin: "0 0 7px" }}>ACCENT COLOR</p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 16 }}>
+          <p style={{ fontFamily: C.sans, fontSize: 12, color: C.muted, margin: "0 0 9px" }}>Accent color</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginBottom: 16 }}>
             {ACCENTS.map(a => (
               <button key={a.id} onClick={() => setDocStyle(s => ({ ...s, accent: a.id }))}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 9px",
-                  borderRadius: 8, cursor: "pointer",
-                  background: docStyle.accent === a.id ? C.goldBg : C.surface,
-                  border: `1px solid ${docStyle.accent === a.id ? C.goldBr : C.border}` }}>
-                <div style={{ width: 13, height: 13, borderRadius: 3, background: a.hex, flexShrink: 0 }} />
-                <span style={{ color: docStyle.accent === a.id ? C.gold : C.muted, fontSize: 11.5 }}>{a.label}</span>
+                aria-label={a.label} title={a.label}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+                  background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
+                <div style={{ width: 18, height: 18, borderRadius: "50%", background: a.hex, flexShrink: 0,
+                  boxShadow: docStyle.accent === a.id ? `0 0 0 2px ${C.bg}, 0 0 0 3px ${C.text}` : "none" }} />
+                <span style={{ color: docStyle.accent === a.id ? C.text : C.faint, fontSize: 10.5 }}>{a.label}</span>
               </button>
             ))}
           </div>
@@ -1198,12 +1182,9 @@ export default function ResumeGuestMode({ onClose }) {
                       <p style={{ color: C.muted, fontSize: 12, margin: "0 0 8px",
                         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.role || ""}</p>
                       {r.keywords?.length > 0 && (
-                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
-                          {r.keywords.slice(0, 3).map(k => (
-                            <span key={k} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 20,
-                              background: C.blueBg, border: `1px solid ${C.blueBr}`, color: C.blue, fontFamily: C.mono }}>{k}</span>
-                          ))}
-                        </div>
+                        <p style={{ fontSize: 11.5, color: C.muted, margin: "0 0 6px" }}>
+                          {r.keywords.slice(0, 3).join(" · ")}
+                        </p>
                       )}
                       <p style={{ fontFamily: C.mono, fontSize: 10, color: C.faint, margin: 0 }}>
                         {r.generated_at ? new Date(r.generated_at).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : ""}
