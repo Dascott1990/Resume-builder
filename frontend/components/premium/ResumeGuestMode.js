@@ -86,6 +86,7 @@ const ICONS = {
   Eye:          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
   AlertCircle:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
   Settings2:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7H4M20 12H4M20 17H4"/></svg>,
+  Gear:         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
 };
 
 function Icon({ name, size = 16, color = "currentColor" }) {
@@ -121,7 +122,7 @@ function useViewport() {
 }
 
 // ── Spinner ────────────────────────────────────────────────────────────────────
-function Spinner({ size = 20, color = C.blue }) {
+function Spinner({ size = 20, color = C.gold }) {
   return (
     <motion.span
       animate={{ rotate: 360 }}
@@ -610,6 +611,33 @@ function EditableSpan({ value, onChange, style: extraStyle, multiline, bold, ita
   );
 }
 
+// ── Skeleton — shown in the exact shape of the page while a saved resume loads ──
+function ResumeSkeleton() {
+  const Bar = ({ w = "100%", h = 9, mb = 8 }) => (
+    <div style={{ width: w, height: h, marginBottom: mb, borderRadius: 2,
+      background: "linear-gradient(90deg, #ECECEC 25%, #F6F6F6 37%, #ECECEC 63%)",
+      backgroundSize: "400% 100%", animation: "resumeSkeletonShimmer 1.4s ease infinite" }} />
+  );
+  return (
+    <div style={{ background: "white", padding: "20mm 18mm", width: "210mm", minHeight: "297mm", boxSizing: "border-box" }}>
+      <style>{`@keyframes resumeSkeletonShimmer{0%{background-position:100% 0}100%{background-position:0 0}}`}</style>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 20 }}>
+        <Bar w="46%" h={16} mb={8} />
+        <Bar w="30%" h={10} mb={8} />
+        <Bar w="60%" h={9} mb={0} />
+      </div>
+      {[0, 1, 2].map(section => (
+        <div key={section} style={{ marginBottom: 18 }}>
+          <Bar w="24%" h={11} mb={10} />
+          <Bar w="100%" />
+          <Bar w="94%" />
+          <Bar w="88%" mb={0} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const LivePreview = React.forwardRef(function LivePreview(
   { resume, docStyle, onEdit }, ref
 ) {
@@ -844,7 +872,9 @@ export default function ResumeGuestMode({ onClose }) {
   const [docStyle,   setDocStyle]   = useState(DEFAULT_STYLE);
   const [saved,      setSaved]      = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(false);
+  const [loadingResumeId, setLoadingResumeId] = useState(null); // id currently being fetched, drives skeleton
   const [downloading, setDownloading]   = useState(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const [scale,       setScale]         = useState(1);
 
   const canvasRef  = useRef(null);
@@ -866,7 +896,7 @@ export default function ResumeGuestMode({ onClose }) {
   }, [isPhone, mobileView]);
 
   useEffect(() => {
-    if (tab !== "templates") return;
+    if (tab !== "templates" && tab !== "settings") return;
     setLoadingSaved(true);
     apiListSaved().then(setSaved).finally(() => setLoadingSaved(false));
   }, [tab]);
@@ -902,13 +932,17 @@ export default function ResumeGuestMode({ onClose }) {
   };
 
   const loadSaved = async (id) => {
+    setLoadingResumeId(id);
+    setError("");
+    if (!isDesktop) setMobileView("preview");
     try {
       const data = await apiGetSaved(id);
       dispatch({ type: "SET", resume: { contact: data.contact || {}, sections: data.sections || [], keywords: data.keywords || [], saved_id: id } });
       setTab("new"); setStep(3);
-      if (!isDesktop) setMobileView("preview");
     } catch (e) {
       setError("Could not load: " + e.message);
+    } finally {
+      setLoadingResumeId(null);
     }
   };
 
@@ -950,13 +984,15 @@ export default function ResumeGuestMode({ onClose }) {
       padding: isPhone ? "14px 0 24px" : "24px 0 48px", scrollbarWidth: "thin" }}>
       <p style={{ fontFamily: C.mono, fontSize: 9, color: "#666", margin: "0 0 10px",
         letterSpacing: "0.08em", userSelect: "none", textAlign: "center", padding: "0 12px" }}>
-        {Math.round(scale * 100)}% · {resume ? "Tap any text to edit" : "Generate to see your resume"}
+        {loadingResumeId ? "Loading…" : `${Math.round(scale * 100)}% · ${resume ? "Tap any text to edit" : "Generate to see your resume"}`}
       </p>
       <div style={{ width: scaledW, height: scaledH, flexShrink: 0, position: "relative" }}>
         <div style={{ width: A4w, height: A4h, position: "absolute", top: 0, left: 0,
           transform: `scale(${scale})`, transformOrigin: "top left",
           boxShadow: "0 6px 40px rgba(0,0,0,0.35)" }}>
-          <LivePreview ref={previewRef} resume={resume} docStyle={docStyle} onEdit={onEdit} />
+          {loadingResumeId
+            ? <ResumeSkeleton />
+            : <LivePreview ref={previewRef} resume={resume} docStyle={docStyle} onEdit={onEdit} />}
         </div>
       </div>
     </div>
@@ -1191,7 +1227,7 @@ export default function ResumeGuestMode({ onClose }) {
                       </p>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-                      <Btn small icon="Eye" onClick={() => loadSaved(r.id)}>Load</Btn>
+                      <Btn small icon="Eye" loading={loadingResumeId === r.id} disabled={!!loadingResumeId} onClick={() => loadSaved(r.id)}>Load</Btn>
                       <Btn small variant="danger" icon="Trash2" onClick={async () => { await apiDelete(r.id); setSaved(s => s.filter(x => x.id !== r.id)); }}>
                         <span className="sr-only">Delete</span>
                       </Btn>
@@ -1202,6 +1238,54 @@ export default function ResumeGuestMode({ onClose }) {
               <Btn variant="ghost" icon="Plus" onClick={() => setTab("new")}>New resume</Btn>
             </>
           )}
+        </div>
+      )}
+
+      {/* SETTINGS */}
+      {tab === "settings" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: 16, scrollbarWidth: "none" }}>
+          <p style={{ fontFamily: C.serif, fontStyle: "italic", fontSize: 17, color: C.text, margin: "0 0 16px" }}>
+            Settings
+          </p>
+
+          <div style={{ paddingBottom: 16, marginBottom: 16, borderBottom: `1px solid ${C.border}` }}>
+            <p style={{ fontSize: 13, color: C.text, margin: "0 0 3px", fontWeight: 600 }}>Style defaults</p>
+            <p style={{ fontSize: 12, color: C.muted, margin: "0 0 10px", lineHeight: 1.5 }}>
+              Reset font, size, spacing and accent back to Calibri, 11pt, navy.
+            </p>
+            <Btn small variant="ghost" icon="RefreshCw" onClick={() => setDocStyle(DEFAULT_STYLE)}>
+              Reset style
+            </Btn>
+          </div>
+
+          <div style={{ paddingBottom: 16, marginBottom: 16, borderBottom: `1px solid ${C.border}` }}>
+            <p style={{ fontSize: 13, color: C.text, margin: "0 0 3px", fontWeight: 600 }}>Saved resumes</p>
+            <p style={{ fontSize: 12, color: C.muted, margin: "0 0 10px", lineHeight: 1.5 }}>
+              {saved.length > 0
+                ? `${saved.length} resume${saved.length !== 1 ? "s" : ""} stored on the server.`
+                : "Nothing saved yet."}
+            </p>
+            {!confirmClear ? (
+              <Btn small variant="danger" icon="Trash2" disabled={saved.length === 0}
+                onClick={() => setConfirmClear(true)}>
+                Clear all saved resumes
+              </Btn>
+            ) : (
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12.5, color: C.red }}>Delete all {saved.length}? This can't be undone.</span>
+                <Btn small variant="danger" onClick={async () => {
+                  await Promise.all(saved.map(r => apiDelete(r.id)));
+                  setSaved([]); setConfirmClear(false);
+                }}>Yes, delete</Btn>
+                <Btn small variant="ghost" onClick={() => setConfirmClear(false)}>Cancel</Btn>
+              </div>
+            )}
+          </div>
+
+          <p style={{ fontSize: 11.5, color: C.faint, margin: 0 }}>
+            Resume Builder · Guest Mode<br />
+            Generation runs on your own Groq-backed API — nothing is stored beyond what you see in "Saved."
+          </p>
         </div>
       )}
     </>
@@ -1246,14 +1330,15 @@ export default function ResumeGuestMode({ onClose }) {
         </div>
       </header>
 
-      {/* ── Single segmented nav row — Build / Style / Saved (+ Preview on mobile) ── */}
+      {/* ── Single segmented nav row — Build / Style / Saved / Settings (+ Preview on mobile) ── */}
       <div role="tablist" aria-label="View" style={{ display: "flex", flexShrink: 0,
-        background: C.surface, borderBottom: `1px solid ${C.border}`, padding: 5, gap: 5 }}>
+        background: C.panel, borderBottom: `1px solid ${C.border}`, padding: "0 6px" }}>
         {[
           { id: "new",       icon: "Sparkles",  label: "Build" },
           { id: "style",     icon: "Settings2", label: "Style" },
           ...(!isDesktop ? [{ id: "preview", icon: "Eye", label: "Preview" }] : []),
           { id: "templates", icon: "Layout",   label: "Saved" },
+          { id: "settings",  icon: "Gear",      label: "Settings" },
         ].map(v => {
           const active = isDesktop ? tab === v.id : (v.id === "preview" ? mobileView === "preview" : (mobileView === "panel" && tab === v.id));
           const onTap = () => {
@@ -1263,12 +1348,12 @@ export default function ResumeGuestMode({ onClose }) {
           };
           return (
             <button key={v.id} role="tab" aria-selected={active} onClick={onTap}
-              style={{ flex: 1, minHeight: 38, display: "flex", alignItems: "center",
-                justifyContent: "center", gap: 6, borderRadius: 7, border: "none", cursor: "pointer",
-                background: active ? C.blue : "transparent",
-                color: active ? "#fff" : C.muted,
-                fontSize: 12.5, fontWeight: 700, fontFamily: C.sans, transition: "all 0.12s" }}>
-              <Icon name={v.icon} size={13} color={active ? "#fff" : C.muted} />
+              style={{ flex: 1, minHeight: 40, display: "flex", alignItems: "center",
+                justifyContent: "center", gap: 6, border: "none", cursor: "pointer",
+                background: "transparent", borderBottom: `2px solid ${active ? C.gold : "transparent"}`,
+                color: active ? C.text : C.faint,
+                fontSize: 12, fontWeight: active ? 700 : 500, fontFamily: C.sans, transition: "color 0.12s, border-color 0.12s" }}>
+              <Icon name={v.icon} size={13} color={active ? C.gold : C.faint} />
               {v.label}
             </button>
           );
