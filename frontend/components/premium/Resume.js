@@ -600,12 +600,20 @@ function useWindowWidth() {
   return w;
 }
 
+// ── Book-flip transition — turns like a page, used when switching "My Resumes" ⇄ "Guest Mode" ──
+const FLIP_VARIANTS = {
+  enter:  (dir) => ({ rotateY: dir > 0 ? 90 : -90, opacity: 0 }),
+  center: { rotateY: 0, opacity: 1, transition: { duration: 0.52, ease: [0.32, 0.72, 0, 1] } },
+  exit:   (dir) => ({ rotateY: dir > 0 ? -90 : 90, opacity: 0, transition: { duration: 0.42, ease: [0.32, 0.72, 0, 1] } }),
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN Resume component
 // ═══════════════════════════════════════════════════════════════════════════════
 const Resume = ({ onClose }) => {
   // "mine" = pre-built resumes, "guest" = AI wizard
   const [mode,         setMode]         = useState("mine");
+  const [flipDir,      setFlipDir]      = useState(1); // 1 = flipping forward (mine→guest), -1 = flipping back
   const [activeResume, setActiveResume] = useState("it");
   const [resumeData,   setResumeData]   = useState(() => JSON.parse(JSON.stringify(RESUMES["it"])));
   const [style,        setStyle]        = useState({ font: "calibri", fontSize: 11, lineHeight: 1.4, accent: "navy" });
@@ -638,6 +646,13 @@ const Resume = ({ onClose }) => {
     setActiveResume(key);
     setResumeData(JSON.parse(JSON.stringify(RESUMES[key])));
     if (isMobile) setSidebarOpen(false);
+  };
+
+  // Drives the book-flip page-turn transition — direction depends on which way we're navigating
+  const goToMode = (next) => {
+    if (next === mode) return;
+    setFlipDir(next === "guest" ? 1 : -1);
+    setMode(next);
   };
 
   const onEditContact  = useCallback((f, v) => setResumeData(r => ({ ...r, contact: { ...r.contact, [f]: v } })), []);
@@ -765,121 +780,132 @@ const Resume = ({ onClose }) => {
     </>
   );
 
-  // Guest mode is a fully self-contained, full-screen experience —
-  // it owns its own header, preview, and close button.
-  if (mode === "guest") {
-    return <ResumeGuestMode onClose={() => setMode("mine")} />;
-  }
-
+  // ── Outer stage: gives the two modes a shared 3D space so switching between
+  // them reads as turning a page in a book, rather than an abrupt content swap.
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      style={{ position: "fixed", inset: 0, bottom: "var(--taskbar-height,52px)", zIndex: 50,
-        background: T.bg, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: T.sans }}>
+    <div style={{ position: "fixed", inset: 0, bottom: "var(--taskbar-height,52px)", zIndex: 50,
+      background: T.bg, perspective: 2200, perspectiveOrigin: "50% 50%", overflow: "hidden" }}>
 
       <style>{`@media print { body * { visibility: hidden; } #nova-resume-print, #nova-resume-print * { visibility: visible; } #nova-resume-print { position: fixed; left: 0; top: 0; width: 100%; } }`}</style>
 
-      {/* ── Top bar ── */}
-      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "10px 14px", background: T.panel, borderBottom: `1px solid ${T.border}`, gap: 8, minWidth: 0 }}>
+      <AnimatePresence mode="wait" custom={flipDir}>
+        {mode === "guest" ? (
+          // Guest mode is a fully self-contained, full-screen experience —
+          // it owns its own header, preview, and close button.
+          <motion.div key="guest" custom={flipDir} variants={FLIP_VARIANTS} initial="enter" animate="center" exit="exit"
+            style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d",
+              backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}>
+            <ResumeGuestMode onClose={() => goToMode("mine")} />
+          </motion.div>
+        ) : (
+          <motion.div key="mine" custom={flipDir} variants={FLIP_VARIANTS} initial="enter" animate="center" exit="exit"
+            style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d",
+              backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
+              display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: T.sans, background: T.bg }}>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
-          {/* Sidebar toggle — only for "mine" mode */}
-          {mode === "mine" && (
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => setSidebarOpen(v => !v)}
-              aria-label={sidebarOpen ? "Hide panel" : "Show panel"} title={sidebarOpen ? "Hide panel" : "Show panel"}
-              style={{ width: 32, height: 32, borderRadius: 9, background: sidebarOpen ? T.goldBg : T.raised,
-                border: `1px solid ${sidebarOpen ? T.goldBr : T.border}`,
-                display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-              <Ic d={ICONS.panel} size={14} color={sidebarOpen ? T.gold : T.sub} />
-            </motion.button>
-          )}
-          <Ic d={ICONS.doc} size={15} color={T.gold} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: T.text, flexShrink: 0 }}>Resume Studio</span>
+            {/* ── Top bar — two clear rows: identity/actions, then a big tappable mode switch ── */}
+            <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", background: T.panel, borderBottom: `1px solid ${T.border}` }}>
 
-          {/* Mode switcher */}
-          <div role="tablist" aria-label="Resume mode" style={{ display: "flex", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 9, padding: 3, gap: 3, marginLeft: 6 }}>
-            {[{ id: "mine", label: "My Resumes", icon: ICONS.doc }, { id: "guest", label: "Guest Mode", icon: ICONS.sparkle }].map(m => (
-              <button key={m.id} role="tab" aria-selected={mode === m.id} onClick={() => setMode(m.id)}
-                style={{ padding: isMobile ? "7px 9px" : "6px 12px", minHeight: 30, borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11.5, fontWeight: 700, fontFamily: T.sans,
-                  display: "flex", alignItems: "center", gap: 6,
-                  background: mode === m.id ? T.blue : "transparent",
-                  color: mode === m.id ? "#fff" : T.sub,
-                  transition: "background 0.15s, color 0.15s" }}>
-                <Ic d={m.icon} size={12} color={mode === m.id ? "#fff" : T.sub} />
-                {!isMobile && m.label}
-              </button>
-            ))}
-          </div>
-        </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px 8px", gap: 10, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                  <motion.button whileTap={{ scale: 0.9 }} onClick={() => setSidebarOpen(v => !v)}
+                    aria-label={sidebarOpen ? "Hide panel" : "Show panel"} title={sidebarOpen ? "Hide panel" : "Show panel"}
+                    style={{ width: 40, height: 40, borderRadius: 12, background: sidebarOpen ? T.goldBg : T.raised,
+                      border: `1px solid ${sidebarOpen ? T.goldBr : T.border}`,
+                      display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                    <Ic d={ICONS.panel} size={16} color={sidebarOpen ? T.gold : T.sub} />
+                  </motion.button>
+                  <Ic d={ICONS.doc} size={17} color={T.gold} />
+                  <span style={{ fontSize: 15, fontWeight: 800, color: T.text, flexShrink: 0, letterSpacing: "-0.01em" }}>Resume Studio</span>
+                </div>
 
-        {/* Download buttons — shown in both modes once resume exists */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          <motion.button whileTap={!downloading ? { scale: 0.94 } : undefined} onClick={handleDownloadDocx} disabled={!!downloading}
-            aria-label="Download as Word document" title="Download as Word (.docx)"
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: isMobile ? "8px 10px" : "9px 14px", minHeight: 36,
-              borderRadius: 10, background: T.goldBg, border: `1px solid ${T.goldBr}`,
-              color: T.gold, fontSize: 11.5, fontWeight: 700, fontFamily: T.sans, cursor: downloading ? "not-allowed" : "pointer",
-              opacity: downloading && downloading !== "docx" ? 0.45 : 1, whiteSpace: "nowrap" }}>
-            <Ic d={ICONS.download} size={13} color={T.gold} />
-            {!isMobile && (downloading === "docx" ? "Preparing…" : "Word")}
-          </motion.button>
-          <motion.button whileTap={!downloading ? { scale: 0.94 } : undefined} onClick={handleDownloadPdf} disabled={!!downloading}
-            aria-label="Download as PDF" title="Download as PDF"
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: isMobile ? "8px 10px" : "9px 14px", minHeight: 36,
-              borderRadius: 10, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.22)",
-              color: "#E84545", fontSize: 11.5, fontWeight: 700, fontFamily: T.sans, cursor: downloading ? "not-allowed" : "pointer",
-              opacity: downloading && downloading !== "pdf" ? 0.45 : 1, whiteSpace: "nowrap" }}>
-            <Ic d={ICONS.download} size={13} color="#E84545" />
-            {!isMobile && (downloading === "pdf" ? "Preparing…" : "PDF")}
-          </motion.button>
-          <motion.button whileTap={{ scale: 0.88 }} onClick={onClose} aria-label="Close Resume Studio" title="Close"
-            style={{ width: 32, height: 32, borderRadius: "50%", background: T.raised, border: `1px solid ${T.border}`,
-              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-            <Ic d={ICONS.close} size={14} color={T.sub} />
-          </motion.button>
-        </div>
-      </div>
-
-      {/* ── Body ── */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
-
-        {/* ── MY RESUMES mode ── */}
-        {mode === "mine" && (
-          <>
-            <AnimatePresence>
-              {(!isMobile || sidebarOpen) && (
-                <motion.div
-                  initial={isMobile ? { x: -sidebarW } : false}
-                  animate={{ x: 0 }} exit={{ x: -sidebarW }}
-                  transition={{ type: "spring", damping: 28, stiffness: 300 }}
-                  style={{ width: sidebarW, flexShrink: 0, background: T.panel, borderRight: `1px solid ${T.border}`,
-                    display: "flex", flexDirection: "column",
-                    position: isMobile ? "absolute" : "relative", top: 0, left: 0, bottom: 0, zIndex: isMobile ? 10 : 1 }}>
-                  <SidebarContent />
-                </motion.div>
-              )}
-            </AnimatePresence>
-            {isMobile && sidebarOpen && (
-              <div onClick={() => setSidebarOpen(false)}
-                style={{ position: "absolute", inset: 0, zIndex: 9, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
-            )}
-            <div ref={canvasRef} style={{ flex: 1, overflowY: "auto", background: "#D0D0D0",
-              display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 0 40px", scrollbarWidth: "thin" }}>
-              <div style={{ fontFamily: T.mono, fontSize: 9, color: "#888", marginBottom: 10, letterSpacing: "0.08em" }}>
-                {Math.round(scale * 100)}% · Click any text to edit
+                {/* Download buttons — big, labelled, unmissable */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  <motion.button whileTap={!downloading ? { scale: 0.94 } : undefined} onClick={handleDownloadDocx} disabled={!!downloading}
+                    aria-label="Download as Word document" title="Download as Word (.docx)"
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 14px", minHeight: 40,
+                      borderRadius: 12, background: T.goldBg, border: `1px solid ${T.goldBr}`,
+                      color: T.gold, fontSize: 12.5, fontWeight: 700, fontFamily: T.sans, cursor: downloading ? "not-allowed" : "pointer",
+                      opacity: downloading && downloading !== "docx" ? 0.45 : 1, whiteSpace: "nowrap" }}>
+                    <Ic d={ICONS.download} size={14} color={T.gold} />
+                    {downloading === "docx" ? "Preparing…" : "Word"}
+                  </motion.button>
+                  <motion.button whileTap={!downloading ? { scale: 0.94 } : undefined} onClick={handleDownloadPdf} disabled={!!downloading}
+                    aria-label="Download as PDF" title="Download as PDF"
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 14px", minHeight: 40,
+                      borderRadius: 12, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.22)",
+                      color: "#E84545", fontSize: 12.5, fontWeight: 700, fontFamily: T.sans, cursor: downloading ? "not-allowed" : "pointer",
+                      opacity: downloading && downloading !== "pdf" ? 0.45 : 1, whiteSpace: "nowrap" }}>
+                    <Ic d={ICONS.download} size={14} color="#E84545" />
+                    {downloading === "pdf" ? "Preparing…" : "PDF"}
+                  </motion.button>
+                  <motion.button whileTap={{ scale: 0.88 }} onClick={onClose} aria-label="Close Resume Studio" title="Close"
+                    style={{ width: 40, height: 40, borderRadius: "50%", background: T.raised, border: `1px solid ${T.border}`,
+                      display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                    <Ic d={ICONS.close} size={16} color={T.sub} />
+                  </motion.button>
+                </div>
               </div>
-              <div style={{ width: scaledW, height: scaledH, flexShrink: 0, position: "relative" }}>
-                <div style={{ width: A4W, height: A4H, transform: `scale(${scale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0, boxShadow: "0 4px 32px rgba(0,0,0,0.3)" }}>
-                  <Preview ref={previewRef} resume={resumeData} style={style}
-                    onEditContact={onEditContact} onEditText={onEditText}
-                    onEditBullet={onEditBullet} onEditJob={onEditJob} onEditDegree={onEditDegree} />
+
+              {/* Mode switcher — full-width segmented control, sliding highlight, labels always on */}
+              <div role="tablist" aria-label="Resume mode" style={{ display: "flex", background: T.surface, border: `1px solid ${T.border}`,
+                borderRadius: 14, padding: 4, gap: 4, margin: "0 14px 12px" }}>
+                {[{ id: "mine", label: "My Resumes", icon: ICONS.doc }, { id: "guest", label: "Guest Mode · AI", icon: ICONS.sparkle }].map(m => (
+                  <button key={m.id} role="tab" aria-selected={mode === m.id} onClick={() => goToMode(m.id)}
+                    style={{ position: "relative", flex: 1, padding: "11px 10px", minHeight: 44, borderRadius: 11,
+                      border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: T.sans,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                      background: "transparent", color: mode === m.id ? "#fff" : T.sub }}>
+                    {mode === m.id && (
+                      <motion.span layoutId="modePill" transition={{ type: "spring", damping: 26, stiffness: 320 }}
+                        style={{ position: "absolute", inset: 0, borderRadius: 11, background: T.blue, zIndex: 0 }} />
+                    )}
+                    <span style={{ position: "relative", zIndex: 1, display: "flex" }}>
+                      <Ic d={m.icon} size={14} color={mode === m.id ? "#fff" : T.sub} />
+                    </span>
+                    <span style={{ position: "relative", zIndex: 1 }}>{m.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Body ── */}
+            <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
+              <AnimatePresence>
+                {(!isMobile || sidebarOpen) && (
+                  <motion.div
+                    initial={isMobile ? { x: -sidebarW } : false}
+                    animate={{ x: 0 }} exit={{ x: -sidebarW }}
+                    transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                    style={{ width: sidebarW, flexShrink: 0, background: T.panel, borderRight: `1px solid ${T.border}`,
+                      display: "flex", flexDirection: "column",
+                      position: isMobile ? "absolute" : "relative", top: 0, left: 0, bottom: 0, zIndex: isMobile ? 10 : 1 }}>
+                    <SidebarContent />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              {isMobile && sidebarOpen && (
+                <div onClick={() => setSidebarOpen(false)}
+                  style={{ position: "absolute", inset: 0, zIndex: 9, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
+              )}
+              <div ref={canvasRef} style={{ flex: 1, overflowY: "auto", background: "#D0D0D0",
+                display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 0 40px", scrollbarWidth: "thin" }}>
+                <div style={{ fontFamily: T.mono, fontSize: 9, color: "#888", marginBottom: 10, letterSpacing: "0.08em" }}>
+                  {Math.round(scale * 100)}% · Click any text to edit
+                </div>
+                <div style={{ width: scaledW, height: scaledH, flexShrink: 0, position: "relative" }}>
+                  <div style={{ width: A4W, height: A4H, transform: `scale(${scale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0, boxShadow: "0 4px 32px rgba(0,0,0,0.3)" }}>
+                    <Preview ref={previewRef} resume={resumeData} style={style}
+                      onEditContact={onEditContact} onEditText={onEditText}
+                      onEditBullet={onEditBullet} onEditJob={onEditJob} onEditDegree={onEditDegree} />
+                  </div>
                 </div>
               </div>
             </div>
-          </>
+          </motion.div>
         )}
-      </div>
-    </motion.div>
+      </AnimatePresence>
+    </div>
   );
 };
 
