@@ -49,18 +49,22 @@ const C = {
   panel:   "#111318",
   surface: "#15171D",
   raised:  "#1B1E26",
-  border:  "rgba(255,255,255,0.08)",
-  borderHi:"rgba(255,255,255,0.16)",
-  text:    "#E8E3D8",
-  muted:   "#8A8F98",
-  faint:   "rgba(138,143,152,0.55)",
-  gold:    "#B9975B",
-  red:     "#C4695A",
-  green:   "#7A9B76",
+  border:  "rgba(255,255,255,0.10)",
+  borderHi:"rgba(255,255,255,0.22)",
+  text:    "#F5F2EA",
+  muted:   "#A6ABB4",
+  faint:   "rgba(166,171,180,0.72)",
+  gold:    "#C9A24E",
+  goldFg:  "#1A1710",
+  red:     "#E0796A",
+  green:   "#8FBF8A",
   sans:    "'Helvetica Neue',Arial,sans-serif",
   serif:   "'Iowan Old Style','Palatino Linotype',Georgia,serif",
   mono:    "'SF Mono','JetBrains Mono','Courier New',monospace",
 };
+// App-shell type scale — bigger than a resume's own type scale on purpose:
+// this is the interface people tap and read quickly, not the printed page.
+const TS = { label: 14, body: 16, meta: 13, title: 19, nav: 12.5 };
 
 // ── Lucide-style icons (named, readable) ────────────────────────────────────
 // Each icon is a complete, recognisable SVG path from Lucide icon set
@@ -137,28 +141,31 @@ function Spinner({ size = 20, color = C.gold }) {
 // Everything else is an outline or plain text; no colour-tinted boxes.
 function Btn({ children, onClick, disabled, variant = "primary", small, icon, loading }) {
   const v = {
-    primary: { bg: C.text,        border: C.text,         fg: C.bg    },
-    gold:    { bg: C.gold,        border: C.gold,          fg: "#1A1710" },
-    ghost:   { bg: "transparent", border: C.border,        fg: C.muted },
-    danger:  { bg: "transparent", border: "transparent",   fg: C.red   },
-    success: { bg: "transparent", border: C.border,        fg: C.green },
+    primary: { bg: C.text,        border: C.text,          fg: C.bg,   weight: 700 },
+    gold:    { bg: C.gold,        border: C.gold,           fg: C.goldFg, weight: 700 },
+    ghost:   { bg: C.surface,     border: C.border,         fg: C.text, weight: 600 },
+    danger:  { bg: "transparent", border: "rgba(224,121,106,0.35)", fg: C.red, weight: 600 },
+    success: { bg: "transparent", border: C.border,         fg: C.green, weight: 600 },
   }[variant];
   return (
     <button
       onClick={disabled ? undefined : onClick}
       style={{
         display: "inline-flex", alignItems: "center", justifyContent: "center",
-        gap: 7, padding: small ? "8px 14px" : "12px 16px",
-        minHeight: small ? 36 : 44, // WCAG AA minimum tap target
-        borderRadius: 6, border: `1px solid ${v.border}`,
+        gap: 8, padding: small ? "10px 16px" : "14px 18px",
+        minHeight: small ? 44 : 54, // real tap targets, not the WCAG floor
+        borderRadius: small ? 10 : 12, border: `1.5px solid ${v.border}`,
         background: v.bg, color: v.fg,
-        fontSize: small ? 12.5 : 13.5, fontWeight: 600, fontFamily: C.sans,
+        fontSize: small ? 14 : 16, fontWeight: v.weight, fontFamily: C.sans,
         letterSpacing: "0.01em",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.4 : 1, width: small ? "auto" : "100%",
-        transition: "opacity 0.15s, border-color 0.15s", boxSizing: "border-box",
-      }}>
-      {loading ? <Spinner size={14} color={v.fg} /> : icon && <Icon name={icon} size={14} color={v.fg} />}
+        transition: "opacity 0.15s, border-color 0.15s, transform 0.08s", boxSizing: "border-box",
+      }}
+      onMouseDown={e => { if (!disabled) e.currentTarget.style.transform = "scale(0.98)"; }}
+      onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}>
+      {loading ? <Spinner size={small ? 15 : 17} color={v.fg} /> : icon && <Icon name={icon} size={small ? 16 : 18} color={v.fg} />}
       {children}
     </button>
   );
@@ -167,39 +174,32 @@ function Btn({ children, onClick, disabled, variant = "primary", small, icon, lo
 // ── Input / Textarea ───────────────────────────────────────────────────────────
 function Field({ label, required, hint, value, onChange, placeholder, multiline, rows = 3, mono }) {
   const [focused, setFocused] = useState(false);
-  const hasValue = !!value;
-  const float = focused || hasValue;
   const base = {
     width: "100%", background: C.surface,
-    border: `1px solid ${focused ? C.borderHi : C.border}`,
-    borderRadius: 5, padding: float ? "16px 11px 6px" : "11px 11px",
-    minHeight: 44, // WCAG AA tap target
-    color: C.text, fontSize: 14.5,
+    border: `1.5px solid ${focused ? C.gold : C.border}`,
+    borderRadius: 10, padding: "13px 13px",
+    minHeight: 52, // real tap target
+    color: C.text, fontSize: 16, // 16px prevents mobile-Safari zoom-on-focus too
     fontFamily: mono ? C.mono : C.sans,
     boxSizing: "border-box", outline: "none",
-    transition: "border-color 0.12s, padding 0.12s", lineHeight: 1.45,
+    transition: "border-color 0.12s", lineHeight: 1.5,
   };
   const events = {
     value,
     onChange: e => onChange(e.target.value),
     onFocus: () => setFocused(true),
     onBlur:  () => setFocused(false),
-    placeholder: float ? placeholder : "",
+    placeholder,
     "aria-label": label,
   };
   return (
-    <div style={{ marginBottom: 8, position: "relative" }}>
-      <span aria-hidden style={{
-        position: "absolute", left: 11, top: float ? 6 : "50%",
-        transform: float ? "none" : "translateY(-50%)",
-        fontSize: float ? 10.5 : 14.5, fontWeight: 500,
-        color: float ? C.faint : C.muted,
-        fontFamily: C.sans,
-        pointerEvents: "none", transition: "all 0.12s",
-        whiteSpace: "nowrap",
-      }}>
-        {label}{required && <span style={{ color: C.red }}> *</span>}{hint && float && <span style={{ color: C.faint, fontWeight: 400 }}> · {hint}</span>}
-      </span>
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: C.text, fontFamily: C.sans, letterSpacing: "0.02em" }}>
+          {label}{required && <span style={{ color: C.gold }}> *</span>}
+        </span>
+        {hint && <span style={{ fontSize: 12, color: C.faint, fontFamily: C.sans }}>{hint}</span>}
+      </div>
       {multiline
         ? <textarea {...events} rows={rows} style={{ ...base, resize: "vertical" }} />
         : <input    {...events} type="text" style={base} />
@@ -212,12 +212,19 @@ function Field({ label, required, hint, value, onChange, placeholder, multiline,
 function Steps({ current }) {
   const steps = ["Your Info", "Job Posting"];
   return (
-    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between",
-      marginBottom: 18, paddingBottom: 10, borderBottom: `1px solid ${C.border}` }}>
-      <span style={{ fontFamily: C.serif, fontSize: 16, fontStyle: "italic", color: C.text }}>
-        {steps[current - 1]}
-      </span>
-      <span style={{ fontSize: 11.5, color: C.faint }}>{current} / {steps.length}</span>
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <span style={{ fontSize: 20, fontWeight: 700, color: C.text, fontFamily: C.sans }}>
+          {steps[current - 1]}
+        </span>
+        <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>Step {current} of {steps.length}</span>
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        {steps.map((s, i) => (
+          <div key={s} style={{ flex: 1, height: 5, borderRadius: 3,
+            background: i < current ? C.gold : C.border }} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -1302,63 +1309,58 @@ export default function ResumeGuestMode({ onClose }) {
         .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
       `}</style>
 
-      {/* ── Top bar ── */}
-      <header style={{ flexShrink: 0, height: 48, display: "flex", alignItems: "center",
-        justifyContent: "space-between", padding: "0 10px", background: C.panel,
-        borderBottom: `1px solid ${C.border}`, gap: 8 }}>
+      {/* ── Top bar — title, close, and the two actions that matter most ── */}
+      <header style={{ flexShrink: 0, height: 64, display: "flex", alignItems: "center",
+        justifyContent: "space-between", padding: "0 14px", background: C.panel,
+        borderBottom: `1px solid ${C.border}`, gap: 10 }}>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
-          <Icon name="FileText" size={16} color={C.gold} />
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: C.text, whiteSpace: "nowrap" }}>Resume</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+          <button onClick={onClose} aria-label="Close resume builder"
+            style={{ width: 40, height: 40, borderRadius: "50%", background: C.raised,
+              border: `1px solid ${C.border}`, display: "flex", alignItems: "center",
+              justifyContent: "center", cursor: "pointer", color: C.text, flexShrink: 0 }}>
+            <Icon name="X" size={17} color={C.text} />
+          </button>
+          <span style={{ fontSize: TS.title, fontWeight: 700, color: C.text, whiteSpace: "nowrap" }}>Resume Builder</span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <Btn small icon="FileDown" loading={downloading === "docx"}
             onClick={handleDocx} disabled={!resume || !!downloading} variant="gold">
-            {isPhone ? "" : "Word"}
+            Word
           </Btn>
           <Btn small icon="FileDown" loading={downloading === "pdf"}
             onClick={handlePdf} disabled={!resume || !!downloading} variant="ghost">
-            {isPhone ? "" : "PDF"}
+            PDF
           </Btn>
-          <button onClick={onClose} aria-label="Close resume builder"
-            style={{ width: 32, height: 32, borderRadius: "50%", background: C.raised,
-              border: `1px solid ${C.border}`, display: "flex", alignItems: "center",
-              justifyContent: "center", cursor: "pointer", color: C.muted, flexShrink: 0 }}>
-            <Icon name="X" size={14} color={C.muted} />
-          </button>
         </div>
       </header>
 
-      {/* ── Single segmented nav row — Build / Style / Saved / Settings (+ Preview on mobile) ── */}
-      <div role="tablist" aria-label="View" style={{ display: "flex", flexShrink: 0,
-        background: C.panel, borderBottom: `1px solid ${C.border}`, padding: "0 6px" }}>
-        {[
-          { id: "new",       icon: "Sparkles",  label: "Build" },
-          { id: "style",     icon: "Settings2", label: "Style" },
-          ...(!isDesktop ? [{ id: "preview", icon: "Eye", label: "Preview" }] : []),
-          { id: "templates", icon: "Layout",   label: "Saved" },
-          { id: "settings",  icon: "Gear",      label: "Settings" },
-        ].map(v => {
-          const active = isDesktop ? tab === v.id : (v.id === "preview" ? mobileView === "preview" : (mobileView === "panel" && tab === v.id));
-          const onTap = () => {
-            if (v.id === "preview") { setMobileView("preview"); return; }
-            setTab(v.id);
-            if (!isDesktop) setMobileView("panel");
-          };
-          return (
-            <button key={v.id} role="tab" aria-selected={active} onClick={onTap}
-              style={{ flex: 1, minHeight: 40, display: "flex", alignItems: "center",
-                justifyContent: "center", gap: 6, border: "none", cursor: "pointer",
-                background: "transparent", borderBottom: `2px solid ${active ? C.gold : "transparent"}`,
-                color: active ? C.text : C.faint,
-                fontSize: 12, fontWeight: active ? 700 : 500, fontFamily: C.sans, transition: "color 0.12s, border-color 0.12s" }}>
-              <Icon name={v.icon} size={13} color={active ? C.gold : C.faint} />
-              {v.label}
-            </button>
-          );
-        })}
-      </div>
+      {/* ── Desktop: top segmented nav, bigger and always labeled ── */}
+      {isDesktop && (
+        <div role="tablist" aria-label="View" style={{ display: "flex", flexShrink: 0,
+          background: C.panel, borderBottom: `1px solid ${C.border}`, padding: "0 10px" }}>
+          {[
+            { id: "new",       icon: "Sparkles",  label: "Build" },
+            { id: "style",     icon: "Settings2", label: "Style" },
+            { id: "templates", icon: "Layout",   label: "Saved" },
+            { id: "settings",  icon: "Gear",      label: "Settings" },
+          ].map(v => {
+            const active = tab === v.id;
+            return (
+              <button key={v.id} role="tab" aria-selected={active} onClick={() => setTab(v.id)}
+                style={{ minHeight: 52, padding: "0 18px", display: "flex", alignItems: "center",
+                  justifyContent: "center", gap: 8, border: "none", cursor: "pointer",
+                  background: "transparent", borderBottom: `3px solid ${active ? C.gold : "transparent"}`,
+                  color: active ? C.text : C.faint,
+                  fontSize: 14.5, fontWeight: active ? 700 : 500, fontFamily: C.sans, transition: "color 0.12s, border-color 0.12s" }}>
+                <Icon name={v.icon} size={16} color={active ? C.gold : C.faint} />
+                {v.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Body ── */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
@@ -1366,7 +1368,7 @@ export default function ResumeGuestMode({ onClose }) {
         {/* Desktop: sidebar + preview side by side */}
         {isDesktop && (
           <>
-            <div style={{ width: 340, flexShrink: 0, display: "flex", flexDirection: "column",
+            <div style={{ width: 380, flexShrink: 0, display: "flex", flexDirection: "column",
               background: C.panel, borderRight: `1px solid ${C.border}` }}>
               {PanelContent()}
             </div>
@@ -1374,13 +1376,44 @@ export default function ResumeGuestMode({ onClose }) {
           </>
         )}
 
-        {/* Phone/tablet: one screen at a time, toggled above */}
+        {/* Phone/tablet: one screen at a time, toggled by the bottom bar */}
         {!isDesktop && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             {mobileView === "panel" ? PanelContent() : PreviewCanvas()}
           </div>
         )}
       </div>
+
+      {/* ── Mobile/tablet: fixed bottom tab bar — icon + always-visible label, native-app style ── */}
+      {!isDesktop && (
+        <nav role="tablist" aria-label="View" style={{ flexShrink: 0, display: "flex",
+          background: C.panel, borderTop: `1px solid ${C.border}`,
+          paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+          {[
+            { id: "new",       icon: "Sparkles",  label: "Build" },
+            { id: "style",     icon: "Settings2", label: "Style" },
+            { id: "preview",   icon: "Eye",       label: "Preview" },
+            { id: "templates", icon: "Layout",    label: "Saved" },
+            { id: "settings",  icon: "Gear",      label: "Settings" },
+          ].map(v => {
+            const active = v.id === "preview" ? mobileView === "preview" : (mobileView === "panel" && tab === v.id);
+            const onTap = () => {
+              if (v.id === "preview") { setMobileView("preview"); return; }
+              setTab(v.id);
+              setMobileView("panel");
+            };
+            return (
+              <button key={v.id} role="tab" aria-selected={active} onClick={onTap}
+                style={{ flex: 1, minHeight: 62, display: "flex", flexDirection: "column",
+                  alignItems: "center", justifyContent: "center", gap: 4, border: "none", cursor: "pointer",
+                  background: "transparent", color: active ? C.gold : C.faint }}>
+                <Icon name={v.icon} size={21} color={active ? C.gold : C.faint} />
+                <span style={{ fontSize: TS.nav, fontWeight: active ? 700 : 500, fontFamily: C.sans }}>{v.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
     </motion.div>
   );
 }
