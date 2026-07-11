@@ -139,7 +139,7 @@ function Spinner({ size = 20, color = C.gold }) {
 // ── Button ─────────────────────────────────────────────────────────────────────
 // Only one filled button exists ("gold" — the single call-to-action per screen).
 // Everything else is an outline or plain text; no colour-tinted boxes.
-function Btn({ children, onClick, disabled, variant = "primary", small, icon, loading }) {
+function Btn({ children, onClick, disabled, variant = "primary", small, icon, loading, className, labelClassName }) {
   const v = {
     primary: { bg: C.text,        border: C.text,          fg: C.bg,   weight: 700 },
     gold:    { bg: C.gold,        border: C.gold,           fg: C.goldFg, weight: 700 },
@@ -149,6 +149,7 @@ function Btn({ children, onClick, disabled, variant = "primary", small, icon, lo
   }[variant];
   return (
     <button
+      className={className}
       onClick={disabled ? undefined : onClick}
       style={{
         display: "inline-flex", alignItems: "center", justifyContent: "center",
@@ -166,7 +167,7 @@ function Btn({ children, onClick, disabled, variant = "primary", small, icon, lo
       onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
       onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}>
       {loading ? <Spinner size={small ? 15 : 17} color={v.fg} /> : icon && <Icon name={icon} size={small ? 16 : 18} color={v.fg} />}
-      {children}
+      {labelClassName ? <span className={labelClassName}>{children}</span> : children}
     </button>
   );
 }
@@ -1300,13 +1301,17 @@ export default function ResumeGuestMode({ onClose }) {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      style={{ position: "fixed", inset: 0, bottom: "var(--taskbar-height,52px)",
+      style={{ position: "absolute", inset: 0,
         zIndex: 50, background: C.bg, display: "flex", flexDirection: "column",
         fontFamily: C.sans, overflow: "hidden" }}>
 
       <style>{`
         @media print{body *{visibility:hidden!important}#__resume_pdf_print__,#__resume_pdf_print__ *{visibility:visible!important}#__resume_pdf_print__{position:fixed!important;left:0!important;top:0!important;width:100%!important;transform:none!important;box-shadow:none!important}}
         .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+        @media (max-width: 380px) {
+          .rgm-dl-label { display: none; }
+          .rgm-dl-btn { padding: 10px !important; gap: 0 !important; }
+        }
       `}</style>
 
       {/* ── Top bar — title, close, and the two actions that matter most ── */}
@@ -1314,22 +1319,23 @@ export default function ResumeGuestMode({ onClose }) {
         justifyContent: "space-between", padding: "0 14px", background: C.panel,
         borderBottom: `1px solid ${C.border}`, gap: 10 }}>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, flex: "1 1 auto", overflow: "hidden" }}>
           <button onClick={onClose} aria-label="Close resume builder"
             style={{ width: 40, height: 40, borderRadius: "50%", background: C.raised,
               border: `1px solid ${C.border}`, display: "flex", alignItems: "center",
               justifyContent: "center", cursor: "pointer", color: C.text, flexShrink: 0 }}>
             <Icon name="X" size={17} color={C.text} />
           </button>
-          <span style={{ fontSize: TS.title, fontWeight: 700, color: C.text, whiteSpace: "nowrap" }}>Resume Builder</span>
+          <span style={{ fontSize: TS.title, fontWeight: 700, color: C.text,
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>Resume Builder</span>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          <Btn small icon="FileDown" loading={downloading === "docx"}
+          <Btn small icon="FileDown" loading={downloading === "docx"} className="rgm-dl-btn" labelClassName="rgm-dl-label"
             onClick={handleDocx} disabled={!resume || !!downloading} variant="gold">
             Word
           </Btn>
-          <Btn small icon="FileDown" loading={downloading === "pdf"}
+          <Btn small icon="FileDown" loading={downloading === "pdf"} className="rgm-dl-btn" labelClassName="rgm-dl-label"
             onClick={handlePdf} disabled={!resume || !!downloading} variant="ghost">
             PDF
           </Btn>

@@ -786,7 +786,13 @@ const Resume = ({ onClose }) => {
     <div style={{ position: "fixed", inset: 0, bottom: "var(--taskbar-height,52px)", zIndex: 50,
       background: T.bg, perspective: 2200, perspectiveOrigin: "50% 50%", overflow: "hidden" }}>
 
-      <style>{`@media print { body * { visibility: hidden; } #nova-resume-print, #nova-resume-print * { visibility: visible; } #nova-resume-print { position: fixed; left: 0; top: 0; width: 100%; } }`}</style>
+      <style>{`
+        @media print { body * { visibility: hidden; } #nova-resume-print, #nova-resume-print * { visibility: visible; } #nova-resume-print { position: fixed; left: 0; top: 0; width: 100%; } }
+        @media (max-width: 430px) {
+          .rb-dl-btn { padding: 10px !important; gap: 0 !important; }
+          .rb-dl-label { display: none; }
+        }
+      `}</style>
 
       <AnimatePresence mode="wait" custom={flipDir}>
         {mode === "guest" ? (
@@ -806,8 +812,8 @@ const Resume = ({ onClose }) => {
             {/* ── Top bar — two clear rows: identity/actions, then a big tappable mode switch ── */}
             <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", background: T.panel, borderBottom: `1px solid ${T.border}` }}>
 
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px 8px", gap: 10, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px 8px", gap: 8, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: "1 1 auto", overflow: "hidden" }}>
                   <motion.button whileTap={{ scale: 0.9 }} onClick={() => setSidebarOpen(v => !v)}
                     aria-label={sidebarOpen ? "Hide panel" : "Show panel"} title={sidebarOpen ? "Hide panel" : "Show panel"}
                     style={{ width: 40, height: 40, borderRadius: 12, background: sidebarOpen ? T.goldBg : T.raised,
@@ -815,29 +821,30 @@ const Resume = ({ onClose }) => {
                       display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
                     <Ic d={ICONS.panel} size={16} color={sidebarOpen ? T.gold : T.sub} />
                   </motion.button>
-                  <Ic d={ICONS.doc} size={17} color={T.gold} />
-                  <span style={{ fontSize: 15, fontWeight: 800, color: T.text, flexShrink: 0, letterSpacing: "-0.01em" }}>Resume Studio</span>
+                  <Ic d={ICONS.doc} size={17} color={T.gold} style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: 15, fontWeight: 800, color: T.text, letterSpacing: "-0.01em",
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>Resume Studio</span>
                 </div>
 
-                {/* Download buttons — big, labelled, unmissable */}
+                {/* Download buttons — big, labelled, unmissable; collapse to icon-only below 430px so they never overlap the title */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                  <motion.button whileTap={!downloading ? { scale: 0.94 } : undefined} onClick={handleDownloadDocx} disabled={!!downloading}
+                  <motion.button className="rb-dl-btn" whileTap={!downloading ? { scale: 0.94 } : undefined} onClick={handleDownloadDocx} disabled={!!downloading}
                     aria-label="Download as Word document" title="Download as Word (.docx)"
                     style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 14px", minHeight: 40,
                       borderRadius: 12, background: T.goldBg, border: `1px solid ${T.goldBr}`,
                       color: T.gold, fontSize: 12.5, fontWeight: 700, fontFamily: T.sans, cursor: downloading ? "not-allowed" : "pointer",
                       opacity: downloading && downloading !== "docx" ? 0.45 : 1, whiteSpace: "nowrap" }}>
                     <Ic d={ICONS.download} size={14} color={T.gold} />
-                    {downloading === "docx" ? "Preparing…" : "Word"}
+                    <span className="rb-dl-label">{downloading === "docx" ? "Preparing…" : "Word"}</span>
                   </motion.button>
-                  <motion.button whileTap={!downloading ? { scale: 0.94 } : undefined} onClick={handleDownloadPdf} disabled={!!downloading}
+                  <motion.button className="rb-dl-btn" whileTap={!downloading ? { scale: 0.94 } : undefined} onClick={handleDownloadPdf} disabled={!!downloading}
                     aria-label="Download as PDF" title="Download as PDF"
                     style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 14px", minHeight: 40,
                       borderRadius: 12, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.22)",
                       color: "#E84545", fontSize: 12.5, fontWeight: 700, fontFamily: T.sans, cursor: downloading ? "not-allowed" : "pointer",
                       opacity: downloading && downloading !== "pdf" ? 0.45 : 1, whiteSpace: "nowrap" }}>
                     <Ic d={ICONS.download} size={14} color="#E84545" />
-                    {downloading === "pdf" ? "Preparing…" : "PDF"}
+                    <span className="rb-dl-label">{downloading === "pdf" ? "Preparing…" : "PDF"}</span>
                   </motion.button>
                   <motion.button whileTap={{ scale: 0.88 }} onClick={onClose} aria-label="Close Resume Studio" title="Close"
                     style={{ width: 40, height: 40, borderRadius: "50%", background: T.raised, border: `1px solid ${T.border}`,
