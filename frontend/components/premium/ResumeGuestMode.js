@@ -1390,11 +1390,15 @@ export default function ResumeGuestMode({ onClose }) {
         )}
       </div>
 
-      {/* ── Mobile/tablet: fixed bottom tab bar — icon + always-visible label, native-app style ── */}
+      {/* ── Mobile/tablet: frosted-glass bottom tab bar — native-app style ── */}
       {!isDesktop && (
-        <nav role="tablist" aria-label="View" style={{ flexShrink: 0, display: "flex",
-          background: C.panel, borderTop: `1px solid ${C.border}`,
-          paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+        <nav role="tablist" aria-label="View" style={{
+          flexShrink: 0, position: "relative", display: "flex",
+          background: `${C.panel}E3`, backdropFilter: "blur(24px) saturate(180%)",
+          WebkitBackdropFilter: "blur(24px) saturate(180%)",
+          borderTop: `1px solid ${C.border}`,
+          boxShadow: "0 -14px 34px rgba(0,0,0,0.32)",
+          paddingTop: 7, paddingBottom: "calc(7px + env(safe-area-inset-bottom, 0px))" }}>
           {[
             { id: "new",       icon: "Sparkles",  label: "Build" },
             { id: "style",     icon: "Settings2", label: "Style" },
@@ -1409,13 +1413,24 @@ export default function ResumeGuestMode({ onClose }) {
               setMobileView("panel");
             };
             return (
-              <button key={v.id} role="tab" aria-selected={active} onClick={onTap}
-                style={{ flex: 1, minHeight: 62, display: "flex", flexDirection: "column",
-                  alignItems: "center", justifyContent: "center", gap: 4, border: "none", cursor: "pointer",
-                  background: "transparent", color: active ? C.gold : C.faint }}>
-                <Icon name={v.icon} size={21} color={active ? C.gold : C.faint} />
-                <span style={{ fontSize: TS.nav, fontWeight: active ? 700 : 500, fontFamily: C.sans }}>{v.label}</span>
-              </button>
+              <motion.button key={v.id} role="tab" aria-selected={active} onClick={onTap}
+                whileTap={{ scale: 0.9 }}
+                style={{ flex: 1, position: "relative", minHeight: 54, display: "flex", flexDirection: "column",
+                  alignItems: "center", justifyContent: "center", gap: 3, border: "none", cursor: "pointer",
+                  background: "transparent", padding: 0, WebkitTapHighlightColor: "transparent" }}>
+                {active && (
+                  <motion.span layoutId="navActivePill" transition={{ type: "spring", damping: 26, stiffness: 320 }}
+                    style={{ position: "absolute", top: 1, left: "16%", right: "16%", bottom: 1,
+                      borderRadius: 14, background: "rgba(201,162,78,0.12)", border: "1px solid rgba(201,162,78,0.22)" }} />
+                )}
+                <motion.span animate={{ scale: active ? 1.1 : 1, y: active ? -1 : 0 }}
+                  transition={{ type: "spring", damping: 18, stiffness: 380 }}
+                  style={{ position: "relative", display: "flex" }}>
+                  <Icon name={v.icon} size={21} color={active ? C.gold : C.faint} />
+                </motion.span>
+                <span style={{ position: "relative", fontSize: TS.nav, fontWeight: active ? 700 : 500,
+                  fontFamily: C.sans, color: active ? C.gold : C.faint, letterSpacing: "0.01em" }}>{v.label}</span>
+              </motion.button>
             );
           })}
         </nav>
