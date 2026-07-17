@@ -21,7 +21,7 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     # Comma-separated list of allowed origins, e.g. "https://yourdomain.com,https://www.yourdomain.com"
-    allowed_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    allowed_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3001").split(",")
     CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
 
     db.init_app(app)

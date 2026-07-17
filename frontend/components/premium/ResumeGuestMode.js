@@ -834,6 +834,17 @@ async function apiGenerate(userInfo, jobDesc) {
   return json.data ?? json;
 }
 
+async function apiOptimize(userInfo, jobDesc) {
+  const res  = await fetch(`${BASE}/api/v1/resume/optimize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_info: userInfo, job_description: jobDesc }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.message || `Error ${res.status}`);
+  return json.data ?? json;
+}
+
 async function apiListSaved() {
   const res  = await fetch(`${BASE}/api/v1/resume/saved`);
   const json = await res.json();
@@ -873,8 +884,11 @@ export default function ResumeGuestMode({ onClose }) {
   const [info,       setInfo]       = useState(EMPTY_INFO);
   const [jobDesc,    setJobDesc]    = useState("");
   const [generating, setGenerating] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
   const [error,      setError]      = useState("");
   const [genResult,  setGenResult]  = useState(null);
+  const [coverLetter,  setCoverLetter]  = useState("");
+  const [interviewTips, setInterviewTips] = useState([]);
   const [resume,     dispatch]      = useReducer(resumeReducer, null);
   const onEdit = useCallback(onEditHandler(dispatch), [dispatch]);
   const [docStyle,   setDocStyle]   = useState(DEFAULT_STYLE);
@@ -939,6 +953,47 @@ export default function ResumeGuestMode({ onClose }) {
     }
   };
 
+  const optimize = async () => {
+    setOptimizing(true);
+    setError("");
+    try {
+      const data = await apiOptimize(info, jobDesc);
+      const resumeObj = {
+        contact:  data.contact  || {},
+        sections: data.sections || [],
+        keywords: data.keywords || [],
+        saved_id: data.saved_id || null,
+      };
+      dispatch({ type: "SET", resume: resumeObj });
+      setGenResult({ keywords: data.keywords || [], saved_id: data.saved_id, job_location: data.job_location });
+      setCoverLetter(data.cover_letter || "");
+      setInterviewTips(data.interview_tips || []);
+      setStep(3);
+
+      // Auto-download the DOCX — this is a real programmatic download, no dialog needed.
+      // PDF is left as a one-tap button below: it goes through window.print() to keep the
+      // text selectable, and browsers require a user click to complete "Save as PDF" there,
+      // so it can't fire silently alongside the docx download.
+      const name = (data.contact?.name || info.name || "Resume").replace(/\s+/g, "_");
+      await downloadDocx(resumeObj, docStyle, `${name}_Resume.docx`);
+    } catch (e) {
+      setError(e.message || "Optimization failed. Try again.");
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  const downloadCoverLetter = () => {
+    if (!coverLetter) return;
+    const name = (resume?.contact?.name || info.name || "Resume").replace(/\s+/g, "_");
+    const blob = new Blob([coverLetter], { type: "text/plain;charset=utf-8" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `${name}_Cover_Letter.txt`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const loadSaved = async (id) => {
     setLoadingResumeId(id);
     setError("");
@@ -977,6 +1032,7 @@ export default function ResumeGuestMode({ onClose }) {
   const resetWizard = () => {
     setStep(1); setInfo(EMPTY_INFO); setJobDesc("");
     setError(""); setGenResult(null);
+    setCoverLetter(""); setInterviewTips([]);
     if (!isDesktop) setMobileView("panel");
   };
 
@@ -1055,10 +1111,45 @@ export default function ResumeGuestMode({ onClose }) {
                   disabled={!!downloading} loading={downloading === "pdf"} small>
                   Download PDF
                 </Btn>
+                {coverLetter && (
+                  <Btn variant="ghost" icon="FileDown" onClick={downloadCoverLetter} small>
+                    Download Cover Letter
+                  </Btn>
+                )}
                 <Btn variant="ghost" icon="RefreshCw" onClick={resetWizard} small>
                   Build another
                 </Btn>
               </div>
+
+              {coverLetter && (
+                <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+                  <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: "0 0 6px" }}>
+                    Cover letter
+                  </p>
+                  <div style={{ fontFamily: C.sans, fontSize: 12, color: C.text, lineHeight: 1.6,
+                    whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto",
+                    padding: 10, border: `1px solid ${C.border}`, borderRadius: 6 }}>
+                    {coverLetter}
+                  </div>
+                </div>
+              )}
+
+              {interviewTips.length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: "0 0 6px" }}>
+                    Interview talking points
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {interviewTips.map((tip, i) => (
+                      <div key={i} style={{ display: "flex", gap: 8, fontFamily: C.sans, fontSize: 12,
+                        color: C.text, lineHeight: 1.5 }}>
+                        <span style={{ color: C.gold, flexShrink: 0 }}>{i + 1}.</span>
+                        <span>{tip}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1124,9 +1215,20 @@ export default function ResumeGuestMode({ onClose }) {
                     value={jobDesc} onChange={setJobDesc} multiline rows={isPhone ? 10 : 18} mono
                     placeholder={"Paste the full job posting here — from any job board.\n\nMore text = better keyword matching."} />
 
-                  <Btn icon="Sparkles" onClick={generate} disabled={!ready2 || generating} loading={generating}>
+                  <Btn icon="Sparkles" onClick={generate} disabled={!ready2 || generating || optimizing} loading={generating}>
                     {generating ? "Generating…" : "Generate Resume"}
                   </Btn>
+
+                  <div style={{ marginTop: 10 }}>
+                    <Btn variant="gold" icon="Sparkles" onClick={optimize}
+                      disabled={!ready2 || generating || optimizing} loading={optimizing}>
+                      {optimizing ? "Optimizing…" : "✨ Optimize for This Job"}
+                    </Btn>
+                    <p style={{ fontFamily: C.sans, fontSize: 11, color: C.faint, margin: "6px 2px 0", lineHeight: 1.5 }}>
+                      Also writes a cover letter + interview talking points, and downloads
+                      the Word doc automatically.
+                    </p>
+                  </div>
                 </>
               )}
             </div>
