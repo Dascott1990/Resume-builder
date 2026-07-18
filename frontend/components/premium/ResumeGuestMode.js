@@ -19,7 +19,9 @@ import React, {
 import { motion, AnimatePresence } from "framer-motion";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+// Must match the port run.py actually listens on (5002) and be inside
+// ALLOWED_ORIGINS on the backend, or every request will fail before it starts.
+const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
 
 const ACCENTS = [
   { id: "navy",   hex: "#1F3864", label: "Navy"    },
@@ -151,6 +153,8 @@ function Btn({ children, onClick, disabled, variant = "primary", small, icon, lo
     <button
       className={className}
       onClick={disabled ? undefined : onClick}
+      disabled={!!disabled}
+      aria-disabled={!!disabled}
       style={{
         display: "inline-flex", alignItems: "center", justifyContent: "center",
         gap: 8, padding: small ? "10px 16px" : "14px 18px",
@@ -823,45 +827,53 @@ function onEditHandler(dispatch) {
 }
 
 // ── API helpers ────────────────────────────────────────────────────────────────
-async function apiGenerate(userInfo, jobDesc) {
-  const res  = await fetch(`${BASE}/api/v1/resume/generate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_info: userInfo, job_description: jobDesc }),
-  });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.message || `Error ${res.status}`);
+// Single shared request fn — every endpoint speaks the same {success, data, error}
+// envelope (see backend/app/utils/response.py), so one helper covers all of them.
+// Network failures (backend down, CORS block, wrong port) are relabeled with a
+// clear message instead of surfacing a raw "Failed to fetch".
+async function apiRequest(path, options) {
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, options);
+  } catch (networkErr) {
+    throw new Error(
+      `Could not reach the server at ${BASE}. Is the backend running and is NEXT_PUBLIC_API_URL set correctly?`
+    );
+  }
+
+  // 204 No Content etc — nothing to parse
+  if (res.status === 204) return null;
+
+  let json;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error(`Server returned an unreadable response (HTTP ${res.status}).`);
+  }
+
+  if (!res.ok) {
+    // Backend error envelope uses "error", success envelope uses "message" —
+    // check both so real backend error text always reaches the user.
+    throw new Error(json.error || json.message || `Error ${res.status}`);
+  }
   return json.data ?? json;
 }
 
-async function apiOptimize(userInfo, jobDesc) {
-  const res  = await fetch(`${BASE}/api/v1/resume/optimize`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_info: userInfo, job_description: jobDesc }),
-  });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.message || `Error ${res.status}`);
-  return json.data ?? json;
-}
+const apiGenerate  = (userInfo, jobDesc) => apiRequest("/api/v1/resume/generate", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ user_info: userInfo, job_description: jobDesc }),
+});
 
-async function apiListSaved() {
-  const res  = await fetch(`${BASE}/api/v1/resume/saved`);
-  const json = await res.json();
-  if (!res.ok) return [];
-  return json.data ?? json ?? [];
-}
+const apiOptimize  = (userInfo, jobDesc) => apiRequest("/api/v1/resume/optimize", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ user_info: userInfo, job_description: jobDesc }),
+});
 
-async function apiGetSaved(id) {
-  const res  = await fetch(`${BASE}/api/v1/resume/${id}`);
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.message || "Not found");
-  return json.data ?? json;
-}
-
-async function apiDelete(id) {
-  await fetch(`${BASE}/api/v1/resume/${id}`, { method: "DELETE" });
-}
+const apiListSaved = () => apiRequest("/api/v1/resume/saved").catch(() => []);
+const apiGetSaved  = (id) => apiRequest(`/api/v1/resume/${id}`);
+const apiDelete    = (id) => apiRequest(`/api/v1/resume/${id}`, { method: "DELETE" }).catch(() => null);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT — fully responsive: phone / tablet / desktop
@@ -956,28 +968,42 @@ export default function ResumeGuestMode({ onClose }) {
   const optimize = async () => {
     setOptimizing(true);
     setError("");
-    try {
-      const data = await apiOptimize(info, jobDesc);
-      const resumeObj = {
-        contact:  data.contact  || {},
-        sections: data.sections || [],
-        keywords: data.keywords || [],
-        saved_id: data.saved_id || null,
-      };
-      dispatch({ type: "SET", resume: resumeObj });
-      setGenResult({ keywords: data.keywords || [], saved_id: data.saved_id, job_location: data.job_location });
-      setCoverLetter(data.cover_letter || "");
-      setInterviewTips(data.interview_tips || []);
-      setStep(3);
 
-      // Auto-download the DOCX — this is a real programmatic download, no dialog needed.
-      // PDF is left as a one-tap button below: it goes through window.print() to keep the
-      // text selectable, and browsers require a user click to complete "Save as PDF" there,
-      // so it can't fire silently alongside the docx download.
+    // Step 1: generate the resume/cover-letter/tips via the API. Any failure
+    // here is a real optimization failure — nothing was produced, so we bail out.
+    let data;
+    try {
+      data = await apiOptimize(info, jobDesc);
+    } catch (e) {
+      setError(e.message || "Optimization failed. Try again.");
+      setOptimizing(false);
+      return;
+    }
+
+    const resumeObj = {
+      contact:  data.contact  || {},
+      sections: data.sections || [],
+      keywords: data.keywords || [],
+      saved_id: data.saved_id || null,
+    };
+    dispatch({ type: "SET", resume: resumeObj });
+    setGenResult({ keywords: data.keywords || [], saved_id: data.saved_id, job_location: data.job_location });
+    setCoverLetter(data.cover_letter || "");
+    setInterviewTips(data.interview_tips || []);
+    setStep(3);
+
+    // Step 2: auto-download the DOCX. This is a separate, best-effort step —
+    // the resume above already generated and is on screen, so if the client-side
+    // docx build hiccups we surface a narrow download warning instead of telling
+    // the user the whole optimization failed (it didn't; only the auto-download did).
+    // PDF is left as a one-tap button below: it goes through window.print() to keep
+    // the text selectable, and browsers require a user click there, so it can't fire
+    // silently alongside the docx download.
+    try {
       const name = (data.contact?.name || info.name || "Resume").replace(/\s+/g, "_");
       await downloadDocx(resumeObj, docStyle, `${name}_Resume.docx`);
     } catch (e) {
-      setError(e.message || "Optimization failed. Try again.");
+      setError(`Your resume, cover letter, and interview tips are ready — the automatic .docx download just failed (${e.message}). Use the Download button below to try again.`);
     } finally {
       setOptimizing(false);
     }
