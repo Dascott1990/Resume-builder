@@ -686,21 +686,50 @@ async function downloadDocx(resume, docStyle, filename) {
 // Result: clean text PDF — every word is selectable and copyable.
 function printPdf(previewEl) {
   if (!previewEl) return;
-  const id  = "__resume_pdf_print__";
-  const cls = "__resume_print_hide__";
+  const PRINT_ID    = "__resume_pdf_print__";
+  const HIDE_CLASS  = "__resume_print_hide__";
+  const RESET_ATTR  = "data-print-reset";
 
-  // Hide everything except our preview
-  const siblings = Array.from(document.body.children).filter(el => el !== previewEl);
-  siblings.forEach(el => el.classList.add(cls));
-  previewEl.id = id;
+  // previewEl (the resume) is nested several levels deep inside the scaled,
+  // scrollable preview canvas — NOT a direct child of <body>. Walk the real
+  // ancestor chain from previewEl up to <body> so we hide the correct
+  // siblings at each level, instead of hiding every child of body (which
+  // would hide the resume's own ancestors too, and print a blank page).
+  const chain = [];
+  for (let node = previewEl; node && node !== document.body; node = node.parentElement) {
+    chain.push(node);
+  }
+  chain.push(document.body);
+
+  const resetEls = [];
+  for (let i = chain.length - 1; i > 0; i--) {
+    const ancestor = chain[i];
+    const keep     = chain[i - 1];
+    Array.from(ancestor.children).forEach((sib) => {
+      if (sib !== keep) sib.classList.add(HIDE_CLASS);
+    });
+    // The on-screen preview scales this element down and clips/scrolls it
+    // (transform, fixed width/height, overflow) to fit the panel — none of
+    // that should apply when printing the full-size page.
+    if (ancestor !== document.body) {
+      ancestor.setAttribute(RESET_ATTR, "1");
+      resetEls.push(ancestor);
+    }
+  }
+  previewEl.id = PRINT_ID;
 
   const style = document.createElement("style");
   style.id    = "__resume_print_style__";
   style.textContent = `
     @media print {
       body { margin: 0 !important; padding: 0 !important; background: white !important; }
-      .${cls} { display: none !important; }
-      #${id}  { display: block !important; position: static !important;
+      .${HIDE_CLASS} { display: none !important; }
+      [${RESET_ATTR}] {
+        display: block !important; position: static !important; transform: none !important;
+        width: auto !important; height: auto !important; max-height: none !important;
+        overflow: visible !important; padding: 0 !important; box-shadow: none !important;
+      }
+      #${PRINT_ID} { display: block !important; position: static !important;
                  transform: none !important; box-shadow: none !important;
                  border-radius: 0 !important; width: 100% !important; }
     }
@@ -709,7 +738,8 @@ function printPdf(previewEl) {
   window.print();
 
   setTimeout(() => {
-    siblings.forEach(el => el.classList.remove(cls));
+    document.querySelectorAll(`.${HIDE_CLASS}`).forEach((el) => el.classList.remove(HIDE_CLASS));
+    resetEls.forEach((el) => el.removeAttribute(RESET_ATTR));
     previewEl.removeAttribute("id");
     const s = document.getElementById("__resume_print_style__");
     if (s) document.head.removeChild(s);
@@ -1046,6 +1076,9 @@ export default function ResumeGuestMode({ onClose }) {
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [loadingResumeId, setLoadingResumeId] = useState(null); // id currently being fetched, drives skeleton
   const [downloading, setDownloading]   = useState(null);
+  // On phone/tablet the resume preview isn't mounted while the form panel is
+  // showing — this flags "print as soon as the preview screen mounts".
+  const [pendingPrint, setPendingPrint] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [scale,       setScale]         = useState(1);
 
@@ -1214,9 +1247,38 @@ export default function ResumeGuestMode({ onClose }) {
     }
   };
 
+  // Fires once the preview screen has actually mounted after handlePdf
+  // switched to it — printing immediately would still see the old (form) DOM.
+  useEffect(() => {
+    if (!pendingPrint || (!isDesktop && mobileView !== "preview")) return;
+    const raf = requestAnimationFrame(() => {
+      if (previewRef.current) {
+        printPdf(previewRef.current);
+      } else {
+        setError("Nothing to export yet — generate a resume first.");
+      }
+      setPendingPrint(false);
+      setTimeout(() => setDownloading(null), 1500);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [pendingPrint, mobileView, isDesktop]);
+
   const handlePdf = () => {
-    if (!previewRef.current) return;
+    if (!resume) { setError("Nothing to export yet — generate a resume first."); return; }
     setDownloading("pdf");
+    // On phone/tablet the preview isn't rendered while the form panel is
+    // showing, so previewRef.current would be null here — switch screens
+    // and let the effect above print once it's actually mounted.
+    if (!isDesktop && mobileView !== "preview") {
+      setPendingPrint(true);
+      setMobileView("preview");
+      return;
+    }
+    if (!previewRef.current) {
+      setDownloading(null);
+      setError("Nothing to export yet — generate a resume first.");
+      return;
+    }
     printPdf(previewRef.current);
     setTimeout(() => setDownloading(null), 1500);
   };
