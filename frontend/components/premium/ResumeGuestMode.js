@@ -43,6 +43,29 @@ const FONTS = [
 
 const DEFAULT_STYLE = { accent: "navy", fontSize: 11, lineHeight: 1.4, font: "calibri" };
 
+// ── Draft persistence ────────────────────────────────────────────────────────
+// Everything below was previously only in React state, so any refresh wiped
+// the in-progress build — form fields, the generated resume, cover letter,
+// interview tips, apply info, all of it. This mirrors the current draft to
+// localStorage (best-effort; a full/blocked storage just means no restore,
+// never a crash) and reads it back once on mount.
+const DRAFT_KEY = "resumeBuilder:draft:v1";
+
+function loadDraft() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraft() {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.removeItem(DRAFT_KEY); } catch { /* best-effort */ }
+}
+
 // ── Design tokens ──────────────────────────────────────────────────────────────
 // One accent (gold, matches the actual resume ink) — everything else is neutral.
 // Colour shows up as a rule, a dot, or a weight change, never a tinted bg+border pair.
@@ -1056,22 +1079,27 @@ export default function ResumeGuestMode({ onClose }) {
   // Mobile/tablet: which screen is showing — "panel" (form/list) or "preview"
   const [mobileView, setMobileView] = useState("panel");
 
-  const [tab,        setTab]        = useState("new");   // "new" | "templates"
-  const [step,       setStep]       = useState(1);        // 1 | 2 | 3
-  const [info,       setInfo]       = useState(EMPTY_INFO);
-  const [jobDesc,    setJobDesc]    = useState("");
+  // One localStorage read on mount, reused below to seed every persisted field.
+  const [draftAtMount] = useState(loadDraft);
+
+  const [tab,        setTab]        = useState(() => draftAtMount?.tab || "new");   // "new" | "templates"
+  const [step,       setStep]       = useState(() => draftAtMount?.step || 1);       // 1 | 2 | 3
+  const [info,       setInfo]       = useState(() => draftAtMount?.info || EMPTY_INFO);
+  const [jobDesc,    setJobDesc]    = useState(() => draftAtMount?.jobDesc || "");
   const [generating, setGenerating] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [error,      setError]      = useState("");
-  const [genResult,  setGenResult]  = useState(null);
-  const [coverLetter,  setCoverLetter]  = useState("");
-  const [interviewTips, setInterviewTips] = useState([]);
-  const [application, setApplication] = useState(null); // { method, value, instructions }
-  const [packageOpen, setPackageOpen] = useState(false); // preview-before-download modal
+  const [genResult,  setGenResult]  = useState(() => draftAtMount?.genResult || null);
+  const [coverLetter,  setCoverLetter]  = useState(() => draftAtMount?.coverLetter || "");
+  const [interviewTips, setInterviewTips] = useState(() => draftAtMount?.interviewTips || []);
+  const [application, setApplication] = useState(() => draftAtMount?.application || null); // { method, value, instructions }
+  const [packageOpen, setPackageOpen] = useState(false); // never restore an open modal on refresh
   const [copied, setCopied] = useState(false);
-  const [resume,     dispatch]      = useReducer(resumeReducer, null);
+  const [resume,     dispatch]      = useReducer(resumeReducer, draftAtMount?.resume || null);
   const onEdit = useCallback(onEditHandler(dispatch), [dispatch]);
-  const [docStyle,   setDocStyle]   = useState(DEFAULT_STYLE);
+  const [docStyle,   setDocStyle]   = useState(() => draftAtMount?.docStyle || DEFAULT_STYLE);
+  // Restored on mount only if there's actually something worth telling the user about.
+  const [draftRestored, setDraftRestored] = useState(() => !!(draftAtMount?.resume || draftAtMount?.jobDesc));
   const [saved,      setSaved]      = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [loadingResumeId, setLoadingResumeId] = useState(null); // id currently being fetched, drives skeleton
@@ -1110,6 +1138,24 @@ export default function ResumeGuestMode({ onClose }) {
   useEffect(() => {
     if (!isDesktop && resume && step === 3) setMobileView("preview");
   }, [resume, step, isDesktop]);
+
+  // Mirror the in-progress build to localStorage (debounced) so a refresh
+  // restores it instead of wiping it. Best-effort only — a write failure
+  // (storage full/blocked) is swallowed rather than surfaced as an app error.
+  const draftSaveTimer = useRef(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => {
+      try {
+        window.localStorage.setItem(DRAFT_KEY, JSON.stringify({
+          tab, step, info, jobDesc, genResult, coverLetter, interviewTips,
+          application, resume, docStyle,
+        }));
+      } catch { /* best-effort */ }
+    }, 300);
+    return () => clearTimeout(draftSaveTimer.current);
+  }, [tab, step, info, jobDesc, genResult, coverLetter, interviewTips, application, resume, docStyle]);
 
   const set = (k) => (v) => setInfo(p => ({ ...p, [k]: v }));
   const ready1 = info.name.trim() && info.title.trim() && info.location.trim();
@@ -1288,7 +1334,9 @@ export default function ResumeGuestMode({ onClose }) {
     setError(""); setGenResult(null);
     setCoverLetter(""); setInterviewTips([]);
     setApplication(null); setPackageOpen(false);
+    dispatch({ type: "SET", resume: null }); // was never cleared before — stale resume could linger
     if (!isDesktop) setMobileView("panel");
+    clearDraft();
   };
 
   const A4w = 794;
@@ -1323,6 +1371,20 @@ export default function ResumeGuestMode({ onClose }) {
       {/* BUILD */}
       {tab === "new" && (
         <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none" }}>
+          {draftRestored && (
+            <div style={{ margin: "12px 16px 0", padding: "9px 12px", borderRadius: 8,
+              border: `1px solid ${C.border}`, background: C.raised,
+              display: "flex", alignItems: "center", gap: 8 }}>
+              <Icon name="RefreshCw" size={13} color={C.gold} />
+              <span style={{ flex: 1, fontFamily: C.sans, fontSize: 12, color: C.muted }}>
+                Restored your in-progress draft from before the refresh.
+              </span>
+              <button onClick={() => setDraftRestored(false)} aria-label="Dismiss"
+                style={{ background: "none", border: "none", cursor: "pointer", color: C.faint, padding: 2 }}>
+                <Icon name="X" size={13} />
+              </button>
+            </div>
+          )}
           {step === 3 && genResult && (
             <div style={{ padding: "16px 16px 18px" }}>
               <div style={{ marginBottom: 16, paddingBottom: 14, borderBottom: `1px solid ${C.border}` }}>
