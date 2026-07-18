@@ -93,6 +93,9 @@ const ICONS = {
   AlertCircle:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
   Settings2:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7H4M20 12H4M20 17H4"/></svg>,
   Gear:         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  Mail:         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>,
+  Globe:        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
+  ExternalLink: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>,
 };
 
 function Icon({ name, size = 16, color = "currentColor" }) {
@@ -238,6 +241,138 @@ function Steps({ current }) {
 function KwPill({ word }) {
   return (
     <span style={{ fontSize: 12.5, color: C.text, whiteSpace: "nowrap" }}>{word}</span>
+  );
+}
+
+// ── Apply banner ─────────────────────────────────────────────────────────────
+// Bold, unmissable, one clear instruction — the "how do I actually apply" answer,
+// grounded in what the AI found in the job description (never invented).
+function ApplyBanner({ application }) {
+  const method = application?.method || "unclear";
+  const value  = application?.value || null;
+  const text   = application?.instructions
+    || "This posting doesn't list a direct email or link — apply through the site or platform where you found it.";
+
+  const cfg = {
+    email:   { icon: "Mail",  label: "Apply by email",   cta: value ? `Email ${value}` : null,
+               href: value ? `mailto:${value}` : null },
+    website: { icon: "Globe", label: "Apply on their site", cta: value ? "Open application page" : null,
+               href: value || null },
+    unclear: { icon: "AlertCircle", label: "How to apply", cta: null, href: null },
+  }[method] || { icon: "AlertCircle", label: "How to apply", cta: null, href: null };
+
+  return (
+    <div style={{
+      border: `1.5px solid ${C.gold}`, borderRadius: 10, padding: "14px 16px",
+      background: "rgba(201,162,78,0.08)",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <Icon name={cfg.icon} size={16} color={C.gold} />
+        <span style={{ fontFamily: C.sans, fontWeight: 800, fontSize: 12.5,
+          letterSpacing: "0.04em", textTransform: "uppercase", color: C.gold }}>
+          {cfg.label}
+        </span>
+      </div>
+      <p style={{ fontFamily: C.sans, fontWeight: 700, fontSize: 14.5, lineHeight: 1.5,
+        color: C.text, margin: "0 0 10px" }}>
+        {text}
+      </p>
+      {cfg.href && (
+        <a href={cfg.href} target={method === "website" ? "_blank" : undefined} rel="noreferrer"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 7, textDecoration: "none",
+            background: C.gold, color: C.goldFg, fontFamily: C.sans, fontWeight: 700,
+            fontSize: 13.5, padding: "9px 14px", borderRadius: 8,
+          }}>
+          <Icon name={method === "website" ? "ExternalLink" : "Mail"} size={14} color={C.goldFg} />
+          {cfg.cta}
+        </a>
+      )}
+    </div>
+  );
+}
+
+// ── Package preview modal ─────────────────────────────────────────────────────
+// Opens automatically right after Optimize finishes — the whole application
+// package (resume summary, apply instructions, cover letter, interview tips)
+// is reviewed here BEFORE anything downloads. One button downloads everything.
+function PackagePreviewModal({
+  open, onClose, genResult, application, coverLetter, interviewTips,
+  onCopyCoverLetter, copied, onDownloadAll, downloading,
+}) {
+  if (!open) return null;
+  return (
+    <div role="dialog" aria-modal="true" style={{
+      position: "fixed", inset: 0, zIndex: 200, display: "flex",
+      alignItems: "center", justifyContent: "center", padding: 16,
+      background: "rgba(0,0,0,0.6)",
+    }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        width: "100%", maxWidth: 560, maxHeight: "88vh", overflowY: "auto",
+        background: C.panel, border: `1px solid ${C.borderHi}`, borderRadius: 14,
+        padding: 22, boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 }}>
+          <p style={{ fontFamily: C.serif, fontStyle: "italic", fontSize: 20, color: C.text, margin: 0,
+            display: "flex", alignItems: "center", gap: 8 }}>
+            <Icon name="Check" size={17} color={C.green} /> Your application package is ready
+          </p>
+          <button onClick={onClose} aria-label="Close preview" style={{
+            background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}>
+            <Icon name="X" size={18} />
+          </button>
+        </div>
+        <p style={{ fontFamily: C.sans, fontSize: 12.5, color: C.muted, margin: "0 0 16px" }}>
+          Review everything below, then download it all with one click.
+          {genResult?.job_location && ` · ${genResult.job_location}`}
+        </p>
+
+        <div style={{ marginBottom: 16 }}>
+          <ApplyBanner application={application} />
+        </div>
+
+        {coverLetter && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: 0 }}>Cover letter</p>
+              <Btn variant="ghost" icon={copied ? "Check" : "Clipboard"} onClick={onCopyCoverLetter} small>
+                {copied ? "Copied" : "Copy"}
+              </Btn>
+            </div>
+            <div style={{ fontFamily: C.sans, fontSize: 12.5, color: C.text, lineHeight: 1.6,
+              whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto",
+              padding: 12, border: `1px solid ${C.border}`, borderRadius: 8 }}>
+              {coverLetter}
+            </div>
+          </div>
+        )}
+
+        {interviewTips.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: "0 0 6px" }}>
+              Interview talking points
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {interviewTips.map((tip, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, fontFamily: C.sans, fontSize: 12.5,
+                  color: C.text, lineHeight: 1.5 }}>
+                  <span style={{ color: C.gold, flexShrink: 0 }}>{i + 1}.</span>
+                  <span>{tip}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn variant="gold" icon="FileDown" onClick={onDownloadAll}
+            disabled={!!downloading} loading={downloading === "docx"}>
+            Download resume + cover letter
+          </Btn>
+          <Btn variant="ghost" onClick={onClose} small>Keep editing</Btn>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -901,6 +1036,9 @@ export default function ResumeGuestMode({ onClose }) {
   const [genResult,  setGenResult]  = useState(null);
   const [coverLetter,  setCoverLetter]  = useState("");
   const [interviewTips, setInterviewTips] = useState([]);
+  const [application, setApplication] = useState(null); // { method, value, instructions }
+  const [packageOpen, setPackageOpen] = useState(false); // preview-before-download modal
+  const [copied, setCopied] = useState(false);
   const [resume,     dispatch]      = useReducer(resumeReducer, null);
   const onEdit = useCallback(onEditHandler(dispatch), [dispatch]);
   const [docStyle,   setDocStyle]   = useState(DEFAULT_STYLE);
@@ -969,7 +1107,7 @@ export default function ResumeGuestMode({ onClose }) {
     setOptimizing(true);
     setError("");
 
-    // Step 1: generate the resume/cover-letter/tips via the API. Any failure
+    // Generate the resume/cover-letter/tips/apply-info via the API. Any failure
     // here is a real optimization failure — nothing was produced, so we bail out.
     let data;
     try {
@@ -990,23 +1128,15 @@ export default function ResumeGuestMode({ onClose }) {
     setGenResult({ keywords: data.keywords || [], saved_id: data.saved_id, job_location: data.job_location });
     setCoverLetter(data.cover_letter || "");
     setInterviewTips(data.interview_tips || []);
+    setApplication(data.application || null);
     setStep(3);
+    setOptimizing(false);
 
-    // Step 2: auto-download the DOCX. This is a separate, best-effort step —
-    // the resume above already generated and is on screen, so if the client-side
-    // docx build hiccups we surface a narrow download warning instead of telling
-    // the user the whole optimization failed (it didn't; only the auto-download did).
-    // PDF is left as a one-tap button below: it goes through window.print() to keep
-    // the text selectable, and browsers require a user click there, so it can't fire
-    // silently alongside the docx download.
-    try {
-      const name = (data.contact?.name || info.name || "Resume").replace(/\s+/g, "_");
-      await downloadDocx(resumeObj, docStyle, `${name}_Resume.docx`);
-    } catch (e) {
-      setError(`Your resume, cover letter, and interview tips are ready — the automatic .docx download just failed (${e.message}). Use the Download button below to try again.`);
-    } finally {
-      setOptimizing(false);
-    }
+    // One click, one result: the whole package — resume, cover letter, apply
+    // instructions, interview tips — opens for review immediately. Nothing
+    // downloads yet; the Download button inside the modal is the only thing
+    // that writes a file, so the person always sees what they're getting first.
+    setPackageOpen(true);
   };
 
   const downloadCoverLetter = () => {
@@ -1020,6 +1150,38 @@ export default function ResumeGuestMode({ onClose }) {
     URL.revokeObjectURL(url);
   };
 
+  // One click: cover letter text straight to the clipboard, ready to paste into
+  // an email or an ATS "cover letter" text box.
+  const copyCoverLetter = async () => {
+    if (!coverLetter) return;
+    try {
+      await navigator.clipboard.writeText(coverLetter);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API can be blocked (permissions, non-HTTPS) — fall back to a file
+      // download so the person still gets the cover letter in one click either way.
+      downloadCoverLetter();
+    }
+  };
+
+  // The single download action inside the package-preview modal: resume .docx
+  // and cover letter .txt both save in one click, after the person has reviewed
+  // everything on screen.
+  const downloadPackage = async () => {
+    if (!resume) return;
+    setDownloading("docx");
+    try {
+      const name = (resume.contact?.name || info.name || "Resume").replace(/\s+/g, "_");
+      await downloadDocx(resume, docStyle, `${name}_Resume.docx`);
+      if (coverLetter) downloadCoverLetter();
+    } catch (e) {
+      setError("Download failed: " + e.message);
+    } finally {
+      setDownloading(null);
+    }
+  };
+
   const loadSaved = async (id) => {
     setLoadingResumeId(id);
     setError("");
@@ -1027,6 +1189,10 @@ export default function ResumeGuestMode({ onClose }) {
     try {
       const data = await apiGetSaved(id);
       dispatch({ type: "SET", resume: { contact: data.contact || {}, sections: data.sections || [], keywords: data.keywords || [], saved_id: id } });
+      setGenResult({ keywords: data.keywords || [], saved_id: id, job_location: data.job_location });
+      // Saved records only ever store the resume itself — clear any cover
+      // letter / apply-info left over from a previous Optimize in this session.
+      setCoverLetter(""); setInterviewTips([]); setApplication(null); setPackageOpen(false);
       setTab("new"); setStep(3);
     } catch (e) {
       setError("Could not load: " + e.message);
@@ -1059,6 +1225,7 @@ export default function ResumeGuestMode({ onClose }) {
     setStep(1); setInfo(EMPTY_INFO); setJobDesc("");
     setError(""); setGenResult(null);
     setCoverLetter(""); setInterviewTips([]);
+    setApplication(null); setPackageOpen(false);
     if (!isDesktop) setMobileView("panel");
   };
 
@@ -1123,25 +1290,38 @@ export default function ResumeGuestMode({ onClose }) {
                 </div>
               )}
 
+              {application && (
+                <div style={{ marginBottom: 16 }}>
+                  <ApplyBanner application={application} />
+                </div>
+              )}
+
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                 {!isDesktop && (
                   <Btn variant="primary" icon="Eye" onClick={() => setMobileView("preview")} small>
                     Open Preview
                   </Btn>
                 )}
-                <Btn variant="gold" icon="FileDown" onClick={handleDocx}
-                  disabled={!!downloading} loading={downloading === "docx"} small>
-                  Download Word
-                </Btn>
+                {coverLetter ? (
+                  <>
+                    <Btn variant="gold" icon="FileDown" onClick={downloadPackage}
+                      disabled={!!downloading} loading={downloading === "docx"} small>
+                      Download resume + cover letter
+                    </Btn>
+                    <Btn variant="ghost" icon="Eye" onClick={() => setPackageOpen(true)} small>
+                      Review package
+                    </Btn>
+                  </>
+                ) : (
+                  <Btn variant="gold" icon="FileDown" onClick={handleDocx}
+                    disabled={!!downloading} loading={downloading === "docx"} small>
+                    Download Word
+                  </Btn>
+                )}
                 <Btn variant="ghost" icon="FileDown" onClick={handlePdf}
                   disabled={!!downloading} loading={downloading === "pdf"} small>
                   Download PDF
                 </Btn>
-                {coverLetter && (
-                  <Btn variant="ghost" icon="FileDown" onClick={downloadCoverLetter} small>
-                    Download Cover Letter
-                  </Btn>
-                )}
                 <Btn variant="ghost" icon="RefreshCw" onClick={resetWizard} small>
                   Build another
                 </Btn>
@@ -1149,9 +1329,14 @@ export default function ResumeGuestMode({ onClose }) {
 
               {coverLetter && (
                 <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
-                  <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: "0 0 6px" }}>
-                    Cover letter
-                  </p>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: 0 }}>
+                      Cover letter
+                    </p>
+                    <Btn variant="ghost" icon={copied ? "Check" : "Clipboard"} onClick={copyCoverLetter} small>
+                      {copied ? "Copied" : "Copy"}
+                    </Btn>
+                  </div>
                   <div style={{ fontFamily: C.sans, fontSize: 12, color: C.text, lineHeight: 1.6,
                     whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto",
                     padding: 10, border: `1px solid ${C.border}`, borderRadius: 6 }}>
@@ -1563,6 +1748,19 @@ export default function ResumeGuestMode({ onClose }) {
           })}
         </nav>
       )}
+
+      <PackagePreviewModal
+        open={packageOpen}
+        onClose={() => setPackageOpen(false)}
+        genResult={genResult}
+        application={application}
+        coverLetter={coverLetter}
+        interviewTips={interviewTips}
+        onCopyCoverLetter={copyCoverLetter}
+        copied={copied}
+        onDownloadAll={downloadPackage}
+        downloading={downloading}
+      />
     </motion.div>
   );
 }

@@ -217,12 +217,20 @@ JOB DESCRIPTION:
 {job_description}
 
 TASK:
-Produce THREE things in one pass, all tailored to this specific job posting:
+Produce FOUR things in one pass, all tailored to this specific job posting:
 1. A complete ATS-optimised resume (same rules as a standard tailored resume).
 2. A concise, specific cover letter (3-4 short paragraphs, no generic filler, references
    1-2 concrete details from the job description, matches the candidate's real background).
 3. Exactly 3 interview talking points — short, concrete stories/angles the candidate could
    bring up, grounded in their actual background/experience, relevant to this role.
+4. How-to-apply detection: read the job description carefully for the ACTUAL way this
+   employer wants applications submitted, then report exactly one of:
+   - "email"   — the JD contains an application email address (e.g. "send resume to
+     jobs@company.com", "apply via careers@..."). Use that exact address.
+   - "website" — the JD points to a careers page, "Apply Now" button, ATS link
+     (Greenhouse/Lever/Workday/etc.), or a company site/URL to apply through.
+   - "unclear" — the JD gives no explicit application channel.
+   Never invent an email address or URL that is not present in the job description.
 
 Return this exact JSON structure (no other text, no markdown fences):
 {{
@@ -246,7 +254,12 @@ Return this exact JSON structure (no other text, no markdown fences):
     ] }}
   ],
   "cover_letter": "full cover letter text as one string with \\n\\n between paragraphs",
-  "interview_tips": ["tip 1", "tip 2", "tip 3"]
+  "interview_tips": ["tip 1", "tip 2", "tip 3"],
+  "application": {{
+    "method": "email | website | unclear",
+    "value": "the exact email address or URL found in the JD, else null — never invented",
+    "instructions": "One direct, plain-English sentence telling the candidate exactly how to apply, naming the method above (e.g. 'Email your resume and cover letter directly to jobs@company.com.' or 'Apply through the company's Careers page using the Apply Now button on this listing.' or, if unclear, 'This posting doesn't list a direct email or link — apply through the site or platform where you found it.')"
+  }}
 }}
 
 Rules:
@@ -254,6 +267,7 @@ Rules:
 - Every resume bullet starts with a strong past-tense action verb.
 - Weave at least 6 keywords from the JD naturally into the resume body.
 - The cover letter must sound like a real person wrote it, not a template. No "I am writing to express my interest" openers.
+- The "application" block must be grounded only in what the job description actually says — no guessing at an email or URL that isn't there.
 - Return ONLY the JSON object."""
 
 
@@ -289,7 +303,7 @@ def optimize_resume():
             {"role": "user",   "content": prompt},
         ],
         temperature=0.35,
-        max_tokens=2800,  # bigger cap — resume + cover letter + tips in one response
+        max_tokens=3000,  # bigger cap — resume + cover letter + tips + apply info in one response
     )
 
     clean = raw.replace("```json", "").replace("```", "").strip()
