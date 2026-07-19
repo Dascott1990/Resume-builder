@@ -1071,6 +1071,37 @@ const EMPTY_INFO = {
   background: "", experience: "", education: "", skills: "",
 };
 
+// ── Leave-confirmation modal ──────────────────────────────────────────────────
+// Shown when the X is tapped while there's actually something on screen to lose.
+// Your draft autosaves to this browser as you go, so "Leave" doesn't wipe it —
+// but the person has no way of knowing that unless we say so.
+function LeaveConfirmModal({ open, onCancel, onConfirm }) {
+  if (!open) return null;
+  return (
+    <div role="dialog" aria-modal="true" style={{
+      position: "fixed", inset: 0, zIndex: 250, display: "flex",
+      alignItems: "center", justifyContent: "center", padding: 16,
+      background: "rgba(0,0,0,0.6)",
+    }} onClick={onCancel}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        width: "100%", maxWidth: 380, background: C.panel, border: `1px solid ${C.borderHi}`,
+        borderRadius: 14, padding: 22, boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+      }}>
+        <p style={{ fontFamily: C.serif, fontStyle: "italic", fontSize: 19, color: C.text, margin: "0 0 8px" }}>
+          Leave Resume Builder?
+        </p>
+        <p style={{ fontFamily: C.sans, fontSize: 13, color: C.muted, lineHeight: 1.5, margin: "0 0 18px" }}>
+          Your progress is saved on this device — it'll be right here when you come back.
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn variant="gold" onClick={onConfirm}>Leave</Btn>
+          <Btn variant="ghost" onClick={onCancel}>Stay here</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ResumeGuestMode({ onClose }) {
   console.log('✅ RESUME GUEST MODE v2.0.0 - LOADED');
   const { isPhone, isTablet, isDesktop } = useViewport();
@@ -1108,6 +1139,7 @@ export default function ResumeGuestMode({ onClose }) {
   // showing — this flags "print as soon as the preview screen mounts".
   const [pendingPrint, setPendingPrint] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [scale,       setScale]         = useState(1);
 
   const canvasRef  = useRef(null);
@@ -1156,6 +1188,11 @@ export default function ResumeGuestMode({ onClose }) {
     }, 300);
     return () => clearTimeout(draftSaveTimer.current);
   }, [tab, step, info, jobDesc, genResult, coverLetter, interviewTips, application, resume, docStyle]);
+
+  // Anything worth confirming before we navigate away from? An empty, untouched
+  // wizard doesn't need a prompt — only ask when there's real work on screen.
+  const hasUnsavedWork = !!(resume || jobDesc.trim() || info.name.trim() || info.title.trim());
+  const requestClose = () => { if (hasUnsavedWork) setConfirmLeave(true); else onClose(); };
 
   const set = (k) => (v) => setInfo(p => ({ ...p, [k]: v }));
   const ready1 = info.name.trim() && info.title.trim() && info.location.trim();
@@ -1757,7 +1794,7 @@ export default function ResumeGuestMode({ onClose }) {
         borderBottom: `1px solid ${C.border}`, gap: 10 }}>
 
         <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, flex: "1 1 auto", overflow: "hidden" }}>
-          <button onClick={onClose} aria-label="Close resume builder"
+          <button onClick={requestClose} aria-label="Close resume builder"
             style={{ width: 40, height: 40, borderRadius: "50%", background: C.raised,
               border: `1px solid ${C.border}`, display: "flex", alignItems: "center",
               justifyContent: "center", cursor: "pointer", color: C.text, flexShrink: 0 }}>
@@ -1872,6 +1909,12 @@ export default function ResumeGuestMode({ onClose }) {
           })}
         </nav>
       )}
+
+      <LeaveConfirmModal
+        open={confirmLeave}
+        onCancel={() => setConfirmLeave(false)}
+        onConfirm={() => { setConfirmLeave(false); onClose(); }}
+      />
 
       <PackagePreviewModal
         open={packageOpen}

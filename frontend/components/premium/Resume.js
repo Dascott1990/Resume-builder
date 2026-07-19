@@ -601,10 +601,21 @@ function useWindowWidth() {
 }
 
 // ── Book-flip transition — turns like a page, used when switching "My Resumes" ⇄ "Guest Mode" ──
+// Desktop only: 3D rotateY + backface-visibility + perspective, combined with the
+// layoutId-animated nav pill inside Guest Mode, is a known trigger for mobile GPU
+// compositors (iOS Safari in particular) to drop the layer entirely mid-transition —
+// the screen just goes blank instead of erroring, since nothing actually throws.
 const FLIP_VARIANTS = {
   enter:  (dir) => ({ rotateY: dir > 0 ? 90 : -90, opacity: 0 }),
   center: { rotateY: 0, opacity: 1, transition: { duration: 0.52, ease: [0.32, 0.72, 0, 1] } },
   exit:   (dir) => ({ rotateY: dir > 0 ? -90 : 90, opacity: 0, transition: { duration: 0.42, ease: [0.32, 0.72, 0, 1] } }),
+};
+
+// Mobile fallback: plain crossfade + slide, no 3D transforms, no perspective layer.
+const SLIDE_VARIANTS = {
+  enter:  (dir) => ({ x: dir > 0 ? 24 : -24, opacity: 0 }),
+  center: { x: 0, opacity: 1, transition: { duration: 0.26, ease: [0.32, 0.72, 0, 1] } },
+  exit:   (dir) => ({ x: dir > 0 ? -24 : 24, opacity: 0, transition: { duration: 0.18, ease: [0.32, 0.72, 0, 1] } }),
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -784,7 +795,7 @@ const Resume = ({ onClose }) => {
   // them reads as turning a page in a book, rather than an abrupt content swap.
   return (
     <div style={{ position: "fixed", inset: 0, bottom: "var(--taskbar-height,52px)", zIndex: 50,
-      background: T.bg, perspective: 2200, perspectiveOrigin: "50% 50%", overflow: "hidden" }}>
+      background: T.bg, ...(isMobile ? {} : { perspective: 2200, perspectiveOrigin: "50% 50%" }), overflow: "hidden" }}>
 
       <style>{`
         @media print { body * { visibility: hidden; } #nova-resume-print, #nova-resume-print * { visibility: visible; } #nova-resume-print { position: fixed; left: 0; top: 0; width: 100%; } }
@@ -798,15 +809,17 @@ const Resume = ({ onClose }) => {
         {mode === "guest" ? (
           // Guest mode is a fully self-contained, full-screen experience —
           // it owns its own header, preview, and close button.
-          <motion.div key="guest" custom={flipDir} variants={FLIP_VARIANTS} initial="enter" animate="center" exit="exit"
-            style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d",
-              backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}>
+          <motion.div key="guest" custom={flipDir} variants={isMobile ? SLIDE_VARIANTS : FLIP_VARIANTS}
+            initial="enter" animate="center" exit="exit"
+            style={{ position: "absolute", inset: 0,
+              ...(isMobile ? {} : { transformStyle: "preserve-3d", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }) }}>
             <ResumeGuestMode onClose={() => goToMode("mine")} />
           </motion.div>
         ) : (
-          <motion.div key="mine" custom={flipDir} variants={FLIP_VARIANTS} initial="enter" animate="center" exit="exit"
-            style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d",
-              backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
+          <motion.div key="mine" custom={flipDir} variants={isMobile ? SLIDE_VARIANTS : FLIP_VARIANTS}
+            initial="enter" animate="center" exit="exit"
+            style={{ position: "absolute", inset: 0,
+              ...(isMobile ? {} : { transformStyle: "preserve-3d", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }),
               display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: T.sans, background: T.bg }}>
 
             {/* ── Top bar — two clear rows: identity/actions, then a big tappable mode switch ── */}
