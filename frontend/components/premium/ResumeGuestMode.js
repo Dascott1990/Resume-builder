@@ -43,29 +43,6 @@ const FONTS = [
 
 const DEFAULT_STYLE = { accent: "navy", fontSize: 11, lineHeight: 1.4, font: "calibri" };
 
-// ── Draft persistence ────────────────────────────────────────────────────────
-// Everything below was previously only in React state, so any refresh wiped
-// the in-progress build — form fields, the generated resume, cover letter,
-// interview tips, apply info, all of it. This mirrors the current draft to
-// localStorage (best-effort; a full/blocked storage just means no restore,
-// never a crash) and reads it back once on mount.
-const DRAFT_KEY = "resumeBuilder:draft:v1";
-
-function loadDraft() {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(DRAFT_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function clearDraft() {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.removeItem(DRAFT_KEY); } catch { /* best-effort */ }
-}
-
 // ── Design tokens ──────────────────────────────────────────────────────────────
 // One accent (gold, matches the actual resume ink) — everything else is neutral.
 // Colour shows up as a rule, a dot, or a weight change, never a tinted bg+border pair.
@@ -1071,37 +1048,6 @@ const EMPTY_INFO = {
   background: "", experience: "", education: "", skills: "",
 };
 
-// ── Leave-confirmation modal ──────────────────────────────────────────────────
-// Shown when the X is tapped while there's actually something on screen to lose.
-// Your draft autosaves to this browser as you go, so "Leave" doesn't wipe it —
-// but the person has no way of knowing that unless we say so.
-function LeaveConfirmModal({ open, onCancel, onConfirm }) {
-  if (!open) return null;
-  return (
-    <div role="dialog" aria-modal="true" style={{
-      position: "fixed", inset: 0, zIndex: 250, display: "flex",
-      alignItems: "center", justifyContent: "center", padding: 16,
-      background: "rgba(0,0,0,0.6)",
-    }} onClick={onCancel}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        width: "100%", maxWidth: 380, background: C.panel, border: `1px solid ${C.borderHi}`,
-        borderRadius: 14, padding: 22, boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
-      }}>
-        <p style={{ fontFamily: C.serif, fontStyle: "italic", fontSize: 19, color: C.text, margin: "0 0 8px" }}>
-          Leave Resume Builder?
-        </p>
-        <p style={{ fontFamily: C.sans, fontSize: 13, color: C.muted, lineHeight: 1.5, margin: "0 0 18px" }}>
-          Your progress is saved on this device — it'll be right here when you come back.
-        </p>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Btn variant="gold" onClick={onConfirm}>Leave</Btn>
-          <Btn variant="ghost" onClick={onCancel}>Stay here</Btn>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function ResumeGuestMode({ onClose }) {
   console.log('✅ RESUME GUEST MODE v2.0.0 - LOADED');
   const { isPhone, isTablet, isDesktop } = useViewport();
@@ -1110,27 +1056,22 @@ export default function ResumeGuestMode({ onClose }) {
   // Mobile/tablet: which screen is showing — "panel" (form/list) or "preview"
   const [mobileView, setMobileView] = useState("panel");
 
-  // One localStorage read on mount, reused below to seed every persisted field.
-  const [draftAtMount] = useState(loadDraft);
-
-  const [tab,        setTab]        = useState(() => draftAtMount?.tab || "new");   // "new" | "templates"
-  const [step,       setStep]       = useState(() => draftAtMount?.step || 1);       // 1 | 2 | 3
-  const [info,       setInfo]       = useState(() => draftAtMount?.info || EMPTY_INFO);
-  const [jobDesc,    setJobDesc]    = useState(() => draftAtMount?.jobDesc || "");
+  const [tab,        setTab]        = useState("new");   // "new" | "templates"
+  const [step,       setStep]       = useState(1);        // 1 | 2 | 3
+  const [info,       setInfo]       = useState(EMPTY_INFO);
+  const [jobDesc,    setJobDesc]    = useState("");
   const [generating, setGenerating] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [error,      setError]      = useState("");
-  const [genResult,  setGenResult]  = useState(() => draftAtMount?.genResult || null);
-  const [coverLetter,  setCoverLetter]  = useState(() => draftAtMount?.coverLetter || "");
-  const [interviewTips, setInterviewTips] = useState(() => draftAtMount?.interviewTips || []);
-  const [application, setApplication] = useState(() => draftAtMount?.application || null); // { method, value, instructions }
-  const [packageOpen, setPackageOpen] = useState(false); // never restore an open modal on refresh
+  const [genResult,  setGenResult]  = useState(null);
+  const [coverLetter,  setCoverLetter]  = useState("");
+  const [interviewTips, setInterviewTips] = useState([]);
+  const [application, setApplication] = useState(null); // { method, value, instructions }
+  const [packageOpen, setPackageOpen] = useState(false); // preview-before-download modal
   const [copied, setCopied] = useState(false);
-  const [resume,     dispatch]      = useReducer(resumeReducer, draftAtMount?.resume || null);
+  const [resume,     dispatch]      = useReducer(resumeReducer, null);
   const onEdit = useCallback(onEditHandler(dispatch), [dispatch]);
-  const [docStyle,   setDocStyle]   = useState(() => draftAtMount?.docStyle || DEFAULT_STYLE);
-  // Restored on mount only if there's actually something worth telling the user about.
-  const [draftRestored, setDraftRestored] = useState(() => !!(draftAtMount?.resume || draftAtMount?.jobDesc));
+  const [docStyle,   setDocStyle]   = useState(DEFAULT_STYLE);
   const [saved,      setSaved]      = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [loadingResumeId, setLoadingResumeId] = useState(null); // id currently being fetched, drives skeleton
@@ -1139,7 +1080,6 @@ export default function ResumeGuestMode({ onClose }) {
   // showing — this flags "print as soon as the preview screen mounts".
   const [pendingPrint, setPendingPrint] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
-  const [confirmLeave, setConfirmLeave] = useState(false);
   const [scale,       setScale]         = useState(1);
 
   const canvasRef  = useRef(null);
@@ -1170,29 +1110,6 @@ export default function ResumeGuestMode({ onClose }) {
   useEffect(() => {
     if (!isDesktop && resume && step === 3) setMobileView("preview");
   }, [resume, step, isDesktop]);
-
-  // Mirror the in-progress build to localStorage (debounced) so a refresh
-  // restores it instead of wiping it. Best-effort only — a write failure
-  // (storage full/blocked) is swallowed rather than surfaced as an app error.
-  const draftSaveTimer = useRef(null);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
-    draftSaveTimer.current = setTimeout(() => {
-      try {
-        window.localStorage.setItem(DRAFT_KEY, JSON.stringify({
-          tab, step, info, jobDesc, genResult, coverLetter, interviewTips,
-          application, resume, docStyle,
-        }));
-      } catch { /* best-effort */ }
-    }, 300);
-    return () => clearTimeout(draftSaveTimer.current);
-  }, [tab, step, info, jobDesc, genResult, coverLetter, interviewTips, application, resume, docStyle]);
-
-  // Anything worth confirming before we navigate away from? An empty, untouched
-  // wizard doesn't need a prompt — only ask when there's real work on screen.
-  const hasUnsavedWork = !!(resume || jobDesc.trim() || info.name.trim() || info.title.trim());
-  const requestClose = () => { if (hasUnsavedWork) setConfirmLeave(true); else onClose(); };
 
   const set = (k) => (v) => setInfo(p => ({ ...p, [k]: v }));
   const ready1 = info.name.trim() && info.title.trim() && info.location.trim();
@@ -1371,9 +1288,7 @@ export default function ResumeGuestMode({ onClose }) {
     setError(""); setGenResult(null);
     setCoverLetter(""); setInterviewTips([]);
     setApplication(null); setPackageOpen(false);
-    dispatch({ type: "SET", resume: null }); // was never cleared before — stale resume could linger
     if (!isDesktop) setMobileView("panel");
-    clearDraft();
   };
 
   const A4w = 794;
@@ -1408,20 +1323,6 @@ export default function ResumeGuestMode({ onClose }) {
       {/* BUILD */}
       {tab === "new" && (
         <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none" }}>
-          {draftRestored && (
-            <div style={{ margin: "12px 16px 0", padding: "9px 12px", borderRadius: 8,
-              border: `1px solid ${C.border}`, background: C.raised,
-              display: "flex", alignItems: "center", gap: 8 }}>
-              <Icon name="RefreshCw" size={13} color={C.gold} />
-              <span style={{ flex: 1, fontFamily: C.sans, fontSize: 12, color: C.muted }}>
-                Restored your in-progress draft from before the refresh.
-              </span>
-              <button onClick={() => setDraftRestored(false)} aria-label="Dismiss"
-                style={{ background: "none", border: "none", cursor: "pointer", color: C.faint, padding: 2 }}>
-                <Icon name="X" size={13} />
-              </button>
-            </div>
-          )}
           {step === 3 && genResult && (
             <div style={{ padding: "16px 16px 18px" }}>
               <div style={{ marginBottom: 16, paddingBottom: 14, borderBottom: `1px solid ${C.border}` }}>
@@ -1794,7 +1695,7 @@ export default function ResumeGuestMode({ onClose }) {
         borderBottom: `1px solid ${C.border}`, gap: 10 }}>
 
         <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, flex: "1 1 auto", overflow: "hidden" }}>
-          <button onClick={requestClose} aria-label="Close resume builder"
+          <button onClick={onClose} aria-label="Close resume builder"
             style={{ width: 40, height: 40, borderRadius: "50%", background: C.raised,
               border: `1px solid ${C.border}`, display: "flex", alignItems: "center",
               justifyContent: "center", cursor: "pointer", color: C.text, flexShrink: 0 }}>
@@ -1909,12 +1810,6 @@ export default function ResumeGuestMode({ onClose }) {
           })}
         </nav>
       )}
-
-      <LeaveConfirmModal
-        open={confirmLeave}
-        onCancel={() => setConfirmLeave(false)}
-        onConfirm={() => { setConfirmLeave(false); onClose(); }}
-      />
 
       <PackagePreviewModal
         open={packageOpen}
