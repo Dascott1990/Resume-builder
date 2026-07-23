@@ -66,6 +66,36 @@ function clearDraft() {
   try { window.localStorage.removeItem(DRAFT_KEY); } catch { /* best-effort */ }
 }
 
+// ── Profile persistence ──────────────────────────────────────────────────────
+// The draft above is per-build (it includes the job description, the
+// generated resume, cover letter, etc.) and gets wiped every time someone
+// starts a new application. Name/contact/background/education/skills are
+// different — they don't change per job, so they live in their own key and
+// survive "Build another", browser refreshes, and full sessions. This is
+// what makes a second (or twentieth) resume a 20-second job instead of a
+// re-typing exercise.
+const PROFILE_KEY = "resumeBuilder:profile:v1";
+
+function loadProfile() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(PROFILE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveProfile(info) {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(PROFILE_KEY, JSON.stringify(info)); } catch { /* best-effort */ }
+}
+
+function clearProfile() {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.removeItem(PROFILE_KEY); } catch { /* best-effort */ }
+}
+
 // ── Design tokens ──────────────────────────────────────────────────────────────
 // One accent (gold, matches the actual resume ink) — everything else is neutral.
 // Colour shows up as a rule, a dot, or a weight change, never a tinted bg+border pair.
@@ -322,6 +352,7 @@ function ApplyBanner({ application }) {
 function PackagePreviewModal({
   open, onClose, genResult, application, coverLetter, interviewTips,
   onCopyCoverLetter, copied, onDownloadAll, downloading,
+  onCoverLetterDocx, onCoverLetterPdf,
 }) {
   if (!open) return null;
   return (
@@ -356,11 +387,22 @@ function PackagePreviewModal({
 
         {coverLetter && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+              marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
               <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: 0 }}>Cover letter</p>
-              <Btn variant="ghost" icon={copied ? "Check" : "Clipboard"} onClick={onCopyCoverLetter} small>
-                {copied ? "Copied" : "Copy"}
-              </Btn>
+              <div style={{ display: "flex", gap: 6 }}>
+                <Btn variant="ghost" icon={copied ? "Check" : "Clipboard"} onClick={onCopyCoverLetter} small>
+                  {copied ? "Copied" : "Copy"}
+                </Btn>
+                <Btn variant="ghost" icon="FileDown" onClick={onCoverLetterDocx}
+                  loading={downloading === "cl-docx"} disabled={!!downloading} small>
+                  Word
+                </Btn>
+                <Btn variant="ghost" icon="FileDown" onClick={onCoverLetterPdf}
+                  loading={downloading === "cl-pdf"} disabled={!!downloading} small>
+                  PDF
+                </Btn>
+              </div>
             </div>
             <div style={{ fontFamily: C.sans, fontSize: 12.5, color: C.text, lineHeight: 1.6,
               whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto",
@@ -704,6 +746,143 @@ async function downloadDocx(resume, docStyle, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// COVER LETTER DOCX — same raw-XML approach as buildDocx, simpler layout
+// (letterhead + date + paragraphs, no bullets/headings needed)
+// ═══════════════════════════════════════════════════════════════════════════════
+function buildCoverLetterDocx(coverLetter, contact, docStyle) {
+  const fontName = FONTS.find(f => f.id === docStyle?.font)?.label || "Calibri";
+  const sz   = Math.round((docStyle?.fontSize || 11) * 2);
+  const szSm = sz - 2;
+
+  function esc(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+  }
+  function rpr(opts = {}) {
+    const b    = opts.bold ? "<w:b/><w:bCs/>" : "";
+    const size = opts.sz ?? sz;
+    const col  = opts.color ? `<w:color w:val="${opts.color}"/>` : "";
+    return `<w:rPr><w:rFonts w:ascii="${fontName}" w:hAnsi="${fontName}" w:cs="${fontName}"/>${b}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/>${col}</w:rPr>`;
+  }
+  function r(text, opts = {}) {
+    return `<w:r>${rpr(opts)}<w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
+  }
+  function ppr(opts = {}) {
+    const jc = opts.align ? `<w:jc w:val="${opts.align}"/>` : "";
+    const sp = `<w:spacing w:before="${opts.before ?? 0}" w:after="${opts.after ?? 200}" w:line="${Math.round((docStyle?.lineHeight || 1.4) * 240)}" w:lineRule="auto"/>`;
+    return `<w:pPr>${sp}${jc}</w:pPr>`;
+  }
+  function p(runs, opts = {}) {
+    return `<w:p>${ppr(opts)}${runs}</w:p>`;
+  }
+
+  let body = "";
+  const headerBits = [contact?.name, contact?.email, contact?.phone, contact?.location].filter(Boolean);
+  if (headerBits.length) {
+    body += p(r(contact.name || "", { bold: true, sz: sz + 2 }), { after: 20 });
+    body += p(r(headerBits.slice(1).join("  |  "), { sz: szSm, color: "595959" }), { after: 260 });
+  }
+
+  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  body += p(r(today, { sz }), { after: 260 });
+
+  const paragraphs = (coverLetter || "").split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+  for (const para of paragraphs) {
+    body += p(r(para, { sz }), { after: 220 });
+  }
+
+  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
+  xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>${body}
+    <w:sectPr>
+      <w:pgSz w:w="12240" w:h="15840"/>
+      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
+
+  const num = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>`;
+
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:docDefaults>
+    <w:rPrDefault>
+      <w:rPr>
+        <w:rFonts w:ascii="${fontName}" w:hAnsi="${fontName}" w:cs="${fontName}"/>
+        <w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/>
+        <w:lang w:val="en-CA"/>
+      </w:rPr>
+    </w:rPrDefault>
+  </w:docDefaults>
+</w:styles>`;
+
+  const settings = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:defaultTabStop w:val="720"/>
+  <w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat>
+</w:settings>`;
+
+  const docRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+</Relationships>`;
+
+  const pkgRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+</Relationships>`;
+
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml"  ContentType="application/xml"/>
+  <Override PartName="/word/document.xml"   ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml"     ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/numbering.xml"  ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+  <Override PartName="/word/settings.xml"   ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+  <Override PartName="/docProps/core.xml"   ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/app.xml"    ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+</Types>`;
+
+  const core = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <dc:creator>${esc(contact?.name)}</dc:creator>
+  <dc:title>Cover Letter</dc:title>
+</cp:coreProperties>`;
+
+  const app = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">
+  <Application>Microsoft Office Word</Application>
+  <DocSecurity>0</DocSecurity>
+</Properties>`;
+
+  return { doc, num, styles, settings, docRels, pkgRels, contentTypes, core, app };
+}
+
+async function downloadCoverLetterDocx(coverLetter, contact, docStyle, filename) {
+  if (!coverLetter) throw new Error("No cover letter to download yet.");
+  const xml  = buildCoverLetterDocx(coverLetter, contact, docStyle);
+  const zip  = await zipDocx(xml);
+  const blob = new Blob([zip], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement("a"), { href: url, download: filename || "Cover_Letter.docx" });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
 // ── PDF: text-based via browser print (preserves selectable text) ─────────────
 // We inject a dedicated print stylesheet and isolate the preview element.
 // Result: clean text PDF — every word is selectable and copyable.
@@ -765,6 +944,62 @@ function printPdf(previewEl) {
     resetEls.forEach((el) => el.removeAttribute(RESET_ATTR));
     previewEl.removeAttribute("id");
     const s = document.getElementById("__resume_print_style__");
+    if (s) document.head.removeChild(s);
+  }, 1500);
+}
+
+// ── Cover letter PDF — same print-to-PDF trick, but the cover letter has no
+// on-screen preview element, so we build one purely for printing: a plain
+// letter page appended to <body>, everything else hidden, then removed.
+function printCoverLetterPdf(coverLetter, contact) {
+  if (!coverLetter) return;
+  const PRINT_ID   = "__cover_letter_pdf_print__";
+  const HIDE_CLASS = "__cl_print_hide__";
+
+  function esc(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  const toHide = Array.from(document.body.children);
+  toHide.forEach((el) => el.classList.add(HIDE_CLASS));
+
+  const page = document.createElement("div");
+  page.id = PRINT_ID;
+  page.style.cssText = [
+    "width:8.5in", "min-height:11in", "margin:0 auto", "padding:1in",
+    "background:#fff", "color:#1a1a1a",
+    "font-family:Georgia,'Times New Roman',serif", "font-size:12pt",
+    "line-height:1.6", "white-space:pre-wrap", "box-sizing:border-box",
+  ].join(";");
+
+  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const headerBits = [contact?.name, contact?.email, contact?.phone, contact?.location].filter(Boolean).join("  |  ");
+
+  page.innerHTML = `
+    ${contact?.name ? `<div style="font-weight:bold;margin-bottom:4px;">${esc(contact.name)}</div>` : ""}
+    ${headerBits ? `<div style="font-size:10.5pt;color:#555;margin-bottom:26px;">${esc(headerBits)}</div>` : ""}
+    <div style="margin-bottom:26px;">${esc(today)}</div>
+    <div>${esc(coverLetter)}</div>
+  `;
+  document.body.appendChild(page);
+
+  const style = document.createElement("style");
+  style.id = "__cover_letter_print_style__";
+  style.textContent = `
+    @media print {
+      body { margin: 0 !important; padding: 0 !important; background: white !important; }
+      .${HIDE_CLASS} { display: none !important; }
+      #${PRINT_ID} { display: block !important; }
+    }
+  `;
+  document.head.appendChild(style);
+  window.print();
+
+  setTimeout(() => {
+    toHide.forEach((el) => el.classList.remove(HIDE_CLASS));
+    if (page.parentNode) document.body.removeChild(page);
+    const s = document.getElementById("__cover_letter_print_style__");
     if (s) document.head.removeChild(s);
   }, 1500);
 }
@@ -1111,11 +1346,17 @@ export default function ResumeGuestMode({ onClose }) {
   const [mobileView, setMobileView] = useState("panel");
 
   // One localStorage read on mount, reused below to seed every persisted field.
-  const [draftAtMount] = useState(loadDraft);
+  const [draftAtMount]   = useState(loadDraft);
+  // Saved personal info from a previous session — used only when there's no
+  // in-progress draft to restore (an active draft already has the freshest info).
+  const [profileAtMount] = useState(loadProfile);
 
   const [tab,        setTab]        = useState(() => draftAtMount?.tab || "new");   // "new" | "templates"
   const [step,       setStep]       = useState(() => draftAtMount?.step || 1);       // 1 | 2 | 3
-  const [info,       setInfo]       = useState(() => draftAtMount?.info || EMPTY_INFO);
+  const [info,       setInfo]       = useState(() => draftAtMount?.info || profileAtMount || EMPTY_INFO);
+  // Shown once, only when we actually pre-filled the form from a saved profile
+  // (not when restoring a live draft — that already gets its own banner).
+  const [infoFromProfile, setInfoFromProfile] = useState(() => !draftAtMount?.info && !!profileAtMount);
   const [jobDesc,    setJobDesc]    = useState(() => draftAtMount?.jobDesc || "");
   const [generating, setGenerating] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
@@ -1188,6 +1429,19 @@ export default function ResumeGuestMode({ onClose }) {
     }, 300);
     return () => clearTimeout(draftSaveTimer.current);
   }, [tab, step, info, jobDesc, genResult, coverLetter, interviewTips, application, resume, docStyle]);
+
+  // Mirror personal info to its own profile key (debounced), independent of
+  // the job-specific draft — this is what survives "Build another".
+  const profileSaveTimer = useRef(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (profileSaveTimer.current) clearTimeout(profileSaveTimer.current);
+    profileSaveTimer.current = setTimeout(() => {
+      const hasSomething = Object.values(info).some((v) => (v || "").trim());
+      if (hasSomething) saveProfile(info);
+    }, 400);
+    return () => clearTimeout(profileSaveTimer.current);
+  }, [info]);
 
   // Anything worth confirming before we navigate away from? An empty, untouched
   // wizard doesn't need a prompt — only ask when there's real work on screen.
@@ -1282,19 +1536,44 @@ export default function ResumeGuestMode({ onClose }) {
   };
 
   // The single download action inside the package-preview modal: resume .docx
-  // and cover letter .txt both save in one click, after the person has reviewed
-  // everything on screen.
+  // and cover letter .docx both save in one click, after the person has
+  // reviewed everything on screen — matching formats, both editable.
   const downloadPackage = async () => {
     if (!resume) return;
     setDownloading("docx");
     try {
       const name = (resume.contact?.name || info.name || "Resume").replace(/\s+/g, "_");
       await downloadDocx(resume, docStyle, `${name}_Resume.docx`);
-      if (coverLetter) downloadCoverLetter();
+      if (coverLetter) await downloadCoverLetterDocx(coverLetter, resume.contact || info, docStyle, `${name}_Cover_Letter.docx`);
     } catch (e) {
       setError("Download failed: " + e.message);
     } finally {
       setDownloading(null);
+    }
+  };
+
+  const handleCoverLetterDocx = async () => {
+    if (!coverLetter) return;
+    setDownloading("cl-docx");
+    try {
+      const name = (resume?.contact?.name || info.name || "Cover_Letter").replace(/\s+/g, "_");
+      await downloadCoverLetterDocx(coverLetter, resume?.contact || info, docStyle, `${name}_Cover_Letter.docx`);
+    } catch (e) {
+      setError("Download failed: " + e.message);
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const handleCoverLetterPdf = () => {
+    if (!coverLetter) return;
+    setDownloading("cl-pdf");
+    try {
+      printCoverLetterPdf(coverLetter, resume?.contact || info);
+    } catch (e) {
+      setError("Download failed: " + e.message);
+    } finally {
+      setTimeout(() => setDownloading(null), 1500);
     }
   };
 
@@ -1366,14 +1645,25 @@ export default function ResumeGuestMode({ onClose }) {
     setTimeout(() => setDownloading(null), 1500);
   };
 
+  // "Build another" starts a fresh job application, but keeps the person's
+  // saved info (name, contact, background, education, skills) — that's the
+  // whole point of saving it. Only the job-specific stuff resets.
   const resetWizard = () => {
-    setStep(1); setInfo(EMPTY_INFO); setJobDesc("");
+    setStep(1); setJobDesc("");
     setError(""); setGenResult(null);
     setCoverLetter(""); setInterviewTips([]);
     setApplication(null); setPackageOpen(false);
     dispatch({ type: "SET", resume: null }); // was never cleared before — stale resume could linger
     if (!isDesktop) setMobileView("panel");
     clearDraft();
+  };
+
+  // Explicit opt-out for someone applying on behalf of someone else, or who
+  // just wants to start their info over from scratch.
+  const useDifferentInfo = () => {
+    setInfo(EMPTY_INFO);
+    setInfoFromProfile(false);
+    clearProfile();
   };
 
   const A4w = 794;
@@ -1490,13 +1780,24 @@ export default function ResumeGuestMode({ onClose }) {
 
               {coverLetter && (
                 <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                    marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
                     <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: 0 }}>
                       Cover letter
                     </p>
-                    <Btn variant="ghost" icon={copied ? "Check" : "Clipboard"} onClick={copyCoverLetter} small>
-                      {copied ? "Copied" : "Copy"}
-                    </Btn>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <Btn variant="ghost" icon={copied ? "Check" : "Clipboard"} onClick={copyCoverLetter} small>
+                        {copied ? "Copied" : "Copy"}
+                      </Btn>
+                      <Btn variant="ghost" icon="FileDown" onClick={handleCoverLetterDocx}
+                        loading={downloading === "cl-docx"} disabled={!!downloading} small>
+                        Word
+                      </Btn>
+                      <Btn variant="ghost" icon="FileDown" onClick={handleCoverLetterPdf}
+                        loading={downloading === "cl-pdf"} disabled={!!downloading} small>
+                        PDF
+                      </Btn>
+                    </div>
                   </div>
                   <div style={{ fontFamily: C.sans, fontSize: 12, color: C.text, lineHeight: 1.6,
                     whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto",
@@ -1539,6 +1840,26 @@ export default function ResumeGuestMode({ onClose }) {
 
               {step === 1 && (
                 <>
+                  {infoFromProfile && (
+                    <div style={{ margin: "0 0 14px", padding: "9px 12px", borderRadius: 8,
+                      border: `1px solid ${C.border}`, background: C.raised,
+                      display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <Icon name="User" size={13} color={C.gold} />
+                      <span style={{ flex: 1, fontFamily: C.sans, fontSize: 12, color: C.muted, minWidth: 160 }}>
+                        Filled in from your saved info — edit anything below.
+                      </span>
+                      <button onClick={useDifferentInfo}
+                        style={{ background: "none", border: "none", cursor: "pointer",
+                          color: C.gold, fontSize: 11.5, fontWeight: 700, fontFamily: C.sans,
+                          padding: "2px 0", whiteSpace: "nowrap" }}>
+                        Use different info
+                      </button>
+                      <button onClick={() => setInfoFromProfile(false)} aria-label="Dismiss"
+                        style={{ background: "none", border: "none", cursor: "pointer", color: C.faint, padding: 2 }}>
+                        <Icon name="X" size={13} />
+                      </button>
+                    </div>
+                  )}
                   <div style={{ display: "grid",
                     gridTemplateColumns: isPhone ? "1fr" : "1fr 1fr", gap: "0 8px" }}>
                     <div style={{ gridColumn: "1/-1" }}>
@@ -1927,6 +2248,8 @@ export default function ResumeGuestMode({ onClose }) {
         copied={copied}
         onDownloadAll={downloadPackage}
         downloading={downloading}
+        onCoverLetterDocx={handleCoverLetterDocx}
+        onCoverLetterPdf={handleCoverLetterPdf}
       />
     </motion.div>
   );
