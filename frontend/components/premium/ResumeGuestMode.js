@@ -233,6 +233,10 @@ function Btn({ children, onClick, disabled, variant = "primary", small, icon, lo
 }
 
 // ── Input / Textarea ───────────────────────────────────────────────────────────
+// Placeholder text (the example/hint copy) is intentionally quiet: it only
+// appears once this specific row is focused, and disappears the instant
+// focus leaves OR the person starts typing. An idle, unfocused, empty field
+// shows nothing but its label — no example text sitting there unrequested.
 function Field({ label, required, hint, value, onChange, placeholder, multiline, rows = 3, mono }) {
   const [focused, setFocused] = useState(false);
   const base = {
@@ -245,12 +249,15 @@ function Field({ label, required, hint, value, onChange, placeholder, multiline,
     boxSizing: "border-box", outline: "none",
     transition: "border-color 0.12s", lineHeight: 1.5,
   };
+  // Only surface the placeholder while this row is focused. Blurred (whether
+  // touched or not) or actively being typed into → no placeholder at all.
+  const shownPlaceholder = focused ? placeholder : "";
   const events = {
     value,
     onChange: e => onChange(e.target.value),
     onFocus: () => setFocused(true),
     onBlur:  () => setFocused(false),
-    placeholder,
+    placeholder: shownPlaceholder,
     "aria-label": label,
   };
   return (
