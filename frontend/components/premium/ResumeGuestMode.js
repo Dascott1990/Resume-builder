@@ -1346,11 +1346,23 @@ export default function ResumeGuestMode({ onClose }) {
   // Mobile/tablet: which screen is showing — "panel" (form/list) or "preview"
   const [mobileView, setMobileView] = useState("panel");
 
+  // One localStorage read on mount, reused below to seed every persisted field.
+  const [draftAtMount]   = useState(loadDraft);
+  // Saved personal info from a previous session — used only when there's no
+  // in-progress draft to restore (an active draft already has the freshest info).
+  const [profileAtMount] = useState(loadProfile);
+
+  const [tab,        setTab]        = useState(() => draftAtMount?.tab || "new");   // "new" | "templates"
+  const [step,       setStep]       = useState(() => draftAtMount?.step || 1);       // 1 | 2 | 3
+
   // The floating nav recedes while someone's actively scrolling down through
   // a form (same idea as Instagram's bar shrinking on scroll) and comes back
   // on scroll-up or near the top. Reserved padding at the bottom of every
   // scroll container is still the hard guarantee against covering a button —
   // this is the polish on top, not the safety net itself.
+  // (Declared after tab/step/mobileView, not before — the effect's dependency
+  // array reads all three, and reading a const before its own declaration
+  // line has run is a ReferenceError in JS, not just a lint nitpick.)
   const [navHidden, setNavHidden] = useState(false);
   const lastScrollY = useRef(0);
   const handlePanelScroll = (e) => {
@@ -1365,14 +1377,6 @@ export default function ResumeGuestMode({ onClose }) {
   // hidden from wherever the previous scroll position happened to land.
   useEffect(() => { setNavHidden(false); lastScrollY.current = 0; }, [tab, mobileView, step]);
 
-  // One localStorage read on mount, reused below to seed every persisted field.
-  const [draftAtMount]   = useState(loadDraft);
-  // Saved personal info from a previous session — used only when there's no
-  // in-progress draft to restore (an active draft already has the freshest info).
-  const [profileAtMount] = useState(loadProfile);
-
-  const [tab,        setTab]        = useState(() => draftAtMount?.tab || "new");   // "new" | "templates"
-  const [step,       setStep]       = useState(() => draftAtMount?.step || 1);       // 1 | 2 | 3
   const [info,       setInfo]       = useState(() => draftAtMount?.info || profileAtMount || EMPTY_INFO);
   // Shown once, only when we actually pre-filled the form from a saved profile
   // (not when restoring a live draft — that already gets its own banner).
@@ -2290,7 +2294,7 @@ export default function ResumeGuestMode({ onClose }) {
               </motion.button>
             );
           })}
-        </nav>
+        </motion.nav>
       )}
 
       <LeaveConfirmModal
