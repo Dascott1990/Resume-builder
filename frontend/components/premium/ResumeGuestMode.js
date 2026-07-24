@@ -233,10 +233,6 @@ function Btn({ children, onClick, disabled, variant = "primary", small, icon, lo
 }
 
 // ── Input / Textarea ───────────────────────────────────────────────────────────
-// Placeholder text (the example/hint copy) is intentionally quiet: it only
-// appears once this specific row is focused, and disappears the instant
-// focus leaves OR the person starts typing. An idle, unfocused, empty field
-// shows nothing but its label — no example text sitting there unrequested.
 function Field({ label, required, hint, value, onChange, placeholder, multiline, rows = 3, mono }) {
   const [focused, setFocused] = useState(false);
   const base = {
@@ -249,15 +245,13 @@ function Field({ label, required, hint, value, onChange, placeholder, multiline,
     boxSizing: "border-box", outline: "none",
     transition: "border-color 0.12s", lineHeight: 1.5,
   };
-  // Only surface the placeholder while this row is focused. Blurred (whether
-  // touched or not) or actively being typed into → no placeholder at all.
-  const shownPlaceholder = focused ? placeholder : "";
   const events = {
     value,
     onChange: e => onChange(e.target.value),
     onFocus: () => setFocused(true),
     onBlur:  () => setFocused(false),
-    placeholder: shownPlaceholder,
+    placeholder,
+    className: "rgm-field",
     "aria-label": label,
   };
   return (
@@ -1678,11 +1672,18 @@ export default function ResumeGuestMode({ onClose }) {
   const scaledW = Math.round(A4w * scale);
   const scaledH = Math.round(A4h * scale);
 
+  // The bottom nav is `position: fixed` (see below) so it's immune to content
+  // scroll/overflow bugs — but that also means it floats OVER content instead
+  // of pushing it up. Every mobile scroll container reserves this much space
+  // at its bottom so the last item is never hidden underneath the bar.
+  const mobileNavClearance = !isDesktop ? "calc(92px + env(safe-area-inset-bottom, 0px))" : undefined;
+
   // ── Reusable preview canvas (used in both desktop pane and mobile screen) ──
   const PreviewCanvas = () => (
     <div ref={canvasRef} style={{ flex: 1, overflowY: "auto", background: "#C8C8C8",
       display: "flex", flexDirection: "column", alignItems: "center",
-      padding: isPhone ? "14px 0 24px" : "24px 0 48px", scrollbarWidth: "thin" }}>
+      padding: isPhone ? "14px 0 24px" : "24px 0 48px", paddingBottom: mobileNavClearance,
+      overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin" }}>
       <p style={{ fontFamily: C.mono, fontSize: 9, color: "#666", margin: "0 0 10px",
         letterSpacing: "0.08em", userSelect: "none", textAlign: "center", padding: "0 12px" }}>
         {loadingResumeId ? "Loading…" : `${Math.round(scale * 100)}% · ${resume ? "Tap any text to edit" : "Generate to see your resume"}`}
@@ -1704,7 +1705,8 @@ export default function ResumeGuestMode({ onClose }) {
     <>
       {/* BUILD */}
       {tab === "new" && (
-        <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none" }}>
+        <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none",
+          paddingBottom: mobileNavClearance, overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
           {draftRestored && (
             <div style={{ margin: "12px 16px 0", padding: "9px 12px", borderRadius: 8,
               border: `1px solid ${C.border}`, background: C.raised,
@@ -1938,9 +1940,8 @@ export default function ResumeGuestMode({ onClose }) {
 
       {/* STYLE */}
       {tab === "style" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: 16, scrollbarWidth: "none" }}>
-          <p style={{ fontFamily: C.mono, fontSize: 10, color: C.faint,
-            letterSpacing: "0.07em", margin: "0 0 14px" }}>RESUME STYLE</p>
+        <div style={{ flex: 1, overflowY: "auto", padding: 16, scrollbarWidth: "none",
+          paddingBottom: mobileNavClearance, overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
 
           {/* Font family */}
           <p style={{ fontFamily: C.sans, fontSize: 12, color: C.muted, margin: "0 0 7px" }}>Font family</p>
@@ -2001,7 +2002,8 @@ export default function ResumeGuestMode({ onClose }) {
 
       {/* TEMPLATES */}
       {tab === "templates" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: 14, scrollbarWidth: "none" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: 14, scrollbarWidth: "none",
+          paddingBottom: mobileNavClearance, overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
           {loadingSaved ? (
             <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
               <Spinner size={28} />
@@ -2053,7 +2055,8 @@ export default function ResumeGuestMode({ onClose }) {
 
       {/* SETTINGS */}
       {tab === "settings" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: 16, scrollbarWidth: "none" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: 16, scrollbarWidth: "none",
+          paddingBottom: mobileNavClearance, overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
           <p style={{ fontFamily: C.serif, fontStyle: "italic", fontSize: 17, color: C.text, margin: "0 0 16px" }}>
             Settings
           </p>
@@ -2192,15 +2195,30 @@ export default function ResumeGuestMode({ onClose }) {
         )}
       </div>
 
-      {/* ── Mobile/tablet: frosted-glass bottom tab bar — native-app style ── */}
+      {/* ── Mobile/tablet: floating frosted-glass bottom bar ──────────────────
+          Deliberately `position: fixed`, not a flex child that sits at the
+          bottom of the column. It used to be a normal flex item, which meant
+          it only stayed put if every scrollable div above it was perfectly
+          bounded — one overflow slip anywhere in that chain (or an iOS
+          rubber-band scroll bleeding through the 3D flip-transform wrapper
+          this whole screen lives in, in Resume.js) and the bar rode along
+          with the scroll. Fixed positioning takes it out of that flow
+          entirely: it's pinned to the nearest transformed ancestor (the
+          flip-page wrapper in Resume.js), which is itself pinned to the
+          viewport, so nothing above it can drag it anywhere. Content
+          reserves space via `mobileNavClearance` so it never sits underneath. */}
       {!isDesktop && (
         <nav role="tablist" aria-label="View" style={{
-          flexShrink: 0, position: "relative", display: "flex",
-          background: `${C.panel}E3`, backdropFilter: "blur(24px) saturate(180%)",
-          WebkitBackdropFilter: "blur(24px) saturate(180%)",
-          borderTop: `1px solid ${C.border}`,
-          boxShadow: "0 -14px 34px rgba(0,0,0,0.32)",
-          paddingTop: 7, paddingBottom: "calc(7px + env(safe-area-inset-bottom, 0px))" }}>
+          position: "fixed", left: 12, right: 12,
+          bottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+          zIndex: 40, display: "flex",
+          borderRadius: 22,
+          background: `${C.panel}CC`,
+          backdropFilter: "blur(28px) saturate(190%)",
+          WebkitBackdropFilter: "blur(28px) saturate(190%)",
+          border: "1px solid rgba(255,255,255,0.14)",
+          boxShadow: "0 14px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.07) inset",
+          paddingTop: 6, paddingBottom: 6 }}>
           {[
             { id: "new",       icon: "Sparkles",  label: "Build" },
             { id: "style",     icon: "Settings2", label: "Style" },
