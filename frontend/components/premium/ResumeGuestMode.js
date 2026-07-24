@@ -2113,6 +2113,8 @@ export default function ResumeGuestMode({ onClose }) {
       <style>{`
         @media print{body *{visibility:hidden!important}#__resume_pdf_print__,#__resume_pdf_print__ *{visibility:visible!important}#__resume_pdf_print__{position:fixed!important;left:0!important;top:0!important;width:100%!important;transform:none!important;box-shadow:none!important}}
         .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+        .rgm-field::placeholder{color:${C.faint};opacity:0;transition:opacity .15s ease}
+        .rgm-field:focus::placeholder{opacity:1}
         @media (max-width: 380px) {
           .rgm-dl-label { display: none; }
           .rgm-dl-btn { padding: 10px !important; gap: 0 !important; }
