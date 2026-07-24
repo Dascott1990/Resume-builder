@@ -1346,6 +1346,25 @@ export default function ResumeGuestMode({ onClose }) {
   // Mobile/tablet: which screen is showing — "panel" (form/list) or "preview"
   const [mobileView, setMobileView] = useState("panel");
 
+  // The floating nav recedes while someone's actively scrolling down through
+  // a form (same idea as Instagram's bar shrinking on scroll) and comes back
+  // on scroll-up or near the top. Reserved padding at the bottom of every
+  // scroll container is still the hard guarantee against covering a button —
+  // this is the polish on top, not the safety net itself.
+  const [navHidden, setNavHidden] = useState(false);
+  const lastScrollY = useRef(0);
+  const handlePanelScroll = (e) => {
+    const y = Math.max(0, e.target.scrollTop);
+    const delta = y - lastScrollY.current;
+    if (y < 24) setNavHidden(false);
+    else if (delta > 8) setNavHidden(true);
+    else if (delta < -8) setNavHidden(false);
+    lastScrollY.current = y;
+  };
+  // Always resurface the nav on a fresh screen/tab/step — never leave it
+  // hidden from wherever the previous scroll position happened to land.
+  useEffect(() => { setNavHidden(false); lastScrollY.current = 0; }, [tab, mobileView, step]);
+
   // One localStorage read on mount, reused below to seed every persisted field.
   const [draftAtMount]   = useState(loadDraft);
   // Saved personal info from a previous session — used only when there's no
@@ -1675,12 +1694,15 @@ export default function ResumeGuestMode({ onClose }) {
   // The bottom nav is `position: fixed` (see below) so it's immune to content
   // scroll/overflow bugs — but that also means it floats OVER content instead
   // of pushing it up. Every mobile scroll container reserves this much space
-  // at its bottom so the last item is never hidden underneath the bar.
-  const mobileNavClearance = !isDesktop ? "calc(92px + env(safe-area-inset-bottom, 0px))" : undefined;
+  // at its bottom so the last item is never hidden underneath the bar. This
+  // is deliberately generous — a bit of extra blank space at the end of a
+  // scroll is harmless, a covered button is not.
+  const mobileNavClearance = !isDesktop ? "calc(116px + env(safe-area-inset-bottom, 0px))" : undefined;
 
   // ── Reusable preview canvas (used in both desktop pane and mobile screen) ──
   const PreviewCanvas = () => (
-    <div ref={canvasRef} style={{ flex: 1, overflowY: "auto", background: "#C8C8C8",
+    <div ref={canvasRef} onScroll={!isDesktop ? handlePanelScroll : undefined}
+      style={{ flex: 1, overflowY: "auto", background: "#C8C8C8",
       display: "flex", flexDirection: "column", alignItems: "center",
       padding: isPhone ? "14px 0 24px" : "24px 0 48px", paddingBottom: mobileNavClearance,
       overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin" }}>
@@ -1705,7 +1727,8 @@ export default function ResumeGuestMode({ onClose }) {
     <>
       {/* BUILD */}
       {tab === "new" && (
-        <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none",
+        <div onScroll={!isDesktop ? handlePanelScroll : undefined}
+          style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none",
           paddingBottom: mobileNavClearance, overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
           {draftRestored && (
             <div style={{ margin: "12px 16px 0", padding: "9px 12px", borderRadius: 8,
@@ -1940,7 +1963,8 @@ export default function ResumeGuestMode({ onClose }) {
 
       {/* STYLE */}
       {tab === "style" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: 16, scrollbarWidth: "none",
+        <div onScroll={!isDesktop ? handlePanelScroll : undefined}
+          style={{ flex: 1, overflowY: "auto", padding: 16, scrollbarWidth: "none",
           paddingBottom: mobileNavClearance, overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
 
           {/* Font family */}
@@ -2002,7 +2026,8 @@ export default function ResumeGuestMode({ onClose }) {
 
       {/* TEMPLATES */}
       {tab === "templates" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: 14, scrollbarWidth: "none",
+        <div onScroll={!isDesktop ? handlePanelScroll : undefined}
+          style={{ flex: 1, overflowY: "auto", padding: 14, scrollbarWidth: "none",
           paddingBottom: mobileNavClearance, overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
           {loadingSaved ? (
             <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
@@ -2055,7 +2080,8 @@ export default function ResumeGuestMode({ onClose }) {
 
       {/* SETTINGS */}
       {tab === "settings" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: 16, scrollbarWidth: "none",
+        <div onScroll={!isDesktop ? handlePanelScroll : undefined}
+          style={{ flex: 1, overflowY: "auto", padding: 16, scrollbarWidth: "none",
           paddingBottom: mobileNavClearance, overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
           <p style={{ fontFamily: C.serif, fontStyle: "italic", fontSize: 17, color: C.text, margin: "0 0 16px" }}>
             Settings
@@ -2198,19 +2224,27 @@ export default function ResumeGuestMode({ onClose }) {
       </div>
 
       {/* ── Mobile/tablet: floating frosted-glass bottom bar ──────────────────
-          Deliberately `position: fixed`, not a flex child that sits at the
-          bottom of the column. It used to be a normal flex item, which meant
-          it only stayed put if every scrollable div above it was perfectly
-          bounded — one overflow slip anywhere in that chain (or an iOS
-          rubber-band scroll bleeding through the 3D flip-transform wrapper
-          this whole screen lives in, in Resume.js) and the bar rode along
-          with the scroll. Fixed positioning takes it out of that flow
-          entirely: it's pinned to the nearest transformed ancestor (the
-          flip-page wrapper in Resume.js), which is itself pinned to the
-          viewport, so nothing above it can drag it anywhere. Content
-          reserves space via `mobileNavClearance` so it never sits underneath. */}
+          Two layers of defense against ever covering a button:
+          1. `position: fixed`, not a flex child — it used to sit in normal
+             flex flow, which meant it only stayed put if every scrollable
+             div above it was perfectly bounded. Fixed positioning takes it
+             out of that flow entirely: pinned to the nearest transformed
+             ancestor (the flip-page wrapper in Resume.js), itself pinned to
+             the viewport, so content scroll can't drag it anywhere. Every
+             scroll container reserves `mobileNavClearance` at its bottom so
+             the last button always has clear room below it — this is the
+             actual guarantee.
+          2. On top of that: it recedes (fade + slide + shrink) while someone
+             is actively scrolling down, and returns on scroll-up or near the
+             top — the same idea as Instagram's bar shrinking on scroll.
+             `pointerEvents: none` while hidden means it can never intercept
+             a tap even mid-transition. */}
       {!isDesktop && (
-        <nav role="tablist" aria-label="View" style={{
+        <motion.nav role="tablist" aria-label="View"
+          initial={false}
+          animate={{ y: navHidden ? 90 : 0, opacity: navHidden ? 0 : 1, scale: navHidden ? 0.94 : 1 }}
+          transition={{ type: "spring", damping: 28, stiffness: 320 }}
+          style={{
           position: "fixed", left: 12, right: 12,
           bottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
           zIndex: 40, display: "flex",
@@ -2220,7 +2254,8 @@ export default function ResumeGuestMode({ onClose }) {
           WebkitBackdropFilter: "blur(28px) saturate(190%)",
           border: "1px solid rgba(255,255,255,0.14)",
           boxShadow: "0 14px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.07) inset",
-          paddingTop: 6, paddingBottom: 6 }}>
+          paddingTop: 6, paddingBottom: 6,
+          pointerEvents: navHidden ? "none" : "auto" }}>
           {[
             { id: "new",       icon: "Sparkles",  label: "Build" },
             { id: "style",     icon: "Settings2", label: "Style" },
