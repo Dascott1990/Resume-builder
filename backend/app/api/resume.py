@@ -1,12 +1,10 @@
 """
 app/api/resume.py
-─────────────────────────────────────────────────────────────────────────────
 POST /api/v1/resume/generate
-  Body: { user_info: {...}, job_description: "..." }
-  Returns: { resume: {...}, keywords: [...] }
-
-Uses Groq (llama-3.3-70b-versatile) — fast, free, structured JSON output.
-Saves generated resume to DB via Media table (repurposed as document store).
+POST /api/v1/resume/optimize
+GET /api/v1/resume/saved
+GET /api/v1/resume/<resume_id>
+DELETE /api/v1/resume/<resume_id>
 """
 
 import os
@@ -14,43 +12,60 @@ import json
 import uuid
 import requests
 from datetime import datetime, timezone
-from flask import Blueprint, request
+from flask import Blueprint, request, jsonify
 from app import db
-from app.utils.response import success, created
 from app.middleware.error_handlers import APIError
 
 resume_bp = Blueprint("resume", __name__)
 
-GROQ_URL   = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "llama-3.3-70b-versatile"
-
 
 def _groq(messages: list, temperature: float = 0.4, max_tokens: int = 2000) -> str:
     api_key = os.environ.get("GROQ_API_KEY", "")
     if not api_key:
         raise APIError("GROQ_API_KEY not configured", 500)
 
-    res = requests.post(
-        GROQ_URL,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={"model": GROQ_MODEL, "messages": messages, "max_tokens": max_tokens,
-              "temperature": temperature, "stream": False},
-        timeout=60,
-    )
-    if not res.ok:
-        try:
-            err = res.json().get("error", {}).get("message", f"HTTP {res.status_code}")
-        except Exception:
-            err = f"Groq HTTP {res.status_code}"
-        raise APIError(f"AI generation failed: {err}", 502)
+    try:
+        res = requests.post(
+            GROQ_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": GROQ_MODEL,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "stream": False,
+            },
+            timeout=60,
+        )
 
-    return res.json()["choices"][0]["message"]["content"].strip()
+        if not res.ok:
+            error_msg = f"Groq API error: HTTP {res.status_code}"
+            try:
+                error_data = res.json()
+                if "error" in error_data:
+                    error_msg = error_data["error"].get("message", error_msg)
+            except:
+                pass
+            raise APIError(error_msg, 502)
 
+        return res.json()["choices"][0]["message"]["content"].strip()
 
+    except requests.exceptions.Timeout:
+        raise APIError("AI generation timed out. Please try again.", 504)
+    except requests.exceptions.RequestException as e:
+        raise APIError(f"Network error while calling AI: {str(e)}", 502)
+
+# System prompt (same as before)
 SYSTEM = """You are an elite ATS resume writer with 15 years of recruiting experience.
 You produce clean, keyword-optimised resumes that pass ATS filters and impress human reviewers.
 You always respond with ONLY valid JSON — no markdown fences, no explanation, no preamble."""
 
+# Prompt templates (same as before - keeping them short for brevity)
 PROMPT_TEMPLATE = """USER INFO:
 Name: {name}
 Target Title: {title}
@@ -130,78 +145,6 @@ Rules:
 - Do NOT invent companies or degrees. Use exactly what the user provided.
 - Return ONLY the JSON object."""
 
-
-@resume_bp.post("/generate")
-def generate_resume():
-    body = request.get_json(force=True)
-
-    info = body.get("user_info", {})
-    job_desc = (body.get("job_description") or "").strip()
-
-    if not job_desc or len(job_desc) < 50:
-        raise APIError("job_description must be at least 50 characters", 400)
-    if not info.get("name") or not info.get("title"):
-        raise APIError("user_info.name and user_info.title are required", 400)
-
-    prompt = PROMPT_TEMPLATE.format(
-        name=info.get("name", ""),
-        title=info.get("title", ""),
-        location=info.get("location", ""),
-        email=info.get("email", ""),
-        phone=info.get("phone", ""),
-        background=info.get("background") or "Not provided",
-        experience=info.get("experience") or "Not provided",
-        education=info.get("education") or "Not provided",
-        skills=info.get("skills") or "Not provided",
-        job_description=job_desc[:4000],  # cap to avoid token overflow
-    )
-
-    raw = _groq(
-        messages=[
-            {"role": "system", "content": SYSTEM},
-            {"role": "user",   "content": prompt},
-        ],
-        temperature=0.35,
-        max_tokens=2000,
-    )
-
-    # Strip accidental markdown fences
-    clean = raw.replace("```json", "").replace("```", "").strip()
-    try:
-        parsed = json.loads(clean)
-    except json.JSONDecodeError as e:
-        raise APIError(f"AI returned invalid JSON: {e}", 502)
-
-    # ── Persist to DB as a JSON document (Media table repurposed) ────────────
-    try:
-        from app.models import Media
-        doc_bytes = json.dumps(parsed).encode()
-        record = Media(
-            filename=f"resume_{uuid.uuid4().hex[:8]}.json",
-            media_type="document",
-            mime_type="application/json",
-            file_data=doc_bytes,
-            file_size=len(doc_bytes),
-            caption=f"{info.get('name')} — {parsed.get('contact', {}).get('title', info.get('title'))}",
-            filter_name="guest_resume",
-            metadata_json={
-                "user_name":  info.get("name"),
-                "user_email": info.get("email"),
-                "target_role": parsed.get("contact", {}).get("title"),
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "keywords": parsed.get("keywords", []),
-            },
-        )
-        db.session.add(record)
-        db.session.commit()
-        parsed["saved_id"] = record.id
-    except Exception:
-        # Save failure is non-fatal — still return the resume
-        parsed["saved_id"] = None
-
-    return created(parsed, "Resume generated")
-
-
 OPTIMIZE_PROMPT_TEMPLATE = """USER INFO:
 Name: {name}
 Target Title: {title}
@@ -225,12 +168,9 @@ Produce FOUR things in one pass, all tailored to this specific job posting:
    bring up, grounded in their actual background/experience, relevant to this role.
 4. How-to-apply detection: read the job description carefully for the ACTUAL way this
    employer wants applications submitted, then report exactly one of:
-   - "email"   — the JD contains an application email address (e.g. "send resume to
-     jobs@company.com", "apply via careers@..."). Use that exact address.
-   - "website" — the JD points to a careers page, "Apply Now" button, ATS link
-     (Greenhouse/Lever/Workday/etc.), or a company site/URL to apply through.
-   - "unclear" — the JD gives no explicit application channel.
-   Never invent an email address or URL that is not present in the job description.
+   - "email"   — the JD contains an application email address
+   - "website" — the JD points to a careers page, ATS link, or company site
+   - "unclear" — the JD gives no explicit application channel
 
 Return this exact JSON structure (no other text, no markdown fences):
 {{
@@ -245,9 +185,9 @@ Return this exact JSON structure (no other text, no markdown fences):
   }},
   "sections": [
     {{ "id": "summary", "label": "Professional Summary", "type": "text", "content": "..." }},
-    {{ "id": "skills", "label": "Core Competencies", "type": "bullets", "items": ["...", "..."] }},
+    {{ "id": "skills", "label": "Core Competencies", "type": "bullets", "items": ["..."] }},
     {{ "id": "experience", "label": "Experience", "type": "jobs", "jobs": [
-        {{ "role": "...", "company": "...", "period": "...", "location": "...", "bullets": ["...", "..."] }}
+        {{ "role": "...", "company": "...", "period": "...", "location": "...", "bullets": ["..."] }}
     ] }},
     {{ "id": "education", "label": "Education", "type": "education", "degrees": [
         {{ "degree": "...", "school": "...", "location": "...", "period": "..." }}
@@ -257,23 +197,21 @@ Return this exact JSON structure (no other text, no markdown fences):
   "interview_tips": ["tip 1", "tip 2", "tip 3"],
   "application": {{
     "method": "email | website | unclear",
-    "value": "the exact email address or URL found in the JD, else null — never invented",
-    "instructions": "One direct, plain-English sentence telling the candidate exactly how to apply, naming the method above (e.g. 'Email your resume and cover letter directly to jobs@company.com.' or 'Apply through the company's Careers page using the Apply Now button on this listing.' or, if unclear, 'This posting doesn't list a direct email or link — apply through the site or platform where you found it.')"
+    "value": "the exact email address or URL found in the JD, else null",
+    "instructions": "One direct sentence telling the candidate exactly how to apply"
   }}
 }}
 
 Rules:
-- Do NOT invent companies, degrees, or achievements. Use exactly what the user provided.
+- Do NOT invent companies, degrees, or achievements.
 - Every resume bullet starts with a strong past-tense action verb.
 - Weave at least 6 keywords from the JD naturally into the resume body.
-- The cover letter must sound like a real person wrote it, not a template. No "I am writing to express my interest" openers.
-- The "application" block must be grounded only in what the job description actually says — no guessing at an email or URL that isn't there.
+- The cover letter must sound like a real person wrote it, not a template.
 - Return ONLY the JSON object."""
 
-
-@resume_bp.post("/optimize")
-def optimize_resume():
-    """One-click: tailored resume + cover letter + interview tips, single Groq call."""
+@resume_bp.route("/generate", methods=["POST"])
+def generate_resume():
+    """Generate a tailored resume from user info and job description."""
     body = request.get_json(force=True)
 
     info = body.get("user_info", {})
@@ -284,7 +222,10 @@ def optimize_resume():
     if not info.get("name") or not info.get("title"):
         raise APIError("user_info.name and user_info.title are required", 400)
 
-    prompt = OPTIMIZE_PROMPT_TEMPLATE.format(
+    # Truncate job description to avoid token overflow
+    job_desc_truncated = job_desc[:4000]
+
+    prompt = PROMPT_TEMPLATE.format(
         name=info.get("name", ""),
         title=info.get("title", ""),
         location=info.get("location", ""),
@@ -294,25 +235,29 @@ def optimize_resume():
         experience=info.get("experience") or "Not provided",
         education=info.get("education") or "Not provided",
         skills=info.get("skills") or "Not provided",
-        job_description=job_desc[:4000],
+        job_description=job_desc_truncated,
     )
 
     raw = _groq(
         messages=[
             {"role": "system", "content": SYSTEM},
-            {"role": "user",   "content": prompt},
+            {"role": "user", "content": prompt},
         ],
         temperature=0.35,
-        max_tokens=3000,  # bigger cap — resume + cover letter + tips + apply info in one response
+        max_tokens=2000,
     )
 
+    # Strip markdown fences
     clean = raw.replace("```json", "").replace("```", "").strip()
+
     try:
         parsed = json.loads(clean)
     except json.JSONDecodeError as e:
-        raise APIError(f"AI returned invalid JSON: {e}", 502)
+        print(f"❌ JSON parse error: {e}")
+        print(f"Raw response: {raw[:500]}")
+        raise APIError(f"AI returned invalid JSON: {str(e)}", 502)
 
-    # ── Persist to DB (same Media-as-document-store pattern as /generate) ────
+    # Persist to database
     try:
         from app.models import Media
         doc_bytes = json.dumps(parsed).encode()
@@ -325,7 +270,82 @@ def optimize_resume():
             caption=f"{info.get('name')} — {parsed.get('contact', {}).get('title', info.get('title'))}",
             filter_name="guest_resume",
             metadata_json={
-                "user_name":  info.get("name"),
+                "user_name": info.get("name"),
+                "user_email": info.get("email"),
+                "target_role": parsed.get("contact", {}).get("title"),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "keywords": parsed.get("keywords", []),
+            },
+        )
+        db.session.add(record)
+        db.session.commit()
+        parsed["saved_id"] = record.id
+    except Exception as e:
+        print(f"⚠️ Could not save to database: {e}")
+        parsed["saved_id"] = None
+
+    return jsonify({"success": True, "data": parsed}), 201
+
+@resume_bp.route("/optimize", methods=["POST"])
+def optimize_resume():
+    """One-click: tailored resume + cover letter + interview tips."""
+    body = request.get_json(force=True)
+
+    info = body.get("user_info", {})
+    job_desc = (body.get("job_description") or "").strip()
+
+    if not job_desc or len(job_desc) < 50:
+        raise APIError("job_description must be at least 50 characters", 400)
+    if not info.get("name") or not info.get("title"):
+        raise APIError("user_info.name and user_info.title are required", 400)
+
+    job_desc_truncated = job_desc[:4000]
+
+    prompt = OPTIMIZE_PROMPT_TEMPLATE.format(
+        name=info.get("name", ""),
+        title=info.get("title", ""),
+        location=info.get("location", ""),
+        email=info.get("email", ""),
+        phone=info.get("phone", ""),
+        background=info.get("background") or "Not provided",
+        experience=info.get("experience") or "Not provided",
+        education=info.get("education") or "Not provided",
+        skills=info.get("skills") or "Not provided",
+        job_description=job_desc_truncated,
+    )
+
+    raw = _groq(
+        messages=[
+            {"role": "system", "content": SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.35,
+        max_tokens=3000,
+    )
+
+    clean = raw.replace("```json", "").replace("```", "").strip()
+
+    try:
+        parsed = json.loads(clean)
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON parse error: {e}")
+        print(f"Raw response: {raw[:500]}")
+        raise APIError(f"AI returned invalid JSON: {str(e)}", 502)
+
+    # Persist to database
+    try:
+        from app.models import Media
+        doc_bytes = json.dumps(parsed).encode()
+        record = Media(
+            filename=f"resume_{uuid.uuid4().hex[:8]}.json",
+            media_type="document",
+            mime_type="application/json",
+            file_data=doc_bytes,
+            file_size=len(doc_bytes),
+            caption=f"{info.get('name')} — {parsed.get('contact', {}).get('title', info.get('title'))}",
+            filter_name="guest_resume",
+            metadata_json={
+                "user_name": info.get("name"),
                 "user_email": info.get("email"),
                 "target_role": parsed.get("contact", {}).get("title"),
                 "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -336,13 +356,13 @@ def optimize_resume():
         db.session.add(record)
         db.session.commit()
         parsed["saved_id"] = record.id
-    except Exception:
+    except Exception as e:
+        print(f"⚠️ Could not save to database: {e}")
         parsed["saved_id"] = None
 
-    return created(parsed, "Resume optimized")
+    return jsonify({"success": True, "data": parsed}), 201
 
-
-@resume_bp.get("/saved")
+@resume_bp.route("/saved", methods=["GET"])
 def list_saved():
     """Return all guest resumes saved to DB."""
     from app.models import Media
@@ -363,25 +383,39 @@ def list_saved():
             "generated_at": r.created_at.isoformat() if r.created_at else None,
             "keywords": meta.get("keywords", []),
         })
-    return success(results)
+    return jsonify({"success": True, "data": results}), 200
 
-
-@resume_bp.get("/<resume_id>")
+@resume_bp.route("/<resume_id>", methods=["GET"])
 def get_saved(resume_id):
     """Re-load a previously generated resume."""
     from app.models import Media
-    record = Media.query.filter_by(id=resume_id, filter_name="guest_resume", is_deleted=False).first()
+    record = Media.query.filter_by(
+        id=resume_id,
+        filter_name="guest_resume",
+        is_deleted=False
+    ).first()
+
     if not record or not record.file_data:
         raise APIError("Resume not found", 404)
-    return success(json.loads(record.file_data))
 
+    try:
+        data = json.loads(record.file_data)
+        return jsonify({"success": True, "data": data}), 200
+    except json.JSONDecodeError:
+        raise APIError("Stored resume data is corrupted", 500)
 
-@resume_bp.delete("/<resume_id>")
+@resume_bp.route("/<resume_id>", methods=["DELETE"])
 def delete_saved(resume_id):
+    """Soft delete a saved resume."""
     from app.models import Media
-    from app.utils.response import no_content
-    record = Media.query.filter_by(id=resume_id, filter_name="guest_resume").first()
+    record = Media.query.filter_by(
+        id=resume_id,
+        filter_name="guest_resume"
+    ).first()
+
     if record:
         record.is_deleted = True
         db.session.commit()
-    return no_content()
+        return jsonify({"success": True}), 200
+
+    return jsonify({"success": False, "error": "Resume not found"}), 404

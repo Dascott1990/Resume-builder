@@ -20,3 +20,8 @@ def register_error_handlers(app):
     @app.errorhandler(500)
     def handle_500(err):
         return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    @app.errorhandler(Exception)
+    def handle_generic_error(err):
+        print(f"❌ Unhandled error: {str(err)}")
+        return jsonify({"success": False, "error": "An unexpected error occurred"}), 500
