@@ -17,6 +17,7 @@ import React, {
   useState, useEffect, useRef, useCallback, useReducer
 } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Logo from "./Logo";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 // Must match the port run.py actually listens on (5002) and be inside
@@ -1324,7 +1325,7 @@ function LeaveConfirmModal({ open, onCancel, onConfirm }) {
         borderRadius: 14, padding: 22, boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
       }}>
         <p style={{ fontFamily: C.serif, fontStyle: "italic", fontSize: 19, color: C.text, margin: "0 0 8px" }}>
-          Leave Resume Builder?
+          Leave Noviq?
         </p>
         <p style={{ fontFamily: C.sans, fontSize: 13, color: C.muted, lineHeight: 1.5, margin: "0 0 18px" }}>
           Your progress is saved on this device — it'll be right here when you come back.
@@ -2126,7 +2127,7 @@ export default function ResumeGuestMode({ onClose }) {
           </div>
 
           <p style={{ fontSize: 11.5, color: C.faint, margin: 0 }}>
-            Resume Builder · Guest Mode<br />
+            Noviq · Guest Mode<br />
             Generation runs on your own Groq-backed API — nothing is stored beyond what you see in "Saved."
           </p>
         </div>
@@ -2157,14 +2158,13 @@ export default function ResumeGuestMode({ onClose }) {
         borderBottom: `1px solid ${C.border}`, gap: 10 }}>
 
         <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, flex: "1 1 auto", overflow: "hidden" }}>
-          <button onClick={requestClose} aria-label="Close resume builder"
+          <button onClick={requestClose} aria-label="Close Noviq"
             style={{ width: 40, height: 40, borderRadius: "50%", background: C.raised,
               border: `1px solid ${C.border}`, display: "flex", alignItems: "center",
               justifyContent: "center", cursor: "pointer", color: C.text, flexShrink: 0 }}>
             <Icon name="X" size={17} color={C.text} />
           </button>
-          <span style={{ fontSize: TS.title, fontWeight: 700, color: C.text,
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>Resume Builder</span>
+          <Logo size={20} style={{ minWidth: 0 }} />
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>

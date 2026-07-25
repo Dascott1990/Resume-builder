@@ -1,6 +1,6 @@
 "use client";
 /**
- * Resume.js — Resume Studio + Guest Mode
+ * Resume.js — Noviq Studio + Guest Mode
  *
  * Two modes:
  *  1. "My Resumes"  — the four pre-built resumes (original behaviour, untouched)
@@ -15,6 +15,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ResumeGuestMode from "./ResumeGuestMode";
+import Logo from "./Logo";
 
 // ── Icon primitive ─────────────────────────────────────────────────────────────
 const Ic = ({ d, size = 18, sw = 1.6, color = "currentColor", fill = "none" }) => (
@@ -821,9 +822,7 @@ const Resume = ({ onClose }) => {
                       display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
                     <Ic d={ICONS.panel} size={16} color={sidebarOpen ? T.gold : T.sub} />
                   </motion.button>
-                  <Ic d={ICONS.doc} size={17} color={T.gold} style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 15, fontWeight: 800, color: T.text, letterSpacing: "-0.01em",
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>Resume Studio</span>
+                  <Logo size={20} style={{ minWidth: 0 }} />
                 </div>
 
                 {/* Download buttons — big, labelled, unmissable; collapse to icon-only below 430px so they never overlap the title */}
@@ -846,7 +845,7 @@ const Resume = ({ onClose }) => {
                     <Ic d={ICONS.download} size={14} color="#E84545" />
                     <span className="rb-dl-label">{downloading === "pdf" ? "Preparing…" : "PDF"}</span>
                   </motion.button>
-                  <motion.button whileTap={{ scale: 0.88 }} onClick={onClose} aria-label="Close Resume Studio" title="Close"
+                  <motion.button whileTap={{ scale: 0.88 }} onClick={onClose} aria-label="Close Noviq" title="Close"
                     style={{ width: 40, height: 40, borderRadius: "50%", background: T.raised, border: `1px solid ${T.border}`,
                       display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
                     <Ic d={ICONS.close} size={16} color={T.sub} />

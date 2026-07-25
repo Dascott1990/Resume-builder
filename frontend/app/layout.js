@@ -1,4 +1,4 @@
-export const metadata = { title: "Resume Builder" };
+export const metadata = { title: "Noviq — AI Resume Builder" };
 
 export default function RootLayout({ children }) {
   return (
