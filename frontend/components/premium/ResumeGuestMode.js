@@ -1015,7 +1015,19 @@ function EditableSpan({ value, onChange, style: extraStyle, multiline, bold, ita
   const ref = useRef(null);
 
   useEffect(() => { setVal(value); }, [value]);
-  useEffect(() => { if (editing && ref.current) ref.current.focus(); }, [editing]);
+  useEffect(() => {
+    if (!editing || !ref.current) return;
+    ref.current.focus();
+    // This field inherits its font-size from the resume's own type scale
+    // (9–13pt, i.e. under 16px), which is exactly the range that makes iOS
+    // Safari auto-zoom the whole page on focus. Reading the computed size
+    // after mount (rather than hard-coding a number here) means this stays
+    // correct no matter what parent wrapper it's nested in — if it's ever
+    // under 16px, bump it for the duration of the edit only; the display
+    // span goes right back to inheriting the true size on blur.
+    const computed = parseFloat(window.getComputedStyle(ref.current).fontSize);
+    if (computed && computed < 16) ref.current.style.fontSize = "16px";
+  }, [editing]);
 
   const commit = () => { onChange(val); setEditing(false); };
   const shared = {
@@ -1039,6 +1051,7 @@ function EditableSpan({ value, onChange, style: extraStyle, multiline, bold, ita
   return (
     <span onClick={() => setEditing(true)} title="Click to edit"
       style={{ cursor: "text", borderBottom: "1.5px dashed transparent",
+        WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
         transition: "border-color 0.12s", ...extraStyle,
         fontWeight: bold ? "bold" : undefined, fontStyle: italic ? "italic" : undefined }}
       onMouseEnter={e => { e.currentTarget.style.borderBottomColor = "#3B82F680"; }}

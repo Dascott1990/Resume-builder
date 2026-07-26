@@ -500,11 +500,19 @@ const Preview = React.forwardRef(({ resume, style, onEditContact, onEditText, on
     useEffect(() => { setVal(value); }, [value]);
     useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
     if (editing) {
-      const sharedStyle = { fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh, border: `2px solid ${accent}`, borderRadius: 3, background: `${accent}10`, outline: "none", padding: "1px 3px", width: "100%", boxSizing: "border-box", ...extraStyle };
+      // iOS Safari auto-zooms the whole page on focus if the focused
+      // field's real font-size is under 16px. The resume's own type scale
+      // (9–13pt ≈ 12–17px) sits right in that trap, so the moment someone
+      // tapped a bullet on their phone the screen would zoom in and never
+      // zoom back out on blur. Bumping the *editing* size to 16px (view
+      // mode still renders at the true pt size) fixes it without touching
+      // the printed/exported output at all.
+      const editFontSize = fs * 1.333 < 16 ? "16px" : `${fs}pt`;
+      const sharedStyle = { fontFamily: font, fontSize: editFontSize, lineHeight: lh, border: `2px solid ${accent}`, borderRadius: 3, background: `${accent}10`, outline: "none", padding: "1px 3px", width: "100%", boxSizing: "border-box", ...extraStyle };
       if (multiline) return <textarea ref={inputRef} value={val} onChange={e => setVal(e.target.value)} onBlur={() => { onChange(val); setEditing(false); }} rows={Math.max(2, val.split("\n").length)} style={{ ...sharedStyle, resize: "vertical" }} />;
       return <input ref={inputRef} value={val} type="text" onChange={e => setVal(e.target.value)} onBlur={() => { onChange(val); setEditing(false); }} onKeyDown={e => e.key === "Enter" && (onChange(val), setEditing(false))} style={sharedStyle} />;
     }
-    return <span onClick={() => setEditing(true)} title="Click to edit" style={{ cursor: "text", borderBottom: "1.5px dashed transparent", ...extraStyle, transition: "border-color 0.15s" }} onMouseEnter={e => e.currentTarget.style.borderBottomColor = accent + "60"} onMouseLeave={e => e.currentTarget.style.borderBottomColor = "transparent"}>{val}</span>;
+    return <span onClick={() => setEditing(true)} title="Click to edit" style={{ cursor: "text", borderBottom: "1.5px dashed transparent", WebkitTapHighlightColor: "transparent", touchAction: "manipulation", ...extraStyle, transition: "border-color 0.15s" }} onMouseEnter={e => e.currentTarget.style.borderBottomColor = accent + "60"} onMouseLeave={e => e.currentTarget.style.borderBottomColor = "transparent"}>{val}</span>;
   };
 
   const SectionHeading = ({ label }) => (

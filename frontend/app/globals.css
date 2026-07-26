@@ -4,6 +4,9 @@
 
 * {
   box-sizing: border-box;
+  /* Kills the gray/blue flash box every mobile browser draws on tap by
+     default — this alone is most of what reads as "not a real app." */
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -13,8 +16,62 @@ body {
   height: 100%;
   background: #090c13;
   overscroll-behavior: none;
+  /* Stops iOS/Android bumping text size up when the phone rotates or a
+     input briefly steals focus. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 #__next {
   height: 100%;
+}
+
+/* ── Native-app touch behaviour ───────────────────────────────────────────
+   Applied to every tappable control site-wide so no individual button has
+   to remember to opt in.
+   - touch-action: manipulation → removes the ~300ms double-tap-to-zoom
+     delay and stops a fast double-tap from zooming the page.
+   - user-select: none → no accidental text selection / callout menu when
+     someone taps quickly or presses slightly too long.
+   - -webkit-touch-callout: none → kills the iOS long-press popup (copy /
+     save image) on icons and buttons. */
+button,
+[role="button"],
+[role="tab"],
+a {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button:focus,
+[role="button"]:focus,
+[role="tab"]:focus {
+  outline: none;
+}
+
+/* Inputs/textareas keep normal selection (people need to select their own
+   text) but should never carry the default tap flash either. */
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Shared breathing keyframes for logo / brand marks used as a background
+   presence (e.g. the "Open Resume Studio" launcher). Kept here so any
+   component can reuse the same rhythm without redefining it. */
+@keyframes noviq-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50%      { transform: scale(1.05); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
