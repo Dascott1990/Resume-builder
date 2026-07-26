@@ -810,7 +810,12 @@ const Resume = ({ onClose }) => {
           <motion.div key="guest" custom={flipDir} variants={FLIP_VARIANTS} initial="enter" animate="center" exit="exit"
             style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d",
               backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}>
-            <ResumeGuestMode onClose={() => goToMode("mine")} />
+            {/* "Leave" in guest mode used to just flip back to the "My Resumes"
+                tab inside the studio — one screen deeper than people expected.
+                Wiring it to the studio's own onClose instead sends it all the
+                way back to the "Open Resume Studio" launcher, so there's one
+                consistent exit no matter which tab someone leaves from. */}
+            <ResumeGuestMode onClose={onClose} />
           </motion.div>
         ) : (
           <motion.div key="mine" custom={flipDir} variants={FLIP_VARIANTS} initial="enter" animate="center" exit="exit"
