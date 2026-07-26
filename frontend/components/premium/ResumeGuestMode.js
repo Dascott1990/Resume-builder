@@ -363,80 +363,103 @@ function PackagePreviewModal({
       alignItems: "center", justifyContent: "center", padding: 16,
       background: "rgba(0,0,0,0.6)",
     }} onClick={onClose}>
+      {/* Card is a fixed-height column: header and footer never move, only
+          the middle scrolls. That's what keeps "Download" reachable without
+          hunting for it, and keeps the whole card from ever running off the
+          bottom of a short phone screen. minHeight:0 on the body is the
+          part that's easy to miss — without it a flex child won't actually
+          shrink to scroll, it'll just push the footer off-screen instead. */}
       <div onClick={(e) => e.stopPropagation()} style={{
-        width: "100%", maxWidth: 560, maxHeight: "88vh", overflowY: "auto",
+        display: "flex", flexDirection: "column",
+        width: "100%", maxWidth: 560, maxHeight: "min(88dvh, 720px)",
         background: C.panel, border: `1px solid ${C.borderHi}`, borderRadius: 14,
-        padding: 22, boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+        boxShadow: "0 24px 60px rgba(0,0,0,0.5)", overflow: "hidden",
       }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 }}>
-          <p style={{ fontFamily: C.serif, fontStyle: "italic", fontSize: 20, color: C.text, margin: 0,
-            display: "flex", alignItems: "center", gap: 8 }}>
-            <Icon name="Check" size={17} color={C.green} /> Your application package is ready
+        {/* Header — pinned */}
+        <div style={{ flexShrink: 0, padding: "22px 22px 14px",
+          borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 }}>
+            <p style={{ fontFamily: C.serif, fontStyle: "italic", fontSize: 20, color: C.text, margin: 0,
+              display: "flex", alignItems: "center", gap: 8 }}>
+              <Icon name="Check" size={17} color={C.green} /> Your application package is ready
+            </p>
+            <button onClick={onClose} aria-label="Close preview" style={{
+              background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4,
+              flexShrink: 0, WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}>
+              <Icon name="X" size={18} />
+            </button>
+          </div>
+          <p style={{ fontFamily: C.sans, fontSize: 12.5, color: C.muted, margin: 0 }}>
+            Review everything below, then download it all with one click.
+            {genResult?.job_location && ` · ${genResult.job_location}`}
           </p>
-          <button onClick={onClose} aria-label="Close preview" style={{
-            background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}>
-            <Icon name="X" size={18} />
-          </button>
-        </div>
-        <p style={{ fontFamily: C.sans, fontSize: 12.5, color: C.muted, margin: "0 0 16px" }}>
-          Review everything below, then download it all with one click.
-          {genResult?.job_location && ` · ${genResult.job_location}`}
-        </p>
-
-        <div style={{ marginBottom: 16 }}>
-          <ApplyBanner application={application} />
         </div>
 
-        {coverLetter && (
+        {/* Body — the only part that scrolls */}
+        <div className="rgm-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto",
+          overscrollBehavior: "contain", WebkitOverflowScrolling: "touch",
+          padding: "16px 22px" }}>
           <div style={{ marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-              marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
-              <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: 0 }}>Cover letter</p>
-              <div style={{ display: "flex", gap: 6 }}>
-                <Btn variant="ghost" icon={copied ? "Check" : "Clipboard"} onClick={onCopyCoverLetter} small>
-                  {copied ? "Copied" : "Copy"}
-                </Btn>
-                <Btn variant="ghost" icon="FileDown" onClick={onCoverLetterDocx}
-                  loading={downloading === "cl-docx"} disabled={!!downloading} small>
-                  Word
-                </Btn>
-                <Btn variant="ghost" icon="FileDown" onClick={onCoverLetterPdf}
-                  loading={downloading === "cl-pdf"} disabled={!!downloading} small>
-                  PDF
-                </Btn>
+            <ApplyBanner application={application} />
+          </div>
+
+          {coverLetter && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
+                <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: 0 }}>Cover letter</p>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <Btn variant="ghost" icon={copied ? "Check" : "Clipboard"} onClick={onCopyCoverLetter} small>
+                    {copied ? "Copied" : "Copy"}
+                  </Btn>
+                  <Btn variant="ghost" icon="FileDown" onClick={onCoverLetterDocx}
+                    loading={downloading === "cl-docx"} disabled={!!downloading} small>
+                    Word
+                  </Btn>
+                  <Btn variant="ghost" icon="FileDown" onClick={onCoverLetterPdf}
+                    loading={downloading === "cl-pdf"} disabled={!!downloading} small>
+                    PDF
+                  </Btn>
+                </div>
+              </div>
+              <div className="rgm-scroll" style={{ fontFamily: C.sans, fontSize: 12.5, color: C.text, lineHeight: 1.6,
+                whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto",
+                overscrollBehavior: "contain", WebkitOverflowScrolling: "touch",
+                padding: 12, border: `1px solid ${C.border}`, borderRadius: 8 }}>
+                {coverLetter}
               </div>
             </div>
-            <div style={{ fontFamily: C.sans, fontSize: 12.5, color: C.text, lineHeight: 1.6,
-              whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto",
-              padding: 12, border: `1px solid ${C.border}`, borderRadius: 8 }}>
-              {coverLetter}
-            </div>
-          </div>
-        )}
+          )}
 
-        {interviewTips.length > 0 && (
-          <div style={{ marginBottom: 20 }}>
-            <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: "0 0 6px" }}>
-              Interview talking points
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {interviewTips.map((tip, i) => (
-                <div key={i} style={{ display: "flex", gap: 8, fontFamily: C.sans, fontSize: 12.5,
-                  color: C.text, lineHeight: 1.5 }}>
-                  <span style={{ color: C.gold, flexShrink: 0 }}>{i + 1}.</span>
-                  <span>{tip}</span>
-                </div>
-              ))}
+          {interviewTips.length > 0 && (
+            <div>
+              <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: "0 0 6px" }}>
+                Interview talking points
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {interviewTips.map((tip, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, fontFamily: C.sans, fontSize: 12.5,
+                    color: C.text, lineHeight: 1.5 }}>
+                    <span style={{ color: C.gold, flexShrink: 0 }}>{i + 1}.</span>
+                    <span>{tip}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        <div style={{ display: "flex", gap: 8 }}>
+        {/* Footer — pinned, stacked full-width so the primary action is
+            never cramped or wrapped on a narrow phone; safe-area padding
+            keeps it clear of the home-indicator on notched devices. */}
+        <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 8,
+          padding: "14px 22px", paddingBottom: "max(14px, calc(env(safe-area-inset-bottom) + 8px))",
+          borderTop: `1px solid ${C.border}`, background: C.panel }}>
           <Btn variant="gold" icon="FileDown" onClick={onDownloadAll}
             disabled={!!downloading} loading={downloading === "docx"}>
             Download resume + cover letter
           </Btn>
-          <Btn variant="ghost" onClick={onClose} small>Keep editing</Btn>
+          <Btn variant="ghost" onClick={onClose}>Keep editing</Btn>
         </div>
       </div>
     </div>
@@ -1330,7 +1353,8 @@ function LeaveConfirmModal({ open, onCancel, onConfirm }) {
   return (
     <div role="dialog" aria-modal="true" style={{
       position: "fixed", inset: 0, zIndex: 250, display: "flex",
-      alignItems: "center", justifyContent: "center", padding: 16,
+      alignItems: "center", justifyContent: "center",
+      padding: "16px", paddingBottom: "max(16px, env(safe-area-inset-bottom))",
       background: "rgba(0,0,0,0.6)",
     }} onClick={onCancel}>
       <div onClick={(e) => e.stopPropagation()} style={{
@@ -1719,8 +1743,9 @@ export default function ResumeGuestMode({ onClose }) {
 
   // ── Reusable preview canvas (used in both desktop pane and mobile screen) ──
   const PreviewCanvas = () => (
-    <div ref={canvasRef} onScroll={!isDesktop ? handlePanelScroll : undefined}
+    <div ref={canvasRef} onScroll={!isDesktop ? handlePanelScroll : undefined} className="rgm-scroll"
       style={{ flex: 1, overflowY: "auto", background: "#C8C8C8",
+      overscrollBehavior: "contain", WebkitOverflowScrolling: "touch",
       display: "flex", flexDirection: "column", alignItems: "center",
       padding: isPhone ? "14px 0 24px" : "24px 0 48px", paddingBottom: mobileNavClearance,
       overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin" }}>
@@ -1849,8 +1874,9 @@ export default function ResumeGuestMode({ onClose }) {
                       </Btn>
                     </div>
                   </div>
-                  <div style={{ fontFamily: C.sans, fontSize: 12, color: C.text, lineHeight: 1.6,
+                  <div className="rgm-scroll" style={{ fontFamily: C.sans, fontSize: 12, color: C.text, lineHeight: 1.6,
                     whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto",
+                    overscrollBehavior: "contain", WebkitOverflowScrolling: "touch",
                     padding: 10, border: `1px solid ${C.border}`, borderRadius: 6 }}>
                     {coverLetter}
                   </div>
@@ -2159,6 +2185,7 @@ export default function ResumeGuestMode({ onClose }) {
         .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
         .rgm-field::placeholder{color:${C.faint};opacity:0;transition:opacity .15s ease}
         .rgm-field:focus::placeholder{opacity:1}
+        .rgm-scroll{-webkit-overflow-scrolling:touch;overscroll-behavior:contain;scrollbar-width:thin}
         @media (max-width: 380px) {
           .rgm-dl-label { display: none; }
           .rgm-dl-btn { padding: 10px !important; gap: 0 !important; }
