@@ -457,7 +457,7 @@ function PackagePreviewModal({
           borderTop: `1px solid ${C.border}`, background: C.panel }}>
           <Btn variant="gold" icon="FileDown" onClick={onDownloadAll}
             disabled={!!downloading} loading={downloading === "docx"}>
-            Download resume + cover letter
+            Download Package
           </Btn>
           <Btn variant="ghost" onClick={onClose}>Keep editing</Btn>
         </div>
@@ -1748,7 +1748,7 @@ export default function ResumeGuestMode({ onClose }) {
       overscrollBehavior: "contain", WebkitOverflowScrolling: "touch",
       display: "flex", flexDirection: "column", alignItems: "center",
       padding: isPhone ? "14px 0 24px" : "24px 0 48px", paddingBottom: mobileNavClearance,
-      overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin" }}>
+      scrollbarWidth: "thin" }}>
       <p style={{ fontFamily: C.mono, fontSize: 9, color: "#666", margin: "0 0 10px",
         letterSpacing: "0.08em", userSelect: "none", textAlign: "center", padding: "0 12px" }}>
         {loadingResumeId ? "Loading…" : `${Math.round(scale * 100)}% · ${resume ? "Tap any text to edit" : "Generate to see your resume"}`}
@@ -1832,7 +1832,7 @@ export default function ResumeGuestMode({ onClose }) {
                   <>
                     <Btn variant="gold" icon="FileDown" onClick={downloadPackage}
                       disabled={!!downloading} loading={downloading === "docx"} small>
-                      Download resume + cover letter
+                      Download Package
                     </Btn>
                     <Btn variant="ghost" icon="Eye" onClick={() => setPackageOpen(true)} small>
                       Review package
