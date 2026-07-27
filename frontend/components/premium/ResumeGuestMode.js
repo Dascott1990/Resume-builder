@@ -233,6 +233,30 @@ function Btn({ children, onClick, disabled, variant = "primary", small, icon, lo
   );
 }
 
+// ── Text link ──────────────────────────────────────────────────────────────────
+// The deliberate counterpart to Btn: every screen gets exactly ONE bold button
+// (gold or primary). Everything else — "Open Preview", "Build another", format
+// alternatives — is a plain-text link like this, never another boxed button.
+// This is the actual difference between a native-feeling app (Uber, IG, X —
+// one clear action, quiet secondary text) and a page where five buttons all
+// compete for attention at once.
+function TextLink({ children, onClick, disabled, small }) {
+  return (
+    <button
+      onClick={disabled ? undefined : onClick}
+      disabled={!!disabled}
+      style={{
+        background: "none", border: "none", padding: small ? "4px 2px" : "6px 4px",
+        cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.4 : 1,
+        color: C.muted, fontFamily: C.sans, fontWeight: 600,
+        fontSize: small ? 12 : 13, minHeight: small ? 28 : 32,
+        WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
+      }}>
+      {children}
+    </button>
+  );
+}
+
 // ── Input / Textarea ───────────────────────────────────────────────────────────
 function Field({ label, required, hint, value, onChange, placeholder, multiline, rows = 3, mono }) {
   const [focused, setFocused] = useState(false);
@@ -459,7 +483,11 @@ function PackagePreviewModal({
             disabled={!!downloading} loading={downloading === "docx"}>
             Download Package
           </Btn>
-          <Btn variant="ghost" onClick={onClose}>Keep editing</Btn>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <TextLink onClick={onCoverLetterPdf} disabled={!!downloading} small>Prefer PDF instead?</TextLink>
+            <span style={{ color: C.faint, fontSize: 11, padding: "0 6px" }}>·</span>
+            <TextLink onClick={onClose} small>Keep editing</TextLink>
+          </div>
         </div>
       </div>
     </div>
@@ -1822,83 +1850,42 @@ export default function ResumeGuestMode({ onClose }) {
                 </div>
               )}
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {!isDesktop && (
-                  <Btn variant="primary" icon="Eye" onClick={() => setMobileView("preview")} small>
-                    Open Preview
-                  </Btn>
-                )}
+              {/* One bold action, full stop. If Optimize produced a cover letter +
+                  tips, that whole package already got a first look in the modal
+                  right after generation — "Review & Download" just reopens it,
+                  it doesn't show a second, competing copy of the same content
+                  inline here. Everything else is a quiet text link, not another
+                  box fighting for the same attention as the one real action. */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {coverLetter ? (
-                  <>
-                    <Btn variant="gold" icon="FileDown" onClick={downloadPackage}
-                      disabled={!!downloading} loading={downloading === "docx"} small>
-                      Download Package
-                    </Btn>
-                    <Btn variant="ghost" icon="Eye" onClick={() => setPackageOpen(true)} small>
-                      Review package
-                    </Btn>
-                  </>
+                  <Btn variant="gold" icon="FileDown" onClick={() => setPackageOpen(true)}
+                    disabled={!!downloading} loading={downloading === "docx"}>
+                    Review & Download
+                  </Btn>
                 ) : (
                   <Btn variant="gold" icon="FileDown" onClick={handleDocx}
-                    disabled={!!downloading} loading={downloading === "docx"} small>
+                    disabled={!!downloading} loading={downloading === "docx"}>
                     Download Word
                   </Btn>
                 )}
-                <Btn variant="ghost" icon="FileDown" onClick={handlePdf}
-                  disabled={!!downloading} loading={downloading === "pdf"} small>
-                  Download PDF
-                </Btn>
-                <Btn variant="ghost" icon="RefreshCw" onClick={resetWizard} small>
-                  Build another
-                </Btn>
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
+                  flexWrap: "wrap", rowGap: 2 }}>
+                  {!isDesktop && (
+                    <>
+                      <TextLink onClick={() => setMobileView("preview")}>Open Preview</TextLink>
+                      <span style={{ color: C.faint, fontSize: 12, padding: "0 6px" }}>·</span>
+                    </>
+                  )}
+                  {!coverLetter && (
+                    <>
+                      <TextLink onClick={handlePdf} disabled={!!downloading}>Download PDF</TextLink>
+                      <span style={{ color: C.faint, fontSize: 12, padding: "0 6px" }}>·</span>
+                    </>
+                  )}
+                  <TextLink onClick={resetWizard}>Build another</TextLink>
+                </div>
               </div>
-
-              {coverLetter && (
-                <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-                    marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
-                    <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: 0 }}>
-                      Cover letter
-                    </p>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <Btn variant="ghost" icon={copied ? "Check" : "Clipboard"} onClick={copyCoverLetter} small>
-                        {copied ? "Copied" : "Copy"}
-                      </Btn>
-                      <Btn variant="ghost" icon="FileDown" onClick={handleCoverLetterDocx}
-                        loading={downloading === "cl-docx"} disabled={!!downloading} small>
-                        Word
-                      </Btn>
-                      <Btn variant="ghost" icon="FileDown" onClick={handleCoverLetterPdf}
-                        loading={downloading === "cl-pdf"} disabled={!!downloading} small>
-                        PDF
-                      </Btn>
-                    </div>
-                  </div>
-                  <div className="rgm-scroll" style={{ fontFamily: C.sans, fontSize: 12, color: C.text, lineHeight: 1.6,
-                    whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto",
-                    overscrollBehavior: "contain", WebkitOverflowScrolling: "touch",
-                    padding: 10, border: `1px solid ${C.border}`, borderRadius: 6 }}>
-                    {coverLetter}
-                  </div>
-                </div>
-              )}
-
-              {interviewTips.length > 0 && (
-                <div style={{ marginTop: 16 }}>
-                  <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: "0 0 6px" }}>
-                    Interview talking points
-                  </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {interviewTips.map((tip, i) => (
-                      <div key={i} style={{ display: "flex", gap: 8, fontFamily: C.sans, fontSize: 12,
-                        color: C.text, lineHeight: 1.5 }}>
-                        <span style={{ color: C.gold, flexShrink: 0 }}>{i + 1}.</span>
-                        <span>{tip}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
