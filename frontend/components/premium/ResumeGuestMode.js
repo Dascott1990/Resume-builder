@@ -257,6 +257,70 @@ function TextLink({ children, onClick, disabled, small }) {
   );
 }
 
+// ── Cover letter: click-to-edit, read as real paragraphs ───────────────────────
+// Same interaction as the resume itself — click the text, it becomes editable,
+// blur commits. The point of the read view isn't just "not editable yet", it's
+// legibility: real paragraph breaks and a letter-like serif/line-height instead
+// of one dense pre-wrap blob, so the whole letter reads at a glance instead of
+// needing to be scrolled and parsed line by line.
+function CoverLetterView({ value, onChange }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value);
+  const taRef = useRef(null);
+
+  useEffect(() => { setVal(value); }, [value]);
+
+  const autoGrow = (el) => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } };
+  useEffect(() => { if (editing) { taRef.current?.focus(); autoGrow(taRef.current); } }, [editing]);
+
+  const commit = () => { onChange(val); setEditing(false); };
+
+  const textStyle = { fontFamily: C.serif, fontSize: 14.5, lineHeight: 1.75, color: C.text };
+
+  if (editing) {
+    return (
+      <textarea
+        ref={taRef}
+        value={val}
+        onChange={e => { setVal(e.target.value); autoGrow(e.target); }}
+        onBlur={commit}
+        style={{
+          ...textStyle, width: "100%", boxSizing: "border-box", resize: "none",
+          overflow: "hidden", minHeight: 160,
+          background: `${C.gold}0d`, border: `1.5px solid ${C.gold}`, borderRadius: 8,
+          padding: 14, outline: "none",
+        }}
+      />
+    );
+  }
+
+  const paragraphs = (val || "").split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+
+  return (
+    <div
+      onClick={() => setEditing(true)}
+      title="Click to edit"
+      style={{
+        cursor: "text", padding: 14, borderRadius: 8,
+        border: `1.5px dashed ${C.border}`, transition: "border-color 0.15s",
+        WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold + "70"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; }}
+    >
+      {paragraphs.length ? paragraphs.map((p, i) => (
+        <p key={i} style={{ ...textStyle, margin: i === paragraphs.length - 1 ? 0 : "0 0 14px" }}>
+          {p}
+        </p>
+      )) : (
+        <p style={{ ...textStyle, margin: 0, color: C.faint, fontStyle: "italic" }}>
+          Click to write your cover letter…
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Input / Textarea ───────────────────────────────────────────────────────────
 function Field({ label, required, hint, value, onChange, placeholder, multiline, rows = 3, mono }) {
   const [focused, setFocused] = useState(false);
@@ -378,7 +442,7 @@ function ApplyBanner({ application }) {
 function PackagePreviewModal({
   open, onClose, genResult, application, coverLetter, interviewTips,
   onCopyCoverLetter, copied, onDownloadAll, downloading,
-  onCoverLetterDocx, onCoverLetterPdf,
+  onCoverLetterDocx, onCoverLetterPdf, onCoverLetterChange,
 }) {
   if (!open) return null;
   return (
@@ -431,7 +495,9 @@ function PackagePreviewModal({
             <div style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                 marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
-                <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: 0 }}>Cover letter</p>
+                <p style={{ fontFamily: C.sans, fontSize: 11.5, color: C.muted, margin: 0 }}>
+                  Cover letter <span style={{ color: C.faint }}>· click to edit</span>
+                </p>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <Btn variant="ghost" icon={copied ? "Check" : "Clipboard"} onClick={onCopyCoverLetter} small>
                     {copied ? "Copied" : "Copy"}
@@ -446,12 +512,7 @@ function PackagePreviewModal({
                   </Btn>
                 </div>
               </div>
-              <div className="rgm-scroll" style={{ fontFamily: C.sans, fontSize: 12.5, color: C.text, lineHeight: 1.6,
-                whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto",
-                overscrollBehavior: "contain", WebkitOverflowScrolling: "touch",
-                padding: 12, border: `1px solid ${C.border}`, borderRadius: 8 }}>
-                {coverLetter}
-              </div>
+              <CoverLetterView value={coverLetter} onChange={onCoverLetterChange} />
             </div>
           )}
 
@@ -2343,6 +2404,7 @@ export default function ResumeGuestMode({ onClose }) {
         downloading={downloading}
         onCoverLetterDocx={handleCoverLetterDocx}
         onCoverLetterPdf={handleCoverLetterPdf}
+        onCoverLetterChange={setCoverLetter}
       />
     </motion.div>
   );
