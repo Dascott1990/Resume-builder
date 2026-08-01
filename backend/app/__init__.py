@@ -48,6 +48,9 @@ def create_app():
     from app.api.resume import resume_bp
     app.register_blueprint(resume_bp, url_prefix="/api/v1/resume")
 
+    from app.api.artisans import artisans_bp
+    app.register_blueprint(artisans_bp, url_prefix="/api/v1/artisans")
+
     # Create tables
     with app.app_context():
         db.create_all()

@@ -21,3 +21,17 @@ class Media(db.Model):
     metadata_json = db.Column(db.JSON)
     is_deleted = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class Artisan(db.Model):
+    __tablename__ = "artisans"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    name = db.Column(db.String(150), nullable=False)
+    trade = db.Column(db.String(100), nullable=False, index=True)
+    city = db.Column(db.String(120), index=True)
+    phone = db.Column(db.String(40), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {"id": self.id, "name": self.name, "trade": self.trade,
+                "city": self.city, "phone": self.phone}

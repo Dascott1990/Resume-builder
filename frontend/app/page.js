@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import Resume from "../components/premium/Resume";
 import ErrorBoundary from "../components/premium/ErrorBoundary";
 import Logo, { LogoMark } from "../components/premium/Logo";
+import Artisans from "../components/premium/Artisans";
 
 const C = {
   bg:    "#0B0D14",
@@ -18,7 +19,7 @@ const C = {
 // so it carries the brand instead of just a bare button on a black
 // background. Wealthsimple-style: one dark surface, huge negative space,
 // one obvious action, nothing competing for attention.
-function Launcher({ onOpen }) {
+function Launcher({ onOpen, onOpenArtisans }) {
   return (
     <div
       style={{
@@ -107,19 +108,39 @@ function Launcher({ onOpen }) {
         >
           Open Resume Studio
         </motion.button>
+
+        <button
+          onClick={onOpenArtisans}
+          style={{ background:"none", border:"none", color: C.muted,
+            fontSize: 13.5, fontFamily: C.sans, cursor:"pointer", padding: 4 }}
+        >
+          Find an Artisan →
+        </button>
       </div>
     </div>
   );
 }
 
 export default function Home() {
-  const [open, setOpen] = useState(true);
+  const [view, setView] = useState("launcher"); // "launcher" | "resume" | "artisans"
   // Bumped on "Try Again" to force a fresh <Resume> instance without leaving
   // the studio — see ErrorBoundary's onReset below.
   const [sessionId, setSessionId] = useState(0);
 
-  if (!open) {
-    return <Launcher onOpen={() => { setSessionId((id) => id + 1); setOpen(true); }} />;
+  if (view === "launcher") {
+    return (
+      <Launcher
+        onOpen={() => { setSessionId((id) => id + 1); setView("resume"); }}
+        onOpenArtisans={() => setView("artisans")}
+      />
+    );
+  }
+  if (view === "artisans") {
+    return (
+      <ErrorBoundary onReset={() => setView("artisans")} onClose={() => setView("launcher")}>
+        <Artisans onClose={() => setView("launcher")} />
+      </ErrorBoundary>
+    );
   }
   return (
     <ErrorBoundary
@@ -127,9 +148,9 @@ export default function Home() {
       // the crash) but stays open — the user doesn't lose their place in the app.
       onReset={() => setSessionId((id) => id + 1)}
       // "Close": actually leave the studio and go back to the launcher screen.
-      onClose={() => setOpen(false)}
+      onClose={() => setView("launcher")}
     >
-      <Resume key={sessionId} onClose={() => setOpen(false)} />
+      <Resume key={sessionId} onClose={() => setView("launcher")} />
     </ErrorBoundary>
   );
 }
