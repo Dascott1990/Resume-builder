@@ -22,18 +22,7 @@
  */
 
 import React from "react";
-
-const C = {
-  bg:      "#0C0D10",
-  panel:   "#111318",
-  surface: "#15171D",
-  border:  "rgba(255,255,255,0.10)",
-  text:    "#F5F2EA",
-  muted:   "#A6ABB4",
-  gold:    "#C9A24E",
-  goldFg:  "#1A1710",
-  sans:    "'Helvetica Neue',Arial,sans-serif",
-};
+import { T as C } from "./shared/theme";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {

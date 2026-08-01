@@ -5,15 +5,7 @@ import Resume from "../components/premium/Resume";
 import ErrorBoundary from "../components/premium/ErrorBoundary";
 import Logo, { LogoMark } from "../components/premium/Logo";
 import Artisans from "../components/premium/Artisans";
-
-const C = {
-  bg:    "#0B0D14",
-  text:  "#F5F2EA",
-  muted: "#868C99",
-  gold:  "#C9A24E",
-  goldFg:"#1A1710",
-  sans:  "'Helvetica Neue',Arial,sans-serif",
-};
+import { T as C } from "../components/premium/shared/theme";
 
 // The "Open Resume Studio" screen — this is the first thing anyone sees,
 // so it carries the brand instead of just a bare button on a black

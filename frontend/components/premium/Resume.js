@@ -16,54 +16,19 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ResumeGuestMode from "./ResumeGuestMode";
 import Logo from "./Logo";
+import SharedIcon, { ICONS } from "./shared/Icon";
+import { T as SharedT } from "./shared/theme";
 
-// ── Icon primitive ─────────────────────────────────────────────────────────────
-const Ic = ({ d, size = 18, sw = 1.6, color = "currentColor", fill = "none" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill}
-    stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round"
-    style={{ flexShrink: 0 }}>
-    {(Array.isArray(d) ? d : [d]).map((p, i) => <path key={i} d={p} />)}
-  </svg>
-);
+// Thin wrapper: this file's icons were drawn at a slightly thinner default
+// stroke (1.6 vs the shared default of 2) — preserved here so nothing on
+// screen shifts, while still drawing from the one shared path registry.
+const Ic = (props) => <SharedIcon sw={1.6} {...props} />;
 
-// Every icon here is chosen to literally depict the action it triggers —
-// no filler glyphs standing in for unrelated buttons.
-const ICONS = {
-  download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3",   // arrow into tray — "save this file"
-  check:    "M20 6 9 17l-5-5",                                                  // confirms the active/selected item
-  close:    "M18 6 6 18M6 6l12 12",                                             // X — closes the studio
-  doc:      ["M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z", "M14 2v6h6", "M16 13H8", "M16 17H8", "M10 9H8"], // a resume document
-  layers:   ["M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z",
-             "M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12",
-             "M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"], // stacked pages — multiple resume templates
-  palette:  "M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4c3.1 0 5.6-2.5 5.6-5.6C23 6.5 18 2 12 2z", // paint palette — style/appearance
-  sparkle:  "M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3zM5 17l.75 2.25L8 20l-2.25.75L5 23l-.75-2.25L2 20l2.25-.75L5 17zM19 3l.75 2.25L22 6l-2.25.75L19 9l-.75-2.25L16 6l2.25-.75L19 3z", // AI-generated content
-  panel:    ["M3 4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", "M9 3v18"], // a window with a side rail — toggles the sidebar
-};
-
-// ── Design tokens ──────────────────────────────────────────────────────────────
-const T = {
-  bg:      "#0B0D14",
-  panel:   "#0F1219",
-  surface: "#141820",
-  raised:  "#1A2030",
-  border:  "rgba(255,255,255,0.07)",
-  borderHi:"rgba(255,255,255,0.13)",
-  text:    "#E8E4DC",
-  sub:     "#6B7A90",
-  faint:   "rgba(107,122,144,0.45)",
-  gold:    "#C9A84C",
-  goldBg:  "rgba(201,168,76,0.1)",
-  goldBr:  "rgba(201,168,76,0.22)",
-  green:   "#2BB56A",
-  greenBg: "rgba(43,181,106,0.1)",
-  greenBr: "rgba(43,181,106,0.22)",
-  blue:    "#3B82F6",
-  blueBg:  "rgba(59,130,246,0.1)",
-  blueBr:  "rgba(59,130,246,0.22)",
-  sans:    "-apple-system,'SF Pro Display',Inter,system-ui,sans-serif",
-  mono:    "'SF Mono','JetBrains Mono',monospace",
-};
+// Resume.js's own type scale/keys (sub, faint tuned for this denser studio
+// chrome) layered on top of the shared palette — one source of truth for
+// color, with room for this screen's specific naming.
+const T = { ...SharedT, sub: SharedT.muted, faint: "rgba(107,122,144,0.45)",
+  sans: "-apple-system,'SF Pro Display',Inter,system-ui,sans-serif" };
 
 // ── The four pre-built resumes (unchanged) ─────────────────────────────────────
 const RESUMES = {
@@ -810,12 +775,11 @@ const Resume = ({ onClose }) => {
           <motion.div key="guest" custom={flipDir} variants={FLIP_VARIANTS} initial="enter" animate="center" exit="exit"
             style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d",
               backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}>
-            {/* "Leave" in guest mode used to just flip back to the "My Resumes"
-                tab inside the studio — one screen deeper than people expected.
-                Wiring it to the studio's own onClose instead sends it all the
-                way back to the "Open Resume Studio" launcher, so there's one
-                consistent exit no matter which tab someone leaves from. */}
-            <ResumeGuestMode onClose={onClose} />
+            {/* Two distinct exits, not one forced one: the X still leaves the
+                whole studio (onClose → launcher), while onBack flips back to
+                "My Resumes" without ever losing the session. Guest mode's
+                own draft/profile autosave means either direction is safe. */}
+            <ResumeGuestMode onClose={onClose} onBack={() => goToMode("mine")} />
           </motion.div>
         ) : (
           <motion.div key="mine" custom={flipDir} variants={FLIP_VARIANTS} initial="enter" animate="center" exit="exit"

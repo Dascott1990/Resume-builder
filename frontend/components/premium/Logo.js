@@ -43,20 +43,7 @@
  */
 
 import React from "react";
-
-// Same design tokens used across ErrorBoundary.js / Resume.js / ResumeGuestMode.js —
-// keep this in sync with those if the palette ever moves.
-const C = {
-  bg:      "#0B0D14",
-  panel:   "#111318",
-  surface: "#15171D",
-  border:  "rgba(255,255,255,0.10)",
-  text:    "#F5F2EA",
-  muted:   "#A6ABB4",
-  gold:    "#C9A24E",
-  goldFg:  "#1A1710",
-  sans:    "'Helvetica Neue',Arial,sans-serif",
-};
+import { T as C } from "./shared/theme";
 
 // The gesture: short pillar (potential) → rising span (the bridge) → tall
 // pillar (opportunity). One continuous stroked path, drawn as if it were a

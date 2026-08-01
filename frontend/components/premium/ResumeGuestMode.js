@@ -18,11 +18,9 @@ import React, {
 } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Logo from "./Logo";
-
-// ── Constants ──────────────────────────────────────────────────────────────────
-// Must match the port run.py actually listens on (5002) and be inside
-// ALLOWED_ORIGINS on the backend, or every request will fail before it starts.
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
+import SharedIcon from "./shared/Icon";
+import { T as C, TS } from "./shared/theme";
+import { apiRequest as sharedApiRequest } from "./shared/api";
 
 const ACCENTS = [
   { id: "navy",   hex: "#1F3864", label: "Navy"    },
@@ -97,69 +95,16 @@ function clearProfile() {
   try { window.localStorage.removeItem(PROFILE_KEY); } catch { /* best-effort */ }
 }
 
-// ── Design tokens ──────────────────────────────────────────────────────────────
-// One accent (gold, matches the actual resume ink) — everything else is neutral.
-// Colour shows up as a rule, a dot, or a weight change, never a tinted bg+border pair.
-const C = {
-  bg:      "#0C0D10",
-  panel:   "#111318",
-  surface: "#15171D",
-  raised:  "#1B1E26",
-  border:  "rgba(255,255,255,0.10)",
-  borderHi:"rgba(255,255,255,0.22)",
-  text:    "#F5F2EA",
-  muted:   "#A6ABB4",
-  faint:   "rgba(166,171,180,0.72)",
-  gold:    "#C9A24E",
-  goldFg:  "#1A1710",
-  red:     "#E0796A",
-  green:   "#8FBF8A",
-  sans:    "'Helvetica Neue',Arial,sans-serif",
-  serif:   "'Iowan Old Style','Palatino Linotype',Georgia,serif",
-  mono:    "'SF Mono','JetBrains Mono','Courier New',monospace",
-};
-// App-shell type scale — bigger than a resume's own type scale on purpose:
-// this is the interface people tap and read quickly, not the printed page.
-const TS = { label: 14, body: 16, meta: 13, title: 19, nav: 12.5 };
+// Design tokens (C/TS) now come from shared/theme.js — imported above.
 
-// ── Lucide-style icons (named, readable) ────────────────────────────────────
-// Each icon is a complete, recognisable SVG path from Lucide icon set
-const ICONS = {
-  // Navigation & actions
-  ChevronLeft:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>,
-  ChevronRight: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>,
-  X:            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>,
-  Check:        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>,
-  Plus:         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>,
-  Trash2:       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></svg>,
-  RefreshCw:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>,
-  // Files
-  FileText:     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>,
-  FileDown:     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg>,
-  // UI
-  Layout:       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/><path d="M3 9h18M9 21V9"/></svg>,
-  Sparkles:     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3z"/></svg>,
-  User:         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
-  Clipboard:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>,
-  Tag:          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
-  MapPin:       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
-  Eye:          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
-  AlertCircle:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
-  Settings2:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7H4M20 12H4M20 17H4"/></svg>,
-  Gear:         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
-  Mail:         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>,
-  Globe:        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
-  ExternalLink: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>,
-};
-
+// Old call sites here use <Icon name="ChevronLeft" size={16} /> (name-prop,
+// span-wrapped). Kept as a thin wrapper over the shared path-based Icon so
+// none of those call sites below need touching.
 function Icon({ name, size = 16, color = "currentColor" }) {
   return (
     <span style={{ width: size, height: size, display: "inline-flex",
-      alignItems: "center", justifyContent: "center", flexShrink: 0,
-      color, fontSize: size }}>
-      {React.cloneElement(ICONS[name] || ICONS.AlertCircle, {
-        width: size, height: size,
-      })}
+      alignItems: "center", justifyContent: "center", flexShrink: 0, color }}>
+      <SharedIcon name={name} size={size} color={color} />
     </span>
   );
 }
@@ -1377,37 +1322,9 @@ function onEditHandler(dispatch) {
 }
 
 // ── API helpers ────────────────────────────────────────────────────────────────
-// Single shared request fn — every endpoint speaks the same {success, data, error}
-// envelope (see backend/app/utils/response.py), so one helper covers all of them.
-// Network failures (backend down, CORS block, wrong port) are relabeled with a
-// clear message instead of surfacing a raw "Failed to fetch".
-async function apiRequest(path, options) {
-  let res;
-  try {
-    res = await fetch(`${BASE}${path}`, options);
-  } catch (networkErr) {
-    throw new Error(
-      `Could not reach the server at ${BASE}. Is the backend running and is NEXT_PUBLIC_API_URL set correctly?`
-    );
-  }
-
-  // 204 No Content etc — nothing to parse
-  if (res.status === 204) return null;
-
-  let json;
-  try {
-    json = await res.json();
-  } catch {
-    throw new Error(`Server returned an unreadable response (HTTP ${res.status}).`);
-  }
-
-  if (!res.ok) {
-    // Backend error envelope uses "error", success envelope uses "message" —
-    // check both so real backend error text always reaches the user.
-    throw new Error(json.error || json.message || `Error ${res.status}`);
-  }
-  return json.data ?? json;
-}
+// apiRequest itself now lives in shared/api.js (imported above as
+// sharedApiRequest) — aliased back to the name used everywhere below.
+const apiRequest = sharedApiRequest;
 
 const apiGenerate  = (userInfo, jobDesc) => apiRequest("/api/v1/resume/generate", {
   method: "POST",
@@ -1465,8 +1382,7 @@ function LeaveConfirmModal({ open, onCancel, onConfirm }) {
   );
 }
 
-export default function ResumeGuestMode({ onClose }) {
-  console.log('✅ RESUME GUEST MODE v2.0.0 - LOADED');
+export default function ResumeGuestMode({ onClose, onBack }) {
   const { isPhone, isTablet, isDesktop } = useViewport();
   const showSidebarAndPreview = isDesktop; // side-by-side only on desktop
 
@@ -2246,6 +2162,20 @@ export default function ResumeGuestMode({ onClose }) {
         borderBottom: `1px solid ${C.border}`, gap: 10 }}>
 
         <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, flex: "1 1 auto", overflow: "hidden" }}>
+          {/* onBack (→ "My Resumes") is distinct from onClose (→ launcher, full
+              exit). Draft + profile both autosave, so either direction is safe —
+              this just gives people a way OUT of the wizard that isn't also a
+              way out of the whole app. Only rendered when the parent wired it up. */}
+          {onBack && (
+            <button onClick={onBack} aria-label="Back to My Resumes"
+              style={{ height: 40, padding: "0 12px", borderRadius: 12, background: C.raised,
+                border: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 6,
+                cursor: "pointer", color: C.muted, fontSize: 12.5, fontWeight: 700,
+                fontFamily: C.sans, flexShrink: 0 }}>
+              <Icon name="ChevronLeft" size={14} color={C.muted} />
+              <span className="rgm-dl-label">My Resumes</span>
+            </button>
+          )}
           <button onClick={requestClose} aria-label="Close Noviq"
             style={{ width: 40, height: 40, borderRadius: "50%", background: C.raised,
               border: `1px solid ${C.border}`, display: "flex", alignItems: "center",
