@@ -2173,7 +2173,7 @@ export default function ResumeGuestMode({ onClose, onBack }) {
                 cursor: "pointer", color: C.muted, fontSize: 12.5, fontWeight: 700,
                 fontFamily: C.sans, flexShrink: 0 }}>
               <Icon name="ChevronLeft" size={14} color={C.muted} />
-              <span className="rgm-dl-label">My Resumes</span>
+
             </button>
           )}
           <button onClick={requestClose} aria-label="Close Noviq"
