@@ -30,8 +30,13 @@ class Artisan(db.Model):
     trade = db.Column(db.String(100), nullable=False, index=True)
     city = db.Column(db.String(120), index=True)
     phone = db.Column(db.String(40), nullable=False)
+    bio = db.Column(db.String(600))
+    years_experience = db.Column(db.Integer)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
-        return {"id": self.id, "name": self.name, "trade": self.trade,
-                "city": self.city, "phone": self.phone}
+        return {
+            "id": self.id, "name": self.name, "trade": self.trade,
+            "city": self.city, "phone": self.phone, "bio": self.bio,
+            "years_experience": self.years_experience,
+        }
