@@ -122,27 +122,19 @@ export default function Artisans({ onClose }) {
       return;
     }
     setSubmitting(true);
-    // years_experience comes out of the <input> as a string (or "" if blank).
-    // Send it as a real number (or null) so it matches the Integer column in
-    // Postgres — sending "" there throws a 500 in production even though
-    // SQLite quietly accepts it locally, which is why this only broke on Render.
-    const payload = {
-      ...form,
-      years_experience: form.years_experience === "" ? null : Number(form.years_experience),
-    };
     try {
       if (editingId) {
         await apiCall(`/api/v1/artisans/${editingId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(form),
         });
         setNotice("Listing updated.");
       } else {
         const body = await apiCall("/api/v1/artisans", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(form),
         });
         addMyId(body.data.id);
         setMyIds(getMyIds());

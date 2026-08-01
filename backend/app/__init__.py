@@ -51,9 +51,13 @@ def create_app():
     from app.api.artisans import artisans_bp
     app.register_blueprint(artisans_bp, url_prefix="/api/v1/artisans")
 
-    # Create tables
+    # Create tables. If a model's module never gets imported before this
+    # runs, its table simply won't exist and every query against it will
+    # 500 — log what we actually created so that's visible in deploy logs
+    # instead of assumed.
     with app.app_context():
         db.create_all()
-        print("✅ Database tables created/verified")
+        table_names = sorted(db.metadata.tables.keys())
+        print(f"✅ Database tables created/verified: {table_names}")
 
     return app

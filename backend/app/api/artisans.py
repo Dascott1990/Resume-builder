@@ -12,6 +12,27 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
 
+def _clean_years_experience(raw):
+    """
+    Coerce the incoming years_experience value to an int or None.
+
+    The frontend form always sends this as a string (React's onChange gives
+    e.target.value as text), and it's frequently "" when left blank. Handing
+    "" straight to an Integer column throws a raw DB error (e.g. Postgres:
+    'invalid input syntax for type integer: ""'), which is the #1 cause of
+    the generic "unexpected error occurred" response.
+    """
+    if raw in (None, ""):
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise APIError("years_experience must be a whole number", 400)
+    if value < 0 or value > 100:
+        raise APIError("years_experience must be between 0 and 100", 400)
+    return value
+
+
 def _polish_bio(trade, years_experience, notes):
     """Turn rough notes into a short, professional listing bio via Groq."""
     api_key = os.environ.get("GROQ_API_KEY", "")
@@ -58,18 +79,6 @@ def polish():
     return jsonify({"success": True, "data": {"bio": bio}}), 200
 
 
-def _parse_years(value):
-    """Coerce incoming years_experience to an int or None.
-    Accepts "", None, "5", 5 — anything else raises a clean 400 instead of
-    letting a bad type reach the DB (SQLite tolerates it, Postgres does not)."""
-    if value in (None, "", "null"):
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        raise APIError("years_experience must be a whole number", 400)
-
-
 @artisans_bp.route("", methods=["POST"])
 def create_artisan():
     body = request.get_json(force=True) or {}
@@ -80,7 +89,7 @@ def create_artisan():
     a = Artisan(
         name=name, trade=trade, phone=phone,
         city=body.get("city"), bio=body.get("bio"),
-        years_experience=_parse_years(body.get("years_experience")),
+        years_experience=_clean_years_experience(body.get("years_experience")),
     )
     db.session.add(a)
     db.session.commit()
@@ -116,7 +125,7 @@ def update_artisan(artisan_id):
         if field in body:
             setattr(a, field, body[field])
     if "years_experience" in body:
-        a.years_experience = _parse_years(body["years_experience"])
+        a.years_experience = _clean_years_experience(body["years_experience"])
     db.session.commit()
     return jsonify({"success": True, "data": a.to_dict()}), 200
 
