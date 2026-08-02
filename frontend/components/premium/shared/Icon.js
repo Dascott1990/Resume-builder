@@ -56,6 +56,16 @@ export const ICONS = {
 
   phone:        "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z",
   search:       ["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "m21 21-4.35-4.35"],
+
+  // A real cog — was missing, so the "Settings" tab silently fell back to
+  // the generic two-panel `panel` shape (the same shape "Style" used too).
+  gear:         ["M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
+                  "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"],
+
+  // A real eye — was missing, so "Preview" (and the "Load" button on saved
+  // resumes) silently fell back to `alertCircle`, i.e. a warning icon on
+  // the exact screen meant to show the finished resume.
+  eye:          ["M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z", "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"],
 };
 
 // Old ResumeGuestMode.js call sites use PascalCase names (e.g. "ChevronLeft").
@@ -66,7 +76,13 @@ const LEGACY_NAME_MAP = {
   FileText: "doc", FileDown: "fileDown", Layout: "layout", Sparkles: "sparkles",
   User: "user", Clipboard: "clipboard", MapPin: "mapPin", Mail: "mail",
   Globe: "globe", ExternalLink: "externalLink", AlertCircle: "alertCircle",
-  Settings2: "panel", Gear: "panel", Eye: "alertCircle", Tag: "sparkle",
+  // Style = palette (font/color editing) — was wrongly sharing "panel" with Settings.
+  Settings2: "palette",
+  // Settings = an actual gear, not the reused layout/panel shape.
+  Gear: "gear",
+  // Preview = an actual eye, not a warning triangle.
+  Eye: "eye",
+  Tag: "sparkle",
 };
 
 export default function Icon({ d, name, size = 18, sw = 2, color = "currentColor", fill = "none", style, ...rest }) {
