@@ -7,11 +7,16 @@
  * and ResumeGuestMode.js each previously carried their own copy of exactly
  * this logic.
  */
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
+const BASE = process.env.NEXT_PUBLIC_API_URL;
 
 export async function apiRequest(path, options) {
   if (!BASE) {
-    throw new Error("NEXT_PUBLIC_API_URL is not set. Add it to frontend/.env.local and restart `npm run dev`.");
+    // No silent fallback to localhost here on purpose — that fallback is
+    // exactly the trap that makes "works on localhost, nothing on Vercel"
+    // happen: it works on your machine because you happen to have a Flask
+    // server on :5002, and every visitor's browser tries their OWN
+    // localhost:5002 in production, where nothing is listening.
+    throw new Error("NEXT_PUBLIC_API_URL is not set. Set it in Vercel → Project Settings → Environment Variables to your Render backend URL, then redeploy (NEXT_PUBLIC_ vars are baked in at build time, so saving the setting alone isn't enough).");
   }
 
   let res;

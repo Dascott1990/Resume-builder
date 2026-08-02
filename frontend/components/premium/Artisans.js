@@ -2,17 +2,16 @@
 /**
  * Artisans.js — app/components/premium/Artisans.js
  *
- * "Find an Artisan": a small local directory of tradespeople. Two jobs,
- * done well:
- *   1. Someone hiring can find the right trade fast, trust what they see,
- *      and call in one tap.
- *   2. Someone listing themselves can be live in under a minute.
+ * "Find an Artisan": a small local directory of tradespeople. Two jobs:
+ *   1. Someone hiring finds the right trade fast, trusts what they see,
+ *      and calls in one tap.
+ *   2. Someone listing themselves is live in under a minute.
  *
  * What changed from the first pass: search + trade filters actually use
- * the backend's ?trade=/?city= query params (they existed on the API the
- * whole time — the UI just never called them), cards carry real signal
- * (initials, years badge, tap-to-call) instead of a flat text list, and
- * both loading and empty states are real states instead of a blank screen.
+ * the backend's ?trade= query param (it existed on the API the whole time —
+ * the UI just never called it), cards carry real signal (initials, years
+ * badge, tap-to-call) instead of a flat text list, and loading/empty are
+ * real states instead of a blank screen.
  */
 import { useEffect, useMemo, useState } from "react";
 import { T as C } from "./shared/theme";
@@ -21,9 +20,6 @@ import { apiRequest } from "./shared/api";
 
 const MY_IDS_KEY = "noviq_my_artisan_ids";
 
-// Curated, not exhaustive — the trades people actually search for most.
-// "All" always sits first; everything else is alphabetical so the row
-// doesn't reshuffle as listings come and go.
 const TRADES = ["All", "Carpenter", "Electrician", "Handyman", "HVAC", "Landscaper",
   "Mason", "Mover", "Painter", "Plumber", "Roofer"];
 
@@ -34,9 +30,6 @@ const SORTS = [
 
 const emptyForm = { name: "", trade: "", city: "", phone: "", years_experience: "", bio: "" };
 
-// Since there's no login, we track which listings THIS browser created so
-// we know which cards to show Edit/Delete on. Anyone with the raw API can
-// still edit/delete any id — this is UI convenience, not real ownership.
 const getMyIds = () => {
   try { return JSON.parse(localStorage.getItem(MY_IDS_KEY) || "[]"); }
   catch { return []; }
@@ -46,8 +39,6 @@ const addMyId = (id) => {
   if (!ids.includes(id)) localStorage.setItem(MY_IDS_KEY, JSON.stringify([...ids, id]));
 };
 
-// A small, on-brand rotation (gold / blue / green, all already in the
-// palette) so avatars have *some* variety without introducing new colors.
 const AVATAR_TINTS = [
   { bg: C.goldBg, br: C.goldBr, fg: C.gold },
   { bg: C.blueBg, br: C.blueBr, fg: C.blue },
@@ -62,8 +53,6 @@ function initialsOf(name) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
 }
-
-// ── Small building blocks ────────────────────────────────────────────────────
 
 function SearchBar({ value, onChange }) {
   return (
@@ -83,8 +72,7 @@ function SearchBar({ value, onChange }) {
 
 function TradeChips({ active, onSelect }) {
   return (
-    <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2,
-      scrollbarWidth: "none" }}>
+    <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, scrollbarWidth: "none" }}>
       {TRADES.map((t) => {
         const isActive = active === t;
         return (
@@ -103,14 +91,10 @@ function TradeChips({ active, onSelect }) {
   );
 }
 
-// The "work order" card — the one deliberate visual idea here: a dashed
-// tear-line under the header, like a ticket stub, nodding at the trade
-// world (job tags, work orders) without tipping into decoration.
 function ArtisanCard({ a, isMine, onEdit, onDelete }) {
   const tint = tintFor(a.name || "?");
   return (
-    <div style={{ background: C.panel, border: `1px solid ${C.border}`,
-      borderRadius: 14, overflow: "hidden" }}>
+    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
       <div style={{ padding: "14px 14px 12px", display: "flex", gap: 12 }}>
         <div style={{ width: 42, height: 42, borderRadius: "50%", flexShrink: 0,
           background: tint.bg, border: `1px solid ${tint.br}`, color: tint.fg,
@@ -118,7 +102,6 @@ function ArtisanCard({ a, isMine, onEdit, onDelete }) {
           fontSize: 14, fontWeight: 700, fontFamily: C.mono }}>
           {initialsOf(a.name)}
         </div>
-
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
             <div style={{ fontWeight: 700, fontSize: 14.5, color: C.text,
@@ -129,16 +112,13 @@ function ArtisanCard({ a, isMine, onEdit, onDelete }) {
               <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                 <button onClick={() => onEdit(a)} aria-label="Edit listing" style={{
                   background: "none", border: `1px solid ${C.border}`, color: C.muted,
-                  fontSize: 11, fontWeight: 600, borderRadius: 7, padding: "4px 8px",
-                  cursor: "pointer" }}>Edit</button>
+                  fontSize: 11, fontWeight: 600, borderRadius: 7, padding: "4px 8px", cursor: "pointer" }}>Edit</button>
                 <button onClick={() => onDelete(a.id)} aria-label="Delete listing" style={{
                   background: "none", border: `1px solid ${C.border}`, color: C.red,
-                  fontSize: 11, fontWeight: 600, borderRadius: 7, padding: "4px 8px",
-                  cursor: "pointer" }}>Delete</button>
+                  fontSize: 11, fontWeight: 600, borderRadius: 7, padding: "4px 8px", cursor: "pointer" }}>Delete</button>
               </div>
             )}
           </div>
-
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
             <span style={{ color: C.gold, fontSize: 12, fontWeight: 700 }}>{a.trade}</span>
             {a.years_experience != null && (
@@ -148,7 +128,6 @@ function ArtisanCard({ a, isMine, onEdit, onDelete }) {
               </span>
             )}
           </div>
-
           {a.city && (
             <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5 }}>
               <Icon name="mapPin" size={11} color={C.muted} />
@@ -157,14 +136,12 @@ function ArtisanCard({ a, isMine, onEdit, onDelete }) {
           )}
         </div>
       </div>
-
       {a.bio && (
         <p style={{ margin: "0 14px 12px", fontSize: 13, lineHeight: 1.5, color: C.text,
           display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
           {a.bio}
         </p>
       )}
-
       <a href={`tel:${a.phone}`} style={{
         display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
         margin: "0 14px 14px", padding: "9px 0", borderRadius: 9,
@@ -228,7 +205,6 @@ function Field({ label, ...rest }) {
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
 export default function Artisans({ onClose }) {
   const [tab, setTab] = useState("browse");
   const [list, setList] = useState([]);
@@ -247,9 +223,6 @@ export default function Artisans({ onClose }) {
 
   useEffect(() => { setMyIds(getMyIds()); }, []);
 
-  // Trade filtering hits the backend (it already supported ?trade= — the
-  // first version of this screen just never called it). Text search stays
-  // client-side over whatever's loaded, so it feels instant while typing.
   const load = async (activeTrade) => {
     setLoading(true);
     setError(null);
@@ -373,13 +346,11 @@ export default function Artisans({ onClose }) {
         <button onClick={() => { setTab("browse"); setError(null); }} style={{
           flex: 1, padding: "9px 0", borderRadius: 9, border: `1px solid ${C.border}`,
           background: tab === "browse" ? C.gold : "transparent",
-          color: tab === "browse" ? C.goldFg : C.text, fontWeight: 700, fontSize: 13,
-          cursor: "pointer" }}>Browse</button>
+          color: tab === "browse" ? C.goldFg : C.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Browse</button>
         <button onClick={startCreate} style={{
           flex: 1, padding: "9px 0", borderRadius: 9, border: `1px solid ${C.border}`,
           background: tab === "form" ? C.gold : "transparent",
-          color: tab === "form" ? C.goldFg : C.text, fontWeight: 700, fontSize: 13,
-          cursor: "pointer" }}>List yourself</button>
+          color: tab === "form" ? C.goldFg : C.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>List yourself</button>
       </div>
 
       {error && (
@@ -403,8 +374,7 @@ export default function Artisans({ onClose }) {
               {loading ? "Loading…" : `${visibleList.length} listing${visibleList.length === 1 ? "" : "s"}`}
             </span>
             <select value={sort} onChange={(e) => setSort(e.target.value)} style={{
-              background: "transparent", border: "none", color: C.muted, fontSize: 11.5,
-              fontWeight: 600, cursor: "pointer" }}>
+              background: "transparent", border: "none", color: C.muted, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>
               {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           </div>
@@ -415,8 +385,7 @@ export default function Artisans({ onClose }) {
               <EmptyState trade={trade} onListYourself={startCreate} />
             )}
             {!loading && visibleList.map((a) => (
-              <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id)}
-                onEdit={startEdit} onDelete={remove} />
+              <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id)} onEdit={startEdit} onDelete={remove} />
             ))}
           </div>
         </div>
