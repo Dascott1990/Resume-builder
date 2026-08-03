@@ -3,8 +3,9 @@ import os
 import anthropic
 import requests
 from flask import Blueprint, request, jsonify
+from sqlalchemy import func
 from app import db
-from app.models import Artisan
+from app.models import Artisan, Review
 from app.middleware.error_handlers import APIError
 
 artisans_bp = Blueprint("artisans", __name__)
@@ -145,7 +146,7 @@ def create_artisan():
 
     a = Artisan(
         name=name, trade=trade, phone=phone,
-        city=body.get("city"), bio=body.get("bio"),
+        city=body.get("city"), email=body.get("email"), bio=body.get("bio"),
         years_experience=_clean_years_experience(body.get("years_experience")),
     )
     db.session.add(a)
@@ -178,7 +179,7 @@ def update_artisan(artisan_id):
     if not a:
         raise APIError("Artisan not found", 404)
     body = request.get_json(force=True) or {}
-    for field in ["name", "trade", "city", "phone", "bio"]:
+    for field in ["name", "trade", "city", "phone", "email", "bio"]:
         if field in body:
             setattr(a, field, body[field])
     if "years_experience" in body:
@@ -192,6 +193,64 @@ def delete_artisan(artisan_id):
     a = Artisan.query.get(artisan_id)
     if not a:
         raise APIError("Artisan not found", 404)
+    # SQLite (local dev) doesn't enforce the FK's ondelete=CASCADE, only
+    # Postgres (prod) does — deleting reviews explicitly here means this
+    # works the same way in both, instead of only failing in prod the
+    # first time someone deletes a listing that has reviews.
+    Review.query.filter_by(artisan_id=artisan_id).delete()
     db.session.delete(a)
     db.session.commit()
     return jsonify({"success": True}), 200
+
+
+def _clean_stars(raw):
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise APIError("stars is required and must be a whole number from 1 to 5", 400)
+    if value < 1 or value > 5:
+        raise APIError("stars must be between 1 and 5", 400)
+    return value
+
+
+@artisans_bp.route("/<artisan_id>/reviews", methods=["POST"])
+def create_review(artisan_id):
+    a = Artisan.query.get(artisan_id)
+    if not a:
+        raise APIError("Artisan not found", 404)
+
+    body = request.get_json(force=True) or {}
+    stars = _clean_stars(body.get("stars"))
+    comment = (body.get("comment") or "").strip() or None
+    if comment and len(comment) > 280:
+        raise APIError("comment must be 280 characters or fewer", 400)
+
+    review = Review(artisan_id=artisan_id, stars=stars, comment=comment)
+    db.session.add(review)
+    db.session.flush()  # include the new row in the aggregate below
+
+    count, avg = db.session.query(
+        func.count(Review.id), func.avg(Review.stars)
+    ).filter(Review.artisan_id == artisan_id).one()
+    a.rating_count = count or 0
+    a.rating_avg = round(float(avg), 2) if avg is not None else None
+
+    db.session.commit()
+    data = review.to_dict()
+    data["rating_avg"] = a.rating_avg
+    data["rating_count"] = a.rating_count
+    return jsonify({"success": True, "data": data}), 201
+
+
+@artisans_bp.route("/<artisan_id>/reviews", methods=["GET"])
+def list_reviews(artisan_id):
+    if not Artisan.query.get(artisan_id):
+        raise APIError("Artisan not found", 404)
+    items = (
+        Review.query
+        .filter_by(artisan_id=artisan_id)
+        .order_by(Review.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return jsonify({"success": True, "data": [r.to_dict() for r in items]}), 200

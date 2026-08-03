@@ -14,8 +14,11 @@
  * real states instead of a blank screen.
  */
 import { useEffect, useMemo, useState } from "react";
-import { Search, MapPin, Phone, User, Sparkles, ChevronLeft, X } from "lucide-react";
+import { Search, MapPin, Phone, User, Sparkles, ChevronLeft, X, Star } from "lucide-react";
 import { apiRequest } from "./shared/api";
+import DeleteListingDialog from "./shared/DeleteListingDialog";
+import { tintFor, initialsOf, formatPhone, truncateBio } from "./shared/artisanDisplay";
+import ArtisanProfile from "./ArtisanProfile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,12 +30,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
-  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
-} from "@/components/ui/alert-dialog";
 
 const MY_IDS_KEY = "noviq_my_artisan_ids";
+const RATED_IDS_KEY = "noviq_rated_artisan_ids";
 
 const TRADES = ["All", "Carpenter", "Electrician", "Handyman", "HVAC", "Landscaper",
   "Mason", "Mover", "Painter", "Plumber", "Roofer"];
@@ -42,7 +42,7 @@ const SORTS = [
   { id: "experience", label: "Most experienced" },
 ];
 
-const emptyForm = { name: "", trade: "", city: "", phone: "", years_experience: "", bio: "" };
+const emptyForm = { name: "", trade: "", city: "", phone: "", email: "", years_experience: "", bio: "" };
 
 const getMyIds = () => {
   try { return JSON.parse(localStorage.getItem(MY_IDS_KEY) || "[]"); }
@@ -53,50 +53,17 @@ const addMyId = (id) => {
   if (!ids.includes(id)) localStorage.setItem(MY_IDS_KEY, JSON.stringify([...ids, id]));
 };
 
-// Kept off amber on purpose — amber is the app's one primary/brand accent
-// now, so these categorical avatar tints use a separate palette to avoid
-// visually colliding with it.
-const AVATAR_TINTS = [
-  "border-blue-500/25 bg-blue-500/10 text-blue-400",
-  "border-emerald-500/25 bg-emerald-500/10 text-emerald-400",
-  "border-violet-500/25 bg-violet-500/10 text-violet-400",
-];
-function tintFor(name) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return AVATAR_TINTS[h % AVATAR_TINTS.length];
-}
-function initialsOf(name) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
-
-// Display-only formatting — the raw digits still go in the tel: href.
-// A 10-digit US number reads as "(512) 555-0173" instead of a bare digit
-// dump, which is most of what made listings look like a database export
-// instead of a real directory.
-function formatPhone(phone) {
-  const digits = (phone || "").replace(/\D/g, "");
-  if (digits.length === 10) {
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  }
-  if (digits.length === 11 && digits[0] === "1") {
-    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-  }
-  return phone;
-}
-
-// JS-side truncation instead of CSS line-clamp — line-clamp's height math
-// (font-size × line-height, then clip at N lines) is a few pixels off in
-// some browsers right at the 2-line boundary, chopping the bottom of the
-// last visible line instead of hiding it cleanly. Cutting the string itself
-// sidesteps that entirely: the rendered text is always exactly what fits.
-function truncateBio(bio, max = 88) {
-  if (!bio || bio.length <= max) return bio;
-  const cut = bio.slice(0, max);
-  const lastSpace = cut.lastIndexOf(" ");
-  return `${cut.slice(0, lastSpace > 40 ? lastSpace : max)}…`;
-}
+// A map (not an array like MY_IDS_KEY) because it needs to carry the star
+// value too, so a returning visitor sees "you rated this 4 stars" instead
+// of just having the widget silently disappear.
+export const getRatedIds = () => {
+  try { return JSON.parse(localStorage.getItem(RATED_IDS_KEY) || "{}"); }
+  catch { return {}; }
+};
+export const addRatedId = (id, stars) => {
+  const map = getRatedIds();
+  localStorage.setItem(RATED_IDS_KEY, JSON.stringify({ ...map, [id]: { stars } }));
+};
 
 function SearchBar({ value, onChange }) {
   return (
@@ -133,11 +100,17 @@ function TradeChips({ active, onSelect }) {
   );
 }
 
-function ArtisanCard({ a, isMine, onEdit, onDelete }) {
+function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const tint = tintFor(a.name || "?");
   return (
-    <Card className="gap-0 overflow-hidden py-0">
+    <Card
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(a)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(a); } }}
+      className="cursor-pointer gap-0 overflow-hidden py-0"
+    >
       <div className="flex gap-3 p-3.5 pb-3">
         <div className={`flex size-[42px] shrink-0 items-center justify-center rounded-full border font-mono text-sm font-bold ${tint}`}>
           {initialsOf(a.name)}
@@ -147,30 +120,22 @@ function ArtisanCard({ a, isMine, onEdit, onDelete }) {
             <div className="truncate text-[14.5px] font-bold text-foreground">{a.name}</div>
             {isMine && (
               <div className="flex shrink-0 gap-1">
-                <Button variant="outline" size="xs" aria-label="Edit listing" onClick={() => onEdit(a)}>
+                <Button variant="outline" size="xs" aria-label="Edit listing"
+                  onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
                   Edit
                 </Button>
-                <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" size="xs" aria-label="Delete listing" className="text-destructive">
+                <DeleteListingDialog
+                  name={a.name}
+                  open={confirmOpen}
+                  onOpenChange={setConfirmOpen}
+                  onConfirm={() => onDelete(a.id)}
+                  trigger={
+                    <Button variant="outline" size="xs" aria-label="Delete listing" className="text-destructive"
+                      onClick={(e) => e.stopPropagation()}>
                       Delete
                     </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Remove this listing?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This can't be undone — {a.name}'s listing will no longer be visible to anyone browsing.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction variant="destructive" onClick={() => onDelete(a.id)}>
-                        Remove
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                  }
+                />
               </div>
             )}
           </div>
@@ -179,6 +144,12 @@ function ArtisanCard({ a, isMine, onEdit, onDelete }) {
             {a.years_experience != null && (
               <Badge variant="outline" className="rounded border-dashed font-mono text-[10.5px] text-muted-foreground">
                 {a.years_experience}+ YRS
+              </Badge>
+            )}
+            {a.rating_count > 0 && (
+              <Badge variant="outline" className="gap-1 rounded border-dashed font-mono text-[10.5px] text-muted-foreground">
+                <Star className="fill-primary text-primary" />
+                {a.rating_avg.toFixed(1)} · {a.rating_count}
               </Badge>
             )}
           </div>
@@ -197,6 +168,7 @@ function ArtisanCard({ a, isMine, onEdit, onDelete }) {
       )}
       <a
         href={`tel:${a.phone}`}
+        onClick={(e) => e.stopPropagation()}
         className="mx-3.5 mb-3.5 flex items-center justify-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 py-2.5 text-[12.5px] font-bold text-primary no-underline"
       >
         <Phone className="size-3.5" />
@@ -261,12 +233,14 @@ export default function Artisans({ onClose }) {
   const [notice, setNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [polishing, setPolishing] = useState(false);
+  const [viewingArtisan, setViewingArtisan] = useState(null); // an artisan object, or null
+  const [ratedIds, setRatedIds] = useState({});
 
   const [query, setQuery] = useState("");
   const [trade, setTrade] = useState("All");
   const [sort, setSort] = useState("newest");
 
-  useEffect(() => { setMyIds(getMyIds()); }, []);
+  useEffect(() => { setMyIds(getMyIds()); setRatedIds(getRatedIds()); }, []);
 
   const load = async (activeTrade) => {
     setLoading(true);
@@ -302,7 +276,7 @@ export default function Artisans({ onClose }) {
     setEditingId(a.id);
     setForm({
       name: a.name, trade: a.trade, city: a.city || "", phone: a.phone,
-      years_experience: a.years_experience || "", bio: a.bio || "",
+      email: a.email || "", years_experience: a.years_experience || "", bio: a.bio || "",
     });
     setTab("form");
   };
@@ -374,6 +348,27 @@ export default function Artisans({ onClose }) {
     }
   };
 
+  if (viewingArtisan) {
+    return (
+      <ArtisanProfile
+        artisan={viewingArtisan}
+        isMine={myIds.includes(viewingArtisan.id)}
+        onBack={() => setViewingArtisan(null)}
+        onEdit={(a) => { setViewingArtisan(null); startEdit(a); }}
+        onDelete={async (id) => { await remove(id); setViewingArtisan(null); }}
+        myRating={ratedIds[viewingArtisan.id]?.stars ?? null}
+        onRated={(id, stars) => {
+          addRatedId(id, stars);
+          setRatedIds((r) => ({ ...r, [id]: { stars } }));
+        }}
+        onRatingUpdate={(patch) => {
+          setViewingArtisan((a) => ({ ...a, ...patch }));
+          setList((l) => l.map((x) => (x.id === viewingArtisan.id ? { ...x, ...patch } : x)));
+        }}
+      />
+    );
+  }
+
   return (
     <div className="flex h-full flex-col gap-3.5 overflow-hidden bg-background p-5 text-foreground">
       <div className="flex shrink-0 items-center justify-between">
@@ -432,7 +427,8 @@ export default function Artisans({ onClose }) {
               <EmptyState trade={trade} onListYourself={startCreate} />
             )}
             {!loading && visibleList.map((a) => (
-              <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id)} onEdit={startEdit} onDelete={remove} />
+              <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id)}
+                onOpen={setViewingArtisan} onEdit={startEdit} onDelete={remove} />
             ))}
           </div>
         </div>
@@ -461,6 +457,8 @@ export default function Artisans({ onClose }) {
           </div>
           <Field label="Phone" type="tel" placeholder="(xxx) xxx-xxxx" value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <Field label="Email" type="email" placeholder="you@example.com (optional)" value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })} />
 
           <div>
             <Label className="text-[11px] font-bold tracking-wide text-muted-foreground uppercase">

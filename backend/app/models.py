@@ -30,13 +30,36 @@ class Artisan(db.Model):
     trade = db.Column(db.String(100), nullable=False, index=True)
     city = db.Column(db.String(120), index=True)
     phone = db.Column(db.String(40), nullable=False)
+    email = db.Column(db.String(190))
     bio = db.Column(db.String(600))
     years_experience = db.Column(db.Integer)
+    rating_avg = db.Column(db.Float)
+    rating_count = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
         return {
             "id": self.id, "name": self.name, "trade": self.trade,
-            "city": self.city, "phone": self.phone, "bio": self.bio,
-            "years_experience": self.years_experience,
+            "city": self.city, "phone": self.phone, "email": self.email,
+            "bio": self.bio, "years_experience": self.years_experience,
+            "rating_avg": self.rating_avg, "rating_count": self.rating_count or 0,
+        }
+
+
+class Review(db.Model):
+    __tablename__ = "reviews"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    artisan_id = db.Column(
+        db.String(32), db.ForeignKey("artisans.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    stars = db.Column(db.Integer, nullable=False)
+    comment = db.Column(db.String(280))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id": self.id, "artisan_id": self.artisan_id, "stars": self.stars,
+            "comment": self.comment,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }

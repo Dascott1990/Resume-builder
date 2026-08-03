@@ -3,7 +3,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import Resume from "../components/premium/Resume";
 import ErrorBoundary from "../components/premium/ErrorBoundary";
-import Logo, { LogoMark } from "../components/premium/Logo";
+import Logo from "../components/premium/Logo";
+import Logo3D from "../components/premium/Logo3D";
 import Artisans from "../components/premium/Artisans";
 
 // The "Open Resume Studio" screen — this is the first thing anyone sees,
@@ -41,7 +42,7 @@ function Launcher({ onOpen, onOpenArtisans }) {
         transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
         className="pointer-events-none absolute top-1/2 left-1/2 size-[min(85vw,620px)] -translate-x-1/2 -translate-y-1/2"
       >
-        <LogoMark size="100%" style={{ width: "100%", height: "100%" }} />
+        <Logo3D size="100%" style={{ width: "100%", height: "100%" }} />
       </motion.div>
 
       <div className="relative z-10 flex w-full max-w-[340px] flex-col items-center gap-[30px]">
