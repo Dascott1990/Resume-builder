@@ -9,6 +9,8 @@ services:
         fromDatabase:
           name: resume-db
           property: connectionString
+      - key: CLAUDE_API_KEY
+        sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: ALLOWED_ORIGINS

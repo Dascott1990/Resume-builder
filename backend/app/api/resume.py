@@ -10,6 +10,7 @@ DELETE /api/v1/resume/<resume_id>
 import os
 import json
 import uuid
+import anthropic
 import requests
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
@@ -18,8 +19,45 @@ from app.middleware.error_handlers import APIError
 
 resume_bp = Blueprint("resume", __name__)
 
+CLAUDE_MODEL = "claude-opus-5"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "llama-3.3-70b-versatile"
+
+def _claude(messages: list, system: str, effort: str = "medium", max_tokens: int = 2000) -> str:
+    api_key = os.environ.get("CLAUDE_API_KEY", "")
+    if not api_key:
+        raise APIError("CLAUDE_API_KEY not configured", 500)
+
+    client = anthropic.Anthropic(api_key=api_key)
+
+    try:
+        res = client.with_options(timeout=60).messages.create(
+            model=CLAUDE_MODEL,
+            system=system,
+            messages=messages,
+            max_tokens=max_tokens,
+            output_config={"effort": effort},
+        )
+
+        if res.stop_reason == "refusal":
+            raise APIError("AI declined to generate this content", 502)
+
+        text = next((b.text for b in res.content if b.type == "text"), None)
+        if text is None:
+            raise APIError("AI returned no text content", 502)
+        return text.strip()
+
+    except anthropic.APITimeoutError:
+        raise APIError("AI generation timed out. Please try again.", 504)
+    except anthropic.APIStatusError as e:
+        error_msg = f"Claude API error: HTTP {e.status_code}"
+        try:
+            error_msg = e.body.get("error", {}).get("message", error_msg)
+        except Exception:
+            pass
+        raise APIError(error_msg, 502)
+    except anthropic.APIConnectionError as e:
+        raise APIError(f"Network error while calling AI: {str(e)}", 502)
 
 def _groq(messages: list, temperature: float = 0.4, max_tokens: int = 2000) -> str:
     api_key = os.environ.get("GROQ_API_KEY", "")
@@ -49,7 +87,7 @@ def _groq(messages: list, temperature: float = 0.4, max_tokens: int = 2000) -> s
                 error_data = res.json()
                 if "error" in error_data:
                     error_msg = error_data["error"].get("message", error_msg)
-            except:
+            except Exception:
                 pass
             raise APIError(error_msg, 502)
 
@@ -59,6 +97,31 @@ def _groq(messages: list, temperature: float = 0.4, max_tokens: int = 2000) -> s
         raise APIError("AI generation timed out. Please try again.", 504)
     except requests.exceptions.RequestException as e:
         raise APIError(f"Network error while calling AI: {str(e)}", 502)
+
+def _ai_complete(system: str, prompt: str, effort: str = "medium", max_tokens: int = 2000, groq_temperature: float = 0.4) -> str:
+    """Generate text via Claude, falling back to Groq if Claude fails for any reason."""
+    try:
+        return _claude(
+            messages=[{"role": "user", "content": prompt}],
+            system=system,
+            effort=effort,
+            max_tokens=max_tokens,
+        )
+    except APIError as claude_err:
+        print(f"⚠️ Claude generation failed, falling back to Groq: {claude_err}")
+        try:
+            return _groq(
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=groq_temperature,
+                max_tokens=max_tokens,
+            )
+        except APIError as groq_err:
+            raise APIError(
+                f"AI generation failed (Claude: {claude_err}; Groq: {groq_err})", 502
+            )
 
 # System prompt
 SYSTEM = """You are an elite ATS resume writer and cover letter strategist with 15 years of recruiting experience.
@@ -283,13 +346,12 @@ def generate_resume():
         job_description=job_desc_truncated,
     )
 
-    raw = _groq(
-        messages=[
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.35,
+    raw = _ai_complete(
+        system=SYSTEM,
+        prompt=prompt,
+        effort="medium",
         max_tokens=2000,
+        groq_temperature=0.35,
     )
 
     # Strip markdown fences
@@ -359,13 +421,12 @@ def optimize_resume():
         job_description=job_desc_truncated,
     )
 
-    raw = _groq(
-        messages=[
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.5,
+    raw = _ai_complete(
+        system=SYSTEM,
+        prompt=prompt,
+        effort="medium",
         max_tokens=3000,
+        groq_temperature=0.5,
     )
 
     clean = raw.replace("```json", "").replace("```", "").strip()

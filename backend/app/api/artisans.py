@@ -1,5 +1,6 @@
 """app/api/artisans.py — artisan directory: CRUD + AI bio polish."""
 import os
+import anthropic
 import requests
 from flask import Blueprint, request, jsonify
 from app import db
@@ -8,6 +9,7 @@ from app.middleware.error_handlers import APIError
 
 artisans_bp = Blueprint("artisans", __name__)
 
+CLAUDE_MODEL = "claude-opus-5"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
@@ -33,13 +35,15 @@ def _clean_years_experience(raw):
     return value
 
 
-def _polish_bio(trade, years_experience, notes):
-    """Turn rough notes into a short, professional listing bio via Groq."""
-    api_key = os.environ.get("GROQ_API_KEY", "")
-    if not api_key:
-        raise APIError("GROQ_API_KEY not configured", 500)
+BIO_SYSTEM_PROMPT = (
+    "You write concise, credible professional bios for skilled "
+    "tradespeople. Plain text only — no markdown, no quotes, "
+    "no preamble, just the bio."
+)
 
-    prompt = (
+
+def _bio_prompt(trade, years_experience, notes):
+    return (
         f"Trade: {trade or 'not specified'}\n"
         f"Years of experience: {years_experience or 'not specified'}\n"
         f"Notes from the artisan: {notes or 'none provided'}\n\n"
@@ -47,6 +51,47 @@ def _polish_bio(trade, years_experience, notes):
         "tradesperson's public directory listing. Confident and specific, "
         "no generic buzzwords, do not invent facts not given above."
     )
+
+
+def _claude_bio(trade, years_experience, notes):
+    """Turn rough notes into a short, professional listing bio via Claude."""
+    api_key = os.environ.get("CLAUDE_API_KEY", "")
+    if not api_key:
+        raise APIError("CLAUDE_API_KEY not configured", 500)
+
+    prompt = _bio_prompt(trade, years_experience, notes)
+    client = anthropic.Anthropic(api_key=api_key)
+    try:
+        res = client.with_options(timeout=30).messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=200,
+            output_config={"effort": "low"},
+            system=BIO_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        if res.stop_reason == "refusal":
+            raise APIError("AI bio generation failed", 502)
+
+        text = next((b.text for b in res.content if b.type == "text"), None)
+        if text is None:
+            raise APIError("AI bio generation failed", 502)
+        return text.strip()
+    except anthropic.APITimeoutError:
+        raise APIError("AI bio generation timed out", 504)
+    except anthropic.APIStatusError:
+        raise APIError("AI bio generation failed", 502)
+    except anthropic.APIConnectionError as e:
+        raise APIError(f"Network error while calling AI: {e}", 502)
+
+
+def _groq_bio(trade, years_experience, notes):
+    """Turn rough notes into a short, professional listing bio via Groq."""
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    if not api_key:
+        raise APIError("GROQ_API_KEY not configured", 500)
+
+    prompt = _bio_prompt(trade, years_experience, notes)
     try:
         res = requests.post(
             GROQ_URL,
@@ -54,9 +99,7 @@ def _polish_bio(trade, years_experience, notes):
             json={
                 "model": GROQ_MODEL, "max_tokens": 200, "temperature": 0.5,
                 "messages": [
-                    {"role": "system", "content": "You write concise, credible professional "
-                     "bios for skilled tradespeople. Plain text only — no markdown, no quotes, "
-                     "no preamble, just the bio."},
+                    {"role": "system", "content": BIO_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
                 ],
             },
@@ -69,6 +112,20 @@ def _polish_bio(trade, years_experience, notes):
         raise APIError("AI bio generation timed out", 504)
     except requests.exceptions.RequestException as e:
         raise APIError(f"Network error while calling AI: {e}", 502)
+
+
+def _polish_bio(trade, years_experience, notes):
+    """Polish a bio via Claude, falling back to Groq if Claude fails for any reason."""
+    try:
+        return _claude_bio(trade, years_experience, notes)
+    except APIError as claude_err:
+        print(f"⚠️ Claude bio generation failed, falling back to Groq: {claude_err}")
+        try:
+            return _groq_bio(trade, years_experience, notes)
+        except APIError as groq_err:
+            raise APIError(
+                f"AI bio generation failed (Claude: {claude_err}; Groq: {groq_err})", 502
+            )
 
 
 @artisans_bp.route("/polish", methods=["POST"])

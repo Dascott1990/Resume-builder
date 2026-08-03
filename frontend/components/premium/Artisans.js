@@ -14,9 +14,23 @@
  * real states instead of a blank screen.
  */
 import { useEffect, useMemo, useState } from "react";
-import { T as C } from "./shared/theme";
-import Icon from "./shared/Icon";
+import { Search, MapPin, Phone, User, Sparkles, ChevronLeft, X } from "lucide-react";
 import { apiRequest } from "./shared/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 const MY_IDS_KEY = "noviq_my_artisan_ids";
 
@@ -39,10 +53,13 @@ const addMyId = (id) => {
   if (!ids.includes(id)) localStorage.setItem(MY_IDS_KEY, JSON.stringify([...ids, id]));
 };
 
+// Kept off amber on purpose — amber is the app's one primary/brand accent
+// now, so these categorical avatar tints use a separate palette to avoid
+// visually colliding with it.
 const AVATAR_TINTS = [
-  { bg: C.goldBg, br: C.goldBr, fg: C.gold },
-  { bg: C.blueBg, br: C.blueBr, fg: C.blue },
-  { bg: C.greenBg, br: C.greenBr, fg: C.green },
+  "border-blue-500/25 bg-blue-500/10 text-blue-400",
+  "border-emerald-500/25 bg-emerald-500/10 text-emerald-400",
+  "border-violet-500/25 bg-violet-500/10 text-violet-400",
 ];
 function tintFor(name) {
   let h = 0;
@@ -54,153 +71,181 @@ function initialsOf(name) {
   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
 }
 
+// Display-only formatting — the raw digits still go in the tel: href.
+// A 10-digit US number reads as "(512) 555-0173" instead of a bare digit
+// dump, which is most of what made listings look like a database export
+// instead of a real directory.
+function formatPhone(phone) {
+  const digits = (phone || "").replace(/\D/g, "");
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  if (digits.length === 11 && digits[0] === "1") {
+    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  return phone;
+}
+
+// JS-side truncation instead of CSS line-clamp — line-clamp's height math
+// (font-size × line-height, then clip at N lines) is a few pixels off in
+// some browsers right at the 2-line boundary, chopping the bottom of the
+// last visible line instead of hiding it cleanly. Cutting the string itself
+// sidesteps that entirely: the rendered text is always exactly what fits.
+function truncateBio(bio, max = 88) {
+  if (!bio || bio.length <= max) return bio;
+  const cut = bio.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${cut.slice(0, lastSpace > 40 ? lastSpace : max)}…`;
+}
+
 function SearchBar({ value, onChange }) {
   return (
-    <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
-      <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
-        color: C.muted, display: "flex", pointerEvents: "none" }}>
-        <Icon name="search" size={15} color={C.muted} />
-      </span>
-      <input value={value} onChange={(e) => onChange(e.target.value)}
+    <div className="relative min-w-0 shrink-0">
+      <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         placeholder="Search by name, trade, or city"
-        style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`,
-          borderRadius: 10, color: C.text, fontSize: 14, fontFamily: C.sans,
-          padding: "10px 12px 10px 36px", boxSizing: "border-box" }} />
+        className="h-10 rounded-lg pl-9"
+      />
     </div>
   );
 }
 
 function TradeChips({ active, onSelect }) {
   return (
-    <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, scrollbarWidth: "none" }}>
-      {TRADES.map((t) => {
-        const isActive = active === t;
-        return (
-          <button key={t} onClick={() => onSelect(t)} style={{
-            flexShrink: 0, padding: "6px 12px", borderRadius: 999,
-            border: `1px solid ${isActive ? C.goldBr : C.border}`,
-            background: isActive ? C.goldBg : "transparent",
-            color: isActive ? C.gold : C.muted,
-            fontSize: 12.5, fontWeight: 600, fontFamily: C.sans, cursor: "pointer",
-            whiteSpace: "nowrap" }}>
-            {t}
-          </button>
-        );
-      })}
-    </div>
+    <ToggleGroup
+      type="single"
+      value={active}
+      onValueChange={(v) => v && onSelect(v)}
+      className="w-full justify-start gap-1.5 overflow-x-auto [scrollbar-width:none]"
+    >
+      {TRADES.map((t) => (
+        <ToggleGroupItem
+          key={t}
+          value={t}
+          className="shrink-0 rounded-full border border-border bg-transparent px-3 text-[12.5px] font-semibold text-muted-foreground data-[state=on]:border-primary/30 data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
+        >
+          {t}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
   );
 }
 
 function ArtisanCard({ a, isMine, onEdit, onDelete }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const tint = tintFor(a.name || "?");
   return (
-    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
-      <div style={{ padding: "14px 14px 12px", display: "flex", gap: 12 }}>
-        <div style={{ width: 42, height: 42, borderRadius: "50%", flexShrink: 0,
-          background: tint.bg, border: `1px solid ${tint.br}`, color: tint.fg,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 14, fontWeight: 700, fontFamily: C.mono }}>
+    <Card className="gap-0 overflow-hidden py-0">
+      <div className="flex gap-3 p-3.5 pb-3">
+        <div className={`flex size-[42px] shrink-0 items-center justify-center rounded-full border font-mono text-sm font-bold ${tint}`}>
           {initialsOf(a.name)}
         </div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-            <div style={{ fontWeight: 700, fontSize: 14.5, color: C.text,
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {a.name}
-            </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex justify-between gap-2">
+            <div className="truncate text-[14.5px] font-bold text-foreground">{a.name}</div>
             {isMine && (
-              <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                <button onClick={() => onEdit(a)} aria-label="Edit listing" style={{
-                  background: "none", border: `1px solid ${C.border}`, color: C.muted,
-                  fontSize: 11, fontWeight: 600, borderRadius: 7, padding: "4px 8px", cursor: "pointer" }}>Edit</button>
-                <button onClick={() => onDelete(a.id)} aria-label="Delete listing" style={{
-                  background: "none", border: `1px solid ${C.border}`, color: C.red,
-                  fontSize: 11, fontWeight: 600, borderRadius: 7, padding: "4px 8px", cursor: "pointer" }}>Delete</button>
+              <div className="flex shrink-0 gap-1">
+                <Button variant="outline" size="xs" aria-label="Edit listing" onClick={() => onEdit(a)}>
+                  Edit
+                </Button>
+                <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="xs" aria-label="Delete listing" className="text-destructive">
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remove this listing?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This can't be undone — {a.name}'s listing will no longer be visible to anyone browsing.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction variant="destructive" onClick={() => onDelete(a.id)}>
+                        Remove
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             )}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
-            <span style={{ color: C.gold, fontSize: 12, fontWeight: 700 }}>{a.trade}</span>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-bold text-primary">{a.trade}</span>
             {a.years_experience != null && (
-              <span style={{ fontFamily: C.mono, fontSize: 10.5, color: C.faint,
-                border: `1px dashed ${C.border}`, borderRadius: 5, padding: "1px 6px" }}>
+              <Badge variant="outline" className="rounded border-dashed font-mono text-[10.5px] text-muted-foreground">
                 {a.years_experience}+ YRS
-              </span>
+              </Badge>
             )}
           </div>
           {a.city && (
-            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5 }}>
-              <Icon name="mapPin" size={11} color={C.muted} />
-              <span style={{ color: C.muted, fontSize: 12.5 }}>{a.city}</span>
+            <div className="mt-1 flex items-center gap-1">
+              <MapPin className="size-[11px] text-muted-foreground" />
+              <span className="text-[12.5px] text-muted-foreground">{a.city}</span>
             </div>
           )}
         </div>
       </div>
       {a.bio && (
-        <p style={{ margin: "0 14px 12px", fontSize: 13, lineHeight: 1.5, color: C.text,
-          display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-          {a.bio}
+        <p className="mx-3.5 mb-3.5 text-[13px] leading-relaxed text-foreground">
+          {truncateBio(a.bio)}
         </p>
       )}
-      <a href={`tel:${a.phone}`} style={{
-        display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-        margin: "0 14px 14px", padding: "9px 0", borderRadius: 9,
-        background: C.goldBg, border: `1px solid ${C.goldBr}`, color: C.gold,
-        fontSize: 12.5, fontWeight: 700, textDecoration: "none" }}>
-        <Icon name="phone" size={13} color={C.gold} />
-        {a.phone}
+      <a
+        href={`tel:${a.phone}`}
+        className="mx-3.5 mb-3.5 flex items-center justify-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 py-2.5 text-[12.5px] font-bold text-primary no-underline"
+      >
+        <Phone className="size-3.5" />
+        {formatPhone(a.phone)}
       </a>
-    </div>
+    </Card>
   );
 }
 
 function SkeletonCard() {
-  const pulse = { background: C.raised, borderRadius: 6, animation: "artisan-pulse 1.4s ease-in-out infinite" };
   return (
-    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14 }}>
-      <div style={{ display: "flex", gap: 12 }}>
-        <div style={{ ...pulse, width: 42, height: 42, borderRadius: "50%", flexShrink: 0 }} />
-        <div style={{ flex: 1, display: "grid", gap: 8 }}>
-          <div style={{ ...pulse, width: "55%", height: 13 }} />
-          <div style={{ ...pulse, width: "35%", height: 11 }} />
+    <Card className="p-3.5">
+      <div className="flex gap-3">
+        <Skeleton className="size-[42px] shrink-0 rounded-full" />
+        <div className="grid flex-1 gap-2">
+          <Skeleton className="h-[13px] w-[55%]" />
+          <Skeleton className="h-[11px] w-[35%]" />
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
 function EmptyState({ trade, onListYourself }) {
   return (
-    <div style={{ textAlign: "center", padding: "40px 20px", display: "grid", gap: 10, justifyItems: "center" }}>
-      <div style={{ width: 44, height: 44, borderRadius: "50%", background: C.surface,
-        border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Icon name="user" size={18} color={C.muted} />
+    <div className="grid justify-items-center gap-2.5 px-5 py-10 text-center">
+      <div className="flex size-11 items-center justify-center rounded-full border border-border bg-card">
+        <User className="size-[18px] text-muted-foreground" />
       </div>
-      <p style={{ margin: 0, color: C.text, fontSize: 14, fontWeight: 700 }}>
+      <p className="m-0 text-sm font-bold text-foreground">
         {trade && trade !== "All" ? `No ${trade}s listed yet` : "No artisans yet"}
       </p>
-      <p style={{ margin: 0, color: C.muted, fontSize: 12.5, maxWidth: 240, lineHeight: 1.5 }}>
+      <p className="m-0 max-w-[240px] text-[12.5px] leading-relaxed text-muted-foreground">
         Be the first — listings take under a minute and go live immediately.
       </p>
-      <button onClick={onListYourself} style={{ marginTop: 4, background: C.gold, color: C.goldFg,
-        fontWeight: 700, fontSize: 12.5, border: "none", borderRadius: 9, padding: "9px 16px", cursor: "pointer" }}>
+      <Button className="mt-1" size="sm" onClick={onListYourself}>
         List yourself
-      </button>
+      </Button>
     </div>
   );
 }
 
-const fieldStyle = { width: "100%", background: C.surface, border: `1px solid ${C.border}`,
-  borderRadius: 10, color: C.text, fontSize: 14, fontFamily: C.sans, padding: "10px 12px",
-  marginTop: 6, boxSizing: "border-box" };
-
 function Field({ label, ...rest }) {
   return (
-    <label style={{ display: "block" }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+    <label className="block">
+      <span className="text-[11px] font-bold tracking-wide text-muted-foreground uppercase">
         {label}
       </span>
-      <input style={fieldStyle} {...rest} />
+      <Input className="mt-1.5 h-10 rounded-lg" {...rest} />
     </label>
   );
 }
@@ -265,7 +310,6 @@ export default function Artisans({ onClose }) {
   const startCreate = () => { setEditingId(null); setForm(emptyForm); setError(null); setTab("form"); };
 
   const remove = async (id) => {
-    if (!confirm("Remove this listing?")) return;
     setError(null);
     try {
       await apiRequest(`/api/v1/artisans/${id}`, { method: "DELETE" });
@@ -331,55 +375,58 @@ export default function Artisans({ onClose }) {
   };
 
   return (
-    <div style={{ height: "100%", background: C.bg, color: C.text, fontFamily: C.sans,
-      display: "flex", flexDirection: "column", padding: 20, gap: 14, overflow: "hidden" }}>
-
-      <style>{`@keyframes artisan-pulse { 0%,100% { opacity: 0.5 } 50% { opacity: 1 } }`}</style>
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: 17 }}>Find an Artisan</div>
-        {onClose && <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none",
-          color: C.muted, fontSize: 20, cursor: "pointer" }}>×</button>}
+    <div className="flex h-full flex-col gap-3.5 overflow-hidden bg-background p-5 text-foreground">
+      <div className="flex shrink-0 items-center justify-between">
+        <div className="text-[17px] font-bold">Find an Artisan</div>
+        {onClose && (
+          <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
+            <X className="size-5" />
+          </Button>
+        )}
       </div>
 
-      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-        <button onClick={() => { setTab("browse"); setError(null); }} style={{
-          flex: 1, padding: "9px 0", borderRadius: 9, border: `1px solid ${C.border}`,
-          background: tab === "browse" ? C.gold : "transparent",
-          color: tab === "browse" ? C.goldFg : C.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Browse</button>
-        <button onClick={startCreate} style={{
-          flex: 1, padding: "9px 0", borderRadius: 9, border: `1px solid ${C.border}`,
-          background: tab === "form" ? C.gold : "transparent",
-          color: tab === "form" ? C.goldFg : C.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>List yourself</button>
-      </div>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => {
+          if (v === "form") startCreate();
+          else { setTab(v); setError(null); }
+        }}
+        className="shrink-0 gap-2"
+      >
+        <TabsList className="w-full">
+          <TabsTrigger value="browse">Browse</TabsTrigger>
+          <TabsTrigger value="form">List yourself</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {error && (
-        <div style={{ flexShrink: 0, background: C.dangerBg, border: `1px solid ${C.danger}`,
-          color: C.danger, borderRadius: 10, padding: "10px 12px", fontSize: 13, lineHeight: 1.5 }}>
-          {error}
-        </div>
+        <Alert variant="destructive" className="shrink-0">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
-      {notice && !error && <div style={{ flexShrink: 0, color: C.gold, fontSize: 13 }}>{notice}</div>}
+      {notice && !error && <div className="shrink-0 text-[13px] text-primary">{notice}</div>}
 
       {tab === "browse" ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 0, flex: 1 }}>
-          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-            <SearchBar value={query} onChange={setQuery} />
-          </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <SearchBar value={query} onChange={setQuery} />
 
           <TradeChips active={trade} onSelect={setTrade} />
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-            <span style={{ fontSize: 11.5, color: C.faint }}>
+          <div className="flex shrink-0 items-center justify-between">
+            <span className="text-[11.5px] text-muted-foreground/70">
               {loading ? "Loading…" : `${visibleList.length} listing${visibleList.length === 1 ? "" : "s"}`}
             </span>
-            <select value={sort} onChange={(e) => setSort(e.target.value)} style={{
-              background: "transparent", border: "none", color: C.muted, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>
-              {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-            </select>
+            <Select value={sort} onValueChange={setSort}>
+              <SelectTrigger className="h-auto border-none bg-transparent px-0 text-[11.5px] font-semibold text-muted-foreground shadow-none">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                {SORTS.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div style={{ display: "grid", gap: 10, overflowY: "auto", paddingBottom: 4 }}>
+          <div className="grid gap-2.5 overflow-y-auto pb-1">
             {loading && <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>}
             {!loading && visibleList.length === 0 && (
               <EmptyState trade={trade} onListYourself={startCreate} />
@@ -390,12 +437,14 @@ export default function Artisans({ onClose }) {
           </div>
         </div>
       ) : (
-        <form onSubmit={submit} style={{ display: "grid", gap: 12, overflowY: "auto" }}>
+        <form onSubmit={submit} className="grid gap-3 overflow-y-auto">
           {editingId && (
-            <button type="button" onClick={() => { setEditingId(null); setForm(emptyForm); setTab("browse"); }}
-              style={{ justifySelf: "start", display: "flex", alignItems: "center", gap: 5,
-                background: "none", border: "none", color: C.muted, fontSize: 12, cursor: "pointer", padding: 0 }}>
-              <Icon name="chevronLeft" size={12} color={C.muted} /> Cancel edit
+            <button
+              type="button"
+              onClick={() => { setEditingId(null); setForm(emptyForm); setTab("browse"); }}
+              className="flex items-center gap-1 justify-self-start border-none bg-transparent p-0 text-xs text-muted-foreground"
+            >
+              <ChevronLeft className="size-3" /> Cancel edit
             </button>
           )}
 
@@ -403,7 +452,7 @@ export default function Artisans({ onClose }) {
             onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <Field label="Trade" placeholder="e.g. Electrician" value={form.trade}
             onChange={(e) => setForm({ ...form, trade: e.target.value })} />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div className="grid grid-cols-2 gap-2.5">
             <Field label="City" placeholder="City" value={form.city}
               onChange={(e) => setForm({ ...form, city: e.target.value })} />
             <Field label="Years experience" type="number" min="0" placeholder="0"
@@ -414,28 +463,31 @@ export default function Artisans({ onClose }) {
             onChange={(e) => setForm({ ...form, phone: e.target.value })} />
 
           <div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+            <Label className="text-[11px] font-bold tracking-wide text-muted-foreground uppercase">
               Bio
-            </span>
-            <textarea style={{ ...fieldStyle, minHeight: 80, resize: "vertical" }}
+            </Label>
+            <Textarea
+              className="mt-1.5 min-h-[80px] resize-y rounded-lg"
               placeholder="Rough notes about your work — AI can turn this into a polished bio"
-              value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
-            <button type="button" onClick={polish} disabled={polishing || !form.trade} style={{
-              marginTop: 8, display: "flex", alignItems: "center", gap: 6,
-              background: "none", border: `1px solid ${C.gold}`, color: C.gold,
-              fontSize: 12.5, fontWeight: 700, borderRadius: 8, padding: "7px 12px",
-              cursor: polishing || !form.trade ? "default" : "pointer",
-              opacity: polishing || !form.trade ? 0.5 : 1 }}>
-              <Icon name="sparkle" size={13} color={C.gold} />
+              value={form.bio}
+              onChange={(e) => setForm({ ...form, bio: e.target.value })}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2 border-primary/40 text-primary"
+              disabled={polishing || !form.trade}
+              onClick={polish}
+            >
+              <Sparkles className="size-3.5" />
               {polishing ? "Polishing…" : "Polish with AI"}
-            </button>
+            </Button>
           </div>
 
-          <button type="submit" disabled={submitting} style={{ background: C.gold,
-            color: C.goldFg, fontWeight: 700, border: "none", borderRadius: 10,
-            padding: "12px 0", cursor: "pointer", opacity: submitting ? 0.7 : 1, fontSize: 14 }}>
+          <Button type="submit" size="lg" className="text-sm font-bold" disabled={submitting}>
             {submitting ? "Saving…" : editingId ? "Save changes" : "List me"}
-          </button>
+          </Button>
         </form>
       )}
     </div>

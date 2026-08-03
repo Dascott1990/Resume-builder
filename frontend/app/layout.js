@@ -1,3 +1,5 @@
+import "./globals.css";
+
 export const metadata = {
   title: "Noviq — AI Resume Builder",
   appleWebApp: {
@@ -16,13 +18,13 @@ export const viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#0B0D14",
+  themeColor: "#0a0a0a",
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body style={{ margin: 0, background: "#0B0D14", overscrollBehavior: "none" }}>{children}</body>
+    <html lang="en" className="dark">
+      <body className="m-0 overscroll-none bg-background">{children}</body>
     </html>
   );
 }

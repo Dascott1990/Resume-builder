@@ -22,7 +22,10 @@
  */
 
 import React from "react";
-import { T as C } from "./shared/theme";
+import { AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -76,115 +79,73 @@ class ErrorBoundary extends React.Component {
     return (
       <div
         role="alert"
-        style={{
-          height: "100%", minHeight: 320, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", textAlign: "center",
-          background: C.bg, color: C.text, fontFamily: C.sans, padding: 32, gap: 16,
-          overflowY: "auto",
-        }}
+        className="flex h-full min-h-[320px] flex-col items-center justify-center gap-4 overflow-y-auto bg-background p-8 text-center text-foreground"
       >
-        <div style={{
-          width: 56, height: 56, borderRadius: "50%", background: C.surface,
-          border: `1px solid ${C.border}`, display: "flex", alignItems: "center",
-          justifyContent: "center", flexShrink: 0,
-        }}>
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke={C.gold}
-            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
+        <div className="flex size-14 shrink-0 items-center justify-center rounded-full border border-border bg-card">
+          <AlertCircle className="size-6 text-primary" strokeWidth={2} />
         </div>
 
-        <div style={{ maxWidth: 460, width: "100%" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>
-            Something went wrong
-          </div>
-          <div style={{ fontSize: 14.5, color: C.muted, lineHeight: 1.5, marginBottom: 14 }}>
+        <div className="w-full max-w-[460px]">
+          <div className="mb-1.5 text-lg font-bold">Something went wrong</div>
+          <div className="mb-3.5 text-[14.5px] leading-relaxed text-muted-foreground">
             Your work isn't lost — this screen just hit a snag. You can pick back up
             from here.
           </div>
 
           {/* The actual error, front and center — this is the whole point:
               no guessing, no support back-and-forth to find out what broke. */}
-          <div style={{
-            textAlign: "left", background: C.surface, border: `1px solid ${C.border}`,
-            borderRadius: 10, padding: "12px 14px", marginBottom: 10,
-          }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: "0.04em",
-              textTransform: "uppercase", marginBottom: 5 }}>
+          <Alert className="mb-2.5 text-left">
+            <AlertTitle className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
               What happened
-            </div>
-            <div style={{ fontSize: 13.5, color: C.text, lineHeight: 1.5, fontFamily: "'SF Mono','JetBrains Mono',monospace",
-              wordBreak: "break-word" }}>
+            </AlertTitle>
+            <AlertDescription className="break-words font-mono text-[13.5px] leading-relaxed text-foreground">
               {error?.name && error.name !== "Error" ? `${error.name}: ` : ""}{message}
-            </div>
-          </div>
+            </AlertDescription>
+          </Alert>
 
           {(componentStack || error?.stack) && (
-            <div style={{ textAlign: "left", marginBottom: 4 }}>
-              <button
-                onClick={() => this.setState((s) => ({ showDetails: !s.showDetails }))}
-                style={{
-                  background: "none", border: "none", cursor: "pointer", color: C.gold,
-                  fontSize: 12.5, fontWeight: 600, fontFamily: C.sans, padding: "4px 0",
-                  display: "flex", alignItems: "center", gap: 4,
-                }}
-              >
-                {showDetails ? "Hide" : "Show"} technical details
-              </button>
-
-              {showDetails && (
-                <div style={{
-                  marginTop: 6, background: "#0A0B0E", border: `1px solid ${C.border}`,
-                  borderRadius: 8, padding: 12, maxHeight: 180, overflow: "auto",
-                }}>
-                  <pre style={{
-                    margin: 0, fontSize: 11, lineHeight: 1.5, color: C.muted,
-                    fontFamily: "'SF Mono','JetBrains Mono',monospace",
-                    whiteSpace: "pre-wrap", wordBreak: "break-word",
-                  }}>
-                    {error?.stack || message}
-                    {componentStack || ""}
-                  </pre>
-                  <button
-                    onClick={this.handleCopyDetails}
-                    style={{
-                      marginTop: 8, background: "none", border: `1px solid ${C.border}`,
-                      borderRadius: 6, color: C.muted, fontSize: 11, fontFamily: C.sans,
-                      padding: "5px 10px", cursor: "pointer",
-                    }}
-                  >
-                    {copied ? "Copied" : "Copy details"}
-                  </button>
-                </div>
-              )}
-            </div>
+            <Collapsible
+              open={showDetails}
+              onOpenChange={(open) => this.setState({ showDetails: open })}
+              className="mb-1 text-left"
+            >
+              <CollapsibleTrigger asChild>
+                <button className="flex items-center gap-1 py-1 text-[12.5px] font-semibold text-primary">
+                  {showDetails ? "Hide" : "Show"} technical details
+                  {showDetails ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-1.5 max-h-[180px] overflow-auto rounded-lg border border-border bg-black/30 p-3">
+                <pre className="m-0 whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-muted-foreground">
+                  {error?.stack || message}
+                  {componentStack || ""}
+                </pre>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={this.handleCopyDetails}
+                >
+                  {copied ? "Copied" : "Copy details"}
+                </Button>
+              </CollapsibleContent>
+            </Collapsible>
           )}
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginTop: 6, flexShrink: 0 }}>
-          <button
-            onClick={this.handleReset}
-            style={{
-              padding: "12px 20px", borderRadius: 10, border: `1.5px solid ${C.gold}`,
-              background: C.gold, color: C.goldFg, fontSize: 14.5, fontWeight: 700,
-              fontFamily: C.sans, cursor: "pointer", minHeight: 44,
-            }}
-          >
+        <div className="mt-1.5 flex shrink-0 gap-2.5">
+          <Button size="lg" className="h-11 px-5 text-[14.5px] font-bold" onClick={this.handleReset}>
             Try Again
-          </button>
+          </Button>
           {this.props.onClose && (
-            <button
+            <Button
+              variant="outline"
+              size="lg"
+              className="h-11 px-5 text-[14.5px] font-semibold"
               onClick={this.props.onClose}
-              style={{
-                padding: "12px 20px", borderRadius: 10, border: `1.5px solid ${C.border}`,
-                background: C.surface, color: C.text, fontSize: 14.5, fontWeight: 600,
-                fontFamily: C.sans, cursor: "pointer", minHeight: 44,
-              }}
             >
               Close
-            </button>
+            </Button>
           )}
         </div>
       </div>

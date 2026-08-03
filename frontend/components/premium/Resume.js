@@ -14,21 +14,13 @@
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import ResumeGuestMode from "./ResumeGuestMode";
+import { Layers, Palette, Check, PanelLeft, FileText, Sparkle, Download, X } from "lucide-react";
+import ResumeGuestMode from "./guest";
 import Logo from "./Logo";
-import SharedIcon, { ICONS } from "./shared/Icon";
-import { T as SharedT } from "./shared/theme";
 
-// Thin wrapper: this file's icons were drawn at a slightly thinner default
-// stroke (1.6 vs the shared default of 2) — preserved here so nothing on
-// screen shifts, while still drawing from the one shared path registry.
-const Ic = (props) => <SharedIcon sw={1.6} {...props} />;
-
-// Resume.js's own type scale/keys (sub, faint tuned for this denser studio
-// chrome) layered on top of the shared palette — one source of truth for
-// color, with room for this screen's specific naming.
-const T = { ...SharedT, sub: SharedT.muted, faint: "rgba(107,122,144,0.45)",
-  sans: "-apple-system,'SF Pro Display',Inter,system-ui,sans-serif" };
+// This file's icons were drawn at a slightly thinner default stroke (1.6 vs
+// lucide's default of 2) — preserved here so nothing on screen shifts.
+const ICON_STROKE = 1.6;
 
 // ── The four pre-built resumes (unchanged) ─────────────────────────────────────
 const RESUMES = {
@@ -645,7 +637,7 @@ const Resume = ({ onClose }) => {
   };
 
   const Label = ({ children }) => (
-    <p style={{ fontFamily: T.mono, fontSize: 9, color: T.faint, letterSpacing: "0.1em", margin: "0 0 7px" }}>{children}</p>
+    <p className="m-0 mb-1.5 font-mono text-[9px] tracking-[0.1em] text-muted-foreground/45">{children}</p>
   );
 
   const scaledW = Math.round(A4W * scale);
@@ -654,64 +646,59 @@ const Resume = ({ onClose }) => {
   // ── Sidebar for "My Resumes" mode ──────────────────────────────────────────
   const SidebarContent = () => (
     <>
-      <div role="tablist" aria-label="Panel" style={{ display: "flex", padding: 6, gap: 5, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
-        {[{ id: "resumes", icon: ICONS.layers, label: "Templates" }, { id: "style", icon: ICONS.palette, label: "Style" }].map(t => (
+      <div role="tablist" aria-label="Panel" className="flex shrink-0 gap-1.5 border-b border-border p-1.5">
+        {[{ id: "resumes", Icon: Layers, label: "Templates" }, { id: "style", Icon: Palette, label: "Style" }].map(t => (
           <button key={t.id} role="tab" aria-selected={panel === t.id} onClick={() => setPanel(t.id)}
-            style={{ flex: 1, minHeight: 34, padding: "8px 6px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              borderRadius: 7, border: "none", cursor: "pointer",
-              background: panel === t.id ? T.blue : "transparent",
-              color: panel === t.id ? "#fff" : T.sub, fontSize: 11, fontWeight: 700, fontFamily: T.sans,
-              transition: "background 0.15s, color 0.15s" }}>
-            <Ic d={t.icon} size={13} color={panel === t.id ? "#fff" : T.sub} />
+            className={`flex min-h-[34px] flex-1 items-center justify-center gap-1.5 rounded-md border-none px-1.5 py-2 text-[11px] font-bold transition-colors ${
+              panel === t.id ? "bg-primary text-primary-foreground" : "bg-transparent text-muted-foreground"
+            }`}>
+            <t.Icon size={13} strokeWidth={ICON_STROKE} />
             {t.label}
           </button>
         ))}
       </div>
-      <div style={{ padding: "14px 12px", flex: 1, overflowY: "auto", scrollbarWidth: "none" }}>
+      <div className="flex-1 overflow-y-auto p-3.5 [scrollbar-width:none]">
         {panel === "resumes" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          <div className="flex flex-col gap-1.5">
             <Label>SELECT RESUME</Label>
             {Object.entries(RESUMES).map(([key, r]) => {
               const active = activeResume === key;
               return (
                 <motion.button key={key} whileTap={{ scale: 0.97 }} onClick={() => switchResume(key)}
                   aria-pressed={active}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                    padding: "10px 11px", minHeight: 44, borderRadius: 11, textAlign: "left",
-                    background: active ? T.goldBg : T.surface,
-                    border: `1px solid ${active ? T.goldBr : T.border}`,
-                    cursor: "pointer", width: "100%", boxSizing: "border-box" }}>
-                  <div style={{ minWidth: 0 }}>
-                    <p style={{ color: active ? T.gold : T.text, fontSize: 12, fontWeight: 600, margin: 0 }}>{r.label}</p>
-                    <p style={{ color: T.sub, fontSize: 10, margin: "2px 0 0", fontFamily: T.mono, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.title}</p>
+                  className={`box-border flex w-full min-h-[44px] items-center justify-between gap-2 rounded-xl border px-2.5 py-2.5 text-left ${
+                    active ? "border-primary/30 bg-primary/10" : "border-border bg-card"
+                  }`}>
+                  <div className="min-w-0">
+                    <p className={`m-0 text-xs font-semibold ${active ? "text-primary" : "text-foreground"}`}>{r.label}</p>
+                    <p className="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] text-muted-foreground">{r.title}</p>
                   </div>
                   {active && (
-                    <span style={{ width: 18, height: 18, borderRadius: "50%", background: T.gold,
-                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Ic d={ICONS.check} size={11} sw={2.4} color={T.panel} />
+                    <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-primary">
+                      <Check size={11} strokeWidth={2.4} className="text-primary-foreground" />
                     </span>
                   )}
                 </motion.button>
               );
             })}
-            <div style={{ marginTop: 8, padding: "9px 11px", borderRadius: 11, background: T.surface, border: `1px solid ${T.border}` }}>
-              <p style={{ fontFamily: T.mono, fontSize: 9, color: T.faint, margin: "0 0 4px", letterSpacing: "0.08em" }}>TIP</p>
-              <p style={{ color: T.sub, fontSize: 11, lineHeight: 1.5, margin: 0 }}>Click any text in the preview to edit it inline.</p>
+            <div className="mt-2 rounded-xl border border-border bg-card p-2.5">
+              <p className="m-0 mb-1 font-mono text-[9px] tracking-[0.08em] text-muted-foreground/45">TIP</p>
+              <p className="m-0 text-[11px] leading-relaxed text-muted-foreground">Click any text in the preview to edit it inline.</p>
             </div>
           </div>
         )}
         {panel === "style" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="flex flex-col gap-3.5">
             <div>
               <Label>FONT FAMILY</Label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div className="flex flex-col gap-1">
                 {FONTS.map(f => (
                   <button key={f.id} onClick={() => setStyle(s => ({ ...s, font: f.id }))}
                     aria-pressed={style.font === f.id}
-                    style={{ padding: "9px 11px", minHeight: 40, borderRadius: 8, textAlign: "left",
-                      background: style.font === f.id ? T.goldBg : T.surface,
-                      border: `1px solid ${style.font === f.id ? T.goldBr : T.border}`,
-                      color: style.font === f.id ? T.gold : T.sub, fontSize: 12, fontFamily: f.css, cursor: "pointer" }}>
+                    style={{ fontFamily: f.css }}
+                    className={`min-h-10 rounded-lg border px-2.5 py-2 text-left text-xs ${
+                      style.font === f.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground"
+                    }`}>
                     {f.label}
                   </button>
                 ))}
@@ -721,29 +708,29 @@ const Resume = ({ onClose }) => {
               <Label>FONT SIZE: {style.fontSize}pt</Label>
               <input type="range" min={9} max={13} step={0.5} value={style.fontSize}
                 onChange={e => setStyle(s => ({ ...s, fontSize: parseFloat(e.target.value) }))}
-                style={{ width: "100%", accentColor: T.gold }} />
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ fontFamily: T.mono, fontSize: 9, color: T.faint }}>9pt</span>
-                <span style={{ fontFamily: T.mono, fontSize: 9, color: T.faint }}>13pt</span>
+                className="w-full accent-primary" />
+              <div className="flex justify-between">
+                <span className="font-mono text-[9px] text-muted-foreground/45">9pt</span>
+                <span className="font-mono text-[9px] text-muted-foreground/45">13pt</span>
               </div>
             </div>
             <div>
               <Label>LINE SPACING: {style.lineHeight}×</Label>
               <input type="range" min={1.1} max={1.8} step={0.05} value={style.lineHeight}
                 onChange={e => setStyle(s => ({ ...s, lineHeight: parseFloat(e.target.value) }))}
-                style={{ width: "100%", accentColor: T.gold }} />
+                className="w-full accent-primary" />
             </div>
             <div>
               <Label>ACCENT COLOR</Label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5 }}>
+              <div className="grid grid-cols-2 gap-1.5">
                 {ACCENTS.map(a => (
                   <button key={a.id} onClick={() => setStyle(s => ({ ...s, accent: a.id }))}
                     aria-pressed={style.accent === a.id}
-                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 9px", minHeight: 38, borderRadius: 8,
-                      background: style.accent === a.id ? T.goldBg : T.surface,
-                      border: `1px solid ${style.accent === a.id ? T.goldBr : T.border}`, cursor: "pointer" }}>
-                    <div style={{ width: 13, height: 13, borderRadius: 3, background: a.hex, flexShrink: 0 }} />
-                    <span style={{ color: style.accent === a.id ? T.gold : T.sub, fontSize: 11 }}>{a.label}</span>
+                    className={`flex min-h-[38px] items-center gap-1.5 rounded-lg border px-2 py-2 ${
+                      style.accent === a.id ? "border-primary/30 bg-primary/10" : "border-border bg-card"
+                    }`}>
+                    <div className="size-[13px] shrink-0 rounded-sm" style={{ background: a.hex }} />
+                    <span className={`text-[11px] ${style.accent === a.id ? "text-primary" : "text-muted-foreground"}`}>{a.label}</span>
                   </button>
                 ))}
               </div>
@@ -757,15 +744,11 @@ const Resume = ({ onClose }) => {
   // ── Outer stage: gives the two modes a shared 3D space so switching between
   // them reads as turning a page in a book, rather than an abrupt content swap.
   return (
-    <div style={{ position: "fixed", inset: 0, bottom: "var(--taskbar-height,52px)", zIndex: 50,
-      background: T.bg, perspective: 2200, perspectiveOrigin: "50% 50%", overflow: "hidden" }}>
+    <div className="fixed inset-0 z-50 overflow-hidden bg-background [perspective:2200px] [perspective-origin:50%_50%]"
+      style={{ bottom: "var(--taskbar-height,52px)" }}>
 
       <style>{`
         @media print { body * { visibility: hidden; } #nova-resume-print, #nova-resume-print * { visibility: visible; } #nova-resume-print { position: fixed; left: 0; top: 0; width: 100%; } }
-        @media (max-width: 430px) {
-          .rb-dl-btn { padding: 10px !important; gap: 0 !important; }
-          .rb-dl-label { display: none; }
-        }
       `}</style>
 
       <AnimatePresence mode="wait" custom={flipDir}>
@@ -773,8 +756,7 @@ const Resume = ({ onClose }) => {
           // Guest mode is a fully self-contained, full-screen experience —
           // it owns its own header, preview, and close button.
           <motion.div key="guest" custom={flipDir} variants={FLIP_VARIANTS} initial="enter" animate="center" exit="exit"
-            style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d",
-              backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}>
+            className="absolute inset-0 [backface-visibility:hidden] [transform-style:preserve-3d]">
             {/* Two distinct exits, not one forced one: the X still leaves the
                 whole studio (onClose → launcher), while onBack flips back to
                 "My Resumes" without ever losing the session. Guest mode's
@@ -783,101 +765,94 @@ const Resume = ({ onClose }) => {
           </motion.div>
         ) : (
           <motion.div key="mine" custom={flipDir} variants={FLIP_VARIANTS} initial="enter" animate="center" exit="exit"
-            style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d",
-              backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
-              display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: T.sans, background: T.bg }}>
+            className="absolute inset-0 flex flex-col overflow-hidden bg-background font-sans [backface-visibility:hidden] [transform-style:preserve-3d]">
 
             {/* ── Top bar — two clear rows: identity/actions, then a big tappable mode switch ── */}
-            <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", background: T.panel, borderBottom: `1px solid ${T.border}` }}>
+            <div className="flex shrink-0 flex-col border-b border-border bg-card">
 
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px 8px", gap: 8, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: "1 1 auto", overflow: "hidden" }}>
+              <div className="flex min-w-0 items-center justify-between gap-2 px-3.5 pt-3 pb-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden">
                   <motion.button whileTap={{ scale: 0.9 }} onClick={() => setSidebarOpen(v => !v)}
                     aria-label={sidebarOpen ? "Hide panel" : "Show panel"} title={sidebarOpen ? "Hide panel" : "Show panel"}
-                    style={{ width: 40, height: 40, borderRadius: 12, background: sidebarOpen ? T.goldBg : T.raised,
-                      border: `1px solid ${sidebarOpen ? T.goldBr : T.border}`,
-                      display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-                    <Ic d={ICONS.panel} size={16} color={sidebarOpen ? T.gold : T.sub} />
+                    className={`flex size-10 shrink-0 items-center justify-center rounded-xl border ${
+                      sidebarOpen ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-muted text-muted-foreground"
+                    }`}>
+                    <PanelLeft size={16} strokeWidth={ICON_STROKE} />
                   </motion.button>
                   <Logo size={20} style={{ minWidth: 0 }} />
                 </div>
 
                 {/* Download buttons — big, labelled, unmissable; collapse to icon-only below 430px so they never overlap the title */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                  <motion.button className="rb-dl-btn" whileTap={!downloading ? { scale: 0.94 } : undefined} onClick={handleDownloadDocx} disabled={!!downloading}
+                <div className="flex shrink-0 items-center gap-2">
+                  <motion.button whileTap={!downloading ? { scale: 0.94 } : undefined} onClick={handleDownloadDocx} disabled={!!downloading}
                     aria-label="Download as Word document" title="Download as Word (.docx)"
-                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 14px", minHeight: 40,
-                      borderRadius: 12, background: T.goldBg, border: `1px solid ${T.goldBr}`,
-                      color: T.gold, fontSize: 12.5, fontWeight: 700, fontFamily: T.sans, cursor: downloading ? "not-allowed" : "pointer",
-                      opacity: downloading && downloading !== "docx" ? 0.45 : 1, whiteSpace: "nowrap" }}>
-                    <Ic d={ICONS.download} size={14} color={T.gold} />
-                    <span className="rb-dl-label">{downloading === "docx" ? "Preparing…" : "Word"}</span>
+                    className={`flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-2.5 max-[430px]:gap-0 max-[430px]:px-2.5 text-[12.5px] font-bold text-primary ${
+                      downloading ? "cursor-not-allowed" : "cursor-pointer"
+                    } ${downloading && downloading !== "docx" ? "opacity-45" : ""}`}>
+                    <Download size={14} strokeWidth={ICON_STROKE} />
+                    <span className="max-[430px]:hidden">{downloading === "docx" ? "Preparing…" : "Word"}</span>
                   </motion.button>
-                  <motion.button className="rb-dl-btn" whileTap={!downloading ? { scale: 0.94 } : undefined} onClick={handleDownloadPdf} disabled={!!downloading}
+                  <motion.button whileTap={!downloading ? { scale: 0.94 } : undefined} onClick={handleDownloadPdf} disabled={!!downloading}
                     aria-label="Download as PDF" title="Download as PDF"
-                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 14px", minHeight: 40,
-                      borderRadius: 12, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.22)",
-                      color: "#E84545", fontSize: 12.5, fontWeight: 700, fontFamily: T.sans, cursor: downloading ? "not-allowed" : "pointer",
-                      opacity: downloading && downloading !== "pdf" ? 0.45 : 1, whiteSpace: "nowrap" }}>
-                    <Ic d={ICONS.download} size={14} color="#E84545" />
-                    <span className="rb-dl-label">{downloading === "pdf" ? "Preparing…" : "PDF"}</span>
+                    className={`flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-xl border border-destructive/25 bg-destructive/10 px-3.5 py-2.5 max-[430px]:gap-0 max-[430px]:px-2.5 text-[12.5px] font-bold text-destructive ${
+                      downloading ? "cursor-not-allowed" : "cursor-pointer"
+                    } ${downloading && downloading !== "pdf" ? "opacity-45" : ""}`}>
+                    <Download size={14} strokeWidth={ICON_STROKE} />
+                    <span className="max-[430px]:hidden">{downloading === "pdf" ? "Preparing…" : "PDF"}</span>
                   </motion.button>
                   <motion.button whileTap={{ scale: 0.88 }} onClick={onClose} aria-label="Close Noviq" title="Close"
-                    style={{ width: 40, height: 40, borderRadius: "50%", background: T.raised, border: `1px solid ${T.border}`,
-                      display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-                    <Ic d={ICONS.close} size={16} color={T.sub} />
+                    className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
+                    <X size={16} strokeWidth={ICON_STROKE} />
                   </motion.button>
                 </div>
               </div>
 
               {/* Mode switcher — full-width segmented control, sliding highlight, labels always on */}
-              <div role="tablist" aria-label="Resume mode" style={{ display: "flex", background: T.surface, border: `1px solid ${T.border}`,
-                borderRadius: 14, padding: 4, gap: 4, margin: "0 14px 12px" }}>
-                {[{ id: "mine", label: "My Resumes", icon: ICONS.doc }, { id: "guest", label: "Guest Mode · AI", icon: ICONS.sparkle }].map(m => (
+              <div role="tablist" aria-label="Resume mode" className="mx-3.5 mb-3 flex gap-1 rounded-2xl border border-border bg-card p-1">
+                {[{ id: "mine", label: "My Resumes", Icon: FileText }, { id: "guest", label: "Guest Mode · AI", Icon: Sparkle }].map(m => (
                   <button key={m.id} role="tab" aria-selected={mode === m.id} onClick={() => goToMode(m.id)}
-                    style={{ position: "relative", flex: 1, padding: "11px 10px", minHeight: 44, borderRadius: 11,
-                      border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: T.sans,
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-                      background: "transparent", color: mode === m.id ? "#fff" : T.sub }}>
+                    className={`relative flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border-none px-2.5 py-2.5 text-[13px] font-bold ${
+                      mode === m.id ? "text-primary-foreground" : "text-muted-foreground"
+                    }`}>
                     {mode === m.id && (
                       <motion.span layoutId="modePill" transition={{ type: "spring", damping: 26, stiffness: 320 }}
-                        style={{ position: "absolute", inset: 0, borderRadius: 11, background: T.blue, zIndex: 0 }} />
+                        className="absolute inset-0 z-0 rounded-xl bg-primary" />
                     )}
-                    <span style={{ position: "relative", zIndex: 1, display: "flex" }}>
-                      <Ic d={m.icon} size={14} color={mode === m.id ? "#fff" : T.sub} />
+                    <span className="relative z-10 flex">
+                      <m.Icon size={14} strokeWidth={ICON_STROKE} />
                     </span>
-                    <span style={{ position: "relative", zIndex: 1 }}>{m.label}</span>
+                    <span className="relative z-10">{m.label}</span>
                   </button>
                 ))}
               </div>
             </div>
 
             {/* ── Body ── */}
-            <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
+            <div className="relative flex flex-1 overflow-hidden">
               <AnimatePresence>
                 {(!isMobile || sidebarOpen) && (
                   <motion.div
                     initial={isMobile ? { x: -sidebarW } : false}
                     animate={{ x: 0 }} exit={{ x: -sidebarW }}
                     transition={{ type: "spring", damping: 28, stiffness: 300 }}
-                    style={{ width: sidebarW, flexShrink: 0, background: T.panel, borderRight: `1px solid ${T.border}`,
-                      display: "flex", flexDirection: "column",
-                      position: isMobile ? "absolute" : "relative", top: 0, left: 0, bottom: 0, zIndex: isMobile ? 10 : 1 }}>
+                    style={{ width: sidebarW }}
+                    className={`top-0 bottom-0 left-0 flex shrink-0 flex-col border-r border-border bg-card ${
+                      isMobile ? "absolute z-10" : "relative z-[1]"
+                    }`}>
                     <SidebarContent />
                   </motion.div>
                 )}
               </AnimatePresence>
               {isMobile && sidebarOpen && (
                 <div onClick={() => setSidebarOpen(false)}
-                  style={{ position: "absolute", inset: 0, zIndex: 9, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
+                  className="absolute inset-0 z-[9] bg-black/50 backdrop-blur-[2px]" />
               )}
-              <div ref={canvasRef} style={{ flex: 1, overflowY: "auto", background: "#D0D0D0",
-                display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 0 40px", scrollbarWidth: "thin" }}>
-                <div style={{ fontFamily: T.mono, fontSize: 9, color: "#888", marginBottom: 10, letterSpacing: "0.08em" }}>
+              <div ref={canvasRef} className="flex flex-1 flex-col items-center overflow-y-auto bg-[#D0D0D0] px-0 pt-5 pb-10 [scrollbar-width:thin]">
+                <div className="mb-2.5 font-mono text-[9px] tracking-[0.08em] text-[#888]">
                   {Math.round(scale * 100)}% · Click any text to edit
                 </div>
-                <div style={{ width: scaledW, height: scaledH, flexShrink: 0, position: "relative" }}>
-                  <div style={{ width: A4W, height: A4H, transform: `scale(${scale})`, transformOrigin: "top left", position: "absolute", top: 0, left: 0, boxShadow: "0 4px 32px rgba(0,0,0,0.3)" }}>
+                <div style={{ width: scaledW, height: scaledH }} className="relative shrink-0">
+                  <div style={{ width: A4W, height: A4H, transform: `scale(${scale})` }} className="absolute top-0 left-0 origin-top-left shadow-[0_4px_32px_rgba(0,0,0,0.3)]">
                     <Preview ref={previewRef} resume={resumeData} style={style}
                       onEditContact={onEditContact} onEditText={onEditText}
                       onEditBullet={onEditBullet} onEditJob={onEditJob} onEditDegree={onEditDegree} />

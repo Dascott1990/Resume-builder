@@ -5,7 +5,6 @@ import Resume from "../components/premium/Resume";
 import ErrorBoundary from "../components/premium/ErrorBoundary";
 import Logo, { LogoMark } from "../components/premium/Logo";
 import Artisans from "../components/premium/Artisans";
-import { T as C } from "../components/premium/shared/theme";
 
 // The "Open Resume Studio" screen — this is the first thing anyone sees,
 // so it carries the brand instead of just a bare button on a black
@@ -14,34 +13,22 @@ import { T as C } from "../components/premium/shared/theme";
 function Launcher({ onOpen, onOpenArtisans }) {
   return (
     <div
+      className="relative flex h-[100dvh] w-full items-center justify-center overflow-hidden bg-background p-6 font-sans"
       style={{
-        height: "100dvh",
-        width: "100%",
-        background: C.bg,
-        position: "relative",
-        overflow: "hidden",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: C.sans,
-        padding: "24px",
         paddingTop: "max(24px, env(safe-area-inset-top))",
         paddingBottom: "max(24px, env(safe-area-inset-bottom))",
-        boxSizing: "border-box",
       }}
     >
-      {/* Soft gold glow behind the mark — reads as ambient light, not a
+      {/* Soft amber glow behind the mark — reads as ambient light, not a
           decoration bolted on top. Breathes on the same slow rhythm as the
           mark itself so the two feel like one living thing. */}
       <motion.div
         aria-hidden="true"
         animate={{ opacity: [0.22, 0.38, 0.22] }}
         transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
+        className="pointer-events-none absolute top-1/2 left-1/2 size-[560px] -translate-x-1/2 -translate-y-1/2"
         style={{
-          position: "absolute", top: "50%", left: "50%",
-          width: 560, height: 560, transform: "translate(-50%, -50%)",
-          background: "radial-gradient(circle, rgba(201,162,78,0.18) 0%, rgba(201,162,78,0) 70%)",
-          pointerEvents: "none",
+          background: "radial-gradient(circle, color-mix(in oklch, var(--primary) 18%, transparent) 0%, transparent 70%)",
         }}
       />
 
@@ -52,26 +39,15 @@ function Launcher({ onOpen, onOpenArtisans }) {
         aria-hidden="true"
         animate={{ scale: [1, 1.06, 1], opacity: [0.07, 0.13, 0.07] }}
         transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
-        style={{
-          position: "absolute", top: "50%", left: "50%",
-          width: "min(85vw, 620px)", height: "min(85vw, 620px)",
-          transform: "translate(-50%, -50%)",
-          pointerEvents: "none",
-        }}
+        className="pointer-events-none absolute top-1/2 left-1/2 size-[min(85vw,620px)] -translate-x-1/2 -translate-y-1/2"
       >
         <LogoMark size="100%" style={{ width: "100%", height: "100%" }} />
       </motion.div>
 
-      <div
-        style={{
-          position: "relative", zIndex: 1,
-          display: "flex", flexDirection: "column", alignItems: "center",
-          gap: 30, width: "100%", maxWidth: 340,
-        }}
-      >
+      <div className="relative z-10 flex w-full max-w-[340px] flex-col items-center gap-[30px]">
         <Logo size={32} />
 
-        <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: C.muted, textAlign: "center" }}>
+        <p className="m-0 text-center text-[15px] leading-relaxed text-muted-foreground">
           Every career deserves a second chance.
         </p>
 
@@ -82,29 +58,14 @@ function Launcher({ onOpen, onOpenArtisans }) {
           onClick={onOpen}
           whileTap={{ scale: 0.96 }}
           transition={{ type: "spring", damping: 22, stiffness: 400 }}
-          style={{
-            width: "100%",
-            minHeight: 52,
-            borderRadius: 14,
-            border: "none",
-            background: C.gold,
-            color: C.goldFg,
-            fontSize: 15.5,
-            fontWeight: 700,
-            fontFamily: C.sans,
-            cursor: "pointer",
-            touchAction: "manipulation",
-            WebkitTapHighlightColor: "transparent",
-            userSelect: "none",
-          }}
+          className="min-h-[52px] w-full select-none rounded-2xl border-none bg-primary text-[15.5px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation]"
         >
           Open Resume Studio
         </motion.button>
 
         <button
           onClick={onOpenArtisans}
-          style={{ background:"none", border:"none", color: C.muted,
-            fontSize: 13.5, fontFamily: C.sans, cursor:"pointer", padding: 4 }}
+          className="border-none bg-transparent p-1 text-[13.5px] text-muted-foreground"
         >
           Find an Artisan →
         </button>

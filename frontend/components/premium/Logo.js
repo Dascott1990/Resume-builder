@@ -43,7 +43,6 @@
  */
 
 import React from "react";
-import { T as C } from "./shared/theme";
 
 // The gesture: short pillar (potential) → rising span (the bridge) → tall
 // pillar (opportunity). One continuous stroked path, drawn as if it were a
@@ -73,7 +72,7 @@ export const MARK_STROKE    = 16;
  */
 export function LogoMark({
   size = 28,
-  color = C.gold,
+  color = "var(--primary)",
   style,
   className,
   title = "Noviq",
@@ -184,7 +183,7 @@ export default function Logo({
   style,
 }) {
   const [hover, setHover] = React.useState(false);
-  const wordColor = theme === "light" ? "#14151A" : C.text;
+  const wordColor = theme === "light" ? "#14151A" : "var(--foreground)";
   const Tag = onClick ? "button" : "div";
 
   return (
@@ -207,7 +206,7 @@ export default function Logo({
         opacity: onClick && hover ? 0.86 : 1,
         transform: onClick && hover ? "translateY(-1px)" : "none",
         transition: "opacity .15s ease, transform .15s ease",
-        fontFamily: C.sans,
+        fontFamily: "var(--font-sans)",
         WebkitTapHighlightColor: "transparent",
         ...style,
       }}
@@ -218,8 +217,8 @@ export default function Logo({
             width: size + 20,
             height: size + 20,
             borderRadius: Math.round((size + 20) * 0.28),
-            background: theme === "light" ? "#EDE8DC" : C.panel,
-            border: `1px solid ${theme === "light" ? "rgba(0,0,0,0.08)" : C.border}`,
+            background: theme === "light" ? "#EDE8DC" : "var(--card)",
+            border: `1px solid ${theme === "light" ? "rgba(0,0,0,0.08)" : "var(--border)"}`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
