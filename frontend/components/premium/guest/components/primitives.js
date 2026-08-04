@@ -1,10 +1,10 @@
 "use client";
-import { Loader2, ChevronRight, Eye, FileDown, Plus, RefreshCw, Sparkles, Trash2, Check, Clipboard } from "lucide-react";
+import { Loader2, ChevronRight, Eye, FileDown, Plus, RefreshCw, Sparkles, Trash2, Check, Clipboard, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
-const BTN_ICONS = { ChevronRight, Eye, FileDown, Plus, RefreshCw, Sparkles, Trash2, Check, Clipboard };
+const BTN_ICONS = { ChevronRight, Eye, FileDown, Plus, RefreshCw, Sparkles, Trash2, Check, Clipboard, Pencil };
 
 // ── Button ─────────────────────────────────────────────────────────────────────
 // Only one filled button exists ("gold" — the single call-to-action per screen).
@@ -13,17 +13,19 @@ const BTN_ICONS = { ChevronRight, Eye, FileDown, Plus, RefreshCw, Sparkles, Tras
 //   gold → default (bg-primary),  primary → secondary,  ghost → outline,  danger → destructive
 const VARIANT_MAP = { gold: "default", primary: "secondary", ghost: "outline", danger: "destructive" };
 
-export function Btn({ children, onClick, disabled, variant = "primary", small, icon, loading, className }) {
+export function Btn({ children, onClick, disabled, variant = "primary", small, icon, loading, className, type, ...rest }) {
   const Icon = icon ? BTN_ICONS[icon] : null;
   const sizeClasses = small
     ? "h-11 w-auto min-h-11 gap-1.5 rounded-[10px] px-4 text-sm"
     : "h-[54px] w-full min-h-[54px] gap-2 rounded-xl px-[18px] text-[15px]";
   return (
     <Button
+      type={type}
       variant={VARIANT_MAP[variant] || "secondary"}
       disabled={!!disabled}
       onClick={disabled ? undefined : onClick}
       className={`${sizeClasses} font-bold ${className || ""}`}
+      {...rest}
     >
       {loading ? <Loader2 className="size-[17px] animate-spin" /> : Icon && <Icon className={small ? "size-4" : "size-[18px]"} />}
       {children}

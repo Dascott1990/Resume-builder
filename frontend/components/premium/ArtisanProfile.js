@@ -10,9 +10,10 @@
  * state swap at two other levels.
  */
 import { useEffect, useState } from "react";
-import { ChevronLeft, MapPin, Phone, MessageSquare, Mail, Star } from "lucide-react";
+import { ChevronLeft, MapPin, Phone, MessageSquare, Mail } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import { tintFor, initialsOf, formatPhone } from "./shared/artisanDisplay";
+import { Btn } from "./guest/components/primitives";
 import StarRating from "./shared/StarRating";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { Button } from "@/components/ui/button";
@@ -78,14 +79,14 @@ export default function ArtisanProfile({
           <ChevronLeft className="size-4" /> Back
         </button>
         {isMine && (
-          <div className="flex shrink-0 gap-1">
-            <Button variant="outline" size="xs" onClick={() => onEdit(artisan)}>Edit</Button>
+          <div className="flex shrink-0 gap-1.5">
+            <Btn small icon="Pencil" onClick={() => onEdit(artisan)}>Edit</Btn>
             <DeleteListingDialog
               name={artisan.name}
               open={confirmOpen}
               onOpenChange={setConfirmOpen}
               onConfirm={() => onDelete(artisan.id)}
-              trigger={<Button variant="outline" size="xs" className="text-destructive">Delete</Button>}
+              trigger={<Btn small variant="danger" icon="Trash2">Delete</Btn>}
             />
           </div>
         )}
@@ -143,10 +144,10 @@ export default function ArtisanProfile({
             </div>
           ) : (
             <>
-              <p className="m-0 mb-2 text-[13px] font-bold text-foreground">Rate this artisan</p>
+              <p className="m-0 mb-2 font-serif text-base italic text-foreground">Rate this artisan</p>
               <StarRating value={stars} onChange={setStars} />
               <Textarea
-                className="mt-2.5 min-h-[60px] resize-y rounded-lg text-sm"
+                className="mt-2.5 min-h-[60px] resize-y rounded-[10px] text-sm"
                 placeholder="Optional — how did it go?"
                 maxLength={280}
                 value={comment}
@@ -160,13 +161,15 @@ export default function ArtisanProfile({
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
-              <Button
-                className="mt-2 w-full"
+              <Btn
+                variant="gold"
+                className="mt-2.5"
                 disabled={stars === 0 || submitting}
+                loading={submitting}
                 onClick={submitRating}
               >
                 {submitting ? "Submitting…" : "Submit rating"}
-              </Button>
+              </Btn>
             </>
           )}
         </div>
@@ -174,7 +177,7 @@ export default function ArtisanProfile({
 
       {reviews.length > 0 && (
         <div className="grid gap-2.5">
-          <p className="m-0 text-[11px] font-bold tracking-wide text-muted-foreground uppercase">Recent reviews</p>
+          <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">RECENT REVIEWS</p>
           {reviews.map((r) => (
             <div key={r.id} className="rounded-lg border border-border p-2.5">
               <div className="flex items-center justify-between gap-2">
@@ -189,27 +192,28 @@ export default function ArtisanProfile({
         </div>
       )}
 
+      {/* Same underlying Button primitive Btn itself wraps (asChild renders
+          the real <a> so tel:/sms:/mailto: semantics stay correct), sized
+          with Btn's own default/small classes — pixel-identical to the
+          rest of the app's gold-CTA + quiet-secondary pattern. */}
       <div className="mt-auto grid gap-2.5 pt-2">
-        <a
-          href={`tel:${artisan.phone}`}
-          className="flex h-14 items-center justify-center gap-2 rounded-xl bg-primary text-[15px] font-bold text-primary-foreground no-underline"
-        >
-          <Phone className="size-[18px]" /> Call {formatPhone(artisan.phone)}
-        </a>
-        <div className={artisan.email ? "grid grid-cols-2 gap-2.5" : "grid grid-cols-1 gap-2.5"}>
-          <a
-            href={`sms:${artisan.phone}`}
-            className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-border text-[13.5px] font-semibold text-foreground no-underline"
-          >
-            <MessageSquare className="size-4" /> Text
+        <Button asChild className="h-[54px] w-full gap-2 rounded-xl px-[18px] text-[15px] font-bold">
+          <a href={`tel:${artisan.phone}`}>
+            <Phone className="size-[18px]" /> Call {formatPhone(artisan.phone)}
           </a>
-          {artisan.email && (
-            <a
-              href={`mailto:${artisan.email}`}
-              className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-border text-[13.5px] font-semibold text-foreground no-underline"
-            >
-              <Mail className="size-4" /> Email
+        </Button>
+        <div className={artisan.email ? "grid grid-cols-2 gap-2.5" : "grid grid-cols-1 gap-2.5"}>
+          <Button asChild variant="outline" className="h-11 w-full gap-1.5 rounded-[10px] px-4 text-sm font-bold">
+            <a href={`sms:${artisan.phone}`}>
+              <MessageSquare className="size-4" /> Text
             </a>
+          </Button>
+          {artisan.email && (
+            <Button asChild variant="outline" className="h-11 w-full gap-1.5 rounded-[10px] px-4 text-sm font-bold">
+              <a href={`mailto:${artisan.email}`}>
+                <Mail className="size-4" /> Email
+              </a>
+            </Button>
           )}
         </div>
       </div>

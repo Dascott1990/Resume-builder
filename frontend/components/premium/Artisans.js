@@ -14,15 +14,15 @@
  * real states instead of a blank screen.
  */
 import { useEffect, useMemo, useState } from "react";
-import { Search, MapPin, Phone, User, Sparkles, ChevronLeft, X, Star } from "lucide-react";
+import { Search, MapPin, Phone, User, ChevronLeft, X, Star, Hammer } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tintFor, initialsOf, formatPhone, truncateBio } from "./shared/artisanDisplay";
+import { Btn } from "./guest/components/primitives";
 import ArtisanProfile from "./ArtisanProfile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -111,55 +111,55 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete }) {
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(a); } }}
       className="cursor-pointer gap-0 overflow-hidden py-0"
     >
-      <div className="flex gap-3 p-3.5 pb-3">
-        <div className={`flex size-[42px] shrink-0 items-center justify-center rounded-full border font-mono text-sm font-bold ${tint}`}>
-          {initialsOf(a.name)}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex justify-between gap-2">
+      <div className="flex items-start justify-between gap-2 p-3.5 pb-3">
+        <div className="flex min-w-0 gap-3">
+          <div className={`flex size-[42px] shrink-0 items-center justify-center rounded-full border font-mono text-sm font-bold ${tint}`}>
+            {initialsOf(a.name)}
+          </div>
+          <div className="min-w-0 flex-1">
             <div className="truncate text-[14.5px] font-bold text-foreground">{a.name}</div>
-            {isMine && (
-              <div className="flex shrink-0 gap-1">
-                <Button variant="outline" size="xs" aria-label="Edit listing"
-                  onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
-                  Edit
-                </Button>
-                <DeleteListingDialog
-                  name={a.name}
-                  open={confirmOpen}
-                  onOpenChange={setConfirmOpen}
-                  onConfirm={() => onDelete(a.id)}
-                  trigger={
-                    <Button variant="outline" size="xs" aria-label="Delete listing" className="text-destructive"
-                      onClick={(e) => e.stopPropagation()}>
-                      Delete
-                    </Button>
-                  }
-                />
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-bold text-primary">{a.trade}</span>
+              {a.years_experience != null && (
+                <Badge variant="outline" className="rounded border-dashed font-mono text-[10.5px] text-muted-foreground">
+                  {a.years_experience}+ YRS
+                </Badge>
+              )}
+              {a.rating_count > 0 && (
+                <Badge variant="outline" className="gap-1 rounded border-dashed font-mono text-[10.5px] text-muted-foreground">
+                  <Star className="fill-primary text-primary" />
+                  {a.rating_avg.toFixed(1)} · {a.rating_count}
+                </Badge>
+              )}
+            </div>
+            {a.city && (
+              <div className="mt-1 flex items-center gap-1">
+                <MapPin className="size-[11px] text-muted-foreground" />
+                <span className="text-[12.5px] text-muted-foreground">{a.city}</span>
               </div>
             )}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-bold text-primary">{a.trade}</span>
-            {a.years_experience != null && (
-              <Badge variant="outline" className="rounded border-dashed font-mono text-[10.5px] text-muted-foreground">
-                {a.years_experience}+ YRS
-              </Badge>
-            )}
-            {a.rating_count > 0 && (
-              <Badge variant="outline" className="gap-1 rounded border-dashed font-mono text-[10.5px] text-muted-foreground">
-                <Star className="fill-primary text-primary" />
-                {a.rating_avg.toFixed(1)} · {a.rating_count}
-              </Badge>
-            )}
-          </div>
-          {a.city && (
-            <div className="mt-1 flex items-center gap-1">
-              <MapPin className="size-[11px] text-muted-foreground" />
-              <span className="text-[12.5px] text-muted-foreground">{a.city}</span>
-            </div>
-          )}
         </div>
+        {isMine && (
+          <div className="flex shrink-0 flex-col gap-1.5">
+            <Btn small icon="Pencil" aria-label="Edit listing"
+              onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
+              <span className="sr-only">Edit</span>
+            </Btn>
+            <DeleteListingDialog
+              name={a.name}
+              open={confirmOpen}
+              onOpenChange={setConfirmOpen}
+              onConfirm={() => onDelete(a.id)}
+              trigger={
+                <Btn small variant="danger" icon="Trash2" aria-label="Delete listing"
+                  onClick={(e) => e.stopPropagation()}>
+                  <span className="sr-only">Delete</span>
+                </Btn>
+              }
+            />
+          </div>
+        )}
       </div>
       {a.bio && (
         <p className="mx-3.5 mb-3.5 text-[13px] leading-relaxed text-foreground">
@@ -204,21 +204,44 @@ function EmptyState({ trade, onListYourself }) {
       <p className="m-0 max-w-[240px] text-[12.5px] leading-relaxed text-muted-foreground">
         Be the first — listings take under a minute and go live immediately.
       </p>
-      <Button className="mt-1" size="sm" onClick={onListYourself}>
+      <Btn small variant="ghost" icon="Plus" onClick={onListYourself}>
         List yourself
-      </Button>
+      </Btn>
     </div>
   );
 }
 
-function Field({ label, ...rest }) {
+// Matches guest/components/primitives.js's Field exactly (label scale,
+// tracking, required-asterisk, hint text, 52px rounded-[10px] inputs) —
+// only real difference is a `type` prop, needed here for tel/email/number
+// keyboards that the guest Field doesn't need to support.
+function Field({ label, required, hint, value, onChange, placeholder, type = "text", multiline, rows = 3 }) {
   return (
-    <label className="block">
-      <span className="text-[11px] font-bold tracking-wide text-muted-foreground uppercase">
-        {label}
-      </span>
-      <Input className="mt-1.5 h-10 rounded-lg" {...rest} />
-    </label>
+    <div className="mb-3.5">
+      <div className="mb-1.5 flex items-baseline justify-between">
+        <span className="text-[13.5px] font-bold tracking-wide text-foreground">
+          {label}{required && <span className="text-primary"> *</span>}
+        </span>
+        {hint && <span className="text-xs text-muted-foreground/60">{hint}</span>}
+      </div>
+      {multiline ? (
+        <Textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          rows={rows}
+          className="min-h-[52px] resize-y rounded-[10px] text-base"
+        />
+      ) : (
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          type={type}
+          className="h-[52px] rounded-[10px] text-base"
+        />
+      )}
+    </div>
   );
 }
 
@@ -372,7 +395,9 @@ export default function Artisans({ onClose }) {
   return (
     <div className="flex h-full flex-col gap-3.5 overflow-hidden bg-background p-5 text-foreground">
       <div className="flex shrink-0 items-center justify-between">
-        <div className="text-[17px] font-bold">Find an Artisan</div>
+        <p className="m-0 flex items-center gap-2 font-serif text-[17px] italic text-foreground">
+          <Hammer className="size-4 text-primary" /> Find an Artisan
+        </p>
         {onClose && (
           <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
             <X className="size-5" />
@@ -408,8 +433,8 @@ export default function Artisans({ onClose }) {
           <TradeChips active={trade} onSelect={setTrade} />
 
           <div className="flex shrink-0 items-center justify-between">
-            <span className="text-[11.5px] text-muted-foreground/70">
-              {loading ? "Loading…" : `${visibleList.length} listing${visibleList.length === 1 ? "" : "s"}`}
+            <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">
+              {loading ? "LOADING…" : `${visibleList.length} LISTING${visibleList.length === 1 ? "" : "S"}`}
             </span>
             <Select value={sort} onValueChange={setSort}>
               <SelectTrigger className="h-auto border-none bg-transparent px-0 text-[11.5px] font-semibold text-muted-foreground shadow-none">
@@ -444,48 +469,33 @@ export default function Artisans({ onClose }) {
             </button>
           )}
 
-          <Field label="Name" placeholder="Full name" value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <Field label="Trade" placeholder="e.g. Electrician" value={form.trade}
-            onChange={(e) => setForm({ ...form, trade: e.target.value })} />
+          <Field label="Name" required placeholder="Full name" value={form.name}
+            onChange={(v) => setForm({ ...form, name: v })} />
+          <Field label="Trade" required placeholder="e.g. Electrician" value={form.trade}
+            onChange={(v) => setForm({ ...form, trade: v })} />
           <div className="grid grid-cols-2 gap-2.5">
-            <Field label="City" placeholder="City" value={form.city}
-              onChange={(e) => setForm({ ...form, city: e.target.value })} />
+            <Field label="City" hint="optional" placeholder="City" value={form.city}
+              onChange={(v) => setForm({ ...form, city: v })} />
             <Field label="Years experience" type="number" min="0" placeholder="0"
               value={form.years_experience}
-              onChange={(e) => setForm({ ...form, years_experience: e.target.value })} />
+              onChange={(v) => setForm({ ...form, years_experience: v })} />
           </div>
-          <Field label="Phone" type="tel" placeholder="(xxx) xxx-xxxx" value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-          <Field label="Email" type="email" placeholder="you@example.com (optional)" value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <Field label="Phone" required type="tel" placeholder="(xxx) xxx-xxxx" value={form.phone}
+            onChange={(v) => setForm({ ...form, phone: v })} />
+          <Field label="Email" hint="optional" type="email" placeholder="you@example.com" value={form.email}
+            onChange={(v) => setForm({ ...form, email: v })} />
 
-          <div>
-            <Label className="text-[11px] font-bold tracking-wide text-muted-foreground uppercase">
-              Bio
-            </Label>
-            <Textarea
-              className="mt-1.5 min-h-[80px] resize-y rounded-lg"
-              placeholder="Rough notes about your work — AI can turn this into a polished bio"
-              value={form.bio}
-              onChange={(e) => setForm({ ...form, bio: e.target.value })}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-2 border-primary/40 text-primary"
-              disabled={polishing || !form.trade}
-              onClick={polish}
-            >
-              <Sparkles className="size-3.5" />
-              {polishing ? "Polishing…" : "Polish with AI"}
-            </Button>
-          </div>
+          <Field label="Bio" hint="AI can polish this" multiline rows={3}
+            placeholder="Rough notes about your work — AI can turn this into a polished bio"
+            value={form.bio} onChange={(v) => setForm({ ...form, bio: v })} />
+          <Btn small variant="ghost" icon="Sparkles" type="button" className="-mt-2.5 mb-1 justify-self-start"
+            disabled={polishing || !form.trade} loading={polishing} onClick={polish}>
+            {polishing ? "Polishing…" : "Polish with AI"}
+          </Btn>
 
-          <Button type="submit" size="lg" className="text-sm font-bold" disabled={submitting}>
+          <Btn variant="gold" type="submit" disabled={submitting} loading={submitting}>
             {submitting ? "Saving…" : editingId ? "Save changes" : "List me"}
-          </Button>
+          </Btn>
         </form>
       )}
     </div>

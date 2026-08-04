@@ -12,7 +12,14 @@ export default function DeleteListingDialog({ name, open, onOpenChange, onConfir
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
-      <AlertDialogContent>
+      {/* stopPropagation here, not on the individual buttons: AlertDialogContent
+          renders through a React Portal, so its DOM lives outside the card
+          entirely — but React still bubbles the synthetic click event up
+          through the *React* tree (where this dialog is nested inside the
+          card's JSX), not the DOM tree. Without this, confirming (or even
+          cancelling) the delete also re-triggers the card's own onClick and
+          opens that artisan's profile right after deleting/cancelling it. */}
+      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
         <AlertDialogHeader>
           <AlertDialogTitle>Remove this listing?</AlertDialogTitle>
           <AlertDialogDescription>
