@@ -20,6 +20,11 @@ class Media(db.Model):
     filter_name = db.Column(db.String(100), index=True)
     metadata_json = db.Column(db.JSON)
     is_deleted = db.Column(db.Boolean, default=False)
+    # Scopes guest-saved resumes to the browser that created them (a random
+    # id in localStorage, sent as X-Guest-Id — no account, no login). Without
+    # this, GET /resume/saved had no way to tell one visitor's resumes apart
+    # from anyone else's and returned everyone's, name included.
+    guest_id = db.Column(db.String(64), index=True, nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 

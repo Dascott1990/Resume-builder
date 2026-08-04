@@ -35,7 +35,7 @@ export function InfoStep({
 
       <Field label="BACKGROUND" hint="your own words"
         value={info.background} onChange={set("background")} multiline rows={3}
-        placeholder="e.g. I worked at Farm Boy for 4 years stocking shelves, helping customers, and training new staff. Bilingual EN/FR." />
+        placeholder="e.g. I worked at Farm Boy for 4 years stocking shelves, helping customers, and training new staff. Bilingual: English and French." />
 
       <Field label="PAST JOBS" hint="Role | Company | Years"
         value={info.experience} onChange={set("experience")} multiline rows={2}
@@ -47,7 +47,7 @@ export function InfoStep({
 
       <Field label="SKILLS" hint="comma separated"
         value={info.skills} onChange={set("skills")} multiline rows={2}
-        placeholder="Customer service, bilingual EN/FR, inventory, MS Office" />
+        placeholder="Customer service, bilingual English and French, inventory, MS Office" />
 
       <Btn icon="ChevronRight" onClick={onNext} disabled={!ready1}>
         Next — Job Posting

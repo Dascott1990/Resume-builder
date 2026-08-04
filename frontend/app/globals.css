@@ -61,6 +61,17 @@ body {
   text-size-adjust: 100%;
 }
 
+/* Landing page only — every other screen is a fixed-position app shell that
+   manages its own internal scroll containers, so this can't leak into them. */
+html:has(#noviq-landing) {
+  scroll-behavior: smooth;
+  height: auto;
+}
+html:has(#noviq-landing) body {
+  height: auto;
+  overscroll-behavior: auto;
+}
+
 #__next {
   height: 100%;
 }
@@ -112,6 +123,9 @@ select {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+  html:has(#noviq-landing) {
+    scroll-behavior: auto;
   }
 }
 

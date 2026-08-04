@@ -33,7 +33,7 @@ def create_app():
                 "http://localhost:3001"
             ],
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id"],
             "supports_credentials": True
         }
     })

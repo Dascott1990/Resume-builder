@@ -36,26 +36,7 @@ import { apiGenerate, apiOptimize, apiListSaved, apiGetSaved, apiDelete } from "
 import { downloadDocx } from "./export/docx";
 import { downloadCoverLetterDocx } from "./export/coverLetterDocx";
 import { printPdf, printCoverLetterPdf } from "./export/pdf";
-
-// ── Responsive viewport hook — tracks real width, updates on resize/rotate ────
-function useViewport() {
-  const [w, setW] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1280));
-  useEffect(() => {
-    const onResize = () => setW(window.innerWidth);
-    window.addEventListener("resize", onResize);
-    window.addEventListener("orientationchange", onResize);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
-    };
-  }, []);
-  return {
-    width: w,
-    isPhone:   w < 640,
-    isTablet:  w >= 640 && w < 1024,
-    isDesktop: w >= 1024,
-  };
-}
+import { useViewport } from "@/lib/useViewport";
 
 export default function GuestMode({ onClose, onBack }) {
   const { isPhone, isDesktop } = useViewport();
@@ -418,7 +399,17 @@ export default function GuestMode({ onClose, onBack }) {
   const PreviewCanvas = () => (
     <div ref={canvasRef} onScroll={!isDesktop ? handlePanelScroll : undefined}
       className="flex flex-1 flex-col items-center overflow-y-auto overscroll-contain bg-[#C8C8C8] [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]"
-      style={{ padding: isPhone ? "14px 0 24px" : "24px 0 48px", paddingBottom: mobileNavClearance }}>
+      style={{
+        paddingTop: isPhone ? 14 : 24,
+        paddingLeft: 0,
+        paddingRight: 0,
+        // Longhand throughout (not the `padding` shorthand) — React warns when
+        // the same inline style flips between shorthand and a longhand override
+        // for the same side across renders (mobileNavClearance is only defined
+        // on phone/tablet), and the mixed form is genuinely fragile: browsers
+        // aren't all consistent about which value wins once both are present.
+        paddingBottom: mobileNavClearance ?? (isPhone ? 24 : 48),
+      }}>
       <p className="m-0 mb-2.5 px-3 text-center font-mono text-[9px] tracking-[0.08em] text-[#666] select-none">
         {loadingResumeId ? "Loading…" : `${Math.round(scale * 100)}% · ${resume ? "Tap any text to edit" : "Generate to see your resume"}`}
       </p>

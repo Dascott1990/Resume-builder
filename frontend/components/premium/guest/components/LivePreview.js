@@ -56,10 +56,14 @@ export const LivePreview = React.forwardRef(function LivePreview(
         </div>
         <div style={{ fontSize: `${fs - 1}pt`, color: "#595959",
           borderBottom: `1.5px solid ${accentColor}`, paddingBottom: 6 }}>
+          {/* Unconditional separators: EditableSpan always renders *something*
+              (the real value, or a "Click to edit" ghost prompt when empty),
+              so gating " · " on a real value left empty fields' ghost text
+              running straight into its neighbor with no space at all. */}
           <EditableSpan value={contact.location || ""} onChange={v => onEdit("contact", "location", v)} />
-          {(contact.phone || contact.email) && " · "}
+          {" · "}
           <EditableSpan value={contact.phone || ""} onChange={v => onEdit("contact", "phone", v)} />
-          {contact.phone && contact.email && " · "}
+          {" · "}
           <EditableSpan value={contact.email || ""} onChange={v => onEdit("contact", "email", v)} />
         </div>
       </div>

@@ -7,9 +7,11 @@
  * and ResumeGuestMode.js each previously carried their own copy of exactly
  * this logic.
  */
+import { getGuestId } from "@/lib/guestId";
+
 const BASE = process.env.NEXT_PUBLIC_API_URL;
 
-export async function apiRequest(path, options) {
+export async function apiRequest(path, options = {}) {
   if (!BASE) {
     // No silent fallback to localhost here on purpose — that fallback is
     // exactly the trap that makes "works on localhost, nothing on Vercel"
@@ -19,9 +21,14 @@ export async function apiRequest(path, options) {
     throw new Error("NEXT_PUBLIC_API_URL is not set. Set it in Vercel → Project Settings → Environment Variables to your Render backend URL, then redeploy (NEXT_PUBLIC_ vars are baked in at build time, so saving the setting alone isn't enough).");
   }
 
+  // Attached to every request, not just the resume-saving ones — a single
+  // anonymous per-browser id, generic enough for any future feature that
+  // needs "this visitor's own X" without ever needing an account.
+  const headers = { ...(options.headers || {}), "X-Guest-Id": getGuestId() };
+
   let res;
   try {
-    res = await fetch(`${BASE}${path}`, options);
+    res = await fetch(`${BASE}${path}`, { ...options, headers });
   } catch {
     throw new Error(`Could not reach the server at ${BASE}. Is the backend running and is NEXT_PUBLIC_API_URL set correctly?`);
   }

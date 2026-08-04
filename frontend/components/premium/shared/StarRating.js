@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { Star } from "lucide-react";
 
 // ── Star rating — Uber-post-ride style ──────────────────────────────────────
@@ -28,9 +29,10 @@ export default function StarRating({ value = 0, onChange, readOnly = false, size
           return <span key={i}>{star}</span>;
         }
         return (
-          <button
+          <motion.button
             key={i}
             type="button"
+            whileTap={{ scale: 0.9 }}
             aria-label={`${i} star${i === 1 ? "" : "s"}`}
             className="p-1.5"
             onClick={() => onChange?.(i)}
@@ -38,7 +40,7 @@ export default function StarRating({ value = 0, onChange, readOnly = false, size
             onMouseLeave={() => setHover(null)}
           >
             {star}
-          </button>
+          </motion.button>
         );
       })}
     </div>

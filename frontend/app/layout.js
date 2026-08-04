@@ -1,4 +1,5 @@
 import "./globals.css";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata = {
   title: "Noviq — AI Resume Builder",
@@ -24,7 +25,10 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className="dark">
-      <body className="m-0 overscroll-none bg-background">{children}</body>
+      <body className="m-0 overscroll-none bg-background">
+        {children}
+        <Toaster position="top-center" />
+      </body>
     </html>
   );
 }

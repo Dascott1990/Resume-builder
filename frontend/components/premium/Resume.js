@@ -37,7 +37,7 @@ const RESUMES = {
     sections: [
       {
         id: "objective", label: "Objective", type: "text",
-        content: "Customer-focused and technically inclined professional seeking a Level 1 Help Desk / IT Support role. Brings strong communication skills, bilingual proficiency (English/French), and hands-on experience troubleshooting hardware, software, and network issues. Committed to delivering excellent end-user support, resolving tickets efficiently, and escalating issues as needed in a fast-paced IT environment.",
+        content: "Customer-focused and technically inclined professional seeking a Level 1 Help Desk and IT Support role. Brings strong communication skills, bilingual proficiency (English and French), and hands-on experience troubleshooting hardware, software, and network issues. Committed to delivering excellent end-user support, resolving tickets efficiently, and escalating issues as needed in a fast-paced IT environment.",
       },
       {
         id: "skills", label: "Technical Skills & Qualifications", type: "bullets",
@@ -47,7 +47,7 @@ const RESUMES = {
           "Microsoft Windows OS: installation, configuration and troubleshooting",
           "Active Directory: adding and removing user accounts and managing access",
           "Hardware troubleshooting: printer setup, network connectivity and peripheral devices",
-          "ITSM / ticketing systems: creating, tracking and escalating support tickets",
+          "ITSM and ticketing systems: creating, tracking and escalating support tickets",
           "Knowledge base usage: applying FAQs, troubleshooting guides and standard procedures",
           "Bilingual: English and French (spoken, written and comprehension)",
         ],
@@ -56,7 +56,7 @@ const RESUMES = {
         id: "experience", label: "Experience", type: "jobs",
         jobs: [
           {
-            role: "Grocery Clerk / Customer Support",
+            role: "Grocery Clerk & Customer Support",
             company: "Farm Boy",
             period: "2021 – 2025",
             bullets: [
@@ -146,7 +146,7 @@ const RESUMES = {
   },
 
   admin: {
-    label: "Admin / Coordinator",
+    label: "Admin & Coordinator",
     title: "Bilingual Administrative & Customer Service Coordinator",
     contact: {
       name:  "Rasheed Tajudeen",
@@ -222,7 +222,7 @@ const RESUMES = {
   },
 
   popeye: {
-    label: "Pop-Eye / Retail",
+    label: "Pop-Eye & Retail",
     title: "Grocery Clerk",
     contact: {
       name:  "Rasheed Tajudeen",
@@ -286,6 +286,11 @@ const FONTS = [
   { id: "garamond",  label: "Garamond",         css: "Garamond, 'EB Garamond', Georgia, serif" },
   { id: "georgia",   label: "Georgia",          css: "Georgia, 'Times New Roman', serif" },
   { id: "helvetica", label: "Helvetica",        css: "Helvetica, Arial, sans-serif" },
+];
+
+const MODE_TABS = [
+  { id: "mine", label: "My Resumes", Icon: FileText },
+  { id: "guest", label: "Guest Mode · AI", Icon: Sparkle },
 ];
 
 const ACCENTS = [
@@ -807,17 +812,27 @@ const Resume = ({ onClose }) => {
                 </div>
               </div>
 
-              {/* Mode switcher — full-width segmented control, sliding highlight, labels always on */}
-              <div role="tablist" aria-label="Resume mode" className="mx-3.5 mb-3 flex gap-1 rounded-2xl border border-border bg-card p-1">
-                {[{ id: "mine", label: "My Resumes", Icon: FileText }, { id: "guest", label: "Guest Mode · AI", Icon: Sparkle }].map(m => (
+              {/* Mode switcher — full-width segmented control, sliding highlight, labels always on.
+                  The pill's position is driven by plain index-based `left`/`width`, not
+                  `layoutId` — this switcher lives inside the "mine" tree that the 3D flip
+                  AnimatePresence above unmounts on every mode change, and a `layoutId`
+                  element torn out of framer-motion's shared projection tree mid-registration
+                  stalls its global animation loop for the whole page (every motion value,
+                  including the flip's own opacity/rotateY, freezes mid-transition — a blank
+                  screen that never recovers). Index-driven left/width has no cross-component
+                  state to leave dangling. */}
+              <div role="tablist" aria-label="Resume mode" className="relative mx-3.5 mb-3 flex gap-1 rounded-2xl border border-border bg-card p-1">
+                <motion.span
+                  animate={{ left: `${(MODE_TABS.findIndex(m => m.id === mode) * 100) / MODE_TABS.length}%` }}
+                  transition={{ type: "spring", damping: 26, stiffness: 320 }}
+                  style={{ width: `${100 / MODE_TABS.length}%` }}
+                  className="absolute top-1 bottom-1 z-0 rounded-xl bg-primary"
+                />
+                {MODE_TABS.map(m => (
                   <button key={m.id} role="tab" aria-selected={mode === m.id} onClick={() => goToMode(m.id)}
                     className={`relative flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border-none px-2.5 py-2.5 text-[13px] font-bold ${
                       mode === m.id ? "text-primary-foreground" : "text-muted-foreground"
                     }`}>
-                    {mode === m.id && (
-                      <motion.span layoutId="modePill" transition={{ type: "spring", damping: 26, stiffness: 320 }}
-                        className="absolute inset-0 z-0 rounded-xl bg-primary" />
-                    )}
                     <span className="relative z-10 flex">
                       <m.Icon size={14} strokeWidth={ICON_STROKE} />
                     </span>

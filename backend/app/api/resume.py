@@ -376,6 +376,7 @@ def generate_resume():
             file_size=len(doc_bytes),
             caption=f"{info.get('name')} — {parsed.get('contact', {}).get('title', info.get('title'))}",
             filter_name="guest_resume",
+            guest_id=request.headers.get("X-Guest-Id") or None,
             metadata_json={
                 "user_name": info.get("name"),
                 "user_email": info.get("email"),
@@ -450,6 +451,7 @@ def optimize_resume():
             file_size=len(doc_bytes),
             caption=f"{info.get('name')} — {parsed.get('contact', {}).get('title', info.get('title'))}",
             filter_name="guest_resume",
+            guest_id=request.headers.get("X-Guest-Id") or None,
             metadata_json={
                 "user_name": info.get("name"),
                 "user_email": info.get("email"),
@@ -470,11 +472,14 @@ def optimize_resume():
 
 @resume_bp.route("/saved", methods=["GET"])
 def list_saved():
-    """Return all guest resumes saved to DB."""
+    """Return this browser's own saved resumes — never anyone else's."""
     from app.models import Media
+    guest_id = request.headers.get("X-Guest-Id") or None
+    if not guest_id:
+        return jsonify({"success": True, "data": []}), 200
     records = (
         Media.query
-        .filter_by(filter_name="guest_resume", is_deleted=False)
+        .filter_by(filter_name="guest_resume", is_deleted=False, guest_id=guest_id)
         .order_by(Media.created_at.desc())
         .limit(20)
         .all()
@@ -493,12 +498,14 @@ def list_saved():
 
 @resume_bp.route("/<resume_id>", methods=["GET"])
 def get_saved(resume_id):
-    """Re-load a previously generated resume."""
+    """Re-load a previously generated resume — only the browser that saved it can."""
     from app.models import Media
+    guest_id = request.headers.get("X-Guest-Id") or None
     record = Media.query.filter_by(
         id=resume_id,
         filter_name="guest_resume",
-        is_deleted=False
+        is_deleted=False,
+        guest_id=guest_id,
     ).first()
 
     if not record or not record.file_data:
@@ -512,11 +519,13 @@ def get_saved(resume_id):
 
 @resume_bp.route("/<resume_id>", methods=["DELETE"])
 def delete_saved(resume_id):
-    """Soft delete a saved resume."""
+    """Soft delete a saved resume — only the browser that saved it can."""
     from app.models import Media
+    guest_id = request.headers.get("X-Guest-Id") or None
     record = Media.query.filter_by(
         id=resume_id,
-        filter_name="guest_resume"
+        filter_name="guest_resume",
+        guest_id=guest_id,
     ).first()
 
     if record:

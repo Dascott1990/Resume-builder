@@ -10,16 +10,18 @@
  * state swap at two other levels.
  */
 import { useEffect, useState } from "react";
-import { ChevronLeft, MapPin, Phone, MessageSquare, Mail } from "lucide-react";
+import { toast } from "sonner";
+import { ChevronLeft, MapPin, Phone, MessageSquare, Mail, RefreshCw } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import { tintFor, initialsOf, formatPhone } from "./shared/artisanDisplay";
 import { Btn } from "./guest/components/primitives";
 import StarRating from "./shared/StarRating";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
+import { tapFeedback } from "@/lib/haptics";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function timeAgo(iso) {
   if (!iso) return "";
@@ -39,19 +41,25 @@ export default function ArtisanProfile({
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState(null);
   const [stars, setStars] = useState(0);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    apiRequest(`/api/v1/artisans/${artisan.id}/reviews`).then(setReviews).catch(() => {});
-  }, [artisan.id]);
+  const loadReviews = () => {
+    setReviewsLoading(true);
+    setReviewsError(null);
+    apiRequest(`/api/v1/artisans/${artisan.id}/reviews`)
+      .then(setReviews)
+      .catch((e) => setReviewsError(e.message))
+      .finally(() => setReviewsLoading(false));
+  };
+  useEffect(loadReviews, [artisan.id]);
 
   const tint = tintFor(artisan.name || "?");
 
   const submitRating = async () => {
-    setError(null);
     setSubmitting(true);
     try {
       const data = await apiRequest(`/api/v1/artisans/${artisan.id}/reviews`, {
@@ -62,8 +70,10 @@ export default function ArtisanProfile({
       onRated(artisan.id, stars);
       onRatingUpdate({ rating_avg: data.rating_avg, rating_count: data.rating_count });
       setReviews((r) => [data, ...r]);
+      tapFeedback();
+      toast.success("Thanks for rating!");
     } catch (e) {
-      setError(e.message);
+      toast.error(e.message);
     } finally {
       setSubmitting(false);
     }
@@ -156,11 +166,6 @@ export default function ArtisanProfile({
               <div className="mt-1 text-right text-[10.5px] text-muted-foreground/60">
                 {comment.length}/280
               </div>
-              {error && (
-                <Alert variant="destructive" className="mt-2">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
               <Btn
                 variant="gold"
                 className="mt-2.5"
@@ -175,7 +180,30 @@ export default function ArtisanProfile({
         </div>
       )}
 
-      {reviews.length > 0 && (
+      {reviewsLoading && (
+        <div className="grid gap-2.5">
+          <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">RECENT REVIEWS</p>
+          <div className="rounded-lg border border-border p-2.5">
+            <Skeleton className="h-3.5 w-24" />
+            <Skeleton className="mt-2 h-3 w-full" />
+          </div>
+        </div>
+      )}
+
+      {!reviewsLoading && reviewsError && (
+        <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+          <span>Couldn't load reviews.</span>
+          <button
+            type="button"
+            onClick={loadReviews}
+            className="flex items-center gap-1 border-none bg-transparent p-0 font-bold text-primary"
+          >
+            <RefreshCw className="size-3" /> Try again
+          </button>
+        </div>
+      )}
+
+      {!reviewsLoading && !reviewsError && reviews.length > 0 && (
         <div className="grid gap-2.5">
           <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">RECENT REVIEWS</p>
           {reviews.map((r) => (

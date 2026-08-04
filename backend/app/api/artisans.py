@@ -154,14 +154,35 @@ def create_artisan():
     return jsonify({"success": True, "data": a.to_dict()}), 201
 
 
+def _clean_pagination(default_limit, max_limit):
+    try:
+        limit = int(request.args.get("limit", default_limit))
+        offset = int(request.args.get("offset", 0))
+    except (TypeError, ValueError):
+        raise APIError("limit and offset must be whole numbers", 400)
+    if limit < 1 or limit > max_limit:
+        raise APIError(f"limit must be between 1 and {max_limit}", 400)
+    if offset < 0:
+        raise APIError("offset must be zero or greater", 400)
+    return limit, offset
+
+
 @artisans_bp.route("", methods=["GET"])
 def browse():
+    # Note on "has more" detection: the frontend's shared apiRequest() helper
+    # auto-unwraps every response to just its "data" array, so an envelope-
+    # level has_more flag would never actually reach the caller — the
+    # frontend instead infers it from `page.length === limit` (a full page
+    # back means there's probably another one), which needs nothing extra
+    # from here. Keeping this endpoint's response shape identical to before
+    # (just data) is what makes that unwrap safe.
+    limit, offset = _clean_pagination(default_limit=50, max_limit=100)
     q = Artisan.query
     if trade := request.args.get("trade"):
         q = q.filter(Artisan.trade.ilike(f"%{trade}%"))
     if city := request.args.get("city"):
         q = q.filter(Artisan.city.ilike(f"%{city}%"))
-    items = q.order_by(Artisan.created_at.desc()).limit(50).all()
+    items = q.order_by(Artisan.created_at.desc()).offset(offset).limit(limit).all()
     return jsonify({"success": True, "data": [a.to_dict() for a in items]}), 200
 
 
@@ -246,11 +267,13 @@ def create_review(artisan_id):
 def list_reviews(artisan_id):
     if not Artisan.query.get(artisan_id):
         raise APIError("Artisan not found", 404)
+    limit, offset = _clean_pagination(default_limit=50, max_limit=100)
     items = (
         Review.query
         .filter_by(artisan_id=artisan_id)
         .order_by(Review.created_at.desc())
-        .limit(50)
+        .offset(offset)
+        .limit(limit)
         .all()
     )
     return jsonify({"success": True, "data": [r.to_dict() for r in items]}), 200

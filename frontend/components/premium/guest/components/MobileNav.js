@@ -24,7 +24,22 @@ const VIEWS = [
 //    actively scrolling down, and returns on scroll-up or near the top — the
 //    same idea as Instagram's bar shrinking on scroll. `pointerEvents: none`
 //    while hidden means it can never intercept a tap even mid-transition.
+//
+// The active-tab pill is a single element whose `left`/`width` are animated
+// by index — deliberately NOT `layoutId` (framer-motion's cross-component
+// shared-layout animation). This screen's parent (Resume.js) swaps this
+// whole tree in and out via an `AnimatePresence` 3D flip; a `layoutId`
+// element left mid-registration in framer's shared projection tree when
+// that ancestor unmounts it stalls framer's global animation loop for the
+// whole page — every motion value (including the flip's own opacity/rotateY)
+// freezes at whatever value it was mid-transition, i.e. a blank screen that
+// never recovers. Plain index-driven `left`/`width` has no cross-component
+// state to leave dangling, so it can't wedge anything on unmount.
 export function MobileNav({ tab, mobileView, navHidden, onNavigate }) {
+  const activeIndex = VIEWS.findIndex((v) =>
+    v.id === "preview" ? mobileView === "preview" : (mobileView === "panel" && tab === v.id));
+  const slot = 100 / VIEWS.length;
+
   return (
     <motion.nav role="tablist" aria-label="View"
       initial={false}
@@ -36,16 +51,19 @@ export function MobileNav({ tab, mobileView, navHidden, onNavigate }) {
         background: "color-mix(in oklch, var(--card) 80%, transparent)",
         pointerEvents: navHidden ? "none" : "auto",
       }}>
+      {activeIndex >= 0 && (
+        <motion.span
+          animate={{ left: `${activeIndex * slot + slot * 0.16}%`, width: `${slot * 0.68}%` }}
+          transition={{ type: "spring", damping: 26, stiffness: 320 }}
+          className="pointer-events-none absolute top-[7px] bottom-[7px] rounded-[14px] border border-primary/25 bg-primary/[0.12]"
+        />
+      )}
       {VIEWS.map(v => {
         const active = v.id === "preview" ? mobileView === "preview" : (mobileView === "panel" && tab === v.id);
         return (
           <motion.button key={v.id} role="tab" aria-selected={active} onClick={() => onNavigate(v.id)}
             whileTap={{ scale: 0.9 }}
             className="relative flex min-h-[54px] flex-1 flex-col items-center justify-center gap-0.5 border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]">
-            {active && (
-              <motion.span layoutId="navActivePill" transition={{ type: "spring", damping: 26, stiffness: 320 }}
-                className="absolute top-px right-[16%] bottom-px left-[16%] rounded-[14px] border border-primary/25 bg-primary/[0.12]" />
-            )}
             <motion.span animate={{ scale: active ? 1.1 : 1, y: active ? -1 : 0 }}
               transition={{ type: "spring", damping: 18, stiffness: 380 }}
               className="relative flex">

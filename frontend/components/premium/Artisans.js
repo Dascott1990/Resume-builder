@@ -14,12 +14,18 @@
  * real states instead of a blank screen.
  */
 import { useEffect, useMemo, useState } from "react";
-import { Search, MapPin, Phone, User, ChevronLeft, X, Star, Hammer } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
+import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tintFor, initialsOf, formatPhone, truncateBio } from "./shared/artisanDisplay";
 import { Btn } from "./guest/components/primitives";
 import ArtisanProfile from "./ArtisanProfile";
+import { tapFeedback } from "@/lib/haptics";
+import { useViewport } from "@/lib/useViewport";
+import { BottomNav } from "./shared/BottomNav";
+import { TopTabNav } from "./shared/TopTabNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,9 +33,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const PAGE_SIZE = 20;
+
+const NAV_ITEMS = [
+  { id: "browse", Icon: Search, label: "Browse" },
+  { id: "form", Icon: UserPlus, label: "List yourself" },
+];
 
 const MY_IDS_KEY = "noviq_my_artisan_ids";
 const RATED_IDS_KEY = "noviq_rated_artisan_ids";
@@ -104,6 +116,7 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const tint = tintFor(a.name || "?");
   return (
+    <motion.div whileTap={{ scale: 0.97 }}>
     <Card
       role="button"
       tabIndex={0}
@@ -175,6 +188,7 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete }) {
         {formatPhone(a.phone)}
       </a>
     </Card>
+    </motion.div>
   );
 }
 
@@ -246,14 +260,16 @@ function Field({ label, required, hint, value, onChange, placeholder, type = "te
 }
 
 export default function Artisans({ onClose }) {
+  const { isDesktop } = useViewport();
   const [tab, setTab] = useState("browse");
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [myIds, setMyIds] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState(null);
-  const [notice, setNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [polishing, setPolishing] = useState(false);
   const [viewingArtisan, setViewingArtisan] = useState(null); // an artisan object, or null
@@ -269,9 +285,14 @@ export default function Artisans({ onClose }) {
     setLoading(true);
     setError(null);
     try {
-      const qs = activeTrade && activeTrade !== "All" ? `?trade=${encodeURIComponent(activeTrade)}` : "";
-      const data = await apiRequest(`/api/v1/artisans${qs}`);
+      const qs = new URLSearchParams({ limit: String(PAGE_SIZE) });
+      if (activeTrade && activeTrade !== "All") qs.set("trade", activeTrade);
+      const data = await apiRequest(`/api/v1/artisans?${qs}`);
       setList(data);
+      // apiRequest unwraps straight to the data array (no envelope-level
+      // pagination metadata reaches here — see the backend route's own
+      // comment) — a full page back means there's probably another one.
+      setHasMore(data.length === PAGE_SIZE);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -279,6 +300,21 @@ export default function Artisans({ onClose }) {
     }
   };
   useEffect(() => { load(trade); }, [trade]);
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const qs = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(list.length) });
+      if (trade && trade !== "All") qs.set("trade", trade);
+      const data = await apiRequest(`/api/v1/artisans?${qs}`);
+      setList((l) => [...l, ...data]);
+      setHasMore(data.length === PAGE_SIZE);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const visibleList = useMemo(() => {
     let items = list;
@@ -307,17 +343,17 @@ export default function Artisans({ onClose }) {
   const startCreate = () => { setEditingId(null); setForm(emptyForm); setError(null); setTab("form"); };
 
   const remove = async (id) => {
-    setError(null);
     try {
       await apiRequest(`/api/v1/artisans/${id}`, { method: "DELETE" });
+      tapFeedback();
+      toast.success("Listing removed");
       await load(trade);
     } catch (e) {
-      setError(e.message);
+      toast.error(e.message);
     }
   };
 
   const polish = async () => {
-    setError(null);
     setPolishing(true);
     try {
       const data = await apiRequest("/api/v1/artisans/polish", {
@@ -327,7 +363,7 @@ export default function Artisans({ onClose }) {
       });
       setForm((f) => ({ ...f, bio: data.bio }));
     } catch (e) {
-      setError(e.message);
+      toast.error(e.message);
     } finally {
       setPolishing(false);
     }
@@ -336,7 +372,9 @@ export default function Artisans({ onClose }) {
   const submit = async (e) => {
     e.preventDefault();
     setError(null);
-    setNotice("");
+    // Synchronous client-side validation stays inline (right next to the
+    // fields it's about) rather than becoming a toast — no network call
+    // happened yet, so there's nothing "transient" about it.
     if (!form.name || !form.trade || !form.phone) {
       setError("Name, trade, and phone are required.");
       return;
@@ -349,7 +387,7 @@ export default function Artisans({ onClose }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
         });
-        setNotice("Listing updated.");
+        toast.success("Listing updated.");
       } else {
         const data = await apiRequest("/api/v1/artisans", {
           method: "POST",
@@ -358,146 +396,215 @@ export default function Artisans({ onClose }) {
         });
         addMyId(data.id);
         setMyIds(getMyIds());
-        setNotice("You're listed.");
+        toast.success("You're listed.");
       }
       setForm(emptyForm);
       setEditingId(null);
       setTab("browse");
       await load(trade);
     } catch (e) {
-      setError(e.message);
+      toast.error(e.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (viewingArtisan) {
+  const onNavChange = (v) => {
+    if (v === "form") startCreate();
+    else { setTab(v); setError(null); }
+  };
+
+  const errorBanner = error && (
+    <Alert variant="destructive" className="shrink-0">
+      <AlertDescription className="flex items-center justify-between gap-2">
+        <span>{error}</span>
+        {tab === "browse" && (
+          <button
+            type="button"
+            onClick={() => load(trade)}
+            className="flex shrink-0 items-center gap-1 border-none bg-transparent p-0 text-xs font-bold text-destructive underline-offset-2 hover:underline"
+          >
+            <RefreshCw className="size-3" /> Try again
+          </button>
+        )}
+      </AlertDescription>
+    </Alert>
+  );
+
+  const browsePane = (
+    <motion.div key="browse" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="flex min-h-0 flex-1 flex-col gap-3">
+      <SearchBar value={query} onChange={setQuery} />
+
+      <TradeChips active={trade} onSelect={setTrade} />
+
+      <div className="flex shrink-0 items-center justify-between">
+        <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">
+          {loading ? "LOADING…" : `${visibleList.length} LISTING${visibleList.length === 1 ? "" : "S"}`}
+        </span>
+        <Select value={sort} onValueChange={setSort}>
+          <SelectTrigger className="h-auto border-none bg-transparent px-0 text-[11.5px] font-semibold text-muted-foreground shadow-none">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {SORTS.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid gap-2.5 overflow-y-auto pb-1">
+        {loading && <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>}
+        {!loading && visibleList.length === 0 && (
+          <EmptyState trade={trade} onListYourself={startCreate} />
+        )}
+        {!loading && visibleList.map((a) => (
+          <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id)}
+            onOpen={setViewingArtisan} onEdit={startEdit} onDelete={remove} />
+        ))}
+        {/* Only offered once the current filter/search is otherwise exhausted —
+            "Load more" fetches the next page from the backend; it's deliberately
+            not auto-triggered on scroll (a button is simpler and avoids scroll-jank
+            risk for what's currently a small dataset). */}
+        {!loading && hasMore && !query && (
+          <Btn small variant="ghost" onClick={loadMore} loading={loadingMore} className="justify-self-center">
+            {loadingMore ? "Loading…" : "Load more"}
+          </Btn>
+        )}
+      </div>
+    </motion.div>
+  );
+
+  const formPane = (
+    <motion.form key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onSubmit={submit} className="grid gap-3 overflow-y-auto">
+      {editingId && (
+        <button
+          type="button"
+          onClick={() => { setEditingId(null); setForm(emptyForm); setTab("browse"); }}
+          className="flex items-center gap-1 justify-self-start border-none bg-transparent p-0 text-xs text-muted-foreground"
+        >
+          <ChevronLeft className="size-3" /> Cancel edit
+        </button>
+      )}
+
+      <Field label="Name" required placeholder="Full name" value={form.name}
+        onChange={(v) => setForm({ ...form, name: v })} />
+      <Field label="Trade" required placeholder="e.g. Electrician" value={form.trade}
+        onChange={(v) => setForm({ ...form, trade: v })} />
+      <div className="grid grid-cols-2 gap-2.5">
+        <Field label="City" hint="optional" placeholder="City" value={form.city}
+          onChange={(v) => setForm({ ...form, city: v })} />
+        <Field label="Years experience" type="number" min="0" placeholder="0"
+          value={form.years_experience}
+          onChange={(v) => setForm({ ...form, years_experience: v })} />
+      </div>
+      <Field label="Phone" required type="tel" placeholder="(xxx) xxx-xxxx" value={form.phone}
+        onChange={(v) => setForm({ ...form, phone: v })} />
+      <Field label="Email" hint="optional" type="email" placeholder="you@example.com" value={form.email}
+        onChange={(v) => setForm({ ...form, email: v })} />
+
+      <Field label="Bio" hint="AI can polish this" multiline rows={3}
+        placeholder="Rough notes about your work — AI can turn this into a polished bio"
+        value={form.bio} onChange={(v) => setForm({ ...form, bio: v })} />
+      <Btn small variant="ghost" icon="Sparkles" type="button" className="-mt-2.5 mb-1 justify-self-start"
+        disabled={polishing || !form.trade} loading={polishing} onClick={polish}>
+        {polishing ? "Polishing…" : "Polish with AI"}
+      </Btn>
+
+      <Btn variant="gold" type="submit" disabled={submitting} loading={submitting}>
+        {submitting ? "Saving…" : editingId ? "Save changes" : "List me"}
+      </Btn>
+    </motion.form>
+  );
+
+  const profileProps = viewingArtisan && {
+    artisan: viewingArtisan,
+    isMine: myIds.includes(viewingArtisan.id),
+    onBack: () => setViewingArtisan(null),
+    onEdit: (a) => { setViewingArtisan(null); startEdit(a); },
+    onDelete: async (id) => { await remove(id); setViewingArtisan(null); },
+    myRating: ratedIds[viewingArtisan.id]?.stars ?? null,
+    onRated: (id, stars) => {
+      addRatedId(id, stars);
+      setRatedIds((r) => ({ ...r, [id]: { stars } }));
+    },
+    onRatingUpdate: (patch) => {
+      setViewingArtisan((a) => ({ ...a, ...patch }));
+      setList((l) => l.map((x) => (x.id === viewingArtisan.id ? { ...x, ...patch } : x)));
+    },
+  };
+
+  const header = (
+    <div className="flex shrink-0 items-center justify-between p-5 pb-3.5">
+      <p className="m-0 flex items-center gap-2 font-serif text-[17px] italic text-foreground">
+        <Hammer className="size-4 text-primary" /> Find an Artisan
+      </p>
+      {onClose && (
+        <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
+          <X className="size-5" />
+        </Button>
+      )}
+    </div>
+  );
+
+  // ── Desktop (≥1024px): persistent master-detail split, mirroring
+  // GuestMode's w-[380px] left panel + flex-1 right pane. Both the list and
+  // the selected artisan's profile stay simultaneously visible — selecting
+  // a card fills the right pane instead of replacing the whole screen.
+  if (isDesktop) {
     return (
-      <ArtisanProfile
-        artisan={viewingArtisan}
-        isMine={myIds.includes(viewingArtisan.id)}
-        onBack={() => setViewingArtisan(null)}
-        onEdit={(a) => { setViewingArtisan(null); startEdit(a); }}
-        onDelete={async (id) => { await remove(id); setViewingArtisan(null); }}
-        myRating={ratedIds[viewingArtisan.id]?.stars ?? null}
-        onRated={(id, stars) => {
-          addRatedId(id, stars);
-          setRatedIds((r) => ({ ...r, [id]: { stars } }));
-        }}
-        onRatingUpdate={(patch) => {
-          setViewingArtisan((a) => ({ ...a, ...patch }));
-          setList((l) => l.map((x) => (x.id === viewingArtisan.id ? { ...x, ...patch } : x)));
-        }}
-      />
+      <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+        {header}
+        <TopTabNav items={NAV_ITEMS} active={tab} onChange={onNavChange} />
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="flex w-[380px] shrink-0 flex-col gap-3.5 overflow-hidden border-r border-border p-5">
+            {errorBanner}
+            <AnimatePresence mode="wait">{tab === "browse" ? browsePane : formPane}</AnimatePresence>
+          </div>
+          <div className="min-w-0 flex-1 overflow-y-auto">
+            {viewingArtisan ? (
+              <ArtisanProfile key={viewingArtisan.id} {...profileProps} />
+            ) : (
+              <div className="grid h-full justify-items-center content-center gap-2.5 px-5 text-center">
+                <div className="flex size-11 items-center justify-center rounded-full border border-border bg-card">
+                  <User className="size-[18px] text-muted-foreground" />
+                </div>
+                <p className="m-0 text-sm font-bold text-foreground">Select an artisan to view their profile</p>
+                <p className="m-0 max-w-[280px] text-[12.5px] leading-relaxed text-muted-foreground">
+                  Click any listing on the left to see their full profile, reviews, and contact options.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     );
   }
 
+  // ── Phone/tablet (<1024px): single-pane flow with a floating bottom nav,
+  // matching MobileNav's pattern. Selecting a card does a full-screen swap
+  // to the profile view (standard mobile drill-down navigation).
   return (
-    <div className="flex h-full flex-col gap-3.5 overflow-hidden bg-background p-5 text-foreground">
-      <div className="flex shrink-0 items-center justify-between">
-        <p className="m-0 flex items-center gap-2 font-serif text-[17px] italic text-foreground">
-          <Hammer className="size-4 text-primary" /> Find an Artisan
-        </p>
-        {onClose && (
-          <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
-            <X className="size-5" />
-          </Button>
-        )}
-      </div>
-
-      <Tabs
-        value={tab}
-        onValueChange={(v) => {
-          if (v === "form") startCreate();
-          else { setTab(v); setError(null); }
-        }}
-        className="shrink-0 gap-2"
-      >
-        <TabsList className="w-full">
-          <TabsTrigger value="browse">Browse</TabsTrigger>
-          <TabsTrigger value="form">List yourself</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {error && (
-        <Alert variant="destructive" className="shrink-0">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {notice && !error && <div className="shrink-0 text-[13px] text-primary">{notice}</div>}
-
-      {tab === "browse" ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
-          <SearchBar value={query} onChange={setQuery} />
-
-          <TradeChips active={trade} onSelect={setTrade} />
-
-          <div className="flex shrink-0 items-center justify-between">
-            <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">
-              {loading ? "LOADING…" : `${visibleList.length} LISTING${visibleList.length === 1 ? "" : "S"}`}
-            </span>
-            <Select value={sort} onValueChange={setSort}>
-              <SelectTrigger className="h-auto border-none bg-transparent px-0 text-[11.5px] font-semibold text-muted-foreground shadow-none">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {SORTS.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-2.5 overflow-y-auto pb-1">
-            {loading && <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>}
-            {!loading && visibleList.length === 0 && (
-              <EmptyState trade={trade} onListYourself={startCreate} />
-            )}
-            {!loading && visibleList.map((a) => (
-              <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id)}
-                onOpen={setViewingArtisan} onEdit={startEdit} onDelete={remove} />
-            ))}
-          </div>
-        </div>
+    <AnimatePresence mode="wait">
+      {viewingArtisan ? (
+        <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="h-full">
+          <ArtisanProfile {...profileProps} />
+        </motion.div>
       ) : (
-        <form onSubmit={submit} className="grid gap-3 overflow-y-auto">
-          {editingId && (
-            <button
-              type="button"
-              onClick={() => { setEditingId(null); setForm(emptyForm); setTab("browse"); }}
-              className="flex items-center gap-1 justify-self-start border-none bg-transparent p-0 text-xs text-muted-foreground"
-            >
-              <ChevronLeft className="size-3" /> Cancel edit
-            </button>
-          )}
-
-          <Field label="Name" required placeholder="Full name" value={form.name}
-            onChange={(v) => setForm({ ...form, name: v })} />
-          <Field label="Trade" required placeholder="e.g. Electrician" value={form.trade}
-            onChange={(v) => setForm({ ...form, trade: v })} />
-          <div className="grid grid-cols-2 gap-2.5">
-            <Field label="City" hint="optional" placeholder="City" value={form.city}
-              onChange={(v) => setForm({ ...form, city: v })} />
-            <Field label="Years experience" type="number" min="0" placeholder="0"
-              value={form.years_experience}
-              onChange={(v) => setForm({ ...form, years_experience: v })} />
+        <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+          {header}
+          <div
+            className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-5"
+            style={{ paddingBottom: "calc(86px + env(safe-area-inset-bottom, 0px))" }}
+          >
+            {errorBanner}
+            <AnimatePresence mode="wait">{tab === "browse" ? browsePane : formPane}</AnimatePresence>
           </div>
-          <Field label="Phone" required type="tel" placeholder="(xxx) xxx-xxxx" value={form.phone}
-            onChange={(v) => setForm({ ...form, phone: v })} />
-          <Field label="Email" hint="optional" type="email" placeholder="you@example.com" value={form.email}
-            onChange={(v) => setForm({ ...form, email: v })} />
-
-          <Field label="Bio" hint="AI can polish this" multiline rows={3}
-            placeholder="Rough notes about your work — AI can turn this into a polished bio"
-            value={form.bio} onChange={(v) => setForm({ ...form, bio: v })} />
-          <Btn small variant="ghost" icon="Sparkles" type="button" className="-mt-2.5 mb-1 justify-self-start"
-            disabled={polishing || !form.trade} loading={polishing} onClick={polish}>
-            {polishing ? "Polishing…" : "Polish with AI"}
-          </Btn>
-
-          <Btn variant="gold" type="submit" disabled={submitting} loading={submitting}>
-            {submitting ? "Saving…" : editingId ? "Save changes" : "List me"}
-          </Btn>
-        </form>
+          <BottomNav items={NAV_ITEMS} active={tab} onChange={onNavChange} />
+        </motion.div>
       )}
-    </div>
+    </AnimatePresence>
   );
 }

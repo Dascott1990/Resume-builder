@@ -30,14 +30,15 @@ function SelectValue({
   return <SelectPrimitive.Value data-slot="select-value" {...props} />;
 }
 
-function SelectTrigger({
+const SelectTrigger = React.forwardRef(function SelectTrigger({
   className,
   size = "default",
   children,
   ...props
-}) {
+}, ref) {
   return (
     <SelectPrimitive.Trigger
+      ref={ref}
       data-slot="select-trigger"
       data-size={size}
       className={cn(
@@ -51,18 +52,19 @@ function SelectTrigger({
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
-}
+});
 
-function SelectContent({
+const SelectContent = React.forwardRef(function SelectContent({
   className,
   children,
   position = "item-aligned",
   align = "center",
   ...props
-}) {
+}, ref) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
+        ref={ref}
         data-slot="select-content"
         data-align-trigger={position === "item-aligned"}
         className={cn(
@@ -86,7 +88,7 @@ function SelectContent({
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
   );
-}
+});
 
 function SelectLabel({
   className,
