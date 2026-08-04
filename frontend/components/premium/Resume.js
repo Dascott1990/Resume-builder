@@ -14,9 +14,13 @@
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import { Layers, Palette, Check, PanelLeft, FileText, Sparkle, Download, X } from "lucide-react";
 import ResumeGuestMode from "./guest";
 import Logo from "./Logo";
+import Flag3D from "./flag/Flag3D";
+import { useCountryDetect } from "@/lib/useCountryDetect";
+import { COUNTRY_NAMES } from "@/lib/countryTemplates";
 
 // This file's icons were drawn at a slightly thinner default stroke (1.6 vs
 // lucide's default of 2) — preserved here so nothing on screen shifts.
@@ -28,10 +32,10 @@ const RESUMES = {
     label: "IT Support",
     title: "Bilingual Service Desk Analyst",
     contact: {
-      name:  "Rasheed Tajudeen",
+      name:  "John Doe",
       title: "Bilingual Service Desk Analyst",
-      phone: "(416) 505-6927",
-      email: "oluwagbengarasheed2@gmail.com",
+      phone: "(555) 019-0142",
+      email: "john.doe@email.com",
       location: "Ottawa, ON",
     },
     sections: [
@@ -93,10 +97,10 @@ const RESUMES = {
     label: "Grocery Clerk",
     title: "Grocery Clerk",
     contact: {
-      name:  "Rasheed Tajudeen",
+      name:  "John Doe",
       title: "Grocery Clerk",
-      phone: "(416) 505-6927",
-      email: "oluwagbengarasheed2@gmail.com",
+      phone: "(555) 019-0142",
+      email: "john.doe@email.com",
       location: "Ottawa, ON",
     },
     sections: [
@@ -149,10 +153,10 @@ const RESUMES = {
     label: "Admin & Coordinator",
     title: "Bilingual Administrative & Customer Service Coordinator",
     contact: {
-      name:  "Rasheed Tajudeen",
+      name:  "John Doe",
       title: "Bilingual Administrative & Customer Service Coordinator",
-      phone: "(416) 505-6927",
-      email: "oluwagbengarasheed2@gmail.com",
+      phone: "(555) 019-0142",
+      email: "john.doe@email.com",
       location: "Ottawa, ON",
     },
     sections: [
@@ -225,10 +229,10 @@ const RESUMES = {
     label: "Pop-Eye & Retail",
     title: "Grocery Clerk",
     contact: {
-      name:  "Rasheed Tajudeen",
+      name:  "John Doe",
       title: "Grocery Clerk",
-      phone: "(416) 505-6927",
-      email: "oluwagbengarasheed2@gmail.com",
+      phone: "(555) 019-0142",
+      email: "john.doe@email.com",
       location: "Ottawa, ON",
     },
     sections: [
@@ -276,7 +280,298 @@ const RESUMES = {
       },
     ],
   },
+
+  // ── International formats — same person, same role, written the way each
+  // market actually expects it. The differences are deliberate, not
+  // cosmetic: what's a normal section elsewhere (date of birth, marital
+  // status, named referees) is either required convention or a hard no
+  // depending on the country, and getting that wrong reads as a mistake to
+  // a local recruiter even when everything else on the page is strong.
+  usa: {
+    label: "USA · ATS Format",
+    title: "Customer Service Representative",
+    contact: {
+      name: "John Doe",
+      title: "Customer Service Representative",
+      phone: "(555) 246-0198",
+      email: "john.doe@email.com",
+      location: "Dallas, TX",
+    },
+    sections: [
+      {
+        id: "summary", label: "Professional Summary", type: "text",
+        content: "Customer-focused professional with 4+ years delivering high-volume phone and chat support. Skilled in CRM systems, conflict resolution, and cross-department escalation, with a consistent record of exceeding customer satisfaction targets. Seeking to bring strong communication and problem-solving skills to a fast-paced support team.",
+      },
+      {
+        id: "skills", label: "Core Skills", type: "bullets",
+        items: [
+          "Customer Relationship Management (CRM) Software: Salesforce, Zendesk",
+          "Conflict Resolution and De-escalation",
+          "Multi-line Phone Systems and Live Chat Support",
+          "Data Entry and Order Processing",
+          "Team Collaboration and Cross-training",
+          "Microsoft Office Suite (Word, Excel, Outlook)",
+        ],
+      },
+      {
+        id: "experience", label: "Professional Experience", type: "jobs",
+        jobs: [
+          {
+            role: "Customer Service Representative",
+            company: "BrightPath Retail",
+            period: "2021 – Present",
+            bullets: [
+              "Resolved an average of 60+ customer inquiries daily via phone and live chat, maintaining a 96% satisfaction rating",
+              "Reduced repeat-contact rate by 18% by documenting recurring issues and proposing a new FAQ workflow",
+              "Trained 5 new hires on CRM software and company service standards",
+              "Processed returns, exchanges, and order adjustments in accordance with company policy",
+            ],
+          },
+        ],
+      },
+      {
+        id: "education", label: "Education", type: "education",
+        degrees: [
+          { degree: "High School Diploma", school: "Lincoln High School", location: "Dallas, TX", period: "2016" },
+        ],
+      },
+    ],
+  },
+
+  uk: {
+    label: "UK · CV Format",
+    title: "Customer Service Representative",
+    contact: {
+      name: "John Doe",
+      title: "Customer Service Representative",
+      phone: "+44 7700 900312",
+      email: "john.doe@email.com",
+      location: "Manchester, UK",
+    },
+    sections: [
+      {
+        id: "statement", label: "Personal Statement", type: "text",
+        content: "Reliable and personable customer service professional with over four years' experience handling telephone and email enquiries in fast-paced retail environments. Strong track record of resolving complaints efficiently while maintaining excellent customer relationships. Looking to bring a proactive, team-oriented approach to a new role.",
+      },
+      {
+        id: "skills", label: "Key Skills", type: "bullets",
+        items: [
+          "Excellent telephone manner and written communication",
+          "Complaint handling and conflict resolution",
+          "Point of sale (POS) and stock management systems",
+          "Strong attention to detail and time management",
+          "Team leadership and new starter training",
+        ],
+      },
+      {
+        id: "experience", label: "Employment History", type: "jobs",
+        jobs: [
+          {
+            role: "Customer Service Advisor",
+            company: "Northgate Retail Group",
+            period: "2020 – Present",
+            bullets: [
+              "Handled up to 50 customer enquiries per day across phone, email and in-store channels",
+              "Achieved consistently high customer satisfaction scores, ranking in the top 10% of the regional team",
+              "Supported the induction and training of 6 new team members",
+              "Liaised with warehouse and logistics teams to resolve delivery and stock queries promptly",
+            ],
+          },
+        ],
+      },
+      {
+        id: "education", label: "Education", type: "education",
+        degrees: [
+          { degree: "A-Levels: Business Studies, English, Mathematics", school: "Manchester Sixth Form College", location: "Manchester, UK", period: "2016 – 2018" },
+        ],
+      },
+    ],
+  },
+
+  germany: {
+    label: "Germany · Lebenslauf",
+    title: "Kundenservice-Mitarbeiter",
+    contact: {
+      name: "John Doe",
+      title: "Kundenservice-Mitarbeiter",
+      phone: "+49 30 1234567",
+      email: "john.doe@email.com",
+      location: "Berlin, Deutschland",
+    },
+    sections: [
+      {
+        id: "personal", label: "Persönliche Daten", type: "bullets",
+        items: [
+          "Geburtsdatum: 14. März 1994",
+          "Geburtsort: Frankfurt am Main",
+          "Staatsangehörigkeit: Deutsch",
+          "Familienstand: Ledig",
+        ],
+      },
+      {
+        id: "profil", label: "Profil", type: "text",
+        content: "Kundenorientierter Servicemitarbeiter mit über vier Jahren Erfahrung im telefonischen und schriftlichen Kundenkontakt im Einzelhandel. Ausgeprägte Kommunikationsstärke sowie sicherer Umgang mit CRM-Systemen. Auf der Suche nach einer neuen Herausforderung in einem dynamischen Team.",
+      },
+      {
+        id: "berufserfahrung", label: "Berufserfahrung", type: "jobs",
+        jobs: [
+          {
+            role: "Kundenservice-Mitarbeiter",
+            company: "Nordwest Handels GmbH",
+            period: "2021 – heute",
+            bullets: [
+              "Bearbeitung von täglich bis zu 50 Kundenanfragen per Telefon und E-Mail",
+              "Einarbeitung und Schulung von 5 neuen Mitarbeitenden im Kundenservice-Team",
+              "Pflege der Kundendatenbank und Dokumentation wiederkehrender Anliegen",
+              "Zusammenarbeit mit der Logistikabteilung zur Klärung von Lieferproblemen",
+            ],
+          },
+        ],
+      },
+      {
+        id: "ausbildung", label: "Ausbildung", type: "education",
+        degrees: [
+          { degree: "Fachabitur, Wirtschaft", school: "Berufskolleg Berlin-Mitte", location: "Berlin", period: "2016 – 2018" },
+        ],
+      },
+      {
+        id: "kenntnisse", label: "Kenntnisse & Fähigkeiten", type: "bullets",
+        items: [
+          "Sehr gute Deutsch- und Englischkenntnisse",
+          "MS Office (Word, Excel, Outlook)",
+          "CRM-Systeme: SAP, Zendesk",
+        ],
+      },
+    ],
+  },
+
+  france: {
+    label: "France · CV",
+    title: "Représentant du Service Client",
+    contact: {
+      name: "John Doe",
+      title: "Représentant du Service Client",
+      phone: "+33 1 99 00 12 34",
+      email: "john.doe@email.com",
+      location: "Lyon, France",
+    },
+    sections: [
+      {
+        id: "profil", label: "Profil", type: "text",
+        content: "Professionnel du service client avec plus de quatre ans d'expérience dans la gestion des demandes téléphoniques et par courriel dans le secteur de la distribution. Sens du contact, rigueur et bonne maîtrise des outils CRM. À la recherche d'un nouveau poste au sein d'une équipe dynamique.",
+      },
+      {
+        id: "experience", label: "Expérience Professionnelle", type: "jobs",
+        jobs: [
+          {
+            role: "Représentant du Service Client",
+            company: "Groupe Distrival",
+            period: "2021 – Présent",
+            bullets: [
+              "Traitement de 50 demandes clients par jour en moyenne, par téléphone et par courriel",
+              "Formation de 5 nouveaux collaborateurs aux outils et procédures du service client",
+              "Réduction de 15 % du taux de réclamations récurrentes grâce à une meilleure documentation",
+              "Coordination avec le service logistique pour le suivi des livraisons",
+            ],
+          },
+        ],
+      },
+      {
+        id: "formation", label: "Formation", type: "education",
+        degrees: [
+          { degree: "Baccalauréat Professionnel, Commerce", school: "Lycée Professionnel Jean Moulin", location: "Lyon", period: "2016 – 2018" },
+        ],
+      },
+      {
+        id: "competences", label: "Compétences", type: "bullets",
+        items: [
+          "Gestion de la relation client (CRM) : Salesforce, Zendesk",
+          "Excellent relationnel et sens de l'écoute",
+          "Gestion des réclamations et résolution de conflits",
+          "Pack Office (Word, Excel, Outlook)",
+        ],
+      },
+      {
+        id: "langues", label: "Langues", type: "bullets",
+        items: [
+          "Français : langue maternelle",
+          "Anglais : courant (C1)",
+        ],
+      },
+    ],
+  },
+
+  africa: {
+    label: "Nigeria & Ghana · CV Format",
+    title: "Customer Service Representative",
+    contact: {
+      name: "John Doe",
+      title: "Customer Service Representative",
+      phone: "+234 801 234 5678",
+      email: "john.doe@email.com",
+      location: "Lagos, Nigeria",
+    },
+    sections: [
+      {
+        id: "personal", label: "Personal Information", type: "bullets",
+        items: [
+          "Date of Birth: 14th March 1994",
+          "Nationality: Nigerian",
+          "Marital Status: Single",
+          "State of Origin: Ogun State",
+        ],
+      },
+      {
+        id: "objective", label: "Career Objective", type: "text",
+        content: "Dedicated and personable customer service professional with over four years of experience managing telephone, email and in-person customer enquiries in retail and telecommunications settings. Seeking to leverage strong communication skills and a proven record of customer satisfaction in a growing organisation.",
+      },
+      {
+        id: "competencies", label: "Core Competencies", type: "bullets",
+        items: [
+          "Customer Relationship Management (CRM)",
+          "Complaint Handling and Conflict Resolution",
+          "Team Supervision and Staff Training",
+          "Proficient in Microsoft Office Suite",
+          "Excellent Verbal and Written Communication",
+        ],
+      },
+      {
+        id: "experience", label: "Work Experience", type: "jobs",
+        jobs: [
+          {
+            role: "Customer Service Representative",
+            company: "Zenith Retail Nigeria Ltd",
+            period: "2021 – Present",
+            bullets: [
+              "Attended to an average of 50 customer enquiries daily across phone, email and walk-in channels",
+              "Trained and supervised 4 new customer service staff",
+              "Maintained accurate records of customer complaints and resolutions using the company's CRM system",
+              "Liaised with the logistics unit to resolve delivery-related complaints promptly",
+            ],
+          },
+        ],
+      },
+      {
+        id: "education", label: "Education", type: "education",
+        degrees: [
+          { degree: "National Diploma (ND), Business Administration", school: "Yaba College of Technology", location: "Lagos, Nigeria", period: "2016 – 2018" },
+        ],
+      },
+      {
+        id: "referees", label: "Referees", type: "bullets",
+        items: [
+          "Mrs. Jane Smith — HR Manager, Zenith Retail Nigeria Ltd — jane.smith@email.com — +234 802 345 6789",
+          "Mr. Michael Owusu — Operations Supervisor, Accra Trading Co. — michael.owusu@email.com — +233 24 123 4567",
+        ],
+      },
+    ],
+  },
 };
+
+const REGION_GROUPS = [
+  { label: "CANADA · CURRENT FORMAT", keys: ["it", "grocery", "admin", "popeye"] },
+  { label: "INTERNATIONAL FORMATS", keys: ["usa", "uk", "germany", "france", "africa"] },
+];
 
 // ── Style presets ──────────────────────────────────────────────────────────────
 const FONTS = [
@@ -619,6 +914,26 @@ const Resume = ({ onClose }) => {
     if (isMobile) setSidebarOpen(false);
   };
 
+  // Auto-picks the resume format that matches where the visitor actually
+  // is — once, ever, per browser. After that first visit their own choice
+  // wins; this only ever sets the *starting point*, never overrides a
+  // format someone's already sitting on.
+  const { countryCode, templateKey: detectedTemplateKey, resolved: countryResolved } = useCountryDetect();
+  useEffect(() => {
+    if (!countryResolved || !detectedTemplateKey || !countryCode) return;
+    let alreadyShown = false;
+    try { alreadyShown = localStorage.getItem("noviq_auto_template_shown") === "1"; } catch { /* best-effort */ }
+    if (alreadyShown) return;
+    switchResume(detectedTemplateKey);
+    try { localStorage.setItem("noviq_auto_template_shown", "1"); } catch { /* best-effort */ }
+    const countryName = COUNTRY_NAMES[countryCode] || "your region";
+    toast(`Looks like you're in ${countryName} — this is the resume format you'll be seeing.`, {
+      description: "Browse Templates any time for Canada, USA, UK, Germany, France, or Nigeria & Ghana instead.",
+      duration: 6000,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countryResolved, detectedTemplateKey, countryCode]);
+
   // Drives the book-flip page-turn transition — direction depends on which way we're navigating
   const goToMode = (next) => {
     if (next === mode) return;
@@ -665,28 +980,54 @@ const Resume = ({ onClose }) => {
       <div className="flex-1 overflow-y-auto p-3.5 [scrollbar-width:none]">
         {panel === "resumes" && (
           <div className="flex flex-col gap-1.5">
-            <Label>SELECT RESUME</Label>
-            {Object.entries(RESUMES).map(([key, r]) => {
-              const active = activeResume === key;
-              return (
-                <motion.button key={key} whileTap={{ scale: 0.97 }} onClick={() => switchResume(key)}
-                  aria-pressed={active}
-                  className={`box-border flex w-full min-h-[44px] items-center justify-between gap-2 rounded-xl border px-2.5 py-2.5 text-left ${
-                    active ? "border-primary/30 bg-primary/10" : "border-border bg-card"
-                  }`}>
-                  <div className="min-w-0">
-                    <p className={`m-0 text-xs font-semibold ${active ? "text-primary" : "text-foreground"}`}>{r.label}</p>
-                    <p className="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] text-muted-foreground">{r.title}</p>
-                  </div>
-                  {active && (
-                    <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-primary">
-                      <Check size={11} strokeWidth={2.4} className="text-primary-foreground" />
-                    </span>
-                  )}
-                </motion.button>
-              );
-            })}
-            <div className="mt-2 rounded-xl border border-border bg-card p-2.5">
+            {/* Not just a badge — an actual little flag going up its pole.
+                Purely informational (switching template is still a manual
+                click below), but a fun way to say "here's why we picked
+                this one for you" instead of a dry settings line. */}
+            {countryCode && (
+              <div className="mb-1 flex items-center gap-3 rounded-xl border border-border bg-card p-2.5">
+                <div className="size-14 shrink-0">
+                  <Flag3D countryCode={countryCode} style={{ width: "100%", height: "100%" }} />
+                </div>
+                <div className="min-w-0">
+                  <p className="m-0 font-mono text-[9px] tracking-[0.08em] text-muted-foreground/45">DETECTED LOCATION</p>
+                  <p className="m-0 text-xs font-semibold text-foreground">{COUNTRY_NAMES[countryCode] || countryCode}</p>
+                </div>
+              </div>
+            )}
+            {/* Grouped, not a flat list — the whole point of adding the
+                international formats was to make each one's convention
+                (or lack of one — no DOB/photo in the US/UK, named referees
+                in Nigeria & Ghana, tabular Persönliche Daten in Germany)
+                obvious at a glance, not something you find out only after
+                clicking in. */}
+            {REGION_GROUPS.map((group) => (
+              <div key={group.label} className="mb-1 flex flex-col gap-1.5">
+                <Label>{group.label}</Label>
+                {group.keys.map((key) => {
+                  const r = RESUMES[key];
+                  const active = activeResume === key;
+                  return (
+                    <motion.button key={key} whileTap={{ scale: 0.97 }} onClick={() => switchResume(key)}
+                      aria-pressed={active}
+                      className={`box-border flex w-full min-h-[44px] items-center justify-between gap-2 rounded-xl border px-2.5 py-2.5 text-left ${
+                        active ? "border-primary/30 bg-primary/10" : "border-border bg-card"
+                      }`}>
+                      <div className="min-w-0">
+                        <p className={`m-0 text-xs font-semibold ${active ? "text-primary" : "text-foreground"}`}>{r.label}</p>
+                        <p className="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] text-muted-foreground">{r.title}</p>
+                      </div>
+                      {active && (
+                        <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-primary">
+                          <Check size={11} strokeWidth={2.4} className="text-primary-foreground" />
+                        </span>
+                      )}
+                    </motion.button>
+                  );
+                })}
+              </div>
+            ))}
+            <div className="mt-1 rounded-xl border border-border bg-card p-2.5">
               <p className="m-0 mb-1 font-mono text-[9px] tracking-[0.08em] text-muted-foreground/45">TIP</p>
               <p className="m-0 text-[11px] leading-relaxed text-muted-foreground">Click any text in the preview to edit it inline.</p>
             </div>
