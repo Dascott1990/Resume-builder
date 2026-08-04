@@ -99,7 +99,7 @@ export function Hero({ onOpen, onOpenArtisans, intensity }) {
             transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
             className="m-0 text-balance text-[clamp(2rem,5.4vw,3.4rem)] leading-[1.06] font-bold tracking-tight text-foreground"
           >
-            Every career deserves a second chance.
+            Hey,
           </motion.h1>
 
           <motion.p
@@ -108,9 +108,10 @@ export function Hero({ onOpen, onOpenArtisans, intensity }) {
             transition={{ duration: 0.65, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className="m-0 max-w-lg text-balance text-[15px] leading-relaxed text-muted-foreground sm:text-[16.5px]"
           >
-            Paste a job posting, tell us who you are, and Noviq's AI writes a
-            tailored, ATS-ready resume, real .docx and PDF, no account, no
-            login, no trace left behind.
+            Every career deserves a second chance.
+            {/*Paste a job posting, tell us who you are, and Noviq's AI writes a*/}
+            {/*tailored, ATS-ready resume, real .docx and PDF, no account, no*/}
+            {/*login, no trace left behind.*/}
           </motion.p>
 
           <motion.div
