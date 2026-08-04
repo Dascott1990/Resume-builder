@@ -32,7 +32,10 @@ def create_app():
                 "http://localhost:3000",
                 "http://localhost:3001"
             ],
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            # PATCH was missing here — every PATCH endpoint in the app (this
+            # one included, Artisan listing edits too) was failing its CORS
+            # preflight and never actually reaching the server.
+            "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id"],
             "supports_credentials": True
         }
@@ -50,6 +53,12 @@ def create_app():
 
     from app.api.artisans import artisans_bp
     app.register_blueprint(artisans_bp, url_prefix="/api/v1/artisans")
+
+    from app.api.auth import auth_bp
+    app.register_blueprint(auth_bp, url_prefix="/api/v1/auth")
+
+    from app.api.applications import applications_bp
+    app.register_blueprint(applications_bp, url_prefix="/api/v1/applications")
 
     # Create tables. If a model's module never gets imported before this
     # runs, its table simply won't exist and every query against it will

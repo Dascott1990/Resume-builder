@@ -11,7 +11,7 @@ const LINKS = [
   { href: "#artisans", label: "Find an Artisan" },
 ];
 
-export function Navbar({ onOpen }) {
+export function Navbar({ onOpen, onOpenDashboard }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -53,6 +53,12 @@ export function Navbar({ onOpen }) {
               {l.label}
             </a>
           ))}
+          <button
+            onClick={onOpenDashboard}
+            className="border-none bg-transparent p-0 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Dashboard
+          </button>
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -118,6 +124,12 @@ export function Navbar({ onOpen }) {
                   {l.label}
                 </a>
               ))}
+              <button
+                onClick={() => { setMenuOpen(false); onOpenDashboard?.(); }}
+                className="rounded-lg border-none bg-transparent px-3 py-3 text-left text-[15px] font-semibold text-foreground active:bg-muted"
+              >
+                Dashboard
+              </button>
             </div>
           </motion.nav>
         )}

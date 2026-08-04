@@ -19,7 +19,7 @@ function usePrefersReducedMotion() {
 }
 
 const TRUST = [
-  { Icon: ShieldCheck, label: "100% anonymous, no account" },
+  { Icon: ShieldCheck, label: "Anonymous by default, account optional" },
   { Icon: Zap, label: "Tailored in under 2 minutes" },
   { Icon: FileCheck2, label: "Real, editable .docx & PDF" },
 ];
@@ -108,7 +108,7 @@ export function Hero({ onOpen, onOpenArtisans, intensity }) {
             transition={{ duration: 0.65, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className="m-0 max-w-lg text-balance text-[15px] leading-relaxed text-muted-foreground sm:text-[16.5px]"
           >
-            Tailored, ATS-ready resume, real .docx and PDF, no account, no login
+            Tailored, ATS-ready resume, real .docx and PDF — account optional, nothing required to start
             {/*Paste a job posting, tell us who you are, and Noviq's AI writes a*/}
             {/*tailored, ATS-ready resume real .docx and PDF, no account, no*/}
             {/*login, no trace left behind.*/}

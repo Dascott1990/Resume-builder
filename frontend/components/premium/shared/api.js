@@ -8,6 +8,7 @@
  * this logic.
  */
 import { getGuestId } from "@/lib/guestId";
+import { getToken } from "@/lib/authToken";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL;
 
@@ -25,6 +26,12 @@ export async function apiRequest(path, options = {}) {
   // anonymous per-browser id, generic enough for any future feature that
   // needs "this visitor's own X" without ever needing an account.
   const headers = { ...(options.headers || {}), "X-Guest-Id": getGuestId() };
+  // Optional — only set once someone's actually signed in. The backend
+  // prefers this over X-Guest-Id whenever both are present (see
+  // app/utils/auth.get_scope), which is what makes "your stuff follows you
+  // across devices" true for whoever opts into an account.
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   let res;
   try {

@@ -11,7 +11,7 @@ const FAQS = [
   },
   {
     q: "Do I need to create an account?",
-    a: "No. There's no sign-up anywhere in Noviq. Your in-progress draft is kept in your own browser, and anything you save is tied to a random, anonymous id generated on your device — never your name or email.",
+    a: "No — it's entirely optional. By default your in-progress draft is kept in your own browser, and anything you save is tied to a random, anonymous id generated on your device, never your name or email. Signing in just lets that same data follow you to another device — nothing about the core builder changes either way.",
   },
   {
     q: "How does the AI actually tailor my resume?",

@@ -12,8 +12,8 @@ const FEATURES = [
   },
   {
     Icon: ShieldOff,
-    title: "No account. No login. No trace.",
-    body: "Nothing to sign up for, nothing tied to your name in a database somewhere. Your draft lives in your browser — close the tab and it's gone.",
+    title: "Anonymous by default. Account optional.",
+    body: "Nothing to sign up for unless you want cross-device sync — by default your draft lives in your own browser, tied to a random id, never your name. Close the tab and it's gone.",
   },
   {
     Icon: FileCheck2,

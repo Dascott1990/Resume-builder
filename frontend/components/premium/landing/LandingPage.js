@@ -20,12 +20,12 @@ import { FinalCTA } from "./FinalCTA";
 import { Footer } from "./Footer";
 import { ThreeDIntensityControl } from "./ThreeDIntensityControl";
 
-export default function LandingPage({ onOpen, onOpenArtisans }) {
+export default function LandingPage({ onOpen, onOpenArtisans, onOpenDashboard }) {
   const { intensity, setIntensity } = use3DIntensity();
 
   return (
     <div id="noviq-landing" className="relative w-full bg-background text-foreground">
-      <Navbar onOpen={onOpen} />
+      <Navbar onOpen={onOpen} onOpenDashboard={onOpenDashboard} />
       <main>
         <Hero onOpen={onOpen} onOpenArtisans={onOpenArtisans} intensity={intensity} />
         <WhyNoviq />

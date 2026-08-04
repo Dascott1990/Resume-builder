@@ -14,7 +14,7 @@
  */
 import { useState, useEffect, useRef, useCallback, useReducer } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, X, RefreshCw } from "lucide-react";
+import { ChevronLeft, X, RefreshCw, ScanLine } from "lucide-react";
 import Logo from "../Logo";
 import { Btn } from "./components/primitives";
 import { LivePreview } from "./components/LivePreview";
@@ -38,7 +38,7 @@ import { downloadCoverLetterDocx } from "./export/coverLetterDocx";
 import { printPdf, printCoverLetterPdf } from "./export/pdf";
 import { useViewport } from "@/lib/useViewport";
 
-export default function GuestMode({ onClose, onBack }) {
+export default function GuestMode({ onClose, onBack, pendingImport }) {
   const { isPhone, isDesktop } = useViewport();
 
   // Mobile/tablet: which screen is showing — "panel" (form/list) or "preview"
@@ -50,8 +50,12 @@ export default function GuestMode({ onClose, onBack }) {
   // in-progress draft to restore (an active draft already has the freshest info).
   const [profileAtMount] = useState(loadProfile);
 
-  const [tab,        setTab]        = useState(() => draftAtMount?.tab || "new");   // "new" | "style" | "templates" | "settings"
-  const [step,       setStep]       = useState(() => draftAtMount?.step || 1);       // 1 | 2 | 3
+  // A resume just parsed out of an uploaded CV (see CVScan.js) takes priority
+  // over any restored draft — someone who just scanned a file wants to see
+  // that result, not whatever they were doing before they navigated away to
+  // scan it.
+  const [tab,        setTab]        = useState(() => pendingImport ? "new" : (draftAtMount?.tab || "new"));   // "new" | "style" | "templates" | "settings"
+  const [step,       setStep]       = useState(() => pendingImport ? 3 : (draftAtMount?.step || 1));       // 1 | 2 | 3
 
   // The floating nav recedes while someone's actively scrolling down through
   // a form (same idea as Instagram's bar shrinking on scroll) and comes back
@@ -72,25 +76,34 @@ export default function GuestMode({ onClose, onBack }) {
   // hidden from wherever the previous scroll position happened to land.
   useEffect(() => { setNavHidden(false); lastScrollY.current = 0; }, [tab, mobileView, step]);
 
-  const [info,       setInfo]       = useState(() => draftAtMount?.info || profileAtMount || EMPTY_INFO);
+  const [info,       setInfo]       = useState(() => {
+    if (pendingImport?.contact) {
+      const c = pendingImport.contact;
+      return { ...EMPTY_INFO, name: c.name || "", title: c.title || "", location: c.location || "", email: c.email || "", phone: c.phone || "" };
+    }
+    return draftAtMount?.info || profileAtMount || EMPTY_INFO;
+  });
   // Shown once, only when we actually pre-filled the form from a saved profile
   // (not when restoring a live draft — that already gets its own banner).
-  const [infoFromProfile, setInfoFromProfile] = useState(() => !draftAtMount?.info && !!profileAtMount);
+  const [infoFromProfile, setInfoFromProfile] = useState(() => !pendingImport && !draftAtMount?.info && !!profileAtMount);
   const [jobDesc,    setJobDesc]    = useState(() => draftAtMount?.jobDesc || "");
   const [generating, setGenerating] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [error,      setError]      = useState("");
-  const [genResult,  setGenResult]  = useState(() => draftAtMount?.genResult || null);
+  const [genResult,  setGenResult]  = useState(() => pendingImport ? { keywords: [], saved_id: null, job_location: null } : (draftAtMount?.genResult || null));
   const [coverLetter,  setCoverLetter]  = useState(() => draftAtMount?.coverLetter || "");
   const [interviewTips, setInterviewTips] = useState(() => draftAtMount?.interviewTips || []);
   const [application, setApplication] = useState(() => draftAtMount?.application || null); // { method, value, instructions }
   const [packageOpen, setPackageOpen] = useState(false); // never restore an open modal on refresh
   const [copied, setCopied] = useState(false);
-  const [resume,     dispatch]      = useReducer(resumeReducer, draftAtMount?.resume || null);
+  const [resume,     dispatch]      = useReducer(resumeReducer, pendingImport || draftAtMount?.resume || null);
   const onEdit = useCallback(onEditHandler(dispatch), [dispatch]);
   const [docStyle,   setDocStyle]   = useState(() => draftAtMount?.docStyle || DEFAULT_STYLE);
   // Restored on mount only if there's actually something worth telling the user about.
-  const [draftRestored, setDraftRestored] = useState(() => !!(draftAtMount?.resume || draftAtMount?.jobDesc));
+  const [draftRestored, setDraftRestored] = useState(() => !pendingImport && !!(draftAtMount?.resume || draftAtMount?.jobDesc));
+  // A one-time banner distinct from draftRestored — this is "we just parsed
+  // your upload," not "you refreshed mid-draft."
+  const [importNoticeVisible, setImportNoticeVisible] = useState(() => !!pendingImport);
   const [saved,      setSaved]      = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [loadingResumeId, setLoadingResumeId] = useState(null); // id currently being fetched, drives skeleton
@@ -439,6 +452,18 @@ export default function GuestMode({ onClose, onBack }) {
                 Restored your in-progress draft from before the refresh.
               </span>
               <button onClick={() => setDraftRestored(false)} aria-label="Dismiss"
+                className="border-none bg-transparent p-0.5 text-muted-foreground/60">
+                <X className="size-[13px]" />
+              </button>
+            </div>
+          )}
+          {importNoticeVisible && (
+            <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2.5">
+              <ScanLine className="size-[13px] text-primary" />
+              <span className="flex-1 text-xs text-foreground">
+                Imported from your uploaded resume — review everything below before downloading.
+              </span>
+              <button onClick={() => setImportNoticeVisible(false)} aria-label="Dismiss"
                 className="border-none bg-transparent p-0.5 text-muted-foreground/60">
                 <X className="size-[13px]" />
               </button>

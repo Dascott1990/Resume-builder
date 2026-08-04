@@ -8,14 +8,18 @@ DELETE /api/v1/resume/<resume_id>
 """
 
 import os
+import io
 import json
 import uuid
 import anthropic
 import requests
+from pypdf import PdfReader
+from docx import Document
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from app import db
 from app.middleware.error_handlers import APIError
+from app.utils.auth import get_scope
 
 resume_bp = Blueprint("resume", __name__)
 
@@ -317,6 +321,94 @@ Rules:
   avoid every banned phrase listed above.
 - Return ONLY the JSON object."""
 
+def _extract_text_from_pdf(file_bytes: bytes) -> str:
+    try:
+        reader = PdfReader(io.BytesIO(file_bytes))
+        text = "\n".join((page.extract_text() or "") for page in reader.pages)
+    except Exception as e:
+        raise APIError(f"Could not read this PDF: {e}", 400)
+    if not text.strip():
+        raise APIError("Could not find any text in this PDF — it may be a scanned image without a text layer", 400)
+    return text
+
+
+def _extract_text_from_docx(file_bytes: bytes) -> str:
+    try:
+        doc = Document(io.BytesIO(file_bytes))
+        text = "\n".join(p.text for p in doc.paragraphs)
+    except Exception as e:
+        raise APIError(f"Could not read this Word document: {e}", 400)
+    if not text.strip():
+        raise APIError("Could not find any text in this document", 400)
+    return text
+
+
+SCAN_PROMPT_TEMPLATE = """RAW RESUME TEXT (extracted from an uploaded file — formatting/line breaks may be imperfect):
+{raw_text}
+
+TASK:
+Read the raw text above and extract it into the exact JSON structure below, faithfully
+reorganizing what's actually there. Do NOT invent, embellish, or add anything that isn't
+genuinely present in the source text. If a field truly isn't findable, use an empty string
+("") for text fields or an empty array ([]) for lists — never fabricate a placeholder.
+
+Return this exact JSON structure (no other text, no markdown fences):
+{{
+  "contact": {{
+    "name": "full name as found",
+    "title": "the person's current or most recent job title / target role, as found",
+    "email": "email address as found, or empty string",
+    "phone": "phone number as found, or empty string",
+    "location": "city/region as found, or empty string"
+  }},
+  "sections": [
+    {{ "id": "summary", "label": "Professional Summary", "type": "text", "content": "the resume's own summary/objective text, reworded only for clarity, or empty string if none exists" }},
+    {{ "id": "skills", "label": "Skills", "type": "bullets", "items": ["each distinct skill found, one per item"] }},
+    {{ "id": "experience", "label": "Experience", "type": "jobs", "jobs": [
+        {{ "role": "job title", "company": "employer name", "period": "date range as written", "bullets": ["each responsibility/achievement bullet found under this job"] }}
+    ] }},
+    {{ "id": "education", "label": "Education", "type": "education", "degrees": [
+        {{ "degree": "degree/program name", "school": "institution name", "location": "as found or empty string", "period": "date range as written" }}
+    ] }}
+  ]
+}}
+
+Rules:
+- Preserve the person's actual wording in bullets as closely as reasonable — you are
+  transcribing and organizing, not rewriting their career.
+- Do NOT invent any company, degree, date, or achievement not present in the source text.
+- Return ONLY the JSON object."""
+
+
+@resume_bp.route("/scan", methods=["POST"])
+def scan_resume():
+    """Upload an existing resume (PDF or DOCX) and extract it into the builder's data shape."""
+    if "file" not in request.files:
+        raise APIError("No file uploaded", 400)
+    upload = request.files["file"]
+    filename = (upload.filename or "").lower()
+    if not (filename.endswith(".pdf") or filename.endswith(".docx")):
+        raise APIError("Only .pdf and .docx files are supported", 400)
+
+    file_bytes = upload.read()
+    if len(file_bytes) > 8 * 1024 * 1024:
+        raise APIError("File is too large (8MB max)", 400)
+
+    raw_text = _extract_text_from_pdf(file_bytes) if filename.endswith(".pdf") else _extract_text_from_docx(file_bytes)
+    raw_text = raw_text[:12000]  # keeps the prompt sane for unusually long documents
+
+    prompt = SCAN_PROMPT_TEMPLATE.format(raw_text=raw_text)
+    raw = _ai_complete(system=SYSTEM, prompt=prompt, effort="medium", max_tokens=2200, groq_temperature=0.2)
+    clean = raw.replace("```json", "").replace("```", "").strip()
+
+    try:
+        parsed = json.loads(clean)
+    except json.JSONDecodeError as e:
+        raise APIError(f"AI returned invalid JSON: {str(e)}", 502)
+
+    return jsonify({"success": True, "data": parsed}), 200
+
+
 @resume_bp.route("/generate", methods=["POST"])
 def generate_resume():
     """Generate a tailored resume from user info and job description."""
@@ -368,6 +460,7 @@ def generate_resume():
     try:
         from app.models import Media
         doc_bytes = json.dumps(parsed).encode()
+        scope_user_id, scope_guest_id = get_scope(request)
         record = Media(
             filename=f"resume_{uuid.uuid4().hex[:8]}.json",
             media_type="document",
@@ -376,7 +469,8 @@ def generate_resume():
             file_size=len(doc_bytes),
             caption=f"{info.get('name')} — {parsed.get('contact', {}).get('title', info.get('title'))}",
             filter_name="guest_resume",
-            guest_id=request.headers.get("X-Guest-Id") or None,
+            user_id=scope_user_id,
+            guest_id=None if scope_user_id else scope_guest_id,
             metadata_json={
                 "user_name": info.get("name"),
                 "user_email": info.get("email"),
@@ -443,6 +537,7 @@ def optimize_resume():
     try:
         from app.models import Media
         doc_bytes = json.dumps(parsed).encode()
+        scope_user_id, scope_guest_id = get_scope(request)
         record = Media(
             filename=f"resume_{uuid.uuid4().hex[:8]}.json",
             media_type="document",
@@ -451,7 +546,8 @@ def optimize_resume():
             file_size=len(doc_bytes),
             caption=f"{info.get('name')} — {parsed.get('contact', {}).get('title', info.get('title'))}",
             filter_name="guest_resume",
-            guest_id=request.headers.get("X-Guest-Id") or None,
+            user_id=scope_user_id,
+            guest_id=None if scope_user_id else scope_guest_id,
             metadata_json={
                 "user_name": info.get("name"),
                 "user_email": info.get("email"),
@@ -470,16 +566,23 @@ def optimize_resume():
 
     return jsonify({"success": True, "data": parsed}), 201
 
+def _saved_scope_filter(query):
+    """Signed-in user_id wins if present; otherwise falls back to guest_id.
+    Neither present means no rows — never "show everything" as a fallback."""
+    user_id, guest_id = get_scope(request)
+    if user_id:
+        return query.filter_by(user_id=user_id)
+    if guest_id:
+        return query.filter_by(guest_id=guest_id)
+    return query.filter(db.false())
+
+
 @resume_bp.route("/saved", methods=["GET"])
 def list_saved():
-    """Return this browser's own saved resumes — never anyone else's."""
+    """Return this visitor's own saved resumes — never anyone else's."""
     from app.models import Media
-    guest_id = request.headers.get("X-Guest-Id") or None
-    if not guest_id:
-        return jsonify({"success": True, "data": []}), 200
     records = (
-        Media.query
-        .filter_by(filter_name="guest_resume", is_deleted=False, guest_id=guest_id)
+        _saved_scope_filter(Media.query.filter_by(filter_name="guest_resume", is_deleted=False))
         .order_by(Media.created_at.desc())
         .limit(20)
         .all()
@@ -498,14 +601,10 @@ def list_saved():
 
 @resume_bp.route("/<resume_id>", methods=["GET"])
 def get_saved(resume_id):
-    """Re-load a previously generated resume — only the browser that saved it can."""
+    """Re-load a previously generated resume — only whoever saved it can."""
     from app.models import Media
-    guest_id = request.headers.get("X-Guest-Id") or None
-    record = Media.query.filter_by(
-        id=resume_id,
-        filter_name="guest_resume",
-        is_deleted=False,
-        guest_id=guest_id,
+    record = _saved_scope_filter(
+        Media.query.filter_by(id=resume_id, filter_name="guest_resume", is_deleted=False)
     ).first()
 
     if not record or not record.file_data:
@@ -519,13 +618,10 @@ def get_saved(resume_id):
 
 @resume_bp.route("/<resume_id>", methods=["DELETE"])
 def delete_saved(resume_id):
-    """Soft delete a saved resume — only the browser that saved it can."""
+    """Soft delete a saved resume — only whoever saved it can."""
     from app.models import Media
-    guest_id = request.headers.get("X-Guest-Id") or None
-    record = Media.query.filter_by(
-        id=resume_id,
-        filter_name="guest_resume",
-        guest_id=guest_id,
+    record = _saved_scope_filter(
+        Media.query.filter_by(id=resume_id, filter_name="guest_resume")
     ).first()
 
     if record:

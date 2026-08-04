@@ -876,9 +876,11 @@ const FLIP_VARIANTS = {
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN Resume component
 // ═══════════════════════════════════════════════════════════════════════════════
-const Resume = ({ onClose }) => {
-  // "mine" = pre-built resumes, "guest" = AI wizard
-  const [mode,         setMode]         = useState("mine");
+const Resume = ({ onClose, pendingImport }) => {
+  // "mine" = pre-built resumes, "guest" = AI wizard — a CV scan result
+  // lives in the wizard's preview, so land there directly instead of on
+  // the pre-built list someone would just have to click past.
+  const [mode,         setMode]         = useState(() => pendingImport ? "guest" : "mine");
   const [flipDir,      setFlipDir]      = useState(1); // 1 = flipping forward (mine→guest), -1 = flipping back
   const [activeResume, setActiveResume] = useState("it");
   const [resumeData,   setResumeData]   = useState(() => JSON.parse(JSON.stringify(RESUMES["it"])));
@@ -1107,7 +1109,7 @@ const Resume = ({ onClose }) => {
                 whole studio (onClose → launcher), while onBack flips back to
                 "My Resumes" without ever losing the session. Guest mode's
                 own draft/profile autosave means either direction is safe. */}
-            <ResumeGuestMode onClose={onClose} onBack={() => goToMode("mine")} />
+            <ResumeGuestMode onClose={onClose} onBack={() => goToMode("mine")} pendingImport={pendingImport} />
           </motion.div>
         ) : (
           <motion.div key="mine" custom={flipDir} variants={FLIP_VARIANTS} initial="enter" animate="center" exit="exit"

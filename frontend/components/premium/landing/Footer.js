@@ -19,8 +19,8 @@ export function Footer({ onOpen }) {
           <div className="flex flex-col gap-2.5">
             <Logo size={22} />
             <p className="m-0 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
-              Every career deserves a second chance. No account, no login,
-              no trace — just a resume that gets you in the door.
+              Every career deserves a second chance. Account optional,
+              no trace by default — just a resume that gets you in the door.
             </p>
           </div>
 

@@ -63,7 +63,7 @@ export function TextLink({ children, onClick, disabled, small }) {
 }
 
 // ── Input / Textarea ───────────────────────────────────────────────────────────
-export function Field({ label, required, hint, value, onChange, placeholder, multiline, rows = 3, mono }) {
+export function Field({ label, required, hint, value, onChange, placeholder, type = "text", multiline, rows = 3, mono }) {
   return (
     <div className="mb-3.5">
       <div className="mb-1.5 flex items-baseline justify-between">
@@ -85,7 +85,7 @@ export function Field({ label, required, hint, value, onChange, placeholder, mul
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          type="text"
+          type={type}
           className={`h-[52px] rounded-[10px] text-base ${mono ? "font-mono" : ""}`}
         />
       )}
