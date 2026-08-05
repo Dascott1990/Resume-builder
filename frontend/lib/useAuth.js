@@ -33,15 +33,16 @@ export function useAuth() {
 
   useEffect(() => { refreshUser(); }, [refreshUser]);
 
+  // Does NOT sign the user in — the account exists but is unverified until
+  // they click the link that just landed in their inbox. Returns the
+  // backend's "check your email" message for the UI to show.
   const signup = async (email, password) => {
     const data = await apiRequest("/api/v1/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
-    setToken(data.token);
-    setUser(data.user);
-    return data.user;
+    return data;
   };
 
   const login = async (email, password) => {
@@ -60,5 +61,49 @@ export function useAuth() {
     setUser(null);
   };
 
-  return { user, loading, login, signup, logout, refreshUser };
+  // Verifying signs the user in directly (the click itself proves inbox
+  // control — no reason to make them type a password again right after).
+  const verifyEmail = async (token) => {
+    const data = await apiRequest("/api/v1/auth/verify-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    setToken(data.token);
+    setUser(data.user);
+    return data.user;
+  };
+
+  const resendVerification = (email) =>
+    apiRequest("/api/v1/auth/resend-verification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+
+  const forgotPassword = (email) =>
+    apiRequest("/api/v1/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+
+  // Choosing a new password from the emailed link already proves control
+  // of both the account and the inbox — signs in directly, same as
+  // verifyEmail, rather than making them retype the password they just set.
+  const resetPassword = async (token, password) => {
+    const data = await apiRequest("/api/v1/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, password }),
+    });
+    setToken(data.token);
+    setUser(data.user);
+    return data.user;
+  };
+
+  return {
+    user, loading, login, signup, logout, refreshUser,
+    verifyEmail, resendVerification, forgotPassword, resetPassword,
+  };
 }

@@ -15,10 +15,19 @@ class User(db.Model):
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
     email = db.Column(db.String(190), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
+    # A real account isn't "created," it's "claimed" — email_verified stays
+    # False (and login is refused) until the address is proven reachable.
+    # Without this, signup is just a form that hands out session tokens to
+    # whatever email string was typed in, verified or not.
+    email_verified = db.Column(db.Boolean, default=False, nullable=False)
+    verification_token = db.Column(db.String(64), index=True, nullable=True)
+    verification_token_expires = db.Column(db.DateTime, nullable=True)
+    reset_token = db.Column(db.String(64), index=True, nullable=True)
+    reset_token_expires = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
-        return {"id": self.id, "email": self.email}
+        return {"id": self.id, "email": self.email, "email_verified": self.email_verified}
 
 
 class Media(db.Model):

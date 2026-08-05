@@ -146,6 +146,20 @@ TITLE_EXTRACTION_RULE = """TITLE EXTRACTION (do this first, before anything else
 - Only fall back to the candidate's stated target title ("{title}") if the job description genuinely
   contains no discernible title anywhere in the text."""
 
+# Same rule for the scan-and-tailor flow, which has no separate "stated
+# target title" form field to fall back to (there's no form at all — the
+# candidate's title comes from the uploaded resume itself) — falls back to
+# their own most recent title from the raw text instead of a {title} kwarg.
+SCAN_TITLE_EXTRACTION_RULE = """TITLE EXTRACTION (do this first, before anything else):
+- Read the JOB DESCRIPTION below in full, including any header or first paragraph.
+- Find the job title AS WRITTEN by the employer. Look for patterns like "Job Title:", "Position:",
+  "We're hiring a ___", a bolded/first-line role name, or the role name repeated most consistently
+  through the posting.
+- Use that exact title — word for word as the employer wrote it — everywhere a title is needed:
+  contact.title, the resume summary, and the cover letter and its greeting.
+- Only fall back to the candidate's own current/most recent job title (as found in the raw resume
+  text below) if the job description genuinely contains no discernible title anywhere in the text."""
+
 # Prompt templates
 PROMPT_TEMPLATE = """USER INFO:
 Name: {name}
@@ -380,9 +394,111 @@ Rules:
 - Return ONLY the JSON object."""
 
 
+# Same four-things-in-one-pass shape as OPTIMIZE_PROMPT_TEMPLATE (resume +
+# cover letter + interview tips + apply-method detection), except the
+# candidate's background comes from an uploaded file's raw text instead of
+# hand-typed form fields — "scan and tailor" in one AI call rather than
+# scan-then-separately-optimize.
+SCAN_OPTIMIZE_PROMPT_TEMPLATE = """RAW RESUME TEXT (extracted from an uploaded file — formatting/line breaks may be imperfect):
+{raw_text}
+
+JOB DESCRIPTION:
+{job_description}
+
+""" + SCAN_TITLE_EXTRACTION_RULE + """
+
+COMPANY EXTRACTION:
+- Also find the employer/company name from the posting if it's stated anywhere. If genuinely absent,
+  use null — never invent one.
+
+TASK:
+The candidate's real background, employers, dates, education, and skills are ONLY what's present
+in the RAW RESUME TEXT above — never invent anything not found there. Using that real background,
+produce FOUR things in one pass, all tailored to this specific job posting:
+
+1. A complete ATS-optimised resume, rebuilt from the candidate's actual history in the raw text,
+   reworded and reprioritised (not simply copied) to match the job posting, using the exact title
+   found above.
+
+2. A SHORT, straight-to-the-point cover letter — not a template, not padded, no throat-clearing.
+   Build it in this exact shape:
+   - Opening (1 sentence): Name the exact job title and company (if found), plus one concrete
+     detail from the posting that proves the candidate actually read it.
+   - Body (1 short paragraph, 2-3 sentences MAX): Pick the SINGLE most important requirement
+     from the posting and pair it directly with the candidate's strongest matching real
+     experience from the raw resume text — one clear, specific example. Do not try to cover
+     multiple requirements.
+   - Closing (1 sentence): Direct call to action. No "exciting opportunity" filler.
+   - HARD LENGTH LIMIT: 120-150 words total, 3 short paragraphs. If it runs longer, cut it —
+     shorter and sharper beats complete.
+   - Greeting: "Dear Hiring Manager," unless the posting names a specific person.
+   - Sign off with the candidate's actual name — no placeholder brackets like "[Your Name]".
+   - BANNED phrases and close equivalents — do not use any of these or reword them into a
+     near-synonym: "I am writing to express my interest", "I am confident that my skills and
+     experience make me a strong candidate", "team player", "hard worker", "proven track record",
+     "passionate about", "to whom it may concern", "I believe I would be a great fit",
+     "detail-oriented", "results-driven professional".
+
+3. Exactly 3 interview talking points — short, concrete stories/angles the candidate could
+   bring up, grounded in their ACTUAL background as found in the raw resume text, relevant to
+   this specific role.
+
+4. How-to-apply detection: read the job description carefully for the ACTUAL way this
+   employer wants applications submitted, then report exactly one of:
+   - "email"   — the JD contains an application email address
+   - "website" — the JD points to a careers page, ATS link, or company site
+   - "unclear" — the JD gives no explicit application channel
+
+Return this exact JSON structure (no other text, no markdown fences):
+{{
+  "keywords": ["keyword1", ...],
+  "job_location": "City, State detected from posting or null",
+  "contact": {{
+    "name": "full name as found in the raw resume text",
+    "title": "exact job title as written in the posting (see TITLE EXTRACTION rule above)",
+    "company": "employer name found in the posting, or null",
+    "email": "email as found in the raw resume text, or empty string",
+    "phone": "phone as found in the raw resume text, or empty string",
+    "location": "job location if found in the posting, else the candidate's own location from the raw text"
+  }},
+  "sections": [
+    {{ "id": "summary", "label": "Professional Summary", "type": "text", "content": "..." }},
+    {{ "id": "skills", "label": "Core Competencies", "type": "bullets", "items": ["..."] }},
+    {{ "id": "experience", "label": "Experience", "type": "jobs", "jobs": [
+        {{ "role": "...", "company": "...", "period": "...", "location": "...", "bullets": ["..."] }}
+    ] }},
+    {{ "id": "education", "label": "Education", "type": "education", "degrees": [
+        {{ "degree": "...", "school": "...", "location": "...", "period": "..." }}
+    ] }}
+  ],
+  "cover_letter": "full cover letter text as one string with \\n\\n between paragraphs",
+  "interview_tips": ["tip 1", "tip 2", "tip 3"],
+  "application": {{
+    "method": "email | website | unclear",
+    "value": "the exact email address or URL found in the JD, else null",
+    "instructions": "One direct sentence telling the candidate exactly how to apply"
+  }}
+}}
+
+Rules:
+- Do NOT invent companies, degrees, dates, or achievements not present in the raw resume text.
+- Every resume bullet starts with a strong past-tense action verb.
+- Weave at least 6 keywords from the JD naturally into the resume body.
+- The cover letter must sound like a real person wrote it, follow the shape specified above, and
+  avoid every banned phrase listed above.
+- Return ONLY the JSON object."""
+
+
 @resume_bp.route("/scan", methods=["POST"])
 def scan_resume():
-    """Upload an existing resume (PDF or DOCX) and extract it into the builder's data shape."""
+    """
+    Upload an existing resume (PDF or DOCX) and extract it into the builder's
+    data shape. If a job_description is also pasted alongside the file
+    (optional — same 50-char minimum as /generate and /optimize), the AI
+    tailors the extracted resume to that posting in the same pass instead of
+    just transcribing it faithfully — resume + cover letter + interview tips
+    + apply-method detection, identical output shape to /optimize.
+    """
     if "file" not in request.files:
         raise APIError("No file uploaded", 400)
     upload = request.files["file"]
@@ -394,11 +510,18 @@ def scan_resume():
     if len(file_bytes) > 8 * 1024 * 1024:
         raise APIError("File is too large (8MB max)", 400)
 
+    job_desc = (request.form.get("job_description") or "").strip()[:4000]
+    tailoring = len(job_desc) >= 50
+
     raw_text = _extract_text_from_pdf(file_bytes) if filename.endswith(".pdf") else _extract_text_from_docx(file_bytes)
     raw_text = raw_text[:12000]  # keeps the prompt sane for unusually long documents
 
-    prompt = SCAN_PROMPT_TEMPLATE.format(raw_text=raw_text)
-    raw = _ai_complete(system=SYSTEM, prompt=prompt, effort="medium", max_tokens=2200, groq_temperature=0.2)
+    if tailoring:
+        prompt = SCAN_OPTIMIZE_PROMPT_TEMPLATE.format(raw_text=raw_text, job_description=job_desc)
+        raw = _ai_complete(system=SYSTEM, prompt=prompt, effort="medium", max_tokens=3000, groq_temperature=0.5)
+    else:
+        prompt = SCAN_PROMPT_TEMPLATE.format(raw_text=raw_text)
+        raw = _ai_complete(system=SYSTEM, prompt=prompt, effort="medium", max_tokens=2200, groq_temperature=0.2)
     clean = raw.replace("```json", "").replace("```", "").strip()
 
     try:
@@ -430,8 +553,9 @@ def scan_resume():
                 "user_email": contact.get("email"),
                 "target_role": contact.get("title"),
                 "generated_at": datetime.now(timezone.utc).isoformat(),
-                "keywords": [],
+                "keywords": parsed.get("keywords", []),
                 "imported": True,
+                "optimized": tailoring,
             },
         )
         db.session.add(record)

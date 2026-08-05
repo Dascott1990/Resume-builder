@@ -9,16 +9,23 @@ logger = logging.getLogger(__name__)
 class APIError(Exception):
     """Raised deliberately, with a message that's safe to show the user."""
 
-    def __init__(self, message, status_code=400):
+    def __init__(self, message, status_code=400, code=None):
         super().__init__(message)
         self.message = message
         self.status_code = status_code
+        # Optional machine-readable tag (e.g. "EMAIL_NOT_VERIFIED") so the
+        # frontend can branch on specific cases (show a resend button)
+        # without parsing the human-readable message string.
+        self.code = code
 
 
 def register_error_handlers(app):
     @app.errorhandler(APIError)
     def handle_api_error(err):
-        return jsonify({"success": False, "error": err.message}), err.status_code
+        body = {"success": False, "error": err.message}
+        if err.code:
+            body["code"] = err.code
+        return jsonify(body), err.status_code
 
     @app.errorhandler(404)
     def handle_404(err):

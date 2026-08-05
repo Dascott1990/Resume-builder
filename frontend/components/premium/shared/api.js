@@ -52,7 +52,11 @@ export async function apiRequest(path, options = {}) {
   if (!res.ok || json.success === false) {
     // Backend error envelope uses "error", success envelope uses "message" —
     // check both so real backend error text always reaches the user.
-    throw new Error(json.error || json.message || `Error ${res.status}`);
+    const err = new Error(json.error || json.message || `Error ${res.status}`);
+    // Machine-readable tag (e.g. "EMAIL_NOT_VERIFIED") for the handful of
+    // cases the UI needs to branch on, not just display — see auth.py.
+    if (json.code) err.code = json.code;
+    throw err;
   }
   return json.data ?? json;
 }

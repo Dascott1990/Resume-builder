@@ -1,9 +1,9 @@
 "use client";
 /**
- * Signup.js — entirely optional, same as Login.js. If a guest_id-scoped
- * draft already exists on this browser, the backend links it to the new
- * account on signup (see backend/app/api/auth.py) — creating an account
- * never means starting over.
+ * ForgotPassword.js — reached only from Login.js's "Forgot password?" link.
+ * Always shows the same success message whether or not the email has an
+ * account (see backend/app/api/auth.py forgot_password) — the UI mirrors
+ * that on purpose, so it can't be used to test which emails are registered.
  */
 import { useState } from "react";
 import { motion } from "framer-motion";
@@ -12,45 +12,28 @@ import { useAuth } from "@/lib/useAuth";
 import { Field, Btn } from "../guest/components/primitives";
 import Logo from "../Logo";
 
-export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
-  const { signup, resendVerification } = useAuth();
+export default function ForgotPassword({ onClose, onBackToLogin }) {
+  const { forgotPassword } = useAuth();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
-  const [resending, setResending] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
     setError("");
-    if (!email.trim() || !password) {
-      setError("Enter your email and password.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    if (!email.trim()) {
+      setError("Enter your email.");
       return;
     }
     setSubmitting(true);
     try {
-      // Does NOT sign the user in — the account exists but stays
-      // unverified until the emailed link is clicked (see useAuth.signup).
-      await signup(email.trim(), password);
+      await forgotPassword(email.trim());
       setSent(true);
     } catch (e) {
       setError(e.message);
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const resend = async () => {
-    setResending(true);
-    try {
-      await resendVerification(email.trim());
-    } finally {
-      setResending(false);
     }
   };
 
@@ -77,32 +60,22 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
             <div>
               <p className="m-0 font-serif text-[20px] italic text-foreground">Check your email</p>
               <p className="m-0 mt-1.5 max-w-xs text-[13.5px] leading-relaxed text-muted-foreground">
-                We sent a verification link to <strong className="text-foreground">{email.trim()}</strong>. Click it to finish setting up your account.
+                If <strong className="text-foreground">{email.trim()}</strong> has an account, a reset link is on its way.
               </p>
             </div>
-            <button
-              onClick={resend}
-              disabled={resending}
-              className="border-none bg-transparent p-0 text-[13px] font-bold text-primary disabled:opacity-50"
-            >
-              {resending ? "Sending…" : "Didn't get it? Resend"}
-            </button>
-            <button onClick={onSwitchToLogin} className="border-none bg-transparent p-0 text-[13px] font-semibold text-muted-foreground">
-              Back to sign in
-            </button>
+            <Btn variant="gold" small onClick={onBackToLogin}>Back to sign in</Btn>
           </motion.div>
         ) : (
           <>
             <div>
-              <p className="m-0 font-serif text-[22px] italic text-foreground">Create an account</p>
+              <p className="m-0 font-serif text-[22px] italic text-foreground">Reset your password</p>
               <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-                Optional — only for syncing your saved resumes and job tracker across devices. Everything already on this browser comes with you.
+                Enter the email on your account and we'll send a link to choose a new password.
               </p>
             </div>
 
             <form onSubmit={submit} className="grid gap-1">
               <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
-              <Field label="PASSWORD" required type="password" hint="8+ characters" value={password} onChange={setPassword} placeholder="••••••••" />
 
               {error && (
                 <div role="alert" className="mt-1 mb-1 flex gap-2 border-l-2 border-destructive py-0.5 pl-[11px] text-[12.5px] leading-relaxed text-destructive">
@@ -111,14 +84,13 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
               )}
 
               <Btn variant="gold" type="submit" className="mt-2.5" disabled={submitting} loading={submitting}>
-                {submitting ? "Creating account…" : "Create account"}
+                {submitting ? "Sending…" : "Send reset link"}
               </Btn>
             </form>
 
             <p className="m-0 text-center text-[13px] text-muted-foreground">
-              Already have an account?{" "}
-              <button onClick={onSwitchToLogin} className="border-none bg-transparent p-0 font-bold text-primary">
-                Sign in
+              <button onClick={onBackToLogin} className="border-none bg-transparent p-0 font-bold text-primary">
+                Back to sign in
               </button>
             </p>
           </>

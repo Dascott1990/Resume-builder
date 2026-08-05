@@ -9,19 +9,24 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { X } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
-import { Field, Btn } from "../guest/components/primitives";
+import { Field, Btn, TextLink } from "../guest/components/primitives";
+import ForgotPassword from "./ForgotPassword";
 import Logo from "../Logo";
 
 export default function Login({ onClose, onSuccess, onSwitchToSignup }) {
-  const { login } = useAuth();
+  const { login, resendVerification } = useAuth();
+  const [screen, setScreen] = useState("login"); // "login" | "forgot"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [unverified, setUnverified] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
     setError("");
+    setUnverified(false);
     if (!email.trim() || !password) {
       setError("Enter your email and password.");
       return;
@@ -32,11 +37,31 @@ export default function Login({ onClose, onSuccess, onSwitchToSignup }) {
       toast.success(`Welcome back, ${user.email}`);
       onSuccess?.();
     } catch (e) {
-      setError(e.message);
+      if (e.code === "EMAIL_NOT_VERIFIED") {
+        setUnverified(true);
+      } else {
+        setError(e.message);
+      }
     } finally {
       setSubmitting(false);
     }
   };
+
+  const resend = async () => {
+    setResending(true);
+    try {
+      await resendVerification(email.trim());
+      toast.success("Verification email sent — check your inbox.");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setResending(false);
+    }
+  };
+
+  if (screen === "forgot") {
+    return <ForgotPassword onClose={onClose} onBackToLogin={() => setScreen("login")} />;
+  }
 
   return (
     <motion.div
@@ -62,11 +87,27 @@ export default function Login({ onClose, onSuccess, onSwitchToSignup }) {
 
         <form onSubmit={submit} className="grid gap-1">
           <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
-          <Field label="PASSWORD" required type="password" value={password} onChange={setPassword} placeholder="••••••••" />
+          <div>
+            <Field label="PASSWORD" required type="password" value={password} onChange={setPassword} placeholder="••••••••" />
+            <div className="-mt-3 mb-3.5 flex justify-end">
+              <TextLink small onClick={() => setScreen("forgot")}>Forgot password?</TextLink>
+            </div>
+          </div>
 
           {error && (
             <div role="alert" className="mt-1 mb-1 flex gap-2 border-l-2 border-destructive py-0.5 pl-[11px] text-[12.5px] leading-relaxed text-destructive">
               {error}
+            </div>
+          )}
+
+          {unverified && (
+            <div role="alert" className="mt-1 mb-1 flex flex-col gap-2 rounded-[10px] border border-primary/25 bg-primary/10 p-3.5">
+              <p className="m-0 text-[12.5px] leading-relaxed text-foreground">
+                This account's email hasn't been verified yet. Check your inbox for the link, or we can send a new one.
+              </p>
+              <Btn small variant="primary" onClick={resend} disabled={resending} loading={resending}>
+                {resending ? "Sending…" : "Resend verification email"}
+              </Btn>
             </div>
           )}
 

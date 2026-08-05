@@ -1,22 +1,97 @@
 """
 app/api/auth.py
 POST /api/v1/auth/signup
+POST /api/v1/auth/verify-email
+POST /api/v1/auth/resend-verification
 POST /api/v1/auth/login
+POST /api/v1/auth/forgot-password
+POST /api/v1/auth/reset-password
 GET  /api/v1/auth/me
 
 Entirely optional layer on top of the anonymous guest_id system already
 used everywhere else — nothing else in the app requires any of this.
+
+A real auth flow proves the email is reachable before trusting it (signup
+sends a verification link, login refuses unverified accounts) and lets
+someone recover access without emailing support (forgot/reset password).
+Both flows use single-use, time-limited tokens and never reveal whether a
+given email actually has an account — that's a free enumeration oracle
+otherwise.
 """
+import os
 import re
+import secrets
+from datetime import datetime, timedelta, timezone
+
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models import User, Media, JobApplication
 from app.middleware.error_handlers import APIError
 from app.utils.auth import hash_password, verify_password, issue_token, get_scope
+from app.utils.mail import send_email
 
 auth_bp = Blueprint("auth", __name__)
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+VERIFICATION_TOKEN_TTL = timedelta(hours=24)
+RESET_TOKEN_TTL = timedelta(hours=1)
+FRONTEND_URL = (os.environ.get("FRONTEND_URL") or "http://localhost:3000").rstrip("/")
+
+
+def _new_token():
+    return secrets.token_urlsafe(32)
+
+
+def _utcnow():
+    # Naive UTC, deliberately not datetime.now(timezone.utc) — neither
+    # SQLite nor a plain (non timezone=True) Postgres TIMESTAMP column
+    # preserves tzinfo on read, so an aware "now" crashes comparing against
+    # a value that came back from the DB naive. Every column in this app
+    # already stores naive-on-read timestamps, so staying naive throughout
+    # is what actually matches what's in the database, not a compromise.
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _email_shell(heading, body_html, cta_label, cta_link, footnote):
+    return f"""
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
+      <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOVIQ</p>
+      <h2 style="color:#111;margin:0 0 12px;">{heading}</h2>
+      <p style="color:#444;line-height:1.6;margin:0 0 4px;">{body_html}</p>
+      <p style="margin:28px 0;">
+        <a href="{cta_link}" style="background:#f5a623;color:#111;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;display:inline-block;">{cta_label}</a>
+      </p>
+      <p style="color:#888;font-size:12.5px;line-height:1.5;">{footnote}</p>
+    </div>
+    """
+
+
+def _send_verification_email(user, token):
+    link = f"{FRONTEND_URL}/verify-email?token={token}"
+    send_email(
+        user.email,
+        "Verify your Noviq account",
+        _email_shell(
+            "Verify your email",
+            "Confirm this is your email address to finish setting up your account.",
+            "Verify email", link,
+            "This link expires in 24 hours. If you didn't create a Noviq account, you can ignore this email.",
+        ),
+    )
+
+
+def _send_reset_email(user, token):
+    link = f"{FRONTEND_URL}/reset-password?token={token}"
+    send_email(
+        user.email,
+        "Reset your Noviq password",
+        _email_shell(
+            "Reset your password",
+            "Someone requested a password reset for this account. If that was you, choose a new password below.",
+            "Reset password", link,
+            "This link expires in 1 hour. If you didn't request this, your password won't change — you can ignore this email.",
+        ),
+    )
 
 
 @auth_bp.route("/signup", methods=["POST"])
@@ -32,7 +107,14 @@ def signup():
     if User.query.filter_by(email=email).first():
         raise APIError("An account with that email already exists", 409)
 
-    user = User(email=email, password_hash=hash_password(password))
+    token = _new_token()
+    user = User(
+        email=email,
+        password_hash=hash_password(password),
+        email_verified=False,
+        verification_token=token,
+        verification_token_expires=_utcnow() + VERIFICATION_TOKEN_TTL,
+    )
     db.session.add(user)
     db.session.flush()  # assigns user.id before we touch rows that reference it
 
@@ -43,8 +125,60 @@ def signup():
         Media.query.filter_by(guest_id=guest_id, user_id=None).update({"user_id": user.id})
         JobApplication.query.filter_by(guest_id=guest_id, user_id=None).update({"user_id": user.id})
 
+    # Send before committing — an account nobody can ever verify (because
+    # the email silently failed) is worse than no account at all.
+    try:
+        _send_verification_email(user, token)
+    except Exception as exc:
+        db.session.rollback()
+        print(f"❌ Failed to send verification email to {email}: {exc}")
+        raise APIError("Could not send verification email — please try again", 502)
+
     db.session.commit()
-    return jsonify({"success": True, "data": {"user": user.to_dict(), "token": issue_token(user.id)}}), 201
+    return jsonify({
+        "success": True,
+        "data": {"email": user.email, "message": "Check your email to verify your account before signing in."},
+    }), 201
+
+
+@auth_bp.route("/verify-email", methods=["POST"])
+def verify_email():
+    body = request.get_json(force=True) or {}
+    token = (body.get("token") or "").strip()
+    if not token:
+        raise APIError("Missing verification token", 400)
+
+    user = User.query.filter_by(verification_token=token).first()
+    if not user or not user.verification_token_expires or user.verification_token_expires < _utcnow():
+        raise APIError("This verification link is invalid or has expired", 400)
+
+    user.email_verified = True
+    user.verification_token = None
+    user.verification_token_expires = None
+    db.session.commit()
+
+    return jsonify({"success": True, "data": {"user": user.to_dict(), "token": issue_token(user.id)}}), 200
+
+
+@auth_bp.route("/resend-verification", methods=["POST"])
+def resend_verification():
+    body = request.get_json(force=True) or {}
+    email = (body.get("email") or "").strip().lower()
+    user = User.query.filter_by(email=email).first()
+
+    if user and not user.email_verified:
+        token = _new_token()
+        user.verification_token = token
+        user.verification_token_expires = _utcnow() + VERIFICATION_TOKEN_TTL
+        db.session.commit()
+        try:
+            _send_verification_email(user, token)
+        except Exception as exc:
+            print(f"❌ Failed to resend verification email to {email}: {exc}")
+
+    # Same response either way — confirming an email doesn't have an
+    # account (or is already verified) is a free enumeration oracle.
+    return jsonify({"success": True, "data": {"message": "If that account needs verifying, a new link is on its way."}}), 200
 
 
 @auth_bp.route("/login", methods=["POST"])
@@ -59,6 +193,62 @@ def login():
     if not user or not verify_password(password, user.password_hash):
         raise APIError("Incorrect email or password", 401)
 
+    if not user.email_verified:
+        raise APIError("Please verify your email before signing in", 403, code="EMAIL_NOT_VERIFIED")
+
+    return jsonify({"success": True, "data": {"user": user.to_dict(), "token": issue_token(user.id)}}), 200
+
+
+@auth_bp.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    body = request.get_json(force=True) or {}
+    email = (body.get("email") or "").strip().lower()
+    user = User.query.filter_by(email=email).first()
+
+    if user:
+        token = _new_token()
+        user.reset_token = token
+        user.reset_token_expires = _utcnow() + RESET_TOKEN_TTL
+        db.session.commit()
+        try:
+            _send_reset_email(user, token)
+        except Exception as exc:
+            print(f"❌ Failed to send reset email to {email}: {exc}")
+
+    # Same response whether or not the account exists.
+    return jsonify({"success": True, "data": {"message": "If that email has an account, a reset link is on its way."}}), 200
+
+
+@auth_bp.route("/reset-password", methods=["POST"])
+def reset_password():
+    body = request.get_json(force=True) or {}
+    token = (body.get("token") or "").strip()
+    password = body.get("password") or ""
+
+    if not token:
+        raise APIError("Missing reset token", 400)
+    if len(password) < 8:
+        raise APIError("Password must be at least 8 characters", 400)
+
+    user = User.query.filter_by(reset_token=token).first()
+    if not user or not user.reset_token_expires or user.reset_token_expires < _utcnow():
+        raise APIError("This reset link is invalid or has expired", 400)
+
+    user.password_hash = hash_password(password)
+    user.reset_token = None
+    user.reset_token_expires = None
+    # A password reset invalidates any pending email-verification token too
+    # — no reason to leave an old one alive once someone's proven control
+    # of the inbox via the reset link itself.
+    if not user.email_verified:
+        user.email_verified = True
+        user.verification_token = None
+        user.verification_token_expires = None
+    db.session.commit()
+
+    # Clicking a link from the inbox AND choosing a new password already
+    # proves both control of the account and of the email — no reason to
+    # then also demand they immediately retype the password they just set.
     return jsonify({"success": True, "data": {"user": user.to_dict(), "token": issue_token(user.id)}}), 200
 
 

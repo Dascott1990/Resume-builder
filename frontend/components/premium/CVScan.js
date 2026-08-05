@@ -11,17 +11,24 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { UploadCloud, FileText, X, Loader2 } from "lucide-react";
 import { apiRequest } from "./shared/api";
-import { Btn } from "./guest/components/primitives";
+import { Field, Btn } from "./guest/components/primitives";
 import Logo from "./Logo";
 
 const MAX_BYTES = 8 * 1024 * 1024;
+// Mirrors the backend's own cutoff (see /resume/scan) — below this, a
+// job_description is too short to tailor against, so it's simply not sent
+// and the scan stays a plain import instead of silently doing a low-quality
+// tailoring pass.
+const MIN_JOB_DESC = 50;
 
 export default function CVScan({ onClose, onImported }) {
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
   const [file, setFile] = useState(null);
+  const [jobDesc, setJobDesc] = useState("");
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
+  const tailoring = jobDesc.trim().length >= MIN_JOB_DESC;
 
   const validate = (f) => {
     const name = (f.name || "").toLowerCase();
@@ -49,8 +56,9 @@ export default function CVScan({ onClose, onImported }) {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      if (tailoring) formData.append("job_description", jobDesc.trim());
       const data = await apiRequest("/api/v1/resume/scan", { method: "POST", body: formData });
-      toast.success("Imported — review and download below.");
+      toast.success(tailoring ? "Tailored — review your resume and cover letter below." : "Imported — review and download below.");
       onImported(data);
     } catch (e) {
       setError(e.message);
@@ -78,7 +86,7 @@ export default function CVScan({ onClose, onImported }) {
         <div>
           <p className="m-0 font-serif text-[22px] italic text-foreground">CV Scan</p>
           <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-            Upload a resume you already have. We'll pull your info into the builder so you're editing, not retyping from scratch.
+            Upload a resume you already have. We'll pull your info into the builder so you're editing, not retyping from scratch — paste a job posting below to tailor it while we're at it.
           </p>
         </div>
 
@@ -119,6 +127,12 @@ export default function CVScan({ onClose, onImported }) {
           )}
         </button>
 
+        <Field
+          label="JOB DESCRIPTION" hint={`Optional — ${tailoring ? "will tailor to this posting ✓" : "paste one to tailor this resume"}`}
+          value={jobDesc} onChange={setJobDesc} multiline rows={6} mono
+          placeholder={"Paste a job posting here and we'll rewrite this resume to match it — plus a matching cover letter and interview tips. Leave blank to just import as-is."}
+        />
+
         {error && (
           <div role="alert" className="flex gap-2 border-l-2 border-destructive py-0.5 pl-[11px] text-[12.5px] leading-relaxed text-destructive">
             {error}
@@ -126,7 +140,7 @@ export default function CVScan({ onClose, onImported }) {
         )}
 
         <Btn variant="gold" disabled={!file || scanning} loading={scanning} onClick={scan}>
-          {scanning ? "Reading your resume…" : "Scan and import"}
+          {scanning ? (tailoring ? "Reading and tailoring…" : "Reading your resume…") : (tailoring ? "Scan and tailor" : "Scan and import")}
         </Btn>
       </div>
     </motion.div>

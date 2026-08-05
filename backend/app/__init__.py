@@ -108,3 +108,14 @@ def _sync_missing_columns(app):
             with db.engine.begin() as conn:
                 conn.execute(text(ddl))
             print(f"🔧 Added missing column {table.name}.{column.name} ({col_type})")
+
+            # Grandfather in accounts created before email verification
+            # existed — they signed up under the old rules, so a NULL here
+            # means "predates the feature," not "unverified." Without this
+            # backfill, every existing account gets locked out of login the
+            # moment this column lands, with no verification email ever
+            # sent to unlock it.
+            if table.name == "users" and column.name == "email_verified":
+                with db.engine.begin() as conn:
+                    conn.execute(text('UPDATE "users" SET "email_verified" = TRUE WHERE "email_verified" IS NULL'))
+                print("🔧 Backfilled existing users.email_verified = TRUE")

@@ -89,11 +89,27 @@ export default function GuestMode({ onClose, onBack, pendingImport }) {
   const [generating, setGenerating] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [error,      setError]      = useState("");
-  const [genResult,  setGenResult]  = useState(() => pendingImport ? { keywords: [], saved_id: null, job_location: null } : (draftAtMount?.genResult || null));
-  const [coverLetter,  setCoverLetter]  = useState(() => draftAtMount?.coverLetter || "");
-  const [interviewTips, setInterviewTips] = useState(() => draftAtMount?.interviewTips || []);
-  const [application, setApplication] = useState(() => draftAtMount?.application || null); // { method, value, instructions }
-  const [packageOpen, setPackageOpen] = useState(false); // never restore an open modal on refresh
+  // A scan that also had a job description pasted alongside it comes back
+  // from /resume/scan in the exact same shape as /resume/optimize (keywords,
+  // cover letter, interview tips, apply info) — carry all of it through
+  // instead of discarding it, so "scan + paste a JD" lands in the same
+  // reviewed-package state a plain Optimize click would.
+  const [genResult,  setGenResult]  = useState(() => {
+    if (pendingImport) {
+      return {
+        keywords: pendingImport.keywords || [],
+        saved_id: pendingImport.saved_id || null,
+        job_location: pendingImport.job_location || null,
+      };
+    }
+    return draftAtMount?.genResult || null;
+  });
+  const [coverLetter,  setCoverLetter]  = useState(() => pendingImport?.cover_letter || draftAtMount?.coverLetter || "");
+  const [interviewTips, setInterviewTips] = useState(() => pendingImport?.interview_tips || draftAtMount?.interviewTips || []);
+  const [application, setApplication] = useState(() => pendingImport?.application || draftAtMount?.application || null); // { method, value, instructions }
+  // Mirrors what clicking "Optimize" does — the review package opens
+  // immediately when the import already came back tailored to a job.
+  const [packageOpen, setPackageOpen] = useState(() => !!pendingImport?.cover_letter);
   const [copied, setCopied] = useState(false);
   const [resume,     dispatch]      = useReducer(resumeReducer, pendingImport || draftAtMount?.resume || null);
   const onEdit = useCallback(onEditHandler(dispatch), [dispatch]);
