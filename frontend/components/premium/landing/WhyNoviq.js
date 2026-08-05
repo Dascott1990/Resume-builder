@@ -1,10 +1,15 @@
 "use client";
 import { useRef } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { Sparkles, ShieldOff, FileCheck2, Hammer } from "lucide-react";
+import { Sparkles, ShieldOff, FileCheck2, Hammer, LayoutDashboard } from "lucide-react";
 import { Reveal, SECTION_WRAP, EYEBROW } from "./shared";
 
 const FEATURES = [
+  {
+    Icon: LayoutDashboard,
+    title: "One dashboard for the whole job search",
+    body: "Build a resume, scan in one you already have, and track every application's status — all from one home screen, not scattered across tabs and files.",
+  },
   {
     Icon: Sparkles,
     title: "AI that reads the job, not just your title",

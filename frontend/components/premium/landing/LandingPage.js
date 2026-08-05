@@ -25,17 +25,17 @@ export default function LandingPage({ onOpen, onOpenArtisans, onOpenDashboard })
 
   return (
     <div id="noviq-landing" className="relative w-full bg-background text-foreground">
-      <Navbar onOpen={onOpen} onOpenDashboard={onOpenDashboard} />
+      <Navbar onOpenDashboard={onOpenDashboard} />
       <main>
-        <Hero onOpen={onOpen} onOpenArtisans={onOpenArtisans} intensity={intensity} />
+        <Hero onOpen={onOpen} onOpenArtisans={onOpenArtisans} onOpenDashboard={onOpenDashboard} intensity={intensity} />
         <WhyNoviq />
         <HowItWorks />
         <CareerSection />
         <ArtisanTeaser onOpenArtisans={onOpenArtisans} />
         <FAQ />
-        <FinalCTA onOpen={onOpen} />
+        <FinalCTA onOpen={onOpen} onOpenDashboard={onOpenDashboard} />
       </main>
-      <Footer onOpen={onOpen} />
+      <Footer onOpen={onOpen} onOpenDashboard={onOpenDashboard} />
       <ThreeDIntensityControl intensity={intensity} setIntensity={setIntensity} />
     </div>
   );

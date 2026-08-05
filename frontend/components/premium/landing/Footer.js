@@ -8,7 +8,7 @@ const LINKS = [
   { href: "#artisans", label: "Find an Artisan" },
 ];
 
-export function Footer({ onOpen }) {
+export function Footer({ onOpenDashboard }) {
   return (
     // Extra bottom clearance on narrow screens only — the floating 3D
     // intensity control sits fixed bottom-right and would otherwise overlap
@@ -31,10 +31,10 @@ export function Footer({ onOpen }) {
               </a>
             ))}
             <button
-              onClick={onOpen}
+              onClick={onOpenDashboard}
               className="rounded-full border border-primary/25 bg-primary/10 px-4 py-2 text-[13px] font-bold text-primary [-webkit-tap-highlight-color:transparent]"
             >
-              Open Resume Studio
+              Go to Dashboard
             </button>
           </nav>
         </div>

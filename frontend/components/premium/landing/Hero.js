@@ -24,25 +24,25 @@ const TRUST = [
   { Icon: FileCheck2, label: "Real, editable .docx & PDF" },
 ];
 
-export function Hero({ onOpen, onOpenArtisans, intensity }) {
+export function Hero({ onOpen, onOpenArtisans, onOpenDashboard, intensity }) {
   const heroRef = useRef(null);
   const reducedMotion = usePrefersReducedMotion();
   const { isDesktop } = useViewport();
   // This page (unlike the app screens that only ever mount after a click,
-  // never through SSR) is server-rendered at "/" — useViewport defaults to
+  // never through SSR) is server-rendered at "/" , useViewport defaults to
   // a desktop width on the server, so branching on isDesktop immediately
   // would render a different tree than the client's real viewport and fail
   // hydration outright. Same fix Logo3D.js already uses for WebGL support:
   // render neither breakpoint's 3D layer until after mount (server output
   // and the first client paint both show just the text, byte-identical),
-  // then upgrade to the real layout on the next tick — an ordinary
+  // then upgrade to the real layout on the next tick, an ordinary
   // post-hydration re-render, not a mismatch.
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
 
-  // The showcase drifts and settles slower than the page scrolls — the
-  // "this scrolls like 3D" cue — on both the desktop panel and the mobile
+  // The showcase drifts and settles slower than the page scrolls, the
+  // "this scrolls like 3D" cue, on both the desktop panel and the mobile
   // wallpaper below.
   const panelY = useTransform(scrollYProgress, [0, 1], [0, reducedMotion ? 0 : 90]);
   const panelOpacity = useTransform(scrollYProgress, [0, 0.85], [1, 0.2]);
@@ -65,10 +65,10 @@ export function Hero({ onOpen, onOpenArtisans, intensity }) {
       />
 
       {/* ── Mobile/tablet: the 3D scene as full-bleed wallpaper behind the
-          text, not a boxed showcase — a scrim gradient keeps the copy
+          text, not a boxed showcase, a scrim gradient keeps the copy
           legible without flattening the scene to nothing. Rendered via a
           JS breakpoint check (not a CSS hidden/lg:block pair) so only one
-          WebGL canvas ever mounts at a time — two live contexts for one
+          WebGL canvas ever mounts at a time, two live contexts for one
           hero is wasted GPU work neither device needs. */}
       {mounted && !isDesktop && (
         <motion.div
@@ -108,12 +108,16 @@ export function Hero({ onOpen, onOpenArtisans, intensity }) {
             transition={{ duration: 0.65, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className="m-0 max-w-lg text-balance text-[15px] leading-relaxed text-muted-foreground sm:text-[16.5px]"
           >
-            Tailored, ATS-ready resume, real .docx and PDF — account optional, nothing required to start
+            Tailored, ATS-ready resume, real .docx and PDF, account optional, nothing required to start
             {/*Paste a job posting, tell us who you are, and Noviq's AI writes a*/}
             {/*tailored, ATS-ready resume real .docx and PDF, no account, no*/}
             {/*login, no trace left behind.*/}
           </motion.p>
 
+          {/* Dashboard is the primary CTA, it's the hub everything else
+              (resume builder, CV scan, job tracker, artisan directory)
+              lives inside, so the first tap always lands somewhere useful
+              instead of committing to one specific tool immediately. */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -121,20 +125,28 @@ export function Hero({ onOpen, onOpenArtisans, intensity }) {
             className="flex w-full max-w-sm flex-col items-center gap-3.5 sm:max-w-none sm:flex-row lg:justify-start"
           >
             <motion.button
-              onClick={onOpen}
+              onClick={onOpenDashboard}
               whileTap={{ scale: 0.96 }}
               transition={{ type: "spring", damping: 22, stiffness: 400 }}
               className="flex min-h-[54px] w-full select-none items-center justify-center gap-2 rounded-2xl border-none bg-primary px-7 text-[15.5px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:w-auto"
             >
-              Open Resume Studio
+              Go to Dashboard
               <ArrowRight className="size-4" />
             </motion.button>
-            <button
-              onClick={onOpenArtisans}
-              className="min-h-[44px] border-none bg-transparent px-2 text-[14px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent]"
-            >
-              Find an Artisan →
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={onOpen}
+                className="min-h-[44px] border-none bg-transparent px-2 text-[14px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent]"
+              >
+                Resume Studio →
+              </button>
+              <button
+                onClick={onOpenArtisans}
+                className="min-h-[44px] border-none bg-transparent px-2 text-[14px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent]"
+              >
+                Find an Artisan →
+              </button>
+            </div>
           </motion.div>
 
           <motion.ul
@@ -152,7 +164,7 @@ export function Hero({ onOpen, onOpenArtisans, intensity }) {
           </motion.ul>
         </div>
 
-        {/* ── Desktop only: the boxed 3D showcase — the resume, the people,
+        {/* ── Desktop only: the boxed 3D showcase, the resume, the people,
             the build, all bridged to the mark, in its own display case
             beside the text instead of sitting behind it. ── */}
         {mounted && isDesktop && (

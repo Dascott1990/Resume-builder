@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ArrowRight } from "lucide-react";
+import { Menu, X, LayoutDashboard } from "lucide-react";
 import Logo from "../Logo";
 
 const LINKS = [
@@ -11,7 +11,7 @@ const LINKS = [
   { href: "#artisans", label: "Find an Artisan" },
 ];
 
-export function Navbar({ onOpen, onOpenDashboard }) {
+export function Navbar({ onOpenDashboard }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -53,30 +53,28 @@ export function Navbar({ onOpen, onOpenDashboard }) {
               {l.label}
             </a>
           ))}
-          <button
-            onClick={onOpenDashboard}
-            className="border-none bg-transparent p-0 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Dashboard
-          </button>
         </nav>
 
+        {/* Dashboard, not the resume builder directly, is the primary CTA —
+            it's the hub the builder, CV scan, job tracker, and artisan
+            directory all live inside, so one tap from anywhere always
+            lands somewhere useful instead of one specific tool. */}
         <div className="flex shrink-0 items-center gap-2">
           <motion.button
-            onClick={onOpen}
+            onClick={onOpenDashboard}
             whileTap={{ scale: 0.95 }}
             className="hidden min-h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-[13px] font-bold text-primary-foreground sm:flex"
           >
-            Open Resume Studio
-            <ArrowRight className="size-3.5" />
+            <LayoutDashboard className="size-3.5" />
+            Dashboard
           </motion.button>
           <motion.button
-            onClick={onOpen}
+            onClick={onOpenDashboard}
             whileTap={{ scale: 0.9 }}
-            aria-label="Open Resume Studio"
+            aria-label="Dashboard"
             className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground sm:hidden"
           >
-            <ArrowRight className="size-4" />
+            <LayoutDashboard className="size-4" />
           </motion.button>
 
           <button
@@ -124,12 +122,6 @@ export function Navbar({ onOpen, onOpenDashboard }) {
                   {l.label}
                 </a>
               ))}
-              <button
-                onClick={() => { setMenuOpen(false); onOpenDashboard?.(); }}
-                className="rounded-lg border-none bg-transparent px-3 py-3 text-left text-[15px] font-semibold text-foreground active:bg-muted"
-              >
-                Dashboard
-              </button>
             </div>
           </motion.nav>
         )}
