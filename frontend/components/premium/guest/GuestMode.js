@@ -20,7 +20,6 @@ import { Btn } from "./components/primitives";
 import { LivePreview } from "./components/LivePreview";
 import { ResumeSkeleton } from "./components/ResumeSkeleton";
 import { PackagePreviewModal } from "./components/PackagePreviewModal";
-import { LeaveConfirmModal } from "./components/LeaveConfirmModal";
 import { DesktopTabNav } from "./components/DesktopTabNav";
 import { MobileNav } from "./components/MobileNav";
 import { InfoStep } from "./components/PanelContent/InfoStep";
@@ -111,7 +110,6 @@ export default function GuestMode({ onClose, onBack, pendingImport }) {
   // On phone/tablet the resume preview isn't mounted while the form panel is
   // showing — this flags "print as soon as the preview screen mounts".
   const [pendingPrint, setPendingPrint] = useState(false);
-  const [confirmLeave, setConfirmLeave] = useState(false);
   const [scale,       setScale]         = useState(1);
 
   const canvasRef  = useRef(null);
@@ -174,10 +172,10 @@ export default function GuestMode({ onClose, onBack, pendingImport }) {
     return () => clearTimeout(profileSaveTimer.current);
   }, [info]);
 
-  // Anything worth confirming before we navigate away from? An empty, untouched
-  // wizard doesn't need a prompt — only ask when there's real work on screen.
-  const hasUnsavedWork = !!(resume || jobDesc.trim() || info.name.trim() || info.title.trim());
-  const requestClose = () => { if (hasUnsavedWork) setConfirmLeave(true); else onClose(); };
+  // Used to ask "are you sure, you'll lose your work" here — but the draft
+  // autosaves (see draftSaveTimer above) and restores itself on the next
+  // visit, so that warning was never actually true. Closing just closes.
+  const requestClose = onClose;
 
   const set = (k) => (v) => setInfo(p => ({ ...p, [k]: v }));
   const ready1 = info.name.trim() && info.title.trim() && info.location.trim();
@@ -649,12 +647,6 @@ export default function GuestMode({ onClose, onBack, pendingImport }) {
           }}
         />
       )}
-
-      <LeaveConfirmModal
-        open={confirmLeave}
-        onCancel={() => setConfirmLeave(false)}
-        onConfirm={() => { setConfirmLeave(false); onClose(); }}
-      />
 
       <PackagePreviewModal
         open={packageOpen}
