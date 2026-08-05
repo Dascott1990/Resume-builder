@@ -406,6 +406,41 @@ def scan_resume():
     except json.JSONDecodeError as e:
         raise APIError(f"AI returned invalid JSON: {str(e)}", 502)
 
+    # Persist to database — same as /generate and /optimize. Without this,
+    # a scanned-in resume only ever existed in the browser's local draft:
+    # invisible to "Saved", invisible to the dashboard's recent-resumes
+    # list, and gone entirely if that draft was ever cleared.
+    try:
+        from app.models import Media
+        doc_bytes = json.dumps(parsed).encode()
+        scope_user_id, scope_guest_id = get_scope(request)
+        contact = parsed.get("contact", {})
+        record = Media(
+            filename=f"resume_{uuid.uuid4().hex[:8]}.json",
+            media_type="document",
+            mime_type="application/json",
+            file_data=doc_bytes,
+            file_size=len(doc_bytes),
+            caption=f"{contact.get('name')} — {contact.get('title')}",
+            filter_name="guest_resume",
+            user_id=scope_user_id,
+            guest_id=None if scope_user_id else scope_guest_id,
+            metadata_json={
+                "user_name": contact.get("name"),
+                "user_email": contact.get("email"),
+                "target_role": contact.get("title"),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "keywords": [],
+                "imported": True,
+            },
+        )
+        db.session.add(record)
+        db.session.commit()
+        parsed["saved_id"] = record.id
+    except Exception as e:
+        print(f"⚠️ Could not save scanned resume to database: {e}")
+        parsed["saved_id"] = None
+
     return jsonify({"success": True, "data": parsed}), 200
 
 
