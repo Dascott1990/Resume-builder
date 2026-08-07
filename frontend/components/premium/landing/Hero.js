@@ -24,9 +24,12 @@ export function Hero({ onOpenDashboard, intensity }) {
   const heroRef = useRef(null);
   const reducedMotion = usePrefersReducedMotion();
   const { isDesktop } = useViewport();
-  const { canShow: canInstall, isIOS, showInstalledBadge, promptInstall } = useInstallPrompt();
+  const { canShow: canInstall, isIOS, showInstalledBadge, isPrompting, promptInstall } = useInstallPrompt();
   const [iosInstructionsOpen, setIosInstructionsOpen] = useState(false);
-  const handleDownloadClick = () => (isIOS ? setIosInstructionsOpen(true) : promptInstall());
+  const handleDownloadClick = () => {
+    if (isPrompting) return; // a prompt is already in flight — ignore rapid re-clicks
+    isIOS ? setIosInstructionsOpen(true) : promptInstall();
+  };
   // This page (unlike the app screens that only ever mount after a click,
   // never through SSR) is server-rendered at "/" , useViewport defaults to
   // a desktop width on the server, so branching on isDesktop immediately
@@ -127,12 +130,12 @@ export function Hero({ onOpenDashboard, intensity }) {
             </motion.button>
             {(canInstall || showInstalledBadge) && (
               <motion.button
-                onClick={showInstalledBadge ? undefined : handleDownloadClick}
-                disabled={showInstalledBadge}
-                whileTap={showInstalledBadge ? undefined : { scale: 0.96 }}
+                onClick={showInstalledBadge || isPrompting ? undefined : handleDownloadClick}
+                disabled={showInstalledBadge || isPrompting}
+                whileTap={showInstalledBadge || isPrompting ? undefined : { scale: 0.96 }}
                 transition={{ type: "spring", damping: 22, stiffness: 400 }}
                 className={`flex min-h-[54px] w-full select-none items-center justify-center gap-2 rounded-2xl border border-border bg-transparent px-7 text-[15.5px] font-bold [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:w-auto ${
-                  showInstalledBadge ? "cursor-default text-muted-foreground" : "text-foreground"
+                  showInstalledBadge || isPrompting ? "cursor-default text-muted-foreground" : "text-foreground"
                 }`}
               >
                 {showInstalledBadge ? (
