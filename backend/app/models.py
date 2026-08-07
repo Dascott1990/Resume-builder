@@ -113,6 +113,12 @@ class JobApplication(db.Model):
     status = db.Column(db.String(20), nullable=False, default="applied")  # applied | interview | offer | rejected
     date_applied = db.Column(db.String(20))  # ISO date string (YYYY-MM-DD) — free text from the user, not a real deadline system
     notes = db.Column(db.String(1000))
+    # Optional — which saved resume was actually sent for this application.
+    # No ondelete constraint on purpose: a resume can be deleted from
+    # "Saved" without needing to touch every application that once pointed
+    # at it. The API resolves this defensively (missing row -> null) rather
+    # than the schema enforcing it.
+    resume_id = db.Column(db.String(32), db.ForeignKey("media.id"), index=True, nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -120,6 +126,24 @@ class JobApplication(db.Model):
         return {
             "id": self.id, "company": self.company, "role": self.role,
             "status": self.status, "date_applied": self.date_applied, "notes": self.notes,
+            "resume_id": self.resume_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+
+class JdCapture(db.Model):
+    """
+    A single job-description text, captured by the bookmarklet from
+    whatever job board page it was clicked on and picked up moments later
+    by the app in a new tab. Deliberately NOT scoped by guest_id/user_id —
+    the bookmarklet runs on a third-party page with no access to Noviq's
+    own localStorage (cross-origin), so there's no identity to attach here;
+    the random id in the URL is the only handshake between the two tabs.
+    Rows are single-use (deleted on read) and swept of anything left
+    unclaimed after an hour — see _sweep_expired in api/capture.py.
+    """
+    __tablename__ = "jd_captures"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    text = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))

@@ -1,14 +1,16 @@
 "use client";
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { Check } from "lucide-react";
 import { Btn, TextLink, KwPill } from "../primitives";
 import { ApplyBanner } from "../ApplyBanner";
+import { AtsScoreModal } from "../AtsScoreModal";
 
 // ── Step 3 result — one bold action, everything else a quiet text link ───────
 export function ResultStep({
-  genResult, application, coverLetter, isPhone, isDesktop, downloading,
+  genResult, application, coverLetter, isPhone, isDesktop, downloading, resume, jobDescription,
   onOpenPackage, onDownloadWord, onOpenPreview, onDownloadPdf, onBuildAnother,
 }) {
+  const [atsOpen, setAtsOpen] = useState(false);
   return (
     <div className="p-4 pt-0 pb-[18px]">
       <div className="mb-4 border-b border-border pb-3.5">
@@ -75,9 +77,13 @@ export function ResultStep({
               <span className="px-1.5 text-xs text-muted-foreground/60">·</span>
             </>
           )}
+          <TextLink onClick={() => setAtsOpen(true)}>ATS score</TextLink>
+          <span className="px-1.5 text-xs text-muted-foreground/60">·</span>
           <TextLink onClick={onBuildAnother}>Build another</TextLink>
         </div>
       </div>
+
+      <AtsScoreModal open={atsOpen} onClose={() => setAtsOpen(false)} resume={resume} jobDescription={jobDescription} />
     </div>
   );
 }

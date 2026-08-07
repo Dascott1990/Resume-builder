@@ -7,8 +7,9 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { X, RefreshCw, ClipboardList } from "lucide-react";
+import { X, RefreshCw, ClipboardList, FileText, Clock } from "lucide-react";
 import { apiRequest } from "./shared/api";
+import { apiListSaved } from "./guest/api";
 import { Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import { tapFeedback } from "@/lib/haptics";
@@ -28,7 +29,7 @@ const STATUSES = [
 ];
 const statusMeta = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0];
 
-const EMPTY_FORM = { company: "", role: "", status: "applied", date_applied: "", notes: "" };
+const EMPTY_FORM = { company: "", role: "", status: "applied", date_applied: "", notes: "", resume_id: "" };
 
 function Field({ label, children }) {
   return (
@@ -47,6 +48,10 @@ export default function JobTracker({ onClose }) {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
+  // For the optional "which resume did you send" picker — same list
+  // Dashboard's "Recent resumes" already fetches, loaded independently
+  // here since this screen can be opened without ever visiting Dashboard.
+  const [savedResumes, setSavedResumes] = useState([]);
 
   const load = async () => {
     setLoading(true);
@@ -60,12 +65,20 @@ export default function JobTracker({ onClose }) {
       setLoading(false);
     }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); apiListSaved().then(setSavedResumes); }, []);
+
+  const resumeLabel = (id) => {
+    const r = savedResumes.find((r) => r.id === id);
+    return r ? `${r.name || "Untitled"} — ${r.role || "—"}` : null;
+  };
 
   const startAdd = () => { setEditingId(null); setForm(EMPTY_FORM); setFormOpen(true); };
   const startEdit = (a) => {
     setEditingId(a.id);
-    setForm({ company: a.company, role: a.role, status: a.status, date_applied: a.date_applied || "", notes: a.notes || "" });
+    setForm({
+      company: a.company, role: a.role, status: a.status,
+      date_applied: a.date_applied || "", notes: a.notes || "", resume_id: a.resume_id || "",
+    });
     setFormOpen(true);
   };
 
@@ -175,6 +188,23 @@ export default function JobTracker({ onClose }) {
                   <Input type="date" value={form.date_applied} onChange={(e) => setForm({ ...form, date_applied: e.target.value })} className="h-11" />
                 </Field>
               </div>
+              {/* Full-width, not a third item in the 2-col grid above — a
+                  fifth field there would sit alone in the left column with
+                  an empty gap beside it on desktop. */}
+              <Field label="Resume used">
+                <Select
+                  value={form.resume_id || "__none__"}
+                  onValueChange={(v) => setForm({ ...form, resume_id: v === "__none__" ? "" : v })}
+                >
+                  <SelectTrigger className="h-11 w-full"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {savedResumes.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>{r.name || "Untitled"} — {r.role || "—"}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
               <Field label="Notes">
                 <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Referral, interview prep, follow-up date…" rows={2} />
               </Field>
@@ -218,6 +248,7 @@ export default function JobTracker({ onClose }) {
 
           {!loading && items.map((a) => {
             const meta = statusMeta(a.status);
+            const resumeUsed = a.resume_id ? resumeLabel(a.resume_id) : null;
             return (
               <Card key={a.id} className="p-3.5">
                 <div className="flex items-start justify-between gap-2">
@@ -225,11 +256,23 @@ export default function JobTracker({ onClose }) {
                     <p className="m-0 truncate text-[14px] font-bold text-foreground">{a.role}</p>
                     <p className="m-0 text-[12.5px] text-muted-foreground">{a.company}</p>
                   </div>
-                  <Badge variant="outline" className={`shrink-0 rounded-full ${meta.className}`}>{meta.label}</Badge>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <Badge variant="outline" className={`rounded-full ${meta.className}`}>{meta.label}</Badge>
+                    {a.needs_followup && (
+                      <span className="flex items-center gap-1 text-[10.5px] font-bold text-primary">
+                        <Clock className="size-3" /> Follow up?
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {(a.date_applied || a.notes) && (
+                {(a.date_applied || a.notes || resumeUsed) && (
                   <div className="mt-2 border-t border-border pt-2">
                     {a.date_applied && <p className="m-0 font-mono text-[10.5px] text-muted-foreground/70">Applied {a.date_applied}</p>}
+                    {resumeUsed && (
+                      <p className="m-0 mt-1 flex items-center gap-1 text-[11.5px] text-muted-foreground">
+                        <FileText className="size-3 shrink-0" /> <span className="truncate">{resumeUsed}</span>
+                      </p>
+                    )}
                     {a.notes && <p className="m-0 mt-1 text-[12.5px] leading-relaxed text-foreground">{a.notes}</p>}
                   </div>
                 )}

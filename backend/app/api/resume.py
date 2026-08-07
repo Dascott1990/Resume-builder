@@ -127,6 +127,27 @@ def _ai_complete(system: str, prompt: str, effort: str = "medium", max_tokens: i
                 f"AI generation failed (Claude: {claude_err}; Groq: {groq_err})", 502
             )
 
+
+def _ai_chat(system: str, messages: list, effort: str = "medium", max_tokens: int = 500, groq_temperature: float = 0.6) -> str:
+    """Same Claude-then-Groq fallback as _ai_complete, but for an actual
+    multi-turn conversation instead of one prompt — used by the mock
+    interview chat, which is stateless server-side (see /interview-chat):
+    the frontend keeps the whole transcript and resends it every turn."""
+    try:
+        return _claude(messages=messages, system=system, effort=effort, max_tokens=max_tokens)
+    except APIError as claude_err:
+        print(f"⚠️ Claude chat failed, falling back to Groq: {claude_err}")
+        try:
+            return _groq(
+                messages=[{"role": "system", "content": system}, *messages],
+                temperature=groq_temperature,
+                max_tokens=max_tokens,
+            )
+        except APIError as groq_err:
+            raise APIError(
+                f"AI generation failed (Claude: {claude_err}; Groq: {groq_err})", 502
+            )
+
 # System prompt
 SYSTEM = """You are an elite ATS resume writer and cover letter strategist with 15 years of recruiting experience.
 You produce clean, keyword-optimised resumes that pass ATS filters and impress human reviewers, and cover letters
@@ -724,6 +745,129 @@ def optimize_resume():
         parsed["saved_id"] = None
 
     return jsonify({"success": True, "data": parsed}), 201
+
+
+INTERVIEW_CHAT_SYSTEM = """You are a warm, encouraging mock-interview coach helping someone practice
+for a specific job before the real thing. You are NOT a resume writer here — you ask questions and react
+to answers, nothing else.
+
+RULES:
+- Ask exactly ONE question at a time. Never stack multiple questions in one message.
+- Ground every question in the job description and the provided talking points — mix behavioral
+  ("tell me about a time...") and role-specific technical/situational questions, drawn from what the
+  posting actually asks for.
+- After the candidate answers, give ONE short sentence of specific, genuine feedback (what landed, what
+  could be sharper) — never generic praise like "great answer!" — then ask the next question in the same
+  message.
+- Keep every message SHORT: 2-4 sentences total, feedback plus the next question. This is a conversation,
+  not an essay.
+- If this is the very first message (no prior candidate answer yet), skip feedback and just open with a
+  warm one-line welcome plus the first question.
+- Never break character to explain what you're doing. Never invent details about the candidate's
+  background beyond what they've told you in the conversation so far."""
+
+
+@resume_bp.route("/interview-chat", methods=["POST"])
+def interview_chat():
+    """
+    Stateless mock-interview turn — the frontend keeps and resends the whole
+    transcript every call (see components/premium/guest/components/
+    InterviewChat.js); nothing here is persisted, matching the rest of the
+    app's "ephemeral unless explicitly saved" default.
+    """
+    body = request.get_json(force=True) or {}
+    job_desc = (body.get("job_description") or "").strip()[:4000]
+    interview_tips = body.get("interview_tips") or []
+    messages = body.get("messages") or []
+
+    if not job_desc:
+        raise APIError("job_description is required", 400)
+    if not isinstance(messages, list):
+        raise APIError("messages must be a list", 400)
+    # Bounded so nobody can turn this into an unbounded-cost proxy for
+    # arbitrary Claude conversations — a real practice session never needs
+    # more than a handful of exchanges anyway.
+    if len(messages) > 40:
+        raise APIError("This mock interview has gone on long enough — start a new one.", 400)
+
+    clean_messages = []
+    for m in messages:
+        role = m.get("role")
+        content = (m.get("content") or "").strip()
+        if role not in ("user", "assistant") or not content:
+            continue
+        clean_messages.append({"role": role, "content": content[:2000]})
+
+    context = f"JOB DESCRIPTION:\n{job_desc}\n\nTALKING POINTS TO DRAW ON:\n" + "\n".join(f"- {t}" for t in interview_tips[:5])
+    chat_messages = [{"role": "user", "content": context}, {"role": "assistant", "content": "Understood — I'll use this to run the mock interview."}, *clean_messages]
+    if not clean_messages:
+        chat_messages.append({"role": "user", "content": "Let's begin."})
+
+    reply = _ai_chat(system=INTERVIEW_CHAT_SYSTEM, messages=chat_messages, effort="low", max_tokens=300, groq_temperature=0.7)
+    return jsonify({"success": True, "data": {"message": reply.strip()}}), 200
+
+
+ATS_CHECK_SYSTEM = """You are an ATS (Applicant Tracking System) parsing simulator and resume auditor.
+You know exactly how real ATS software (Workday, Greenhouse, Taleo, iCIMS) actually parses resumes —
+not folklore about it. You always respond with ONLY valid JSON — no markdown fences, no explanation."""
+
+ATS_CHECK_PROMPT = """RESUME (structured JSON, as built in this app):
+{resume_json}
+
+{job_context}
+
+TASK:
+Score this resume's ATS-readiness from 0-100 and list specific, actionable issues. Judge on real ATS
+parsing behavior: contact info completeness, whether section labels are standard and parseable, whether
+bullets use quantifiable achievements and strong verbs, keyword alignment with the job description (if
+one was provided), and structural red flags (missing dates, vague titles, no measurable results).
+
+Return this exact JSON structure (no other text, no markdown fences):
+{{
+  "score": 0,
+  "summary": "one direct sentence on where this resume stands",
+  "issues": [
+    {{ "severity": "high | medium | low", "message": "specific, actionable fix — not generic advice" }}
+  ]
+}}
+
+Rules:
+- score must be an integer 0-100.
+- 3-6 issues, ordered most severe first. If it's genuinely strong, say so with fewer/lower-severity issues
+  rather than inventing problems.
+- Every issue must reference something ACTUALLY in the resume, never a generic "add more keywords" without
+  saying which ones.
+- Return ONLY the JSON object."""
+
+
+@resume_bp.route("/ats-check", methods=["POST"])
+def ats_check():
+    """Score a resume's ATS-readiness, optionally against a specific job posting."""
+    body = request.get_json(force=True) or {}
+    resume = body.get("resume") or {}
+    job_desc = (body.get("job_description") or "").strip()[:4000]
+
+    if not resume.get("contact") or not resume.get("sections"):
+        raise APIError("resume (with contact and sections) is required", 400)
+
+    job_context = f"JOB DESCRIPTION (score keyword alignment against this too):\n{job_desc}" if job_desc else "No specific job description provided — score general ATS-readiness only."
+    prompt = ATS_CHECK_PROMPT.format(resume_json=json.dumps(resume)[:6000], job_context=job_context)
+
+    raw = _ai_complete(system=ATS_CHECK_SYSTEM, prompt=prompt, effort="low", max_tokens=900, groq_temperature=0.3)
+    clean = raw.replace("```json", "").replace("```", "").strip()
+
+    try:
+        parsed = json.loads(clean)
+    except json.JSONDecodeError as e:
+        raise APIError(f"AI returned invalid JSON: {str(e)}", 502)
+
+    try:
+        parsed["score"] = max(0, min(100, int(parsed.get("score", 0))))
+    except (TypeError, ValueError):
+        parsed["score"] = 0
+
+    return jsonify({"success": True, "data": parsed}), 200
+
 
 def _saved_scope_filter(query):
     """Signed-in user_id wins if present; otherwise falls back to guest_id.

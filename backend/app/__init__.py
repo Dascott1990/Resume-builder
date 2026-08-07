@@ -38,6 +38,20 @@ def create_app():
             "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id"],
             "supports_credentials": True
+        },
+        # The "tailor for this job" bookmarklet runs on whatever job board
+        # page it was clicked on — LinkedIn, Indeed, a company's own careers
+        # page, anything — so the origin is never knowable in advance the
+        # way it is for our own frontend above. Wide open on purpose: no
+        # cookies/credentials are ever sent here (supports_credentials is
+        # off, which is also what makes a literal "*" origin valid per the
+        # CORS spec), and the endpoint itself accepts nothing more
+        # sensitive than a text blob.
+        r"/api/v1/capture/*": {
+            "origins": "*",
+            "methods": ["GET", "POST", "OPTIONS"],
+            "allow_headers": ["Content-Type"],
+            "supports_credentials": False
         }
     })
 
@@ -59,6 +73,9 @@ def create_app():
 
     from app.api.applications import applications_bp
     app.register_blueprint(applications_bp, url_prefix="/api/v1/applications")
+
+    from app.api.capture import capture_bp
+    app.register_blueprint(capture_bp, url_prefix="/api/v1/capture")
 
     # Create tables. If a model's module never gets imported before this
     # runs, its table simply won't exist and every query against it will

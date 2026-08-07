@@ -14,7 +14,7 @@
  */
 import { useState, useEffect, useRef, useCallback, useReducer } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, X, RefreshCw, ScanLine } from "lucide-react";
+import { ChevronLeft, X, RefreshCw, ScanLine, Bookmark } from "lucide-react";
 import Logo from "../Logo";
 import { Btn } from "./components/primitives";
 import { LivePreview } from "./components/LivePreview";
@@ -37,7 +37,7 @@ import { downloadCoverLetterDocx } from "./export/coverLetterDocx";
 import { printPdf, printCoverLetterPdf } from "./export/pdf";
 import { useViewport } from "@/lib/useViewport";
 
-export default function GuestMode({ onClose, onBack, pendingImport }) {
+export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDesc }) {
   const { isPhone, isDesktop } = useViewport();
 
   // Mobile/tablet: which screen is showing — "panel" (form/list) or "preview"
@@ -52,9 +52,22 @@ export default function GuestMode({ onClose, onBack, pendingImport }) {
   // A resume just parsed out of an uploaded CV (see CVScan.js) takes priority
   // over any restored draft — someone who just scanned a file wants to see
   // that result, not whatever they were doing before they navigated away to
-  // scan it.
-  const [tab,        setTab]        = useState(() => pendingImport ? "new" : (draftAtMount?.tab || "new"));   // "new" | "style" | "templates" | "settings"
-  const [step,       setStep]       = useState(() => pendingImport ? 3 : (draftAtMount?.step || 1));       // 1 | 2 | 3
+  // scan it. A job description handed off by the "tailor for this job"
+  // bookmarklet (see lib/bookmarklet.js) takes the same priority, landing
+  // one step earlier — Job Posting, not the result — since there's no
+  // resume yet, just the posting someone was just reading.
+  const [tab,        setTab]        = useState(() => (pendingImport || pendingJobDesc) ? "new" : (draftAtMount?.tab || "new"));   // "new" | "style" | "templates" | "settings"
+  // Skipping straight to step 2 only makes sense if there's already usable
+  // info to generate from (a saved profile) — otherwise Optimize/Generate
+  // would just fail on a missing name/title. With no profile yet, land on
+  // step 1 instead; the job description is already saved below and waiting
+  // on step 2 the moment they finish it.
+  const hasUsableProfile = !!(profileAtMount?.name && profileAtMount?.title && profileAtMount?.location);
+  const [step,       setStep]       = useState(() => {
+    if (pendingImport) return 3;
+    if (pendingJobDesc) return hasUsableProfile ? 2 : 1;
+    return draftAtMount?.step || 1;
+  });       // 1 | 2 | 3
 
   // The floating nav recedes while someone's actively scrolling down through
   // a form (same idea as Instagram's bar shrinking on scroll) and comes back
@@ -85,7 +98,7 @@ export default function GuestMode({ onClose, onBack, pendingImport }) {
   // Shown once, only when we actually pre-filled the form from a saved profile
   // (not when restoring a live draft — that already gets its own banner).
   const [infoFromProfile, setInfoFromProfile] = useState(() => !pendingImport && !draftAtMount?.info && !!profileAtMount);
-  const [jobDesc,    setJobDesc]    = useState(() => draftAtMount?.jobDesc || "");
+  const [jobDesc,    setJobDesc]    = useState(() => pendingJobDesc || draftAtMount?.jobDesc || "");
   const [generating, setGenerating] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [error,      setError]      = useState("");
@@ -119,6 +132,8 @@ export default function GuestMode({ onClose, onBack, pendingImport }) {
   // A one-time banner distinct from draftRestored — this is "we just parsed
   // your upload," not "you refreshed mid-draft."
   const [importNoticeVisible, setImportNoticeVisible] = useState(() => !!pendingImport);
+  // Same idea, for a job description handed off by the bookmarklet.
+  const [jobDescNoticeVisible, setJobDescNoticeVisible] = useState(() => !!pendingJobDesc);
   const [saved,      setSaved]      = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [loadingResumeId, setLoadingResumeId] = useState(null); // id currently being fetched, drives skeleton
@@ -483,6 +498,20 @@ export default function GuestMode({ onClose, onBack, pendingImport }) {
               </button>
             </div>
           )}
+          {jobDescNoticeVisible && (
+            <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2.5">
+              <Bookmark className="size-[13px] text-primary" />
+              <span className="flex-1 text-xs text-foreground">
+                {step === 1
+                  ? "Job description brought in from the bookmarklet — finish your info to tailor a resume to it."
+                  : "Job description brought in from the bookmarklet — ready below."}
+              </span>
+              <button onClick={() => setJobDescNoticeVisible(false)} aria-label="Dismiss"
+                className="border-none bg-transparent p-0.5 text-muted-foreground/60">
+                <X className="size-[13px]" />
+              </button>
+            </div>
+          )}
 
           {step === 3 && genResult && (
             <ResultStep
@@ -492,6 +521,8 @@ export default function GuestMode({ onClose, onBack, pendingImport }) {
               isPhone={isPhone}
               isDesktop={isDesktop}
               downloading={downloading}
+              resume={resume}
+              jobDescription={jobDesc}
               onOpenPackage={() => setPackageOpen(true)}
               onDownloadWord={handleDocx}
               onOpenPreview={() => setMobileView("preview")}
@@ -616,7 +647,13 @@ export default function GuestMode({ onClose, onBack, pendingImport }) {
             className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <X className="size-[17px]" />
           </button>
-          <Logo size={20} style={{ minWidth: 0 }} />
+          {/* Icon-only on mobile/tablet — back button + close button + the
+              two download buttons on the right already crowd this 64px bar
+              tightly enough that the full "NOVIQ" wordmark had nowhere to
+              go: it was getting hard-clipped mid-letter by this row's own
+              overflow-hidden (no ellipsis, just a raw cutoff reading "NOV").
+              Desktop has the room for the real lockup. */}
+          <Logo size={20} iconOnly={!isDesktop} style={{ minWidth: 0 }} />
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -671,6 +708,7 @@ export default function GuestMode({ onClose, onBack, pendingImport }) {
         application={application}
         coverLetter={coverLetter}
         interviewTips={interviewTips}
+        jobDescription={jobDesc}
         onCopyCoverLetter={copyCoverLetter}
         copied={copied}
         onDownloadAll={downloadPackage}

@@ -1,11 +1,11 @@
 "use client";
 import { forwardRef, useState } from "react";
-import { Loader2, ChevronRight, Eye, FileDown, Plus, RefreshCw, Sparkles, Trash2, Check, Clipboard, Pencil } from "lucide-react";
+import { Loader2, ChevronRight, Eye, FileDown, Plus, RefreshCw, Sparkles, Trash2, Check, Clipboard, Pencil, MessageCircle, Gauge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
-const BTN_ICONS = { ChevronRight, Eye, FileDown, Plus, RefreshCw, Sparkles, Trash2, Check, Clipboard, Pencil };
+const BTN_ICONS = { ChevronRight, Eye, FileDown, Plus, RefreshCw, Sparkles, Trash2, Check, Clipboard, Pencil, MessageCircle, Gauge };
 
 
 // ── Button ─────────────────────────────────────────────────────────────────────

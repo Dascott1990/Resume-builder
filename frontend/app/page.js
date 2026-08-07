@@ -29,6 +29,10 @@ export default function Home() {
   // clears it first so a stale scan never resurfaces on a later, unrelated
   // visit to the studio.
   const [pendingImport, setPendingImport] = useState(null);
+  // Same idea, for a job description handed off by the "tailor for this
+  // job" bookmarklet (see lib/bookmarklet.js) — set once, from the ?jd=
+  // query param below, consumed once by GuestMode, then cleared.
+  const [pendingJobDesc, setPendingJobDesc] = useState(null);
 
   // This page is server-rendered at "/" — the server has no way to know
   // whether this browser has visited before, so it always renders the
@@ -38,6 +42,46 @@ export default function Home() {
   // disagree and hydration fails outright.
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
+    // The bookmarklet opens this exact URL shape: /?jd=<capture id>. Takes
+    // priority over the plain "have they visited before" check below —
+    // someone clicking the bookmarklet wants the job posting they were
+    // just reading, not just their last-used screen.
+    const jdId = new URLSearchParams(window.location.search).get("jd");
+    if (jdId) {
+      // Strip the param immediately so a later refresh of this tab doesn't
+      // try to redeem an id that's already been consumed (capture rows are
+      // single-use — see backend/app/api/capture.py).
+      window.history.replaceState({}, "", window.location.pathname);
+      // Plain fetch, not the shared apiRequest helper — that helper always
+      // attaches an X-Guest-Id header, and this endpoint's CORS is
+      // deliberately narrower/more permissive-by-origin than the rest of
+      // the API (see backend/app/__init__.py) since it also has to accept
+      // calls from arbitrary job board pages via the bookmarklet. Capture
+      // rows aren't scoped to a guest/user anyway, so there's nothing for
+      // that header to do here except fail the preflight.
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/capture/jd/${jdId}`)
+        .then((r) => { if (!r.ok) throw new Error("capture fetch failed"); return r.json(); })
+        .then((json) => {
+          setPendingImport(null);
+          setPendingJobDesc(json.data.text);
+          setSessionId((id) => id + 1);
+          setView("resume");
+        })
+        .catch(() => {
+          // Expired/already used/network hiccup — fall back to the normal
+          // "have they visited before" flow below rather than stalling on
+          // a blank screen.
+          try {
+            if (localStorage.getItem(ENTERED_KEY) === "1") setView("dashboard");
+          } catch { /* best-effort */ }
+        })
+        // Held until the fetch settles either way — flipping this straight
+        // away would flash the marketing launcher for a moment (view is
+        // still its initial "launcher" value) before the redirect lands.
+        .finally(() => setMounted(true));
+      return;
+    }
+
     try {
       if (localStorage.getItem(ENTERED_KEY) === "1") setView("dashboard");
     } catch { /* best-effort */ }
@@ -63,6 +107,7 @@ export default function Home() {
 
   const openResume = () => {
     setPendingImport(null);
+    setPendingJobDesc(null);
     setSessionId((id) => id + 1);
     setView("resume");
   };
@@ -123,6 +168,7 @@ export default function Home() {
         onClose={() => setView("dashboard")}
         onImported={(data) => {
           setPendingImport(data);
+          setPendingJobDesc(null);
           setSessionId((id) => id + 1);
           setView("resume");
         }}
@@ -150,7 +196,7 @@ export default function Home() {
       // "Close": back to the dashboard, not out of the app entirely.
       onClose={() => setView("dashboard")}
     >
-      <Resume key={sessionId} onClose={() => setView("dashboard")} pendingImport={pendingImport} />
+      <Resume key={sessionId} onClose={() => setView("dashboard")} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} />
     </ErrorBoundary>
   );
 }

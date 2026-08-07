@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Home, FileText, ScanLine, ClipboardList, Hammer, LogIn, LogOut,
-  ArrowRight, ChevronRight, CalendarCheck, X,
+  ArrowRight, ChevronRight, CalendarCheck, X, Clock,
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
@@ -95,6 +95,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go }
   const interviews = applications.filter((a) => a.status === "interview").length;
   const recentResumes = savedResumes.slice(0, 3);
   const recentApps = applications.slice(0, 3);
+  const followupCount = applications.filter((a) => a.needs_followup).length;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5 py-6 sm:px-8 sm:py-8">
@@ -104,6 +105,25 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go }
         </p>
         <h1 className="m-0 text-[26px] font-bold text-foreground">Let's get you hired.</h1>
       </motion.div>
+
+      {/* Secondary, dismissable-by-nature (it only appears when true) nudge —
+          sits above the one dominant action below, not competing with it,
+          since there's nothing to build here, just a suggestion to check in
+          on applications that have gone quiet for a week. */}
+      {followupCount > 0 && (
+        <motion.button
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => go("jobtracker")}
+          className="mb-3.5 flex w-full items-center gap-2.5 rounded-2xl border border-primary/25 bg-primary/10 px-4 py-3 text-left [-webkit-tap-highlight-color:transparent]"
+        >
+          <Clock className="size-4 shrink-0 text-primary" />
+          <span className="flex-1 text-[13px] font-semibold text-foreground">
+            {followupCount} application{followupCount === 1 ? "" : "s"} could use a follow-up
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground/50" />
+        </motion.button>
+      )}
 
       {/* The one dominant action — everything else on this screen supports it */}
       <motion.button

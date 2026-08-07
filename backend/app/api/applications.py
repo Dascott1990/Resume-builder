@@ -9,6 +9,7 @@ Scoped by guest_id (anonymous, the default) or user_id (signed in) — never
 both, never neither, and never visible to anyone else's scope. See
 app/utils/auth.get_scope for how the two are told apart.
 """
+from datetime import date, datetime
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models import JobApplication
@@ -18,6 +19,10 @@ from app.utils.auth import get_scope
 applications_bp = Blueprint("applications", __name__)
 
 VALID_STATUSES = {"applied", "interview", "offer", "rejected"}
+# How long an application sits at "applied" with no update before we
+# suggest following up. Not configurable per-user on purpose — a fixed,
+# predictable rule is easier to trust than a setting nobody will find.
+FOLLOWUP_AFTER_DAYS = 7
 
 
 def _scope_filter(query):
@@ -27,6 +32,26 @@ def _scope_filter(query):
     if guest_id:
         return query.filter_by(guest_id=guest_id), user_id, guest_id
     return query.filter(db.false()), user_id, guest_id  # neither header present — show nothing, not everything
+
+
+def _needs_followup(app_row):
+    if app_row.status != "applied":
+        return False
+    base_date = None
+    if app_row.date_applied:
+        try:
+            base_date = datetime.strptime(app_row.date_applied, "%Y-%m-%d").date()
+        except ValueError:
+            base_date = None  # free-text field — not every entry parses, fall back below
+    if base_date is None and app_row.created_at:
+        base_date = app_row.created_at.date()
+    if base_date is None:
+        return False
+    return (date.today() - base_date).days >= FOLLOWUP_AFTER_DAYS
+
+
+def _serialize(app_row):
+    return {**app_row.to_dict(), "needs_followup": _needs_followup(app_row)}
 
 
 @applications_bp.route("", methods=["POST"])
@@ -49,18 +74,19 @@ def create_application():
         company=company, role=role, status=status,
         date_applied=(body.get("date_applied") or "").strip() or None,
         notes=(body.get("notes") or "").strip() or None,
+        resume_id=(body.get("resume_id") or "").strip() or None,
         user_id=user_id, guest_id=None if user_id else guest_id,
     )
     db.session.add(app_row)
     db.session.commit()
-    return jsonify({"success": True, "data": app_row.to_dict()}), 201
+    return jsonify({"success": True, "data": _serialize(app_row)}), 201
 
 
 @applications_bp.route("", methods=["GET"])
 def list_applications():
     query, _, _ = _scope_filter(JobApplication.query)
     items = query.order_by(JobApplication.created_at.desc()).limit(500).all()
-    return jsonify({"success": True, "data": [a.to_dict() for a in items]}), 200
+    return jsonify({"success": True, "data": [_serialize(a) for a in items]}), 200
 
 
 @applications_bp.route("/<app_id>", methods=["PATCH"])
@@ -83,9 +109,11 @@ def update_application(app_id):
         app_row.date_applied = (body["date_applied"] or "").strip() or None
     if "notes" in body:
         app_row.notes = (body["notes"] or "").strip() or None
+    if "resume_id" in body:
+        app_row.resume_id = (body["resume_id"] or "").strip() or None
 
     db.session.commit()
-    return jsonify({"success": True, "data": app_row.to_dict()}), 200
+    return jsonify({"success": True, "data": _serialize(app_row)}), 200
 
 
 @applications_bp.route("/<app_id>", methods=["DELETE"])

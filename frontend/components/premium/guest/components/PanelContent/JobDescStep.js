@@ -1,11 +1,14 @@
 "use client";
-import { ChevronLeft } from "lucide-react";
+import { useState } from "react";
+import { ChevronLeft, Bookmark } from "lucide-react";
 import { Field, Btn } from "../primitives";
+import { BookmarkletModal } from "../BookmarkletModal";
 
 // ── Step 2 — Job Posting ─────────────────────────────────────────────────────
 export function JobDescStep({
   jobDesc, setJobDesc, isPhone, ready2, generating, optimizing, onBack, onGenerate, onOptimize,
 }) {
+  const [bookmarkletOpen, setBookmarkletOpen] = useState(false);
   return (
     <>
       <button onClick={onBack} aria-label="Back to your information"
@@ -15,9 +18,21 @@ export function JobDescStep({
 
       <Field
         label="JOB DESCRIPTION" required
-        hint={`${jobDesc.length} chars${jobDesc.length >= 80 ? " ✓" : ""}`}
+        hint={
+          <span className="flex items-center gap-2.5">
+            {`${jobDesc.length} chars${jobDesc.length >= 80 ? " ✓" : ""}`}
+            <button
+              onClick={() => setBookmarkletOpen(true)}
+              className="flex items-center gap-1 border-none bg-transparent p-0 font-bold text-primary [-webkit-tap-highlight-color:transparent]"
+            >
+              <Bookmark className="size-3" /> Skip the paste
+            </button>
+          </span>
+        }
         value={jobDesc} onChange={setJobDesc} multiline rows={isPhone ? 10 : 18} mono
         placeholder={"Paste the full job posting here — from any job board.\n\nMore text = better keyword matching."} />
+
+      <BookmarkletModal open={bookmarkletOpen} onClose={() => setBookmarkletOpen(false)} />
 
       <Btn icon="Sparkles" onClick={onGenerate} disabled={!ready2 || generating || optimizing} loading={generating}>
         {generating ? "Generating…" : "Generate Resume"}

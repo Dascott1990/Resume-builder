@@ -1,19 +1,22 @@
 "use client";
+import { useState } from "react";
 import { Check, Clipboard } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Btn, TextLink } from "./primitives";
 import { CoverLetterView } from "./CoverLetterView";
 import { ApplyBanner } from "./ApplyBanner";
+import { InterviewChat } from "./InterviewChat";
 
 // ── Package preview modal ─────────────────────────────────────────────────────
 // Opens automatically right after Optimize finishes — the whole application
 // package (resume summary, apply instructions, cover letter, interview tips)
 // is reviewed here BEFORE anything downloads. One button downloads everything.
 export function PackagePreviewModal({
-  open, onClose, genResult, application, coverLetter, interviewTips,
+  open, onClose, genResult, application, coverLetter, interviewTips, jobDescription,
   onCopyCoverLetter, copied, onDownloadAll, downloading,
   onCoverLetterDocx, onCoverLetterPdf, onCoverLetterChange,
 }) {
+  const [practiceOpen, setPracticeOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
@@ -63,9 +66,14 @@ export function PackagePreviewModal({
 
           {interviewTips.length > 0 && (
             <div>
-              <p className="m-0 mb-1.5 text-[11.5px] text-muted-foreground">
-                Interview talking points
-              </p>
+              <div className="mb-1.5 flex items-center justify-between">
+                <p className="m-0 text-[11.5px] text-muted-foreground">
+                  Interview talking points
+                </p>
+                <Btn variant="ghost" icon="MessageCircle" onClick={() => setPracticeOpen(true)} small>
+                  Practice
+                </Btn>
+              </div>
               <div className="flex flex-col gap-2">
                 {interviewTips.map((tip, i) => (
                   <div key={i} className="flex gap-2 text-[12.5px] leading-relaxed text-foreground">
@@ -77,6 +85,13 @@ export function PackagePreviewModal({
             </div>
           )}
         </div>
+
+        <InterviewChat
+          open={practiceOpen}
+          onClose={() => setPracticeOpen(false)}
+          jobDescription={jobDescription}
+          interviewTips={interviewTips}
+        />
 
         {/* Footer — pinned, stacked full-width so the primary action is
             never cramped or wrapped on a narrow phone; safe-area padding
