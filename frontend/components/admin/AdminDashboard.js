@@ -13,7 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Loader2, RefreshCw, Trash2, ShieldCheck, ShieldOff, LogOut, KeyRound,
-  Users, FileText, Briefcase, Star, Wrench, LayoutGrid, Pencil, Mail, Plus, X,
+  Users, FileText, Briefcase, Star, Wrench, LayoutGrid, Pencil, Mail, Plus, X, Sparkles,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,12 @@ function fmtDate(iso) {
 // offer a delete (and sometimes other) action per row." One component
 // covers the loading/empty/error states so each tab only defines its
 // columns and row actions. ──────────────────────────────────────────────
+// A wide table just gets cut off on a phone screen — no visible scroll
+// affordance, columns silently missing off the right edge. Below `sm`,
+// this renders each row as a stacked card (every column as a label:value
+// line, the actions column pulled out into its own row at the bottom)
+// instead; the real `<table>` only shows at `sm` and up, where there's
+// actually room for it.
 function AdminTable({ columns, rows, loading, emptyLabel }) {
   if (loading) {
     return (
@@ -46,29 +52,55 @@ function AdminTable({ columns, rows, loading, emptyLabel }) {
   if (!rows.length) {
     return <p className="m-0 py-16 text-center text-sm text-muted-foreground">{emptyLabel}</p>;
   }
+
+  const actionCol = columns.find((c) => c.key === "actions");
+  const fieldCols = columns.filter((c) => c.key !== "actions");
+
   return (
-    <div className="overflow-x-auto rounded-xl border border-border">
-      <table className="w-full min-w-[640px] border-collapse text-left text-[13.5px]">
-        <thead>
-          <tr className="border-b border-border bg-muted/40">
-            {columns.map((c) => (
-              <th key={c.key} className="whitespace-nowrap px-3.5 py-2.5 font-semibold text-muted-foreground">{c.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className="border-b border-border/60 last:border-0 hover:bg-muted/20">
+    <>
+      <div className="space-y-2.5 sm:hidden">
+        {rows.map((row) => (
+          <div key={row.id} className="rounded-xl border border-border bg-card p-3.5">
+            <div className="space-y-2">
+              {fieldCols.map((c) => (
+                <div key={c.key} className="flex items-start justify-between gap-3 text-[13px]">
+                  <span className="shrink-0 pt-px font-medium text-muted-foreground">{c.label}</span>
+                  <span className="min-w-0 text-right text-foreground break-words">{c.render ? c.render(row) : (row[c.key] ?? "—")}</span>
+                </div>
+              ))}
+            </div>
+            {actionCol && (
+              <div className="mt-2.5 flex justify-end border-t border-border/60 pt-2.5">
+                {actionCol.render(row)}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-xl border border-border sm:block">
+        <table className="w-full min-w-[640px] border-collapse text-left text-[13.5px]">
+          <thead>
+            <tr className="border-b border-border bg-muted/40">
               {columns.map((c) => (
-                <td key={c.key} className="px-3.5 py-2.5 align-middle text-foreground">
-                  {c.render ? c.render(row) : (row[c.key] ?? "—")}
-                </td>
+                <th key={c.key} className="whitespace-nowrap px-3.5 py-2.5 font-semibold text-muted-foreground">{c.label}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id} className="border-b border-border/60 last:border-0 hover:bg-muted/20">
+                {columns.map((c) => (
+                  <td key={c.key} className="px-3.5 py-2.5 align-middle text-foreground">
+                    {c.render ? c.render(row) : (row[c.key] ?? "—")}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -88,13 +120,13 @@ function StatCard({ icon: Icon, label, value }) {
 
 function TabHeader({ title, onRefresh, refreshing, extra }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
       <h2 className="m-0 text-base font-bold text-foreground">{title}</h2>
       <div className="flex items-center gap-2">
         {extra}
-        <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing}>
+        <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing} title="Refresh">
           <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
-          Refresh
+          <span className="hidden sm:inline">Refresh</span>
         </Button>
       </div>
     </div>
@@ -290,7 +322,7 @@ function UsersTab({ selfId }) {
         refreshing={loading}
         extra={
           <form onSubmit={(e) => { e.preventDefault(); load(q); }} className="flex items-center gap-1.5">
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search email…" className="h-8 w-40 text-[13px]" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search email…" className="h-8 w-28 text-[13px] sm:w-40" />
           </form>
         }
       />
@@ -448,6 +480,7 @@ function ResumeEditorDialog({ mediaId, open, onOpenChange, onSaved }) {
   const [resume, setResume] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [polishing, setPolishing] = useState(false);
 
   useEffect(() => {
     if (!open || !mediaId) return;
@@ -457,6 +490,26 @@ function ResumeEditorDialog({ mediaId, open, onOpenChange, onSaved }) {
       .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false));
   }, [open, mediaId]);
+
+  // AI-rewrites the summary paragraph — same Claude-then-Groq fallback
+  // /api/v1/resume already uses (see backend/app/api/admin.py's
+  // polish-summary route), just scoped to this one field instead of
+  // regenerating the whole resume.
+  const polishSummary = async () => {
+    setPolishing(true);
+    try {
+      const data = await apiRequest("/api/v1/admin/resumes/polish-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: resume.contact.title, summary: getSection(resume, "summary")?.content }),
+      });
+      setResume((r) => withSection(r, "summary", { content: data.summary }));
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setPolishing(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -503,7 +556,13 @@ function ResumeEditorDialog({ mediaId, open, onOpenChange, onSaved }) {
 
             {summary && (
               <div>
-                <h3 className="m-0 mb-2 text-[13px] font-semibold text-muted-foreground">Summary</h3>
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="m-0 text-[13px] font-semibold text-muted-foreground">Summary</h3>
+                  <Button type="button" size="sm" variant="outline" disabled={polishing} onClick={polishSummary}>
+                    {polishing ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                    AI polish
+                  </Button>
+                </div>
                 <Textarea rows={3} value={summary.content || ""} onChange={(e) => setResume(withSection(resume, "summary", { content: e.target.value }))} />
               </div>
             )}
@@ -769,9 +828,30 @@ function ReviewsTab() {
 function EditArtisanDialog({ artisan, open, onOpenChange, onSaved }) {
   const [form, setForm] = useState(artisan);
   const [saving, setSaving] = useState(false);
+  const [polishing, setPolishing] = useState(false);
 
   useEffect(() => { setForm(artisan); }, [artisan]);
   if (!form) return null;
+
+  // The exact same AI polish the public "List yourself" form already uses
+  // (see backend/app/api/artisans.py's /polish) — rough notes in, a
+  // professional bio out. No admin-specific endpoint needed, this one was
+  // already open (the whole point of self-listing with no account).
+  const polishBio = async () => {
+    setPolishing(true);
+    try {
+      const data = await apiRequest("/api/v1/artisans/polish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trade: form.trade, years_experience: form.years_experience, notes: form.bio }),
+      });
+      setForm((f) => ({ ...f, bio: data.bio }));
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setPolishing(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -814,7 +894,16 @@ function EditArtisanDialog({ artisan, open, onOpenChange, onSaved }) {
             <div className="space-y-1.5"><Label>Phone</Label><Input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
             <div className="space-y-1.5"><Label>Email</Label><Input type="email" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
           </div>
-          <div className="space-y-1.5"><Label>Bio</Label><Textarea rows={3} value={form.bio || ""} onChange={(e) => setForm({ ...form, bio: e.target.value })} /></div>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label>Bio</Label>
+              <Button type="button" size="sm" variant="outline" disabled={polishing} onClick={polishBio}>
+                {polishing ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                AI polish
+              </Button>
+            </div>
+            <Textarea rows={3} value={form.bio || ""} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -926,12 +1015,12 @@ function ChangePasswordButton({ email }) {
   };
 
   if (sent) {
-    return <span className="text-[13px] text-muted-foreground">Check your email</span>;
+    return <span className="text-[12px] whitespace-nowrap text-muted-foreground">Sent</span>;
   }
   return (
-    <Button variant="outline" size="sm" onClick={send} disabled={sending}>
+    <Button variant="outline" size="sm" onClick={send} disabled={sending} title="Change password">
       {sending ? <Loader2 className="size-3.5 animate-spin" /> : <KeyRound className="size-3.5" />}
-      Change password
+      <span className="hidden sm:inline">Change password</span>
     </Button>
   );
 }
@@ -939,31 +1028,33 @@ function ChangePasswordButton({ email }) {
 export function AdminDashboard({ adminUser, onSignOut }) {
   return (
     <div className="min-h-screen bg-background">
-      <header className="flex items-center justify-between border-b border-border px-5 py-3.5 sm:px-8">
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-3 sm:gap-3 sm:px-8 sm:py-3.5">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Logo size={22} />
-          <span className="text-[13px] font-semibold text-muted-foreground">Admin</span>
+          <span className="hidden text-[13px] font-semibold text-muted-foreground sm:inline">Admin</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
           <span className="hidden text-[13px] text-muted-foreground sm:inline">{adminUser?.email}</span>
           <ChangePasswordButton email={adminUser?.email} />
-          <Button variant="outline" size="sm" onClick={onSignOut}>
+          <Button variant="outline" size="sm" onClick={onSignOut} title="Sign out">
             <LogOut className="size-3.5" />
-            Sign out
+            <span className="hidden sm:inline">Sign out</span>
           </Button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-5 py-6 sm:px-8">
+      <main className="mx-auto max-w-6xl px-3 py-5 sm:px-8 sm:py-6">
         <Tabs defaultValue="overview">
-          <TabsList className="mb-5 flex-wrap">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="resumes">Resumes</TabsTrigger>
-            <TabsTrigger value="applications">Applications</TabsTrigger>
-            <TabsTrigger value="reviews">Reviews</TabsTrigger>
-            <TabsTrigger value="artisans">Artisans</TabsTrigger>
-          </TabsList>
+          <div className="-mx-3 mb-5 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+            <TabsList className="w-max">
+              <TabsTrigger value="overview" className="shrink-0">Overview</TabsTrigger>
+              <TabsTrigger value="users" className="shrink-0">Users</TabsTrigger>
+              <TabsTrigger value="resumes" className="shrink-0">Resumes</TabsTrigger>
+              <TabsTrigger value="applications" className="shrink-0">Applications</TabsTrigger>
+              <TabsTrigger value="reviews" className="shrink-0">Reviews</TabsTrigger>
+              <TabsTrigger value="artisans" className="shrink-0">Artisans</TabsTrigger>
+            </TabsList>
+          </div>
           <TabsContent value="overview"><OverviewTab /></TabsContent>
           <TabsContent value="users"><UsersTab selfId={adminUser?.id} /></TabsContent>
           <TabsContent value="resumes"><ResumesTab /></TabsContent>

@@ -19,6 +19,13 @@ PATCH  /api/v1/admin/applications/<id>     — company/role/status/date_applied/
 DELETE /api/v1/admin/applications/<id>
 GET    /api/v1/admin/reviews               — every artisan review
 DELETE /api/v1/admin/reviews/<id>          — recomputes the artisan's rating after removal
+POST   /api/v1/admin/resumes/polish-summary — AI-rewrites a resume's summary paragraph;
+                                               same Claude-then-Groq fallback /api/v1/resume
+                                               already uses, reused here rather than
+                                               duplicated (see the import below). Artisan bios
+                                               get the equivalent treatment via the existing,
+                                               already-public /api/v1/artisans/polish — no new
+                                               route needed there, the admin panel just calls it.
 
 No "admin sets a user's password directly" route on purpose — that would
 mean an admin (or anyone who compromises the admin panel) can silently
@@ -46,6 +53,7 @@ from app import db
 from app.models import User, Media, Artisan, Review, JobApplication, JdCapture
 from app.middleware.error_handlers import APIError
 from app.utils.auth import require_admin
+from app.api.resume import _ai_complete
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -232,6 +240,33 @@ def update_resume(media_id):
 
     db.session.commit()
     return jsonify({"success": True, "data": {**_serialize_media(m), "resume": resume}}), 200
+
+
+POLISH_SUMMARY_SYSTEM = (
+    "You are an elite ATS resume writer. You rewrite a resume's professional summary "
+    "paragraph — 3 punchy, keyword-aware sentences, no fluff, no markdown, no quotes, "
+    "no preamble. Return ONLY the rewritten summary text."
+)
+
+
+@admin_bp.route("/resumes/polish-summary", methods=["POST"])
+def polish_resume_summary():
+    require_admin(request)
+    body = request.get_json(force=True) or {}
+    title = (body.get("title") or "").strip()
+    current = (body.get("summary") or "").strip()
+    if not title and not current:
+        raise APIError("title or summary is required", 400)
+
+    prompt = (
+        f"Candidate's target role/title: {title or 'not specified'}\n\n"
+        f"CURRENT SUMMARY:\n{current or '(none yet — write one from the title alone)'}\n\n"
+        "Rewrite this into a stronger 3-sentence professional summary. Ground every "
+        "claim in what's actually there — never invent employers, numbers, or skills "
+        "not already implied by the current text."
+    )
+    polished = _ai_complete(system=POLISH_SUMMARY_SYSTEM, prompt=prompt, effort="low", max_tokens=300, groq_temperature=0.4)
+    return jsonify({"success": True, "data": {"summary": polished.strip()}}), 200
 
 
 @admin_bp.route("/resumes/<media_id>", methods=["DELETE"])
