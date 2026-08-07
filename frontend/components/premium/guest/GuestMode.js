@@ -15,7 +15,7 @@
 import { useState, useEffect, useRef, useCallback, useReducer } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, X, RefreshCw, ScanLine, Bookmark } from "lucide-react";
-import Logo from "../Logo";
+import Logo3D from "../Logo3D";
 import { Btn } from "./components/primitives";
 import { LivePreview } from "./components/LivePreview";
 import { ResumeSkeleton } from "./components/ResumeSkeleton";
@@ -647,13 +647,25 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
             className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <X className="size-[17px]" />
           </button>
-          {/* Icon-only on mobile/tablet — back button + close button + the
-              two download buttons on the right already crowd this 64px bar
-              tightly enough that the full "NOVIQ" wordmark had nowhere to
-              go: it was getting hard-clipped mid-letter by this row's own
-              overflow-hidden (no ellipsis, just a raw cutoff reading "NOV").
-              Desktop has the room for the real lockup. */}
-          <Logo size={20} iconOnly={!isDesktop} style={{ minWidth: 0 }} />
+          {/* The real extruded-3D mark (slow ambient spin, tilts toward the
+              cursor) instead of the flat 2D glyph — this is the screen
+              people actually build in, not just glance at, so it's the one
+              place in the app where a persistent bit of "this feels alive"
+              is worth the (small — the canvas itself is tiny) extra weight.
+              Logo3D already carries its own WebGL-support check + error
+              boundary, falling back to the flat mark on anything that can't
+              render it, so this never risks a blank/broken header.
+              Wordmark text stays icon-only on mobile/tablet for the same
+              space reason as before — back button + close button + the two
+              download buttons already crowd this 64px bar tightly enough
+              that the full "NOVIQ" text had nowhere to go (it was getting
+              hard-clipped mid-letter by this row's own overflow-hidden). */}
+          <div style={{ width: 26, height: 26 }} className="shrink-0">
+            <Logo3D style={{ width: "100%", height: "100%", display: "block" }} />
+          </div>
+          {isDesktop && (
+            <span className="text-[17px] font-bold tracking-[0.14em] text-foreground">NOVIQ</span>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
