@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { X, RefreshCw, ClipboardList } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import { Btn } from "./guest/components/primitives";
+import { IconTile } from "./shared/IconTile";
 import { tapFeedback } from "@/lib/haptics";
 import Logo from "./Logo";
 import { Badge } from "@/components/ui/badge";
@@ -129,12 +130,12 @@ export default function JobTracker({ onClose }) {
 
       <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-5 py-6 sm:px-8">
         <div className="mb-5 flex items-center justify-between">
-          <div>
-            <h1 className="m-0 flex items-center gap-2 text-xl font-bold text-foreground">
-              <ClipboardList className="size-5 text-primary" />
-              Job Tracker
-            </h1>
-            <p className="m-0 mt-1 text-[13px] text-muted-foreground">Where you've applied, and where things stand.</p>
+          <div className="flex items-center gap-3">
+            <IconTile icon={ClipboardList} size="sm" />
+            <div>
+              <h1 className="m-0 text-xl font-bold text-foreground">Job Tracker</h1>
+              <p className="m-0 mt-0.5 text-[13px] text-muted-foreground">Where you've applied, and where things stand.</p>
+            </div>
           </div>
           {!formOpen && (
             <Btn small icon="Plus" onClick={startAdd}>Add</Btn>

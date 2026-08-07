@@ -9,9 +9,10 @@
 import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { UploadCloud, FileText, X, Loader2 } from "lucide-react";
+import { UploadCloud, FileText, X, Loader2, ScanLine } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import { Field, Btn } from "./guest/components/primitives";
+import { IconTile } from "./shared/IconTile";
 import Logo from "./Logo";
 
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -84,6 +85,7 @@ export default function CVScan({ onClose, onImported }) {
 
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-6 pb-16">
         <div>
+          <IconTile icon={ScanLine} size="md" className="mb-3" />
           <p className="m-0 font-serif text-[22px] italic text-foreground">CV Scan</p>
           <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
             Upload a resume you already have. We'll pull your info into the builder so you're editing, not retyping from scratch — paste a job posting below to tailor it while we're at it.

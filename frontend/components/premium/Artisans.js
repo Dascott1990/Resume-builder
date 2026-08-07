@@ -21,6 +21,7 @@ import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tintFor, initialsOf, formatPhone, truncateBio } from "./shared/artisanDisplay";
 import { Btn } from "./guest/components/primitives";
+import { IconTile } from "./shared/IconTile";
 import ArtisanProfile from "./ArtisanProfile";
 import { tapFeedback } from "@/lib/haptics";
 import { useViewport } from "@/lib/useViewport";
@@ -536,9 +537,10 @@ export default function Artisans({ onClose }) {
 
   const header = (
     <div className="flex shrink-0 items-center justify-between p-5 pb-3.5">
-      <p className="m-0 flex items-center gap-2 font-serif text-[17px] italic text-foreground">
-        <Hammer className="size-4 text-primary" /> Find an Artisan
-      </p>
+      <div className="flex items-center gap-3">
+        <IconTile icon={Hammer} size="sm" />
+        <p className="m-0 font-serif text-[17px] italic text-foreground">Find an Artisan</p>
+      </div>
       {onClose && (
         <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
           <X className="size-5" />

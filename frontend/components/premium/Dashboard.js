@@ -25,6 +25,7 @@ import { tapFeedback } from "@/lib/haptics";
 import { apiRequest } from "./shared/api";
 import { apiListSaved } from "./guest/api";
 import { BottomNav } from "./shared/BottomNav";
+import { IconTile } from "./shared/IconTile";
 import { Skeleton } from "@/components/ui/skeleton";
 import Logo from "./Logo";
 
@@ -68,9 +69,7 @@ function ActionTile({ Icon, label, sub, onClick }) {
       onClick={onClick}
       className="flex flex-col items-start gap-2.5 rounded-2xl border border-border bg-card p-4 text-left [-webkit-tap-highlight-color:transparent]"
     >
-      <div className="flex size-9 items-center justify-center rounded-lg border border-primary/25 bg-primary/10">
-        <Icon className="size-4 text-primary" />
-      </div>
+      <IconTile icon={Icon} size="sm" />
       <div>
         <p className="m-0 text-[13.5px] font-bold text-foreground">{label}</p>
         <p className="m-0 mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{sub}</p>
