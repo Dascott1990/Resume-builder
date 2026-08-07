@@ -29,8 +29,7 @@ export function JobDescStep({
           {optimizing ? "Optimizing…" : "Optimize for This Job"}
         </Btn>
         <p className="mt-1.5 mb-0 ml-0.5 text-[11px] leading-relaxed text-muted-foreground/60">
-          Also writes a cover letter + interview talking points, and downloads
-          the Word doc automatically.
+          Also writes a cover letter and interview tips.
         </p>
       </div>
     </>

@@ -88,7 +88,7 @@ export default function CVScan({ onClose, onImported }) {
           <IconTile icon={ScanLine} size="md" className="mb-3" />
           <p className="m-0 font-serif text-[22px] italic text-foreground">CV Scan</p>
           <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-            Upload a resume you already have. We'll pull your info into the builder so you're editing, not retyping from scratch — paste a job posting below to tailor it while we're at it.
+            Import an existing resume, or add a job posting below to tailor it.
           </p>
         </div>
 

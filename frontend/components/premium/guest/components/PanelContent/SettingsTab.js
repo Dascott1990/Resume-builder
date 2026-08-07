@@ -50,7 +50,7 @@ export function SettingsTab({ saved, onResetStyle, onClearAll }) {
 
       <p className="m-0 text-[11.5px] text-muted-foreground/60">
         Noviq · Guest Mode<br />
-        Generation runs on your own Groq-backed API — nothing is stored beyond what you see in "Saved."
+        Nothing is stored beyond what you see in "Saved."
       </p>
     </div>
   );

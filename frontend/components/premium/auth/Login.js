@@ -7,9 +7,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { X } from "lucide-react";
+import { X, LogIn } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { Field, Btn, TextLink } from "../guest/components/primitives";
+import { IconTile } from "../shared/IconTile";
 import ForgotPassword from "./ForgotPassword";
 import Logo from "../Logo";
 
@@ -68,7 +69,15 @@ export default function Login({ onClose, onSuccess, onSwitchToSignup }) {
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="absolute inset-0 z-50 flex flex-col overflow-y-auto bg-background font-sans"
     >
-      <div className="flex shrink-0 items-center justify-between p-5">
+      <motion.div
+        aria-hidden="true"
+        animate={{ opacity: [0.14, 0.26, 0.14] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        className="pointer-events-none absolute top-[-12%] left-1/2 size-[420px] -translate-x-1/2"
+        style={{ background: "radial-gradient(circle, color-mix(in oklch, var(--primary) 18%, transparent) 0%, transparent 70%)" }}
+      />
+
+      <div className="relative flex shrink-0 items-center justify-between p-5">
         <Logo size={22} />
         {onClose && (
           <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
@@ -77,15 +86,19 @@ export default function Login({ onClose, onSuccess, onSwitchToSignup }) {
         )}
       </div>
 
-      <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-6 pb-16">
-        <div>
+      <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-6 pb-16">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.05 }}>
+          <IconTile icon={LogIn} size="md" className="mb-4" />
           <p className="m-0 font-serif text-[22px] italic text-foreground">Welcome back</p>
           <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-            Sign in to sync your saved resumes and job tracker across devices. Everything still works fine without this.
+            Sync your saved resumes and job tracker across devices.
           </p>
-        </div>
+        </motion.div>
 
-        <form onSubmit={submit} className="grid gap-1">
+        <motion.form
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.12 }}
+          onSubmit={submit} className="grid gap-1"
+        >
           <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
           <div>
             <Field label="PASSWORD" required type="password" value={password} onChange={setPassword} placeholder="••••••••" />
@@ -114,14 +127,17 @@ export default function Login({ onClose, onSuccess, onSwitchToSignup }) {
           <Btn variant="gold" type="submit" className="mt-2.5" disabled={submitting} loading={submitting}>
             {submitting ? "Signing in…" : "Sign in"}
           </Btn>
-        </form>
+        </motion.form>
 
-        <p className="m-0 text-center text-[13px] text-muted-foreground">
+        <motion.p
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.45, delay: 0.2 }}
+          className="m-0 text-center text-[13px] text-muted-foreground"
+        >
           New here?{" "}
           <button onClick={onSwitchToSignup} className="border-none bg-transparent p-0 font-bold text-primary">
             Create an account
           </button>
-        </p>
+        </motion.p>
       </div>
     </motion.div>
   );

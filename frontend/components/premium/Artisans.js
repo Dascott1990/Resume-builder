@@ -217,7 +217,7 @@ function EmptyState({ trade, onListYourself }) {
         {trade && trade !== "All" ? `No ${trade}s listed yet` : "No artisans yet"}
       </p>
       <p className="m-0 max-w-[240px] text-[12.5px] leading-relaxed text-muted-foreground">
-        Be the first — listings take under a minute and go live immediately.
+        Be the first — listings go live in under a minute.
       </p>
       <Btn small variant="ghost" icon="Plus" onClick={onListYourself}>
         List yourself
@@ -573,7 +573,7 @@ export default function Artisans({ onClose }) {
                 </div>
                 <p className="m-0 text-sm font-bold text-foreground">Select an artisan to view their profile</p>
                 <p className="m-0 max-w-[280px] text-[12.5px] leading-relaxed text-muted-foreground">
-                  Click any listing on the left to see their full profile, reviews, and contact options.
+                  Select a listing to see their full profile.
                 </p>
               </div>
             )}

@@ -7,9 +7,10 @@
  */
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, X } from "lucide-react";
+import { Mail, KeyRound, X } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { Field, Btn } from "../guest/components/primitives";
+import { IconTile } from "../shared/IconTile";
 import Logo from "../Logo";
 
 export default function ForgotPassword({ onClose, onBackToLogin }) {
@@ -42,7 +43,15 @@ export default function ForgotPassword({ onClose, onBackToLogin }) {
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="absolute inset-0 z-50 flex flex-col overflow-y-auto bg-background font-sans"
     >
-      <div className="flex shrink-0 items-center justify-between p-5">
+      <motion.div
+        aria-hidden="true"
+        animate={{ opacity: [0.14, 0.26, 0.14] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        className="pointer-events-none absolute top-[-12%] left-1/2 size-[420px] -translate-x-1/2"
+        style={{ background: "radial-gradient(circle, color-mix(in oklch, var(--primary) 18%, transparent) 0%, transparent 70%)" }}
+      />
+
+      <div className="relative flex shrink-0 items-center justify-between p-5">
         <Logo size={22} />
         {onClose && (
           <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
@@ -51,12 +60,10 @@ export default function ForgotPassword({ onClose, onBackToLogin }) {
         )}
       </div>
 
-      <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-6 pb-16">
+      <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-6 pb-16">
         {sent ? (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-4 text-center">
-            <div className="flex size-14 items-center justify-center rounded-full border border-primary/25 bg-primary/10">
-              <Mail className="size-6 text-primary" />
-            </div>
+            <IconTile icon={Mail} size="lg" />
             <div>
               <p className="m-0 font-serif text-[20px] italic text-foreground">Check your email</p>
               <p className="m-0 mt-1.5 max-w-xs text-[13.5px] leading-relaxed text-muted-foreground">
@@ -67,14 +74,18 @@ export default function ForgotPassword({ onClose, onBackToLogin }) {
           </motion.div>
         ) : (
           <>
-            <div>
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.05 }}>
+              <IconTile icon={KeyRound} size="md" className="mb-4" />
               <p className="m-0 font-serif text-[22px] italic text-foreground">Reset your password</p>
               <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
                 Enter the email on your account and we'll send a link to choose a new password.
               </p>
-            </div>
+            </motion.div>
 
-            <form onSubmit={submit} className="grid gap-1">
+            <motion.form
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.12 }}
+              onSubmit={submit} className="grid gap-1"
+            >
               <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
 
               {error && (
@@ -86,13 +97,16 @@ export default function ForgotPassword({ onClose, onBackToLogin }) {
               <Btn variant="gold" type="submit" className="mt-2.5" disabled={submitting} loading={submitting}>
                 {submitting ? "Sending…" : "Send reset link"}
               </Btn>
-            </form>
+            </motion.form>
 
-            <p className="m-0 text-center text-[13px] text-muted-foreground">
+            <motion.p
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.45, delay: 0.2 }}
+              className="m-0 text-center text-[13px] text-muted-foreground"
+            >
               <button onClick={onBackToLogin} className="border-none bg-transparent p-0 font-bold text-primary">
                 Back to sign in
               </button>
-            </p>
+            </motion.p>
           </>
         )}
       </div>
