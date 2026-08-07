@@ -28,24 +28,24 @@ export function InfoStep({
           <Field label="FULL NAME" required value={info.name} onChange={set("name")} placeholder="Jane Smith" />
         </div>
         <Field label="TARGET JOB TITLE" required value={info.title} onChange={set("title")} placeholder="Sales Associate" />
-        <Field label="LOCATION" required hint="City, Province" value={info.location} onChange={set("location")} placeholder="Toronto, ON" />
+        <Field label="LOCATION" required hint="City, Province" hintOnFocus value={info.location} onChange={set("location")} placeholder="Toronto, ON" />
         <Field label="EMAIL" value={info.email} onChange={set("email")} placeholder="jane@email.com" />
         <Field label="PHONE" value={info.phone} onChange={set("phone")} placeholder="(416) 555-0100" />
       </div>
 
-      <Field label="BACKGROUND" hint="your own words"
+      <Field label="BACKGROUND" hint="your own words" hintOnFocus
         value={info.background} onChange={set("background")} multiline rows={3}
         placeholder="e.g. I worked at Farm Boy for 4 years stocking shelves, helping customers, and training new staff. Bilingual: English and French." />
 
-      <Field label="PAST JOBS" hint="Role | Company | Years"
+      <Field label="PAST JOBS" hint="Role | Company | Years" hintOnFocus
         value={info.experience} onChange={set("experience")} multiline rows={2}
         placeholder={"Grocery Clerk | Farm Boy | 2021–2025\nCashier | Loblaws | 2019–2021"} />
 
-      <Field label="EDUCATION" hint="Degree | School | Year"
+      <Field label="EDUCATION" hint="Degree | School | Year" hintOnFocus
         value={info.education} onChange={set("education")} multiline rows={2}
         placeholder="Business Admin | Algonquin College | 2023" />
 
-      <Field label="SKILLS" hint="comma separated"
+      <Field label="SKILLS" hint="comma separated" hintOnFocus
         value={info.skills} onChange={set("skills")} multiline rows={2}
         placeholder="Customer service, bilingual English and French, inventory, MS Office" />
 

@@ -1,5 +1,5 @@
 "use client";
-import { forwardRef } from "react";
+import { forwardRef, useState } from "react";
 import { Loader2, ChevronRight, Eye, FileDown, Plus, RefreshCw, Sparkles, Trash2, Check, Clipboard, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,14 +63,26 @@ export function TextLink({ children, onClick, disabled, small }) {
 }
 
 // ── Input / Textarea ───────────────────────────────────────────────────────────
-export function Field({ label, required, hint, value, onChange, placeholder, type = "text", multiline, rows = 3, mono }) {
+// `hintOnFocus` is for the static "here's an example of what to type" hints
+// (e.g. "City, Province", "Role | Company | Years") — with five-plus fields
+// on one screen, showing all of them at once is exactly the clutter a
+// placeholder is supposed to avoid. Set it and the hint stays hidden until
+// this field is actually focused and empty, then disappears the moment
+// there's a real value — it's done its job once you've started typing.
+// Leave it unset (the default) for hints that are live feedback rather than
+// a static example — a running character count, a status that changes with
+// other state — those should stay visible regardless of focus.
+export function Field({ label, required, hint, hintOnFocus = false, value, onChange, placeholder, type = "text", multiline, rows = 3, mono }) {
+  const [focused, setFocused] = useState(false);
+  const showHint = hint && (!hintOnFocus || (focused && !String(value ?? "").trim()));
+  const focusHandlers = hintOnFocus ? { onFocus: () => setFocused(true), onBlur: () => setFocused(false) } : {};
   return (
     <div className="mb-3.5">
       <div className="mb-1.5 flex items-baseline justify-between">
         <span className="text-[13.5px] font-bold tracking-wide text-foreground">
           {label}{required && <span className="text-primary"> *</span>}
         </span>
-        {hint && <span className="text-xs text-muted-foreground/60">{hint}</span>}
+        {showHint && <span className="text-xs text-muted-foreground/60">{hint}</span>}
       </div>
       {multiline ? (
         <Textarea
@@ -79,6 +91,7 @@ export function Field({ label, required, hint, value, onChange, placeholder, typ
           placeholder={placeholder}
           rows={rows}
           className={`min-h-[52px] resize-y rounded-[10px] text-base ${mono ? "font-mono" : ""}`}
+          {...focusHandlers}
         />
       ) : (
         <Input
@@ -87,6 +100,7 @@ export function Field({ label, required, hint, value, onChange, placeholder, typ
           placeholder={placeholder}
           type={type}
           className={`h-[52px] rounded-[10px] text-base ${mono ? "font-mono" : ""}`}
+          {...focusHandlers}
         />
       )}
     </div>
