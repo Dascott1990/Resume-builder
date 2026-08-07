@@ -26,6 +26,7 @@ import { apiRequest } from "./shared/api";
 import { apiListSaved } from "./guest/api";
 import { BottomNav } from "./shared/BottomNav";
 import { IconTile } from "./shared/IconTile";
+import { ThemeToggle } from "./shared/ThemeToggle";
 import { Skeleton } from "@/components/ui/skeleton";
 import Logo from "./Logo";
 
@@ -271,6 +272,7 @@ export default function Dashboard({ onClose, onNavigate, onOpenLogin }) {
             })}
           </nav>
           <div className="border-t border-border p-3">
+            <ThemeToggle />
             {!authLoading && (
               user ? (
                 <button onClick={logout} className="flex w-full items-center gap-2 rounded-xl border-none bg-transparent px-3 py-2.5 text-left text-[13px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent]">
@@ -309,6 +311,7 @@ export default function Dashboard({ onClose, onNavigate, onOpenLogin }) {
       <header className="flex shrink-0 items-center justify-between px-5 py-4">
         <Logo size={22} />
         <div className="flex items-center gap-2">
+          <ThemeToggle compact />
           {!authLoading && (
             user ? (
               <button onClick={logout} aria-label="Sign out" className="flex h-9 items-center gap-1.5 rounded-full border border-border bg-muted px-3 text-[12px] font-bold text-foreground">

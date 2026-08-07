@@ -4,41 +4,52 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* :root = light theme. The old values here were shadcn's generic scaffold
+   defaults (grayscale --primary, never actually seen by anyone — layout.js
+   hardcoded the "dark" class on <html> unconditionally, so :root's colors
+   were dead code). Now that dark mode is an actual toggle instead of the
+   only option, these need to be real: the same amber --primary as .dark
+   (the one constant that has to survive both themes — every gold CTA,
+   icon tile, and accent in the app is built assuming this exact color),
+   with everything else re-tuned for contrast against a light background
+   instead of ported wholesale from a dark-mode assumption. */
 :root {
   --taskbar-height: 0px;
   --font-sans: "Helvetica Neue", Arial, system-ui, sans-serif;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.99 0.003 80);
+  --foreground: oklch(0.16 0.01 60);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.16 0.01 60);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.16 0.01 60);
+  --primary: #f59e0b;
+  --primary-foreground: #1c1206;
+  --secondary: oklch(0.96 0.006 80);
+  --secondary-foreground: oklch(0.2 0.01 60);
+  --muted: oklch(0.96 0.006 80);
+  --muted-foreground: oklch(0.48 0.012 60);
+  --accent: oklch(0.96 0.006 80);
+  --accent-foreground: oklch(0.2 0.01 60);
+  --destructive: oklch(0.55 0.22 27);
+  --success: #16a34a;
+  --success-foreground: #ffffff;
+  --border: oklch(0.9 0.006 80);
+  --input: oklch(0.93 0.006 80);
+  --ring: #f59e0b;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: oklch(0.985 0.003 80);
+  --sidebar-foreground: oklch(0.16 0.01 60);
+  --sidebar-primary: #f59e0b;
+  --sidebar-primary-foreground: #1c1206;
+  --sidebar-accent: oklch(0.96 0.006 80);
+  --sidebar-accent-foreground: oklch(0.2 0.01 60);
+  --sidebar-border: oklch(0.9 0.006 80);
+  --sidebar-ring: #f59e0b;
 }
 
 * {
@@ -53,7 +64,10 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: #090c13;
+  /* Was a hardcoded dark hex — harmless while "dark" was the only theme
+     that ever existed, but with light mode now real this needs to track
+     the actual chosen theme, not force dark underneath it. */
+  background: var(--background);
   overscroll-behavior: none;
   /* Stops iOS/Android bumping text size up when the phone rotates or a
      input briefly steals focus. */
