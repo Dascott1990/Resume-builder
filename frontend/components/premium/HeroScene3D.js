@@ -1,17 +1,17 @@
 "use client";
 /**
- * HeroScene3D.js — lightweight wrapper around the heavy
- * HeroConstellationScene.js, mirroring Logo3D.js's exact safety pattern (see
- * that file's own docblock for why): a WebGL preflight check, an error
- * boundary, and a context-loss listener, all falling back to the flat 2D
- * mark rather than ever showing a broken hero.
+ * HeroScene3D.js — lightweight wrapper around the heavy HeroPaperScene.js,
+ * mirroring Logo3D.js's exact safety pattern (see that file's own docblock
+ * for why): a WebGL preflight check, an error boundary, and a context-loss
+ * listener, all falling back to the flat 2D mark rather than ever showing
+ * a broken hero.
  */
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import React from "react";
 import { LogoMark } from "./Logo";
 
-const HeroConstellationScene = dynamic(() => import("./HeroConstellationScene"), { ssr: false, loading: () => null });
+const HeroPaperScene = dynamic(() => import("./HeroPaperScene"), { ssr: false, loading: () => null });
 
 function hasWebGL() {
   try {
@@ -58,7 +58,7 @@ export default function HeroScene3D({ style, className }) {
 
   return (
     <HeroScene3DBoundary fallback={fallback}>
-      <HeroConstellationScene style={style} className={className} onContextLost={() => setSupported(false)} />
+      <HeroPaperScene style={style} className={className} onContextLost={() => setSupported(false)} />
     </HeroScene3DBoundary>
   );
 }

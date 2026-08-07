@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { ArrowRight, ShieldCheck, Zap, FileCheck2, ChevronDown } from "lucide-react";
+import { ArrowRight, ShieldCheck, Zap, FileCheck2, ChevronDown, Download } from "lucide-react";
 import { useViewport } from "@/lib/useViewport";
+import { useInstallPrompt } from "@/lib/useInstallPrompt";
 import HeroScene3D from "../HeroScene3D";
 import Logo from "../Logo";
+import { InstallInstructionsModal } from "./InstallInstructionsModal";
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -24,10 +26,13 @@ const TRUST = [
   { Icon: FileCheck2, label: "Real, editable .docx & PDF" },
 ];
 
-export function Hero({ onOpen, onOpenArtisans, onOpenDashboard, intensity }) {
+export function Hero({ onOpenDashboard, intensity }) {
   const heroRef = useRef(null);
   const reducedMotion = usePrefersReducedMotion();
   const { isDesktop } = useViewport();
+  const { canShow: canInstall, isIOS, promptInstall } = useInstallPrompt();
+  const [iosInstructionsOpen, setIosInstructionsOpen] = useState(false);
+  const handleDownloadClick = () => (isIOS ? setIosInstructionsOpen(true) : promptInstall());
   // This page (unlike the app screens that only ever mount after a click,
   // never through SSR) is server-rendered at "/" , useViewport defaults to
   // a desktop width on the server, so branching on isDesktop immediately
@@ -114,15 +119,20 @@ export function Hero({ onOpen, onOpenArtisans, onOpenDashboard, intensity }) {
             {/*login, no trace left behind.*/}
           </motion.p>
 
-          {/* Dashboard is the primary CTA, it's the hub everything else
-              (resume builder, CV scan, job tracker, artisan directory)
-              lives inside, so the first tap always lands somewhere useful
-              instead of committing to one specific tool immediately. */}
+          {/* Dashboard (the hub everything else — resume builder, CV scan,
+              job tracker, artisan directory — lives inside) plus Download,
+              shown only while installing is actually a real, available
+              action (see useInstallPrompt) — it disappears on its own the
+              moment the app is installed, so nobody's ever staring at a
+              button with nothing left to do. Resume Studio and Find an
+              Artisan don't need their own line here; both are one tap away
+              once inside the Dashboard, and still linked from the nav/
+              footer/final CTA further down the page. */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="flex w-full max-w-sm flex-col items-center gap-3.5 sm:max-w-none sm:flex-row lg:justify-start"
+            className="flex w-full max-w-sm flex-col items-center gap-3 sm:max-w-none sm:flex-row lg:justify-start"
           >
             <motion.button
               onClick={onOpenDashboard}
@@ -133,21 +143,20 @@ export function Hero({ onOpen, onOpenArtisans, onOpenDashboard, intensity }) {
               Dashboard
               <ArrowRight className="size-4" />
             </motion.button>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={onOpen}
-                className="min-h-[44px] border-none bg-transparent px-2 text-[14px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent]"
+            {canInstall && (
+              <motion.button
+                onClick={handleDownloadClick}
+                whileTap={{ scale: 0.96 }}
+                transition={{ type: "spring", damping: 22, stiffness: 400 }}
+                className="flex min-h-[54px] w-full select-none items-center justify-center gap-2 rounded-2xl border border-border bg-transparent px-7 text-[15.5px] font-bold text-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:w-auto"
               >
-                Resume Studio →
-              </button>
-              <button
-                onClick={onOpenArtisans}
-                className="min-h-[44px] border-none bg-transparent px-2 text-[14px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent]"
-              >
-                Find an Artisan →
-              </button>
-            </div>
+                <Download className="size-4" />
+                Download
+              </motion.button>
+            )}
           </motion.div>
+
+          <InstallInstructionsModal open={iosInstructionsOpen} onClose={() => setIosInstructionsOpen(false)} />
 
           <motion.ul
             initial={{ opacity: 0 }}
