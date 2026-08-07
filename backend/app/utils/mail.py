@@ -48,19 +48,34 @@ def send_email(to, subject, html_body):
     msg["To"] = to
     msg.attach(MIMEText(html_body, "html"))
 
+    # Some Python installs (notably python.org's macOS build without
+    # "Install Certificates.command" run) ship without a usable system
+    # trust store, so ssl.create_default_context() fails every TLS
+    # handshake with CERTIFICATE_VERIFY_FAILED. certifi's bundle is
+    # guaranteed present (it's a transitive dep of requests, already in
+    # requirements.txt) and works identically in prod, so it removes the
+    # dependency on the host's own store.
+    tls_context = ssl.create_default_context(cafile=certifi.where())
+
     socket.getaddrinfo = _ipv4_only_getaddrinfo
     try:
-        with smtplib.SMTP(MAIL_SERVER, MAIL_PORT, timeout=15) as server:
-            if MAIL_USE_TLS:
-                # Some Python installs (notably python.org's macOS build without
-                # "Install Certificates.command" run) ship without a usable
-                # system trust store, so ssl.create_default_context() fails
-                # every TLS handshake with CERTIFICATE_VERIFY_FAILED. certifi's
-                # bundle is guaranteed present (it's a transitive dep of
-                # requests, already in requirements.txt) and works identically
-                # in prod, so it removes the dependency on the host's own store.
-                server.starttls(context=ssl.create_default_context(cafile=certifi.where()))
-            server.login(MAIL_USERNAME, MAIL_PASSWORD)
-            server.sendmail(MAIL_DEFAULT_SENDER, [to], msg.as_string())
+        if MAIL_PORT == 465:
+            # Implicit TLS — the connection is encrypted from the first
+            # byte, never a plaintext handshake. Port 587 (plaintext then
+            # STARTTLS) kept failing from Render with "[Errno 101] Network
+            # is unreachable" even after forcing IPv4, while the exact same
+            # Gmail account works from a different Render project that
+            # uses 465 — the two ports can hit genuinely different network
+            # policy on a given host, so this isn't a redundant fallback,
+            # it's the config that's actually known to work here.
+            with smtplib.SMTP_SSL(MAIL_SERVER, MAIL_PORT, timeout=15, context=tls_context) as server:
+                server.login(MAIL_USERNAME, MAIL_PASSWORD)
+                server.sendmail(MAIL_DEFAULT_SENDER, [to], msg.as_string())
+        else:
+            with smtplib.SMTP(MAIL_SERVER, MAIL_PORT, timeout=15) as server:
+                if MAIL_USE_TLS:
+                    server.starttls(context=tls_context)
+                server.login(MAIL_USERNAME, MAIL_PASSWORD)
+                server.sendmail(MAIL_DEFAULT_SENDER, [to], msg.as_string())
     finally:
         socket.getaddrinfo = _real_getaddrinfo
