@@ -1,13 +1,23 @@
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { ServiceWorkerRegister } from "./ServiceWorkerRegister";
 
 export const metadata = {
   title: "Noviq — AI Resume Builder",
+  description: "Tailored, ATS-ready resumes in minutes. Anonymous by default, account optional.",
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Noviq",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
 
@@ -39,6 +49,7 @@ export default function RootLayout({ children }) {
       <body className="m-0 overscroll-none bg-background">
         {children}
         <Toaster position="top-center" />
+        <ServiceWorkerRegister />
       </body>
     </html>
   );
