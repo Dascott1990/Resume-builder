@@ -1027,8 +1027,14 @@ function ChangePasswordButton({ email }) {
 
 export function AdminDashboard({ adminUser, onSignOut }) {
   return (
-    <div className="min-h-screen bg-background">
-      <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-3 sm:gap-3 sm:px-8 sm:py-3.5">
+    // Fixed shell, not a scrolling page — matches every other screen in
+    // the app (see GuestMode.js's own `absolute inset-0 ... overflow-hidden`
+    // outer div): the header and tab bar stay put, only the content below
+    // them scrolls. Without this the whole page — header included —
+    // scrolled as one long document, which reads as everything drifting
+    // around rather than a stable app shell.
+    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background">
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-3 sm:gap-3 sm:px-8 sm:py-3.5">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Logo size={22} />
           <span className="hidden text-[13px] font-semibold text-muted-foreground sm:inline">Admin</span>
@@ -1043,26 +1049,29 @@ export function AdminDashboard({ adminUser, onSignOut }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-3 py-5 sm:px-8 sm:py-6">
-        <Tabs defaultValue="overview">
-          <div className="-mx-3 mb-5 overflow-x-auto px-3 sm:mx-0 sm:px-0">
-            <TabsList className="w-max">
-              <TabsTrigger value="overview" className="shrink-0">Overview</TabsTrigger>
-              <TabsTrigger value="users" className="shrink-0">Users</TabsTrigger>
-              <TabsTrigger value="resumes" className="shrink-0">Resumes</TabsTrigger>
-              <TabsTrigger value="applications" className="shrink-0">Applications</TabsTrigger>
-              <TabsTrigger value="reviews" className="shrink-0">Reviews</TabsTrigger>
-              <TabsTrigger value="artisans" className="shrink-0">Artisans</TabsTrigger>
-            </TabsList>
+      <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden">
+        <div className="shrink-0 overflow-x-auto border-b border-border px-3 sm:px-8">
+          <TabsList className="my-2 w-max">
+            <TabsTrigger value="overview" className="shrink-0">Overview</TabsTrigger>
+            <TabsTrigger value="users" className="shrink-0">Users</TabsTrigger>
+            <TabsTrigger value="resumes" className="shrink-0">Resumes</TabsTrigger>
+            <TabsTrigger value="applications" className="shrink-0">Applications</TabsTrigger>
+            <TabsTrigger value="reviews" className="shrink-0">Reviews</TabsTrigger>
+            <TabsTrigger value="artisans" className="shrink-0">Artisans</TabsTrigger>
+          </TabsList>
+        </div>
+
+        <main className="flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
+          <div className="mx-auto max-w-6xl px-3 py-5 sm:px-8 sm:py-6">
+            <TabsContent value="overview"><OverviewTab /></TabsContent>
+            <TabsContent value="users"><UsersTab selfId={adminUser?.id} /></TabsContent>
+            <TabsContent value="resumes"><ResumesTab /></TabsContent>
+            <TabsContent value="applications"><ApplicationsTab /></TabsContent>
+            <TabsContent value="reviews"><ReviewsTab /></TabsContent>
+            <TabsContent value="artisans"><ArtisansTab /></TabsContent>
           </div>
-          <TabsContent value="overview"><OverviewTab /></TabsContent>
-          <TabsContent value="users"><UsersTab selfId={adminUser?.id} /></TabsContent>
-          <TabsContent value="resumes"><ResumesTab /></TabsContent>
-          <TabsContent value="applications"><ApplicationsTab /></TabsContent>
-          <TabsContent value="reviews"><ReviewsTab /></TabsContent>
-          <TabsContent value="artisans"><ArtisansTab /></TabsContent>
-        </Tabs>
-      </main>
+        </main>
+      </Tabs>
     </div>
   );
 }
