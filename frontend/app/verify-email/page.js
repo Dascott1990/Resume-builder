@@ -57,7 +57,7 @@ function VerifyEmailContent() {
             </p>
           </div>
           <Btn variant="gold" small onClick={() => router.replace("/")}>
-            Continue to Dashboard
+            Continue
           </Btn>
         </motion.div>
       )}
