@@ -50,7 +50,7 @@ export function InfoStep({
         placeholder="Customer service, bilingual English and French, inventory, MS Office" />
 
       <Btn icon="ChevronRight" onClick={onNext} disabled={!ready1}>
-        Next — Job Posting
+        Next
       </Btn>
     </>
   );

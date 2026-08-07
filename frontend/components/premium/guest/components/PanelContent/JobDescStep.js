@@ -26,7 +26,7 @@ export function JobDescStep({
       <div className="mt-2.5">
         <Btn variant="gold" icon="Sparkles" onClick={onOptimize}
           disabled={!ready2 || generating || optimizing} loading={optimizing}>
-          {optimizing ? "Optimizing…" : "✨ Optimize for This Job"}
+          {optimizing ? "Optimizing…" : "Optimize for This Job"}
         </Btn>
         <p className="mt-1.5 mb-0 ml-0.5 text-[11px] leading-relaxed text-muted-foreground/60">
           Also writes a cover letter + interview talking points, and downloads

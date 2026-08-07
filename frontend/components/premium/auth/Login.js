@@ -106,7 +106,7 @@ export default function Login({ onClose, onSuccess, onSwitchToSignup }) {
                 This account's email hasn't been verified yet. Check your inbox for the link, or we can send a new one.
               </p>
               <Btn small variant="primary" onClick={resend} disabled={resending} loading={resending}>
-                {resending ? "Sending…" : "Resend verification email"}
+                {resending ? "Sending…" : "Resend email"}
               </Btn>
             </div>
           )}

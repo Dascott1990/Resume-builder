@@ -33,7 +33,7 @@ export function FinalCTA({ onOpen, onOpenDashboard }) {
             onClick={onOpen}
             className="border-none bg-transparent p-0 text-[13px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent]"
           >
-            Or jump straight into Resume Studio →
+            Resume Studio →
           </button>
         </Reveal>
       </div>
