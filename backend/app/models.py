@@ -25,9 +25,15 @@ class User(db.Model):
     reset_token = db.Column(db.String(64), index=True, nullable=True)
     reset_token_expires = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    # Granted two ways: ADMIN_BOOTSTRAP_EMAIL (an env var, promotes that one
+    # account on every boot — see _bootstrap_admin in app/__init__.py, the
+    # only way to create the first admin without direct DB access) or by an
+    # existing admin flipping this on someone else from inside the admin
+    # panel itself (PATCH /api/v1/admin/users/<id>).
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
 
     def to_dict(self):
-        return {"id": self.id, "email": self.email, "email_verified": self.email_verified}
+        return {"id": self.id, "email": self.email, "email_verified": bool(self.email_verified), "is_admin": bool(self.is_admin)}
 
 
 class Media(db.Model):
@@ -69,6 +75,14 @@ class Artisan(db.Model):
     rating_avg = db.Column(db.Float)
     rating_count = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    # A per-listing secret, handed back once in the create response and
+    # required (X-Edit-Token header) on every later edit/delete — this
+    # listing has no user account to authenticate against (self-listing
+    # needs no signup), so a bearer secret is what stands in for "you're
+    # the one who created this" instead of leaving edit/delete wide open to
+    # anyone who knows the id. NULL on rows created before this existed —
+    # see the grandfather clause in api/artisans.py's _authorize_edit.
+    edit_token = db.Column(db.String(64), index=True, nullable=True)
 
     def to_dict(self):
         return {

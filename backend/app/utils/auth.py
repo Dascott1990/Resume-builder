@@ -65,3 +65,35 @@ def get_scope(request):
         user_id = verify_token(auth_header[len("Bearer "):].strip())
     guest_id = request.headers.get("X-Guest-Id") or None
     return user_id, guest_id
+
+
+def get_admin_user(request):
+    """The signed-in User row for this request if (and only if) they're
+    flagged is_admin — every /api/v1/admin/* route's identity check. Never
+    raises: returns None for anonymous guests, non-admin users, or a
+    missing/invalid token, same as an unrecognized caller. Local imports to
+    avoid a module-load-time cycle with app.models (see app/__init__.py's
+    own deferred blueprint imports for the same pattern)."""
+    from app import db
+    from app.models import User
+
+    user_id, _ = get_scope(request)
+    if not user_id:
+        return None
+    user = db.session.get(User, user_id)
+    if not user or not user.is_admin:
+        return None
+    return user
+
+
+def require_admin(request):
+    """Same as get_admin_user, but raises instead of returning None — the
+    one-liner every admin route starts with. Returns the admin User row so
+    routes that need to know "am I acting on myself" (e.g. revoking your
+    own admin access) don't have to look it up twice."""
+    from app.middleware.error_handlers import APIError
+
+    user = get_admin_user(request)
+    if not user:
+        raise APIError("Admin access required", 403)
+    return user

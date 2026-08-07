@@ -17,7 +17,7 @@ from pypdf import PdfReader
 from docx import Document
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
-from app import db
+from app import db, limiter
 from app.middleware.error_handlers import APIError
 from app.utils.auth import get_scope
 
@@ -511,6 +511,7 @@ Rules:
 
 
 @resume_bp.route("/scan", methods=["POST"])
+@limiter.limit("20 per hour")
 def scan_resume():
     """
     Upload an existing resume (PDF or DOCX) and extract it into the builder's
@@ -590,6 +591,7 @@ def scan_resume():
 
 
 @resume_bp.route("/generate", methods=["POST"])
+@limiter.limit("20 per hour")
 def generate_resume():
     """Generate a tailored resume from user info and job description."""
     body = request.get_json(force=True)
@@ -669,6 +671,7 @@ def generate_resume():
     return jsonify({"success": True, "data": parsed}), 201
 
 @resume_bp.route("/optimize", methods=["POST"])
+@limiter.limit("20 per hour")
 def optimize_resume():
     """One-click: tailored resume + cover letter + interview tips."""
     body = request.get_json(force=True)
@@ -768,6 +771,7 @@ RULES:
 
 
 @resume_bp.route("/interview-chat", methods=["POST"])
+@limiter.limit("60 per hour")
 def interview_chat():
     """
     Stateless mock-interview turn — the frontend keeps and resends the whole
@@ -841,6 +845,7 @@ Rules:
 
 
 @resume_bp.route("/ats-check", methods=["POST"])
+@limiter.limit("30 per hour")
 def ats_check():
     """Score a resume's ATS-readiness, optionally against a specific job posting."""
     body = request.get_json(force=True) or {}

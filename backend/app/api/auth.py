@@ -24,7 +24,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, request, jsonify
-from app import db
+from app import db, limiter
 from app.models import User, Media, JobApplication
 from app.middleware.error_handlers import APIError
 from app.utils.auth import hash_password, verify_password, issue_token, get_scope
@@ -95,6 +95,7 @@ def _send_reset_email(user, token):
 
 
 @auth_bp.route("/signup", methods=["POST"])
+@limiter.limit("8 per hour")
 def signup():
     body = request.get_json(force=True) or {}
     email = (body.get("email") or "").strip().lower()
@@ -161,6 +162,7 @@ def verify_email():
 
 
 @auth_bp.route("/resend-verification", methods=["POST"])
+@limiter.limit("5 per hour")
 def resend_verification():
     body = request.get_json(force=True) or {}
     email = (body.get("email") or "").strip().lower()
@@ -182,6 +184,7 @@ def resend_verification():
 
 
 @auth_bp.route("/login", methods=["POST"])
+@limiter.limit("10 per minute")
 def login():
     body = request.get_json(force=True) or {}
     email = (body.get("email") or "").strip().lower()
@@ -200,6 +203,7 @@ def login():
 
 
 @auth_bp.route("/forgot-password", methods=["POST"])
+@limiter.limit("5 per hour")
 def forgot_password():
     body = request.get_json(force=True) or {}
     email = (body.get("email") or "").strip().lower()
@@ -220,6 +224,7 @@ def forgot_password():
 
 
 @auth_bp.route("/reset-password", methods=["POST"])
+@limiter.limit("10 per hour")
 def reset_password():
     body = request.get_json(force=True) or {}
     token = (body.get("token") or "").strip()

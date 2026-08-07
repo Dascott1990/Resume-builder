@@ -1,14 +1,31 @@
 """app/api/artisans.py — artisan directory: CRUD + AI bio polish."""
 import os
+import secrets
 import anthropic
 import requests
 from flask import Blueprint, request, jsonify
 from sqlalchemy import func
-from app import db
+from app import db, limiter
 from app.models import Artisan, Review
 from app.middleware.error_handlers import APIError
+from app.utils.auth import get_admin_user
 
 artisans_bp = Blueprint("artisans", __name__)
+
+
+def _authorize_edit(a):
+    """Who's allowed to PATCH/DELETE this listing: an admin, always — or
+    whoever's holding the edit_token handed back when it was created. A
+    NULL edit_token means this row predates the token system entirely and
+    stays open (there was never a secret to check it against), rather than
+    silently locking out whoever originally listed themselves."""
+    if get_admin_user(request):
+        return
+    if not a.edit_token:
+        return
+    provided = request.headers.get("X-Edit-Token") or (request.get_json(silent=True) or {}).get("edit_token")
+    if provided != a.edit_token:
+        raise APIError("Not authorized to edit this listing", 403)
 
 CLAUDE_MODEL = "claude-opus-5"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -130,6 +147,7 @@ def _polish_bio(trade, years_experience, notes):
 
 
 @artisans_bp.route("/polish", methods=["POST"])
+@limiter.limit("15 per hour")
 def polish():
     """Stateless: rough notes in, a polished bio out. Doesn't save anything."""
     body = request.get_json(force=True) or {}
@@ -144,14 +162,20 @@ def create_artisan():
     if not (name and trade and phone):
         raise APIError("name, trade and phone are required", 400)
 
+    token = secrets.token_urlsafe(24)
     a = Artisan(
         name=name, trade=trade, phone=phone,
         city=body.get("city"), email=body.get("email"), bio=body.get("bio"),
         years_experience=_clean_years_experience(body.get("years_experience")),
+        edit_token=token,
     )
     db.session.add(a)
     db.session.commit()
-    return jsonify({"success": True, "data": a.to_dict()}), 201
+    # edit_token only ever appears in THIS response — to_dict() (used by
+    # every other route that returns an artisan) never includes it, so
+    # there's no later request where it could leak to anyone but the
+    # person who just created the listing.
+    return jsonify({"success": True, "data": {**a.to_dict(), "edit_token": token}}), 201
 
 
 def _clean_pagination(default_limit, max_limit):
@@ -199,6 +223,7 @@ def update_artisan(artisan_id):
     a = Artisan.query.get(artisan_id)
     if not a:
         raise APIError("Artisan not found", 404)
+    _authorize_edit(a)
     body = request.get_json(force=True) or {}
     for field in ["name", "trade", "city", "phone", "email", "bio"]:
         if field in body:
@@ -214,6 +239,7 @@ def delete_artisan(artisan_id):
     a = Artisan.query.get(artisan_id)
     if not a:
         raise APIError("Artisan not found", 404)
+    _authorize_edit(a)
     # SQLite (local dev) doesn't enforce the FK's ondelete=CASCADE, only
     # Postgres (prod) does — deleting reviews explicitly here means this
     # works the same way in both, instead of only failing in prod the

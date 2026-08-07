@@ -1,12 +1,22 @@
 import os
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 
 load_dotenv()
 
 db = SQLAlchemy()
+# Keyed by IP — every rate-limited route here (auth, AI generation) is
+# reachable with no login at all by design (see get_scope's docstring), so
+# there's no user/token to key off of instead. In-memory storage is fine as
+# long as this stays a single gunicorn worker (see render.yaml's
+# `gunicorn run:app` with no -w flag) — multiple workers would each keep
+# their own counters and the effective limit would multiply by worker
+# count, silently weakening every limit below.
+limiter = Limiter(key_func=get_remote_address, default_limits=["200 per hour"])
 
 
 def create_app():
@@ -56,10 +66,21 @@ def create_app():
     })
 
     db.init_app(app)
+    limiter.init_app(app)
 
     # Register error handlers
     from app.middleware.error_handlers import register_error_handlers
     register_error_handlers(app)
+
+    # Flask-Limiter's own 429 response isn't in this app's {success, error}
+    # envelope — every other error handler in register_error_handlers()
+    # returns that shape, and the frontend's apiRequest() only ever reads
+    # json.error, so leaving this one in Limiter's default shape would
+    # surface as "Server returned an unreadable response" instead of an
+    # actual "slow down" message.
+    @app.errorhandler(429)
+    def handle_rate_limit(err):
+        return jsonify({"success": False, "error": "Too many requests — please slow down and try again shortly."}), 429
 
     # Register blueprints
     from app.api.resume import resume_bp
@@ -77,6 +98,9 @@ def create_app():
     from app.api.capture import capture_bp
     app.register_blueprint(capture_bp, url_prefix="/api/v1/capture")
 
+    from app.api.admin import admin_bp
+    app.register_blueprint(admin_bp, url_prefix="/api/v1/admin")
+
     # Pinged by the frontend's keep-alive (see frontend/app/KeepAlive.js) to
     # stop Render's free-tier instance from spinning down after 15 minutes
     # of inactivity. Deliberately does nothing but respond — no DB hit, no
@@ -92,10 +116,32 @@ def create_app():
     with app.app_context():
         db.create_all()
         _sync_missing_columns(app)
+        _bootstrap_admin(app)
         table_names = sorted(db.metadata.tables.keys())
         print(f"✅ Database tables created/verified: {table_names}")
 
     return app
+
+
+def _bootstrap_admin(app):
+    """
+    Promotes ADMIN_BOOTSTRAP_EMAIL (a Render/Vercel-style env var, not a
+    stored secret) to admin on every boot — the only way to create the
+    FIRST admin without direct database access. Safe to leave set
+    permanently: once that account is already an admin this is a no-op.
+    Every admin after the first is promoted from inside the admin panel
+    itself (PATCH /api/v1/admin/users/<id>), not through this env var.
+    """
+    email = os.environ.get("ADMIN_BOOTSTRAP_EMAIL")
+    if not email:
+        return
+    from app.models import User
+
+    user = User.query.filter_by(email=email.strip().lower()).first()
+    if user and not user.is_admin:
+        user.is_admin = True
+        db.session.commit()
+        print(f"👑 Promoted {email} to admin (ADMIN_BOOTSTRAP_EMAIL)")
 
 
 def _sync_missing_columns(app):
@@ -144,3 +190,12 @@ def _sync_missing_columns(app):
                 with db.engine.begin() as conn:
                     conn.execute(text('UPDATE "users" SET "email_verified" = TRUE WHERE "email_verified" IS NULL'))
                 print("🔧 Backfilled existing users.email_verified = TRUE")
+
+            # Same reasoning as above, opposite default: a brand-new
+            # is_admin column lands NULL on every pre-existing row, and
+            # NULL isn't a safe stand-in for "not an admin" once this gets
+            # serialized to JSON and rendered in the admin UI.
+            if table.name == "users" and column.name == "is_admin":
+                with db.engine.begin() as conn:
+                    conn.execute(text('UPDATE "users" SET "is_admin" = FALSE WHERE "is_admin" IS NULL'))
+                print("🔧 Backfilled existing users.is_admin = FALSE")
