@@ -732,14 +732,20 @@ async function downloadDocx(resume, style) {
   a.click(); URL.revokeObjectURL(url);
 }
 
+// The print-only visibility rule lives as a static <style> tag elsewhere in
+// this component's JSX (search "#nova-resume-print") and already handles
+// this correctly via `visibility`, which cascades past nesting — unlike an
+// earlier version of this function that injected its own `display: none`
+// rule on `body`'s direct children. That doesn't work: the preview sits
+// several levels deep, not a direct child of body, and `display: none` on
+// an ancestor can't be overridden by a descendant's `display: block` — the
+// entire subtree stayed hidden and the printed page came out blank. This
+// version just tags the element the static rule already targets.
 function downloadPdf(previewRef) {
-  const style = document.createElement("style");
-  style.textContent = `@media print { body > * { display: none !important; } #nova-resume-print { display: block !important; position: fixed; inset: 0; z-index: 99999; background: white; } }`;
-  document.head.appendChild(style);
   const el = previewRef.current;
   if (el) el.id = "nova-resume-print";
   window.print();
-  setTimeout(() => { document.head.removeChild(style); if (el) el.removeAttribute("id"); }, 1000);
+  setTimeout(() => { if (el) el.removeAttribute("id"); }, 1000);
 }
 
 // ── Live preview (unchanged) ──────────────────────────────────────────────────
