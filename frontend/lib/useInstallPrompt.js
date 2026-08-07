@@ -18,6 +18,10 @@ export function useInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [installed, setInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  // Rather than the button just vanishing with zero feedback the instant
+  // installed flips true, it briefly shows a disabled "Installed" state —
+  // proof the click/install actually landed — then hides itself for good.
+  const [showInstalledBadge, setShowInstalledBadge] = useState(false);
 
   useEffect(() => {
     // Standalone display-mode (Android/desktop) or navigator.standalone
@@ -28,6 +32,7 @@ export function useInstallPrompt() {
       window.navigator.standalone === true;
     if (alreadyStandalone) {
       setInstalled(true);
+      setShowInstalledBadge(true);
       return;
     }
 
@@ -39,6 +44,7 @@ export function useInstallPrompt() {
     };
     const onInstalled = () => {
       setInstalled(true);
+      setShowInstalledBadge(true);
       setDeferredPrompt(null);
     };
 
@@ -50,18 +56,28 @@ export function useInstallPrompt() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!showInstalledBadge) return;
+    const timer = setTimeout(() => setShowInstalledBadge(false), 5000);
+    return () => clearTimeout(timer);
+  }, [showInstalledBadge]);
+
   const promptInstall = useCallback(async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const choice = await deferredPrompt.userChoice;
-    if (choice.outcome === "accepted") setInstalled(true);
+    if (choice.outcome === "accepted") {
+      setInstalled(true);
+      setShowInstalledBadge(true);
+    }
     setDeferredPrompt(null); // one-shot — a used/dismissed prompt can't be replayed
   }, [deferredPrompt]);
 
   // Shown for Chrome/Edge/Android (a real prompt to trigger) and for iOS
   // (no real prompt, but instructions are still worth showing) — hidden
-  // everywhere else, including once already installed.
+  // everywhere else, including once already installed (past the brief
+  // "Installed" confirmation window above).
   const canShow = !installed && (!!deferredPrompt || isIOS);
 
-  return { canShow, isIOS, installed, promptInstall };
+  return { canShow, isIOS, installed, showInstalledBadge, promptInstall };
 }

@@ -3,18 +3,26 @@
  * PaperTransformScene.js — a pen visibly writing an old, handwritten
  * resume line by line, then a sweep of light transforms the whole page
  * into the clean, structured resume Noviq actually produces. The "before"
- * — an actual pen tracing rough ink strokes onto aged parchment — versus
- * the "after" — a clean, typeset card — makes the pitch in a few silent
- * seconds instead of a paragraph of copy: rough draft in, polished resume
- * out. Lives in its own section below the Hero (see PaperTransformSection
- * .js), not the Hero itself — the Hero stays on the original constellation
- * mark and its own two buttons, deliberately uncluttered.
+ * — an actual pen tracing real, readable handwriting onto aged parchment —
+ * versus the "after" — a clean, typeset card with real printed text —
+ * makes the pitch in a few silent seconds instead of a paragraph of copy:
+ * rough draft in, polished resume out. Lives in its own section below the
+ * Hero (see PaperTransformSection.js), not the Hero itself — the Hero
+ * stays on the original constellation mark and its own two buttons,
+ * deliberately uncluttered.
+ *
+ * Both the "before" and "after" text are real canvas-rendered words (a
+ * cursive Google Font for the handwriting, a plain system sans for the
+ * typeset version), not solid-color placeholder bars — see makeTextTexture
+ * below. Each handwritten line reveals left-to-right via a shader wipe
+ * timed to the pen's position, so it reads as the pen actually writing the
+ * words rather than a line simply fading or growing in.
  *
  * Never import this file statically; it's only ever reached through
  * PaperTransformScene3D.js's next/dynamic(ssr:false) call, same isolation
  * pattern every other 3D scene in this app uses.
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Center } from "@react-three/drei";
@@ -30,50 +38,155 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-// ── Writing sequence — each stroke gets its own time window, sequential,
-// so the pen visibly moves from one to the next rather than everything
+// Caveat is loaded as a real <link> stylesheet in app/layout.js (a plain
+// canvas 2d context can only resolve a font by name once the browser has
+// actually loaded it — document.fonts.load lets us wait for that instead
+// of racing it and silently falling back to a generic sans-serif).
+function useHandwritingFont() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (typeof document === "undefined" || !document.fonts) {
+      setReady(true);
+      return;
+    }
+    let cancelled = false;
+    Promise.all([document.fonts.load('700 100px "Caveat"'), document.fonts.load('600 100px "Caveat"')])
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setReady(true); });
+    return () => { cancelled = true; };
+  }, []);
+  return ready;
+}
+
+// Renders `text` onto a tightly-cropped canvas and returns a texture plus
+// its aspect ratio, so callers can size a plane to match the real rendered
+// glyphs instead of guessing a width.
+function makeTextTexture(text, { weight = 600, size = 80, color = "#2b2013", font = '"Caveat", cursive' } = {}) {
+  const probe = document.createElement("canvas").getContext("2d");
+  probe.font = `${weight} ${size}px ${font}`;
+  const textWidth = Math.max(1, Math.ceil(probe.measureText(text).width));
+  const padX = size * 0.22;
+  const canvas = document.createElement("canvas");
+  canvas.width = textWidth + padX * 2;
+  canvas.height = Math.ceil(size * 1.5);
+  const ctx = canvas.getContext("2d");
+  ctx.font = `${weight} ${size}px ${font}`;
+  ctx.fillStyle = color;
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(text, padX, canvas.height * 0.68);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  texture.needsUpdate = true;
+  return { texture, aspect: canvas.width / canvas.height };
+}
+
+// ── Writing sequence — real resume-note content, one line at a time, so
+// the pen visibly moves from one to the next rather than everything
 // appearing at once. Fast/confident pacing on purpose: this has to read in
 // a couple of seconds on a landing page, not play out like real
 // handwriting speed. ─────────────────────────────────────────────────────
-const HEADING = { y: 9.4, x: -3.4, w: 9.5, h: 1.3, rot: -0.03 };
-const BODY_ROWS = [
-  { y: 3.6, w: 14.5 }, { y: 1.2, w: 11 }, { y: -1.2, w: 15.2 },
-  { y: -3.6, w: 9.8 }, { y: -6, w: 13 }, { y: -8.4, w: 8 },
+const HEADING_LINE = { text: "Jordan Blake", weight: 700, size: 130 };
+const BODY_LINES = [
+  { text: "Marketing Coordinator, 5 yrs", weight: 600, size: 78 },
+  { text: "Led campaigns for 3 brands", weight: 600, size: 78 },
+  { text: "Grew engagement 40% in 2023", weight: 600, size: 78 },
+  { text: "Managed a team of 6", weight: 600, size: 78 },
+  { text: "Fluent in Figma + analytics", weight: 600, size: 78 },
+  { text: "References on request", weight: 600, size: 78 },
 ];
-const HEADING_DUR = 0.32;
-const LINE_DUR = 0.34;
+const HEADING_ROW = { y: 9.3, h: 1.9, dur: 0.4 };
+const BODY_ROWS = [
+  { y: 3.8, h: 1.05, dur: 0.34 },
+  { y: 1.4, h: 1.05, dur: 0.34 },
+  { y: -1, h: 1.05, dur: 0.34 },
+  { y: -3.4, h: 1.05, dur: 0.34 },
+  { y: -5.8, h: 1.05, dur: 0.34 },
+  { y: -8.2, h: 1.05, dur: 0.34 },
+];
+const START_X = -8.4;
 const GAP = 0.05;
 
-function useStrokes() {
+function useLineTextures(fontReady) {
   return useMemo(() => {
-    let t = 0;
-    const heading = { ...HEADING, x: -3.4, start: t, end: t + HEADING_DUR };
-    t = heading.end + GAP;
-    const body = BODY_ROWS.map((row) => {
-      const w = row.w + (Math.random() - 0.5) * 1.5;
-      const x = -8 + Math.random() * 1.4;
-      const rot = (Math.random() - 0.5) * 0.045;
-      const stroke = { y: row.y + (Math.random() - 0.5) * 0.4, x, w, rot, h: 0.55 + Math.random() * 0.2, start: t, end: t + LINE_DUR };
-      t = stroke.end + GAP;
-      return stroke;
-    });
-    return { heading, body, writeEnd: t };
-  }, []);
+    if (!fontReady || typeof document === "undefined") return null;
+    return [HEADING_LINE, ...BODY_LINES].map((l) => makeTextTexture(l.text, { weight: l.weight, size: l.size }));
+  }, [fontReady]);
 }
 
-// A stroke mesh whose geometry is pre-translated so its pivot sits at the
-// LEFT edge instead of the center — scaling scale.x from 0 to 1 then grows
-// the stroke rightward from a fixed start point, the actual "being drawn"
-// reveal, instead of an instant appear or a center-out expand.
-function Stroke({ strokeRef, x, y, w, h, rot, color, opacity = 1 }) {
+function useStrokes(textures) {
+  return useMemo(() => {
+    if (!textures) return null;
+    let t = 0;
+    const build = (row, tex) => {
+      const w = row.h * tex.aspect;
+      const def = { x: START_X, y: row.y, w, h: row.h, texture: tex.texture, start: t, end: t + row.dur };
+      t = def.end + GAP;
+      return def;
+    };
+    const heading = build(HEADING_ROW, textures[0]);
+    const body = BODY_ROWS.map((row, i) => build(row, textures[i + 1]));
+    return { heading, body, writeEnd: t };
+  }, [textures]);
+}
+
+const REVEAL_VERTEX = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+// Left-to-right wipe in the plane's own UV space — a soft-edged reveal
+// boundary at uProgress, independent of the group's world rotation, so the
+// "ink appearing" edge always tracks the pen regardless of the scene's
+// continuous tilt/spin.
+const REVEAL_FRAGMENT = `
+  uniform sampler2D map;
+  uniform float uProgress;
+  uniform float uOpacity;
+  varying vec2 vUv;
+  void main() {
+    vec4 texColor = texture2D(map, vUv);
+    float edge = 0.05;
+    float reveal = 1.0 - smoothstep(uProgress - edge, uProgress + edge, vUv.x);
+    float alpha = texColor.a * reveal * uOpacity;
+    if (alpha < 0.01) discard;
+    gl_FragColor = vec4(texColor.rgb, alpha);
+  }
+`;
+
+// A handwritten-text plane, pre-translated so its pivot sits at the LEFT
+// edge (mesh position = the line's start point), and revealed via a
+// left-to-right shader wipe as the pen passes over it — real legible
+// glyphs "being written," instead of a solid bar growing.
+function TextStroke({ strokeRef, x, y, w, h, texture }) {
   const geometry = useMemo(() => {
-    const g = new THREE.BoxGeometry(w, h, 0.3);
+    const g = new THREE.PlaneGeometry(w, h);
+    g.translate(w / 2, 0, 0);
+    return g;
+  }, [w, h]);
+  const uniforms = useMemo(() => ({ map: { value: texture }, uProgress: { value: 0 }, uOpacity: { value: 1 } }), [texture]);
+  return (
+    <mesh ref={strokeRef} geometry={geometry} position={[x, y, 0.76]}>
+      <shaderMaterial uniforms={uniforms} vertexShader={REVEAL_VERTEX} fragmentShader={REVEAL_FRAGMENT} transparent depthWrite={false} />
+    </mesh>
+  );
+}
+
+// A plain, always-fully-rendered text plane — used for the typeset "after"
+// resume, where nothing needs a reveal wipe, just a normal opacity
+// crossfade the existing transition traversal already drives.
+function TexturedPlane({ x, y, h, texture, aspect }) {
+  const w = h * aspect;
+  const geometry = useMemo(() => {
+    const g = new THREE.PlaneGeometry(w, h);
     g.translate(w / 2, 0, 0);
     return g;
   }, [w, h]);
   return (
-    <mesh ref={strokeRef} geometry={geometry} position={[x, y, 0.76]} rotation={[0, 0, rot]} scale={[0, 1, 1]}>
-      <meshStandardMaterial color={color} roughness={0.95} transparent opacity={opacity} />
+    <mesh geometry={geometry} position={[x, y, 0.9]}>
+      <meshBasicMaterial map={texture} transparent />
     </mesh>
   );
 }
@@ -117,15 +230,30 @@ function PaperBase() {
   );
 }
 
+const RESUME_NAME = { text: "Jordan Blake", weight: 700, size: 130, font: "system-ui, -apple-system, sans-serif", color: "#3d2e1a" };
+const RESUME_BULLETS = [
+  { text: "Marketing Coordinator · 5 yrs", weight: 600, size: 76, font: "system-ui, -apple-system, sans-serif", color: "#6b5636" },
+  { text: "Led campaigns for 3 brands", weight: 600, size: 76, font: "system-ui, -apple-system, sans-serif", color: "#6b5636" },
+  { text: "Grew engagement 40% in 2023", weight: 600, size: 76, font: "system-ui, -apple-system, sans-serif", color: "#6b5636" },
+  { text: "Figma · Analytics · Copywriting", weight: 600, size: 76, font: "system-ui, -apple-system, sans-serif", color: "#6b5636" },
+];
+
+function useCleanResumeTextures() {
+  return useMemo(() => {
+    if (typeof document === "undefined") return null;
+    return {
+      name: makeTextTexture(RESUME_NAME.text, RESUME_NAME),
+      bullets: RESUME_BULLETS.map((b) => makeTextTexture(b.text, b)),
+    };
+  }, []);
+}
+
 // ── The clean resume — same structured, typeset card the rest of the
-// marketing site already implies this app produces. ────────────────────────
+// marketing site already implies this app produces, now with real printed
+// text instead of solid-color placeholder bars. ────────────────────────────
 function CleanResume({ groupRef }) {
-  const lines = [
-    { y: 3.2, w: 13.5 },
-    { y: -0.6, w: 13.5 },
-    { y: -4.4, w: 13.5 },
-    { y: -8.2, w: 8.5 },
-  ];
+  const tex = useCleanResumeTextures();
+  const bulletY = [3.2, -0.6, -4.4, -8.2];
   return (
     <group ref={groupRef} scale={0.85}>
       <mesh>
@@ -136,15 +264,9 @@ function CleanResume({ groupRef }) {
         <cylinderGeometry args={[2.4, 2.4, 0.5, 20]} />
         <meshStandardMaterial color="#F59E0B" roughness={0.4} metalness={0.5} />
       </mesh>
-      <mesh position={[1.9, 8.6, 0.9]}>
-        <boxGeometry args={[8.6, 1.8, 0.4]} />
-        <meshStandardMaterial color="#8a6a2c" roughness={0.5} />
-      </mesh>
-      {lines.map((l) => (
-        <mesh key={l.y} position={[-9 + l.w / 2 + 1, l.y, 0.9]}>
-          <boxGeometry args={[l.w, 1.1, 0.35]} />
-          <meshStandardMaterial color="#c9b587" roughness={0.6} />
-        </mesh>
+      {tex && <TexturedPlane x={-2.9} y={8.6} h={1.7} texture={tex.name.texture} aspect={tex.name.aspect} />}
+      {tex && bulletY.map((y, i) => (
+        <TexturedPlane key={i} x={-8} y={y} h={1.05} texture={tex.bullets[i].texture} aspect={tex.bullets[i].aspect} />
       ))}
     </group>
   );
@@ -201,11 +323,15 @@ function Scene() {
   const headingRef = useRef(null);
   const bodyRefs = useRef([]);
   const reducedMotion = usePrefersReducedMotion();
-  const { heading, body, writeEnd } = useStrokes();
+  const fontReady = useHandwritingFont();
+  const textures = useLineTextures(fontReady);
+  const strokes = useStrokes(textures);
 
   // Small pause after the last stroke finishes, sitting on the completed
-  // handwritten page, before the shine/transform kicks in.
-  const OLD_HOLD = writeEnd + 0.35;
+  // handwritten page, before the shine/transform kicks in. Falls back to a
+  // reasonable estimate before the font/textures are ready so the cycle
+  // length doesn't jump once they load in.
+  const OLD_HOLD = (strokes?.writeEnd ?? 2.6) + 0.35;
   const TRANSITION = 1.1;
   const NEW_HOLD = 9;
   const CYCLE = OLD_HOLD + TRANSITION + NEW_HOLD;
@@ -216,8 +342,7 @@ function Scene() {
     const resume = newRef.current;
     const shine = shineRef.current;
     const pen = penRef.current;
-    const headingMesh = headingRef.current;
-    if (!root || !oldGroup || !resume || !shine || !pen || !headingMesh) return;
+    if (!root || !oldGroup || !resume || !shine || !pen) return;
 
     if (!reducedMotion) {
       root.rotation.y += delta * 0.12;
@@ -231,6 +356,7 @@ function Scene() {
     }
 
     const t = reducedMotion ? OLD_HOLD + TRANSITION + 0.01 : state.clock.elapsedTime % CYCLE;
+    const headingMesh = headingRef.current;
 
     if (t < OLD_HOLD) {
       oldGroup.visible = true;
@@ -238,28 +364,32 @@ function Scene() {
       shine.visible = false;
       oldGroup.scale.setScalar(0.85);
 
-      // Drive each stroke's left-anchored reveal and figure out which one
-      // the pen should currently be tracking.
-      const allStrokes = [{ mesh: headingMesh, def: heading }, ...bodyRefs.current.map((mesh, i) => ({ mesh, def: body[i] }))];
-      let active = null;
-      for (const s of allStrokes) {
-        if (!s.mesh) continue;
-        const local = t < s.def.start ? 0 : t > s.def.end ? 1 : (t - s.def.start) / (s.def.end - s.def.start);
-        s.mesh.scale.x = easeOutQuad(local);
-        if (t >= s.def.start && t <= s.def.end) active = { def: s.def, local };
-      }
+      if (strokes && headingMesh) {
+        // Drive each stroke's left-to-right reveal wipe and figure out
+        // which one the pen should currently be tracking.
+        const allStrokes = [{ mesh: headingMesh, def: strokes.heading }, ...bodyRefs.current.map((mesh, i) => ({ mesh, def: strokes.body[i] }))];
+        let active = null;
+        for (const s of allStrokes) {
+          if (!s.mesh) continue;
+          const local = t < s.def.start ? 0 : t > s.def.end ? 1 : (t - s.def.start) / (s.def.end - s.def.start);
+          s.mesh.material.uniforms.uProgress.value = easeOutQuad(local);
+          if (t >= s.def.start && t <= s.def.end) active = { def: s.def, local };
+        }
 
-      pen.visible = true;
-      if (active) {
-        pen.position.set(active.def.x + active.def.w * active.local, active.def.y, 1.35);
-      } else if (t < heading.start) {
-        pen.position.set(heading.x, heading.y + 1.5, 1.35); // poised above the page, about to start
+        pen.visible = true;
+        if (active) {
+          pen.position.set(active.def.x + active.def.w * active.local, active.def.y, 1.35);
+        } else if (t < strokes.heading.start) {
+          pen.position.set(strokes.heading.x, strokes.heading.y + 1.5, 1.35); // poised above the page, about to start
+        } else {
+          // Between strokes / after the last one — rest at the end of the
+          // most recently finished stroke instead of teleporting away.
+          const done = allStrokes.filter((s) => s.def.end <= t);
+          const last = done[done.length - 1];
+          if (last) pen.position.set(last.def.x + last.def.w, last.def.y, 1.35);
+        }
       } else {
-        // Between strokes / after the last one — rest at the end of the
-        // most recently finished stroke instead of teleporting away.
-        const done = allStrokes.filter((s) => s.def.end <= t);
-        const last = done[done.length - 1];
-        if (last) pen.position.set(last.def.x + last.def.w, last.def.y, 1.35);
+        pen.visible = false;
       }
     } else if (t < OLD_HOLD + TRANSITION) {
       const p = easeInOutCubic((t - OLD_HOLD) / TRANSITION);
@@ -271,7 +401,10 @@ function Scene() {
 
       oldGroup.scale.setScalar(0.85 * (1 - p * 0.15));
       oldGroup.traverse((o) => {
-        if (o.material) {
+        if (!o.material) return;
+        if (o.material.uniforms?.uOpacity) {
+          o.material.uniforms.uOpacity.value = 1 - p;
+        } else {
           if (!o.material.transparent) o.material.transparent = true;
           o.material.opacity = 1 - p;
         }
@@ -303,15 +436,14 @@ function Scene() {
         <group>
           <group ref={oldGroupRef} scale={0.85}>
             <PaperBase />
-            <Stroke strokeRef={headingRef} x={heading.x} y={heading.y} w={heading.w} h={heading.h} rot={heading.rot} color="#3d2e1a" />
-            {body.map((s, i) => (
-              <Stroke
-                key={i}
-                strokeRef={(el) => { bodyRefs.current[i] = el; }}
-                x={s.x} y={s.y} w={s.w} h={s.h} rot={s.rot}
-                color="#4a3822" opacity={0.85}
-              />
-            ))}
+            {strokes && (
+              <>
+                <TextStroke strokeRef={headingRef} {...strokes.heading} />
+                {strokes.body.map((s, i) => (
+                  <TextStroke key={i} strokeRef={(el) => { bodyRefs.current[i] = el; }} {...s} />
+                ))}
+              </>
+            )}
           </group>
           <CleanResume groupRef={newRef} />
           <Shine meshRef={shineRef} />

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { ArrowRight, ShieldCheck, Zap, FileCheck2, ChevronDown, Download } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Download } from "lucide-react";
 import { useViewport } from "@/lib/useViewport";
 import { useInstallPrompt } from "@/lib/useInstallPrompt";
 import HeroScene3D from "../HeroScene3D";
@@ -20,17 +20,11 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-const TRUST = [
-  { Icon: ShieldCheck, label: "Anonymous by default, account optional" },
-  { Icon: Zap, label: "Tailored in under 2 minutes" },
-  { Icon: FileCheck2, label: "Real, editable .docx & PDF" },
-];
-
 export function Hero({ onOpenDashboard, intensity }) {
   const heroRef = useRef(null);
   const reducedMotion = usePrefersReducedMotion();
   const { isDesktop } = useViewport();
-  const { canShow: canInstall, isIOS, promptInstall } = useInstallPrompt();
+  const { canShow: canInstall, isIOS, showInstalledBadge, promptInstall } = useInstallPrompt();
   const [iosInstructionsOpen, setIosInstructionsOpen] = useState(false);
   const handleDownloadClick = () => (isIOS ? setIosInstructionsOpen(true) : promptInstall());
   // This page (unlike the app screens that only ever mount after a click,
@@ -107,18 +101,6 @@ export function Hero({ onOpenDashboard, intensity }) {
             Every career deserves a second chance.
           </motion.h1>
 
-          <motion.p
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="m-0 max-w-lg text-balance text-[15px] leading-relaxed text-muted-foreground sm:text-[16.5px]"
-          >
-            Tailored, ATS-ready resume, real .docx and PDF, account optional, nothing required to start
-            {/*Paste a job posting, tell us who you are, and Noviq's AI writes a*/}
-            {/*tailored, ATS-ready resume real .docx and PDF, no account, no*/}
-            {/*login, no trace left behind.*/}
-          </motion.p>
-
           {/* Dashboard (the hub everything else — resume builder, CV scan,
               job tracker, artisan directory — lives inside) plus Download,
               shown only while installing is actually a real, available
@@ -131,7 +113,7 @@ export function Hero({ onOpenDashboard, intensity }) {
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.65, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className="flex w-full max-w-sm flex-col items-center gap-3 sm:max-w-none sm:flex-row lg:justify-start"
           >
             <motion.button
@@ -143,34 +125,32 @@ export function Hero({ onOpenDashboard, intensity }) {
               Dashboard
               <ArrowRight className="size-4" />
             </motion.button>
-            {canInstall && (
+            {(canInstall || showInstalledBadge) && (
               <motion.button
-                onClick={handleDownloadClick}
-                whileTap={{ scale: 0.96 }}
+                onClick={showInstalledBadge ? undefined : handleDownloadClick}
+                disabled={showInstalledBadge}
+                whileTap={showInstalledBadge ? undefined : { scale: 0.96 }}
                 transition={{ type: "spring", damping: 22, stiffness: 400 }}
-                className="flex min-h-[54px] w-full select-none items-center justify-center gap-2 rounded-2xl border border-border bg-transparent px-7 text-[15.5px] font-bold text-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:w-auto"
+                className={`flex min-h-[54px] w-full select-none items-center justify-center gap-2 rounded-2xl border border-border bg-transparent px-7 text-[15.5px] font-bold [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:w-auto ${
+                  showInstalledBadge ? "cursor-default text-muted-foreground" : "text-foreground"
+                }`}
               >
-                <Download className="size-4" />
-                Download
+                {showInstalledBadge ? (
+                  <>
+                    <Check className="size-4" />
+                    Installed
+                  </>
+                ) : (
+                  <>
+                    <Download className="size-4" />
+                    Download
+                  </>
+                )}
               </motion.button>
             )}
           </motion.div>
 
           <InstallInstructionsModal open={iosInstructionsOpen} onClose={() => setIosInstructionsOpen(false)} />
-
-          <motion.ul
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-            className="m-0 mt-1 flex list-none flex-col flex-wrap items-center justify-center gap-x-6 gap-y-2.5 p-0 sm:flex-row lg:justify-start"
-          >
-            {TRUST.map(({ Icon, label }) => (
-              <li key={label} className="flex items-center gap-1.5 text-[12.5px] font-medium text-muted-foreground/80">
-                <Icon className="size-[13px] text-primary" />
-                {label}
-              </li>
-            ))}
-          </motion.ul>
         </div>
 
         {/* ── Desktop only: the boxed 3D showcase, the resume, the people,

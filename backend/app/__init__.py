@@ -77,6 +77,14 @@ def create_app():
     from app.api.capture import capture_bp
     app.register_blueprint(capture_bp, url_prefix="/api/v1/capture")
 
+    # Pinged by the frontend's keep-alive (see frontend/app/KeepAlive.js) to
+    # stop Render's free-tier instance from spinning down after 15 minutes
+    # of inactivity. Deliberately does nothing but respond — no DB hit, no
+    # auth, just proof the process is awake.
+    @app.route("/api/v1/health")
+    def health():
+        return {"success": True, "status": "ok"}
+
     # Create tables. If a model's module never gets imported before this
     # runs, its table simply won't exist and every query against it will
     # 500 — log what we actually created so that's visible in deploy logs

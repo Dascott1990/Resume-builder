@@ -1,8 +1,15 @@
 "use client";
 import { useRef } from "react";
-import { useInView } from "framer-motion";
+import { motion, useInView } from "framer-motion";
+import { ShieldCheck, Zap, FileCheck2 } from "lucide-react";
 import { Reveal, SECTION_WRAP, EYEBROW } from "./shared";
 import PaperTransformScene3D from "../PaperTransformScene3D";
+
+const TRUST = [
+  { Icon: ShieldCheck, label: "Anonymous by default, account optional" },
+  { Icon: Zap, label: "Tailored in under 2 minutes" },
+  { Icon: FileCheck2, label: "Real, editable .docx & PDF" },
+];
 
 // ── The "watch it happen" section — right after the Hero, the literal
 // next thing you scroll to. The 3D canvas only mounts once this section is
@@ -22,11 +29,26 @@ export function PaperTransformSection() {
             <h2 className="m-0 text-[clamp(1.6rem,4vw,2.4rem)] leading-tight font-bold text-foreground">
               Rough draft in. Ready to send out.
             </h2>
-            <p className="m-0 mt-4 max-w-md text-[14.5px] leading-relaxed text-muted-foreground">
-              Whatever you're starting from — scratch notes, an old CV, a resume you
-              haven't touched in years — the AI turns it into a clean, structured,
-              ATS-ready document in the time it takes to read this sentence.
-            </p>
+
+            {/* Popped in staggered, one badge at a time, once this section
+                scrolls into view — the "magic" beat replacing the old
+                paragraph of explaining, show instead of tell. */}
+            <ul className="m-0 mt-5 flex list-none flex-col gap-2.5 p-0">
+              {TRUST.map(({ Icon, label }, i) => (
+                <motion.li
+                  key={label}
+                  initial={{ opacity: 0, scale: 0.4, y: 10 }}
+                  animate={inView ? { opacity: 1, scale: 1, y: 0 } : {}}
+                  transition={{ type: "spring", stiffness: 340, damping: 18, delay: 0.15 + i * 0.13 }}
+                  className="flex items-center gap-2.5 text-[14.5px] font-medium text-foreground"
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                    <Icon className="size-3.5" />
+                  </span>
+                  {label}
+                </motion.li>
+              ))}
+            </ul>
           </Reveal>
 
           <Reveal delay={0.1} className="order-1 lg:order-2">

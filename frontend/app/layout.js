@@ -2,6 +2,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import { ServiceWorkerRegister } from "./ServiceWorkerRegister";
+import { KeepAlive } from "./KeepAlive";
 
 export const metadata = {
   title: "Noviq — AI Resume Builder",
@@ -45,11 +46,20 @@ export default function RootLayout({ children }) {
             localStorage), and a light-mode visitor would see a flash of
             dark before React mounts and corrects it. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Caveat — the handwriting font drawn onto the pen-writing 3D
+            scene's canvas textures (PaperTransformScene.js). Loaded as a
+            real stylesheet, not next/font, since it needs to be resolvable
+            by name from a plain 2D canvas context inside a dynamically
+            imported, ssr:false Three.js module. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap" rel="stylesheet" />
       </head>
       <body className="m-0 overscroll-none bg-background">
         {children}
         <Toaster position="top-center" />
         <ServiceWorkerRegister />
+        <KeepAlive />
       </body>
     </html>
   );
