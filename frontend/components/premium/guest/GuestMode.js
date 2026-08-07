@@ -629,8 +629,17 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
         .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
       `}</style>
 
-      {/* ── Top bar — title, close, and the two actions that matter most ── */}
-      <header className="flex h-16 shrink-0 items-center justify-between gap-2.5 border-b border-border bg-card px-3.5">
+      {/* ── Top bar — title, close, and the two actions that matter most ──
+          min-h instead of a fixed h-16, plus safe-area padding-top: as an
+          installed standalone PWA (not a browser tab, which already
+          reserves this space via its own chrome), this bar sits directly
+          under the notch/status bar/dynamic island on iOS unless it grows
+          to make room — a fixed height would just clip the header content
+          up under there instead. */}
+      <header
+        className="flex min-h-16 shrink-0 items-center justify-between gap-2.5 border-b border-border bg-card px-3.5 pb-2"
+        style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}
+      >
 
         <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden">
           {/* onBack (→ "My Resumes") is distinct from onClose (→ launcher, full

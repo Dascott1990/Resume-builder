@@ -132,7 +132,10 @@ export default function JobTracker({ onClose }) {
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-background font-sans"
     >
-      <header className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
+      <header
+        className="flex shrink-0 items-center justify-between border-b border-border px-5 pb-4"
+        style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
+      >
         <Logo size={22} />
         {onClose && (
           <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">

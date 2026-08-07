@@ -253,7 +253,7 @@ export default function Dashboard({ onClose, onNavigate, onOpenLogin }) {
         className="absolute inset-0 z-50 flex bg-background font-sans"
       >
         <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-card">
-          <div className="p-5"><Logo size={22} /></div>
+          <div className="p-5" style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}><Logo size={22} /></div>
           <nav className="flex flex-1 flex-col gap-1 px-3" aria-label="Dashboard">
             {NAV_ITEMS.map((item) => {
               const active = item.id === "home";
@@ -291,7 +291,7 @@ export default function Dashboard({ onClose, onNavigate, onOpenLogin }) {
 
         <main className="min-w-0 flex-1 overflow-y-auto">
           {onClose && (
-            <div className="flex justify-end p-4">
+            <div className="flex justify-end p-4" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}>
               <button onClick={onClose} aria-label="Close" className="flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground">
                 <X className="size-4" />
               </button>
@@ -308,7 +308,12 @@ export default function Dashboard({ onClose, onNavigate, onOpenLogin }) {
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-background font-sans"
     >
-      <header className="flex shrink-0 items-center justify-between px-5 py-4">
+      {/* Standalone PWA on iOS puts this right under the status bar/notch
+          otherwise — a plain py-4 has no idea that space exists. */}
+      <header
+        className="flex shrink-0 items-center justify-between px-5 pb-4"
+        style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
+      >
         <Logo size={22} />
         <div className="flex items-center gap-2">
           <ThemeToggle compact />

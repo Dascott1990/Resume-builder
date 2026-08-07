@@ -80,7 +80,10 @@ export default function ArtisanProfile({
   };
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto bg-background p-5 text-foreground">
+    <div
+      className="flex h-full flex-col gap-4 overflow-y-auto bg-background px-5 pb-5 text-foreground"
+      style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
+    >
       <div className="flex shrink-0 items-center justify-between">
         <button
           onClick={onBack}

@@ -1125,7 +1125,10 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
             {/* ── Top bar — two clear rows: identity/actions, then a big tappable mode switch ── */}
             <div className="flex shrink-0 flex-col border-b border-border bg-card">
 
-              <div className="flex min-w-0 items-center justify-between gap-2 px-3.5 pt-3 pb-2">
+              <div
+                className="flex min-w-0 items-center justify-between gap-2 px-3.5 pb-2"
+                style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+              >
                 <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden">
                   <motion.button whileTap={{ scale: 0.9 }} onClick={() => setSidebarOpen(v => !v)}
                     aria-label={sidebarOpen ? "Hide panel" : "Show panel"} title={sidebarOpen ? "Hide panel" : "Show panel"}

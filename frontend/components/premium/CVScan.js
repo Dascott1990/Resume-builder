@@ -74,7 +74,10 @@ export default function CVScan({ onClose, onImported }) {
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="absolute inset-0 z-50 flex flex-col overflow-y-auto bg-background font-sans"
     >
-      <div className="flex shrink-0 items-center justify-between p-5">
+      <div
+        className="flex shrink-0 items-center justify-between px-5 pb-5"
+        style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
+      >
         <Logo size={22} />
         {onClose && (
           <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">

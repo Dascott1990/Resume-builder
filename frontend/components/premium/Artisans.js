@@ -536,7 +536,10 @@ export default function Artisans({ onClose }) {
   };
 
   const header = (
-    <div className="flex shrink-0 items-center justify-between p-5 pb-3.5">
+    <div
+      className="flex shrink-0 items-center justify-between px-5 pb-3.5"
+      style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
+    >
       <div className="flex items-center gap-3">
         <IconTile icon={Hammer} size="sm" />
         <p className="m-0 font-serif text-[17px] italic text-foreground">Find an Artisan</p>
