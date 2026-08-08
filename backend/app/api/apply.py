@@ -33,6 +33,7 @@ real second run collides with an active one.
 """
 import re
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, current_app, request, jsonify
@@ -47,7 +48,52 @@ from app.agent.loop import run_agent_loop
 apply_bp = Blueprint("apply", __name__)
 
 REVIEW_TIMEOUT_MINUTES = 15
-_RUN_LOCK = threading.Lock()
+# Longest a run could legitimately hold the lock: automation (bounded by
+# agent/loop.py's own step/wall-clock caps, generously a few minutes) plus
+# the full review window, plus slack. Anything held longer than this is not
+# a slow run — it's a background thread that died or hung without ever
+# reaching its own `finally: _RUN_LOCK.release()` (a process kill mid-run,
+# an unbounded call inside Playwright with no timeout, etc.), and the fix
+# for that is not "wait for a redeploy to reset the process" — see
+# _RunLock.try_acquire below.
+MAX_LOCK_HOLD_SECONDS = (REVIEW_TIMEOUT_MINUTES + 10) * 60
+
+
+class _RunLock:
+    """A self-healing wrapper around threading.Lock — a stuck lock with no
+    way to recover meant one dead/hung background thread could wedge this
+    entire feature for every guest/user until the process happened to
+    restart. try_acquire() forces the lock open first if it's been held
+    implausibly long, rather than trusting every code path to have released
+    it correctly."""
+
+    def __init__(self, max_hold_seconds):
+        self._lock = threading.Lock()
+        self._acquired_at = None
+        self._max_hold_seconds = max_hold_seconds
+
+    def try_acquire(self):
+        if self._lock.locked() and self._acquired_at is not None:
+            if time.monotonic() - self._acquired_at > self._max_hold_seconds:
+                print(f"⚠️ ApplicationRun lock held over {self._max_hold_seconds}s — forcing it open (a background thread likely died without releasing it)")
+                try:
+                    self._lock.release()
+                except RuntimeError:
+                    pass
+        acquired = self._lock.acquire(blocking=False)
+        if acquired:
+            self._acquired_at = time.monotonic()
+        return acquired
+
+    def release(self):
+        self._acquired_at = None
+        try:
+            self._lock.release()
+        except RuntimeError:
+            pass  # already released (e.g. force-opened above) — not an error
+
+
+_RUN_LOCK = _RunLock(MAX_LOCK_HOLD_SECONDS)
 # run_id -> PendingAnswer, only ever one entry per run since the loop fully
 # pauses on ask_user rather than asking multiple questions in parallel.
 _ANSWER_REGISTRY = {}
@@ -379,7 +425,7 @@ def create_run():
     if not _URL_RE.match(target_url):
         raise APIError("target_url must be a valid http(s) URL", 400)
 
-    if not _RUN_LOCK.acquire(blocking=False):
+    if not _RUN_LOCK.try_acquire():
         raise APIError("An automation is already running for this app — please try again shortly.", 429)
 
     run = ApplicationRun(
