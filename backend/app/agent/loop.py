@@ -27,6 +27,7 @@ application page, fill it out using verified data, then stop.
 """
 import json
 import os
+import re
 import time
 
 import anthropic
@@ -37,6 +38,40 @@ from app.agent.tools import TOOL_IMPLS, TOOL_SCHEMAS, ToolContext
 CLAUDE_MODEL = "claude-opus-5"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "llama-3.3-70b-versatile"
+
+MAX_RATE_LIMIT_RETRIES = 3
+DEFAULT_RATE_LIMIT_BACKOFF = 5
+MAX_RATE_LIMIT_BACKOFF = 20  # capped so one slow retry can't eat the whole wall-clock budget
+
+
+class RateLimitError(Exception):
+    """A 429 specifically — distinct from other failures because it's
+    transient and near-certain to succeed on retry once the provider's
+    window rolls over, unlike a real error worth failing the run over."""
+    def __init__(self, message, retry_after=None):
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+_RETRY_AFTER_RE = re.compile(r"try again in ([\d.]+)s", re.IGNORECASE)
+
+
+def _with_rate_limit_retry(fn, *args):
+    """Retries a single provider call through 429s with a short backoff —
+    without this, one transient rate-limit blip (easy to hit on Groq's
+    free-tier per-minute token limit, especially on a real, field-heavy
+    application form) fails the entire run outright instead of just
+    pausing for a few seconds."""
+    attempt = 0
+    while True:
+        try:
+            return fn(*args)
+        except RateLimitError as e:
+            attempt += 1
+            if attempt > MAX_RATE_LIMIT_RETRIES:
+                raise
+            wait = min(e.retry_after or DEFAULT_RATE_LIMIT_BACKOFF, MAX_RATE_LIMIT_BACKOFF)
+            time.sleep(wait)
 
 MAX_STEPS = 60
 MAX_WALL_CLOCK_SECONDS = 220
@@ -123,14 +158,22 @@ def _call_claude(history, system):
     if not api_key:
         raise RuntimeError("CLAUDE_API_KEY not configured")
     client = anthropic.Anthropic(api_key=api_key)
-    res = client.with_options(timeout=60).messages.create(
-        model=CLAUDE_MODEL,
-        system=system,
-        messages=_history_to_anthropic(history),
-        tools=TOOL_SCHEMAS,
-        max_tokens=MAX_TOKENS_PER_TURN,
-        output_config={"effort": "medium"},
-    )
+    try:
+        res = client.with_options(timeout=60).messages.create(
+            model=CLAUDE_MODEL,
+            system=system,
+            messages=_history_to_anthropic(history),
+            tools=TOOL_SCHEMAS,
+            max_tokens=MAX_TOKENS_PER_TURN,
+            output_config={"effort": "medium"},
+        )
+    except anthropic.RateLimitError as e:
+        retry_after = None
+        try:
+            retry_after = float(e.response.headers.get("retry-after"))
+        except (AttributeError, TypeError, ValueError):
+            pass
+        raise RateLimitError(str(e), retry_after=retry_after)
     tool_calls = [{"id": b.id, "name": b.name, "input": b.input} for b in res.content if b.type == "tool_use"]
     text = next((b.text for b in res.content if b.type == "text"), None)
     if res.stop_reason == "tool_use":
@@ -158,6 +201,19 @@ def _call_groq(history, system):
         },
         timeout=60,
     )
+    if res.status_code == 429:
+        retry_after = None
+        header_val = res.headers.get("retry-after")
+        if header_val:
+            try:
+                retry_after = float(header_val)
+            except ValueError:
+                pass
+        if retry_after is None:
+            match = _RETRY_AFTER_RE.search(res.text)
+            if match:
+                retry_after = float(match.group(1))
+        raise RateLimitError(f"Groq rate limit: {res.text[:300]}", retry_after=retry_after)
     if not res.ok:
         raise RuntimeError(f"Groq API error: HTTP {res.status_code} — {res.text[:300]}")
     choice = res.json()["choices"][0]
@@ -185,12 +241,15 @@ def _call_groq(history, system):
 
 def _first_turn_with_fallback(history, system):
     """Only the first turn decides the provider for the whole run — see
-    module docstring for why switching mid-conversation isn't worth it."""
+    module docstring for why switching mid-conversation isn't worth it.
+    Each provider gets its own rate-limit retries before the OTHER
+    provider is tried — a transient 429 shouldn't immediately abandon a
+    provider that would likely have succeeded a few seconds later."""
     try:
-        return _call_claude(history, system), "claude"
-    except (anthropic.APIStatusError, anthropic.APIConnectionError, anthropic.APITimeoutError, RuntimeError) as claude_err:
+        return _with_rate_limit_retry(_call_claude, history, system), "claude"
+    except (anthropic.APIStatusError, anthropic.APIConnectionError, anthropic.APITimeoutError, RuntimeError, RateLimitError) as claude_err:
         try:
-            return _call_groq(history, system), "groq"
+            return _with_rate_limit_retry(_call_groq, history, system), "groq"
         except Exception as groq_err:
             raise RuntimeError(f"Both providers failed (Claude: {claude_err}; Groq: {groq_err})")
 
@@ -223,9 +282,9 @@ def run_agent_loop(session, profile_snapshot, pending_questions, unfillable_fiel
             if provider is None:
                 turn, provider = _first_turn_with_fallback(history, system)
             elif provider == "claude":
-                turn = _call_claude(history, system)
+                turn = _with_rate_limit_retry(_call_claude, history, system)
             else:
-                turn = _call_groq(history, system)
+                turn = _with_rate_limit_retry(_call_groq, history, system)
         except Exception as e:
             return {"stop_reason": "failed", "error": str(e)}
 
