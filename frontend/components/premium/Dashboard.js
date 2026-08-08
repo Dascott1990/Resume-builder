@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Home, FileText, ScanLine, ClipboardList, Hammer, LogIn, LogOut,
-  ArrowRight, ChevronRight, CalendarCheck, X, Clock,
+  ArrowRight, ChevronRight, CalendarCheck, X, Clock, Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
@@ -153,6 +153,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go }
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }} className="mb-6">
         <SectionHeader>Quick actions</SectionHeader>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <ActionTile Icon={Sparkles} label="Apply with AI" sub="Fill out a real application" onClick={() => go("apply")} />
           <ActionTile Icon={ScanLine} label="CV Scan" sub="Import an existing resume" onClick={() => go("scan")} />
           <ActionTile Icon={ClipboardList} label="Job Tracker" sub="Track your applications" onClick={() => go("jobtracker")} />
           <ActionTile Icon={Hammer} label="Find an Artisan" sub="Browse local tradespeople" onClick={() => go("artisans")} />

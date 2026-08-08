@@ -10,6 +10,7 @@ import Login from "../components/premium/auth/Login";
 import Signup from "../components/premium/auth/Signup";
 import CVScan from "../components/premium/CVScan";
 import JobTracker from "../components/premium/JobTracker";
+import ApplyWithAI from "../components/premium/ApplyWithAI";
 import Logo from "../components/premium/Logo";
 
 // Once someone's actually used the product, refreshing the tab shouldn't
@@ -137,6 +138,7 @@ export default function Home() {
           else if (id === "scan") setView("cvscan");
           else if (id === "jobtracker") setView("jobtracker");
           else if (id === "artisans") setView("artisans");
+          else if (id === "apply") setView("apply");
         }}
       />
     );
@@ -178,6 +180,10 @@ export default function Home() {
 
   if (view === "jobtracker") {
     return <JobTracker onClose={() => setView("dashboard")} />;
+  }
+
+  if (view === "apply") {
+    return <ApplyWithAI onClose={() => setView("dashboard")} />;
   }
 
   if (view === "artisans") {

@@ -2,7 +2,14 @@ services:
   - type: web
     name: resume-builder-backend
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    # `--with-deps` pulls the system libraries headless Chromium needs
+    # (Render's native Python runtime doesn't have them by default) —
+    # this is the one part of the whole Apply-with-AI feature that's
+    # genuinely unverified until an actual deploy: it works locally, but
+    # whether Render's build step has enough permission to install those
+    # system packages hasn't been tested. If this build step fails, that's
+    # the reason — see the plan doc's explicit "spike this first" note.
+    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium
     startCommand: gunicorn run:app
     envVars:
       - key: DATABASE_URL

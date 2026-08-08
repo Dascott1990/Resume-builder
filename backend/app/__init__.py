@@ -101,6 +101,9 @@ def create_app():
     from app.api.admin import admin_bp
     app.register_blueprint(admin_bp, url_prefix="/api/v1/admin")
 
+    from app.api.apply import apply_bp
+    app.register_blueprint(apply_bp, url_prefix="/api/v1/apply")
+
     # Pinged by the frontend's keep-alive (see frontend/app/KeepAlive.js) to
     # stop Render's free-tier instance from spinning down after 15 minutes
     # of inactivity. Deliberately does nothing but respond — no DB hit, no
@@ -118,6 +121,8 @@ def create_app():
         _sync_missing_columns(app)
         _bootstrap_admin(app)
         _backfill_artisan_tokens(app)
+        from app.api.apply import sweep_stuck_runs
+        sweep_stuck_runs(app)
         table_names = sorted(db.metadata.tables.keys())
         print(f"✅ Database tables created/verified: {table_names}")
 

@@ -146,6 +146,148 @@ class JobApplication(db.Model):
         }
 
 
+class CareerProfile(db.Model):
+    """
+    The structured "verified memory" the Apply-with-AI agent (see app/agent/
+    and app/api/apply.py) is allowed to treat as ground truth — distinct
+    from Media's generated-resume JSON blobs, which are documents, not
+    reusable structured facts. One row per scope (same guest_id/user_id
+    dual-scoping as everywhere else in this app).
+
+    `confirmed_at` is the whole point of this table: fields can be
+    populated by AI extraction from an uploaded resume, but that's a
+    PROPOSAL, not verified fact, until a human has reviewed/confirmed it at
+    least once in the UI. The agent must never treat an unconfirmed profile
+    as something it's allowed to fill sensitive fields from — see
+    app/agent/tools.py's sensitive-field allowlist enforcement.
+    """
+    __tablename__ = "career_profiles"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    guest_id = db.Column(db.String(64), index=True, nullable=True)
+    user_id = db.Column(db.String(32), db.ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
+
+    full_name = db.Column(db.String(150))
+    email = db.Column(db.String(190))
+    phone = db.Column(db.String(40))
+    location = db.Column(db.String(150))
+
+    # {"status": "citizen" | "permanent_resident" | "visa_sponsorship_required"
+    #  | "authorized_no_sponsorship" | "unknown", "details": "..."} — defaults
+    # to unknown, never inferred by the agent from anything else on file.
+    work_authorization = db.Column(db.JSON)
+    willing_to_relocate = db.Column(db.Boolean, nullable=True)  # None = not stated, never assumed either way
+    desired_salary_min = db.Column(db.Integer, nullable=True)
+
+    education = db.Column(db.JSON)         # [{degree, school, location, period}]
+    work_history = db.Column(db.JSON)      # [{role, company, period, location, bullets}]
+    skills = db.Column(db.JSON)            # ["...", ...]
+    certifications = db.Column(db.JSON)    # ["...", ...]
+
+    # Legally voluntary on US applications (race/gender/veteran/disability)
+    # — must default to "prefer not to answer," never inferred or assumed.
+    eeo_demographics = db.Column(db.JSON)
+
+    # Growing bank of confirmed free-text Q&A the agent can reuse across
+    # runs instead of re-generating from scratch every time — keyed by a
+    # normalized question fingerprint. [{question, answer, confirmed_at}]
+    qa_answers = db.Column(db.JSON)
+
+    source_resume_id = db.Column(db.String(32), db.ForeignKey("media.id"), index=True, nullable=True)
+    confirmed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id": self.id, "full_name": self.full_name, "email": self.email,
+            "phone": self.phone, "location": self.location,
+            "work_authorization": self.work_authorization or {"status": "unknown"},
+            "willing_to_relocate": self.willing_to_relocate,
+            "desired_salary_min": self.desired_salary_min,
+            "education": self.education or [], "work_history": self.work_history or [],
+            "skills": self.skills or [], "certifications": self.certifications or [],
+            "eeo_demographics": self.eeo_demographics or {},
+            "qa_answers": self.qa_answers or [],
+            "source_resume_id": self.source_resume_id,
+            "confirmed": self.confirmed_at is not None,
+            "confirmed_at": self.confirmed_at.isoformat() if self.confirmed_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class ApplicationRun(db.Model):
+    """
+    One "Apply with AI" execution — the job execution record the agent loop
+    (app/agent/loop.py) reads from and writes to as it works, and the
+    frontend polls (GET /api/v1/apply/runs/<id>) to render live progress.
+    Deliberately not named JobApplication — that table already exists as
+    the user's own manually-tracked application list; this is a different
+    concept (an audit trail of one automation run), linked to it only at
+    the end, once a real submission happens (see api/apply.py).
+    """
+    __tablename__ = "application_runs"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    guest_id = db.Column(db.String(64), index=True, nullable=True)
+    user_id = db.Column(db.String(32), db.ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
+
+    target_url = db.Column(db.String(2000), nullable=False)
+    # queued -> reading_job -> preparing_resume -> filling_form -> (needs_input <-> filling_form)
+    # -> ready_for_review -> submitted | failed | cancelled | expired
+    status = db.Column(db.String(30), nullable=False, default="queued", index=True)
+
+    resume_id = db.Column(db.String(32), db.ForeignKey("media.id"), index=True, nullable=True)
+    # Frozen copy of whichever CareerProfile fields were actually consulted
+    # for this run, so a later edit to the live profile can never
+    # retroactively change what an already-finished run's audit trail says
+    # it used.
+    profile_snapshot = db.Column(db.JSON)
+
+    # Append-only: [{step_number, timestamp, tool_name, tool_input, result_summary, page_url}]
+    # — the exact feed the frontend's live checklist/activity log polls and renders.
+    steps_log = db.Column(db.JSON)
+    # [{question, field_label, page_context, answered, answer}] — the
+    # ask_user outbox; unanswered entries are what put status into needs_input.
+    pending_questions = db.Column(db.JSON)
+    # Required fields the agent had no data and no answer for by the time
+    # it finished — surfaced to the human on the review screen, not silently dropped.
+    unfillable_fields = db.Column(db.JSON)
+    # Final field-by-field state of the form, for the human review screen.
+    filled_form_snapshot = db.Column(db.JSON)
+    review_screenshot_media_id = db.Column(db.String(32), db.ForeignKey("media.id"), index=True, nullable=True)
+
+    # Addresses the live browser/context kept alive from ready_for_review
+    # through the human's review window, so confirm-submit can reconnect to
+    # the SAME session and perform the one real submit click — see
+    # app/agent/browser.py's session registry. Cleared once the run leaves
+    # ready_for_review (submitted, expired, or cancelled).
+    browser_session_id = db.Column(db.String(64), nullable=True)
+    # Wall-clock deadline for the review window — a boot-time sweep and a
+    # background watcher both use this to expire/tear down a run nobody
+    # confirmed in time, instead of holding a live browser indefinitely.
+    review_expires_at = db.Column(db.DateTime, nullable=True)
+
+    error_message = db.Column(db.String(1000), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "target_url": self.target_url, "status": self.status,
+            "resume_id": self.resume_id,
+            "steps_log": self.steps_log or [],
+            "pending_questions": self.pending_questions or [],
+            "unfillable_fields": self.unfillable_fields or [],
+            "filled_form_snapshot": self.filled_form_snapshot or {},
+            "review_screenshot_media_id": self.review_screenshot_media_id,
+            "review_expires_at": self.review_expires_at.isoformat() if self.review_expires_at else None,
+            "error_message": self.error_message,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+        }
+
+
 class JdCapture(db.Model):
     """
     A single job-description text, captured by the bookmarklet from
