@@ -3,12 +3,18 @@ services:
     name: resume-builder-backend
     runtime: python
     # `--with-deps` pulls the system libraries headless Chromium needs
-    # (Render's native Python runtime doesn't have them by default) —
-    # this is the one part of the whole Apply-with-AI feature that's
-    # genuinely unverified until an actual deploy: it works locally, but
-    # whether Render's build step has enough permission to install those
-    # system packages hasn't been tested. If this build step fails, that's
-    # the reason — see the plan doc's explicit "spike this first" note.
+    # (Render's native Python runtime doesn't have them by default).
+    #
+    # Confirmed by an actual production failure: without PLAYWRIGHT_BROWSERS_PATH
+    # set below, Playwright installs the browser into the DEFAULT cache dir
+    # (~/.cache/ms-playwright), which lives outside whatever Render actually
+    # persists from the build step into the running container — the build
+    # step succeeds, but every later `chromium.launch()` at runtime fails with
+    # "Executable doesn't exist," because the binary that build step
+    # downloaded is already gone by the time a real request runs. Pointing
+    # PLAYWRIGHT_BROWSERS_PATH at a path inside the project directory (which
+    # Render DOES carry over) makes the build and the running app agree on
+    # where the browser actually lives.
     buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium
     startCommand: gunicorn run:app
     envVars:
@@ -24,6 +30,8 @@ services:
         value: https://resume-builder-orpin-theta.vercel.app,https://resume-builder-c6l75mdzi-dascott1990s-projects.vercel.app,http://localhost:3000
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /opt/render/project/.playwright
 
   - type: postgresql
     name: resume-db
