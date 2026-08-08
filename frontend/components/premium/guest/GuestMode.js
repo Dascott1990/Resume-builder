@@ -36,9 +36,12 @@ import { downloadDocx } from "./export/docx";
 import { downloadCoverLetterDocx } from "./export/coverLetterDocx";
 import { printPdf, printCoverLetterPdf } from "./export/pdf";
 import { useViewport } from "@/lib/useViewport";
+import { useSignupNudge } from "@/lib/useSignupNudge";
+import { SignupNudgeModal } from "../shared/SignupNudgeModal";
 
 export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDesc }) {
   const { isPhone, isDesktop } = useViewport();
+  const signupNudge = useSignupNudge();
 
   // Mobile/tablet: which screen is showing — "panel" (form/list) or "preview"
   const [mobileView, setMobileView] = useState("panel");
@@ -226,6 +229,7 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
       dispatch({ type: "SET", resume: resumeObj });
       setGenResult({ keywords: data.keywords || [], saved_id: data.saved_id, job_location: data.job_location });
       setStep(3);
+      signupNudge.recordAction();
     } catch (e) {
       setError(e.message || "Generation failed. Try again.");
     } finally {
@@ -261,6 +265,7 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
     setApplication(data.application || null);
     setStep(3);
     setOptimizing(false);
+    signupNudge.recordAction();
 
     // One click, one result: the whole package — resume, cover letter, apply
     // instructions, interview tips — opens for review immediately. Nothing
@@ -738,6 +743,8 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
         onCoverLetterPdf={handleCoverLetterPdf}
         onCoverLetterChange={setCoverLetter}
       />
+
+      <SignupNudgeModal open={signupNudge.show} onDismiss={signupNudge.dismiss} />
     </motion.div>
   );
 }

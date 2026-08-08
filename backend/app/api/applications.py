@@ -12,7 +12,7 @@ app/utils/auth.get_scope for how the two are told apart.
 from datetime import date, datetime
 from flask import Blueprint, request, jsonify
 from app import db
-from app.models import JobApplication
+from app.models import JobApplication, Media
 from app.middleware.error_handlers import APIError
 from app.utils.auth import get_scope
 
@@ -32,6 +32,22 @@ def _scope_filter(query):
     if guest_id:
         return query.filter_by(guest_id=guest_id), user_id, guest_id
     return query.filter(db.false()), user_id, guest_id  # neither header present — show nothing, not everything
+
+
+def _clean_resume_id(raw, user_id, guest_id):
+    """A resume_id is "which of my own saved resumes did I send for this
+    application" — accepting any id the client sends with no ownership
+    check would let a request attach someone else's Media row to your
+    application (that row's caption/owner then shows up wherever this
+    application is rendered, admin panel included). Silently drops it to
+    None instead of erroring: a stale/foreign id here is a UI mismatch,
+    not something worth failing the whole save over."""
+    resume_id = (raw or "").strip() or None
+    if not resume_id:
+        return None
+    q = Media.query.filter_by(id=resume_id)
+    q = q.filter_by(user_id=user_id) if user_id else q.filter_by(guest_id=guest_id)
+    return resume_id if q.first() else None
 
 
 def _needs_followup(app_row):
@@ -74,7 +90,7 @@ def create_application():
         company=company, role=role, status=status,
         date_applied=(body.get("date_applied") or "").strip() or None,
         notes=(body.get("notes") or "").strip() or None,
-        resume_id=(body.get("resume_id") or "").strip() or None,
+        resume_id=_clean_resume_id(body.get("resume_id"), user_id, guest_id),
         user_id=user_id, guest_id=None if user_id else guest_id,
     )
     db.session.add(app_row)
@@ -91,7 +107,7 @@ def list_applications():
 
 @applications_bp.route("/<app_id>", methods=["PATCH"])
 def update_application(app_id):
-    query, _, _ = _scope_filter(JobApplication.query.filter_by(id=app_id))
+    query, user_id, guest_id = _scope_filter(JobApplication.query.filter_by(id=app_id))
     app_row = query.first()
     if not app_row:
         raise APIError("Application not found", 404)
@@ -110,7 +126,7 @@ def update_application(app_id):
     if "notes" in body:
         app_row.notes = (body["notes"] or "").strip() or None
     if "resume_id" in body:
-        app_row.resume_id = (body["resume_id"] or "").strip() or None
+        app_row.resume_id = _clean_resume_id(body["resume_id"], user_id, guest_id)
 
     db.session.commit()
     return jsonify({"success": True, "data": _serialize(app_row)}), 200

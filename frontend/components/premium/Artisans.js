@@ -45,6 +45,7 @@ const NAV_ITEMS = [
 ];
 
 const MY_IDS_KEY = "noviq_my_artisan_ids";
+const MY_TOKENS_KEY = "noviq_my_artisan_tokens";
 const RATED_IDS_KEY = "noviq_rated_artisan_ids";
 
 const TRADES = ["All", "Carpenter", "Electrician", "Handyman", "HVAC", "Landscaper",
@@ -65,6 +66,21 @@ const addMyId = (id) => {
   const ids = getMyIds();
   if (!ids.includes(id)) localStorage.setItem(MY_IDS_KEY, JSON.stringify([...ids, id]));
 };
+
+// The backend hands back edit_token exactly once, in the create response
+// (see backend/app/api/artisans.py) — it's the only thing that proves
+// "I'm the one who listed this" for a listing created with no account.
+// Without saving it, every PATCH/DELETE this browser later sends for its
+// own listing 403s forever; there'd be no way to prove ownership again.
+const getMyTokens = () => {
+  try { return JSON.parse(localStorage.getItem(MY_TOKENS_KEY) || "{}"); }
+  catch { return {}; }
+};
+const saveMyToken = (id, token) => {
+  if (!token) return;
+  localStorage.setItem(MY_TOKENS_KEY, JSON.stringify({ ...getMyTokens(), [id]: token }));
+};
+export const getMyArtisanToken = (id) => getMyTokens()[id];
 
 // A map (not an array like MY_IDS_KEY) because it needs to carry the star
 // value too, so a returning visitor sees "you rated this 4 stars" instead
@@ -345,7 +361,10 @@ export default function Artisans({ onClose }) {
 
   const remove = async (id) => {
     try {
-      await apiRequest(`/api/v1/artisans/${id}`, { method: "DELETE" });
+      await apiRequest(`/api/v1/artisans/${id}`, {
+        method: "DELETE",
+        headers: { "X-Edit-Token": getMyArtisanToken(id) || "" },
+      });
       tapFeedback();
       toast.success("Listing removed");
       await load(trade);
@@ -385,7 +404,7 @@ export default function Artisans({ onClose }) {
       if (editingId) {
         await apiRequest(`/api/v1/artisans/${editingId}`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "X-Edit-Token": getMyArtisanToken(editingId) || "" },
           body: JSON.stringify(form),
         });
         toast.success("Listing updated.");
@@ -396,6 +415,7 @@ export default function Artisans({ onClose }) {
           body: JSON.stringify(form),
         });
         addMyId(data.id);
+        saveMyToken(data.id, data.edit_token);
         setMyIds(getMyIds());
         toast.success("You're listed.");
       }

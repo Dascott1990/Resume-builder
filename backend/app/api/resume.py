@@ -557,32 +557,42 @@ def scan_resume():
     # list, and gone entirely if that draft was ever cleared.
     try:
         from app.models import Media
-        doc_bytes = json.dumps(parsed).encode()
         scope_user_id, scope_guest_id = get_scope(request)
-        contact = parsed.get("contact", {})
-        record = Media(
-            filename=f"resume_{uuid.uuid4().hex[:8]}.json",
-            media_type="document",
-            mime_type="application/json",
-            file_data=doc_bytes,
-            file_size=len(doc_bytes),
-            caption=f"{contact.get('name')} — {contact.get('title')}",
-            filter_name="guest_resume",
-            user_id=scope_user_id,
-            guest_id=None if scope_user_id else scope_guest_id,
-            metadata_json={
-                "user_name": contact.get("name"),
-                "user_email": contact.get("email"),
-                "target_role": contact.get("title"),
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "keywords": parsed.get("keywords", []),
-                "imported": True,
-                "optimized": tailoring,
-            },
-        )
-        db.session.add(record)
-        db.session.commit()
-        parsed["saved_id"] = record.id
+        if not scope_user_id and not scope_guest_id:
+            # No X-Guest-Id and not signed in — usually localStorage being
+            # blocked (private browsing, storage disabled) rather than a
+            # real absence of identity. Saving anyway would write a row
+            # with BOTH columns NULL: never findable by any future
+            # request, an orphan forever. The resume itself still comes
+            # back in the response below; it just can't be saved for
+            # later from this browser.
+            parsed["saved_id"] = None
+        else:
+            doc_bytes = json.dumps(parsed).encode()
+            contact = parsed.get("contact", {})
+            record = Media(
+                filename=f"resume_{uuid.uuid4().hex[:8]}.json",
+                media_type="document",
+                mime_type="application/json",
+                file_data=doc_bytes,
+                file_size=len(doc_bytes),
+                caption=f"{contact.get('name')} — {contact.get('title')}",
+                filter_name="guest_resume",
+                user_id=scope_user_id,
+                guest_id=None if scope_user_id else scope_guest_id,
+                metadata_json={
+                    "user_name": contact.get("name"),
+                    "user_email": contact.get("email"),
+                    "target_role": contact.get("title"),
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "keywords": parsed.get("keywords", []),
+                    "imported": True,
+                    "optimized": tailoring,
+                },
+            )
+            db.session.add(record)
+            db.session.commit()
+            parsed["saved_id"] = record.id
     except Exception as e:
         print(f"⚠️ Could not save scanned resume to database: {e}")
         parsed["saved_id"] = None
@@ -641,29 +651,35 @@ def generate_resume():
     # Persist to database
     try:
         from app.models import Media
-        doc_bytes = json.dumps(parsed).encode()
         scope_user_id, scope_guest_id = get_scope(request)
-        record = Media(
-            filename=f"resume_{uuid.uuid4().hex[:8]}.json",
-            media_type="document",
-            mime_type="application/json",
-            file_data=doc_bytes,
-            file_size=len(doc_bytes),
-            caption=f"{info.get('name')} — {parsed.get('contact', {}).get('title', info.get('title'))}",
-            filter_name="guest_resume",
-            user_id=scope_user_id,
-            guest_id=None if scope_user_id else scope_guest_id,
-            metadata_json={
-                "user_name": info.get("name"),
-                "user_email": info.get("email"),
-                "target_role": parsed.get("contact", {}).get("title"),
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "keywords": parsed.get("keywords", []),
-            },
-        )
-        db.session.add(record)
-        db.session.commit()
-        parsed["saved_id"] = record.id
+        if not scope_user_id and not scope_guest_id:
+            # See the identical guard in scan_resume() above — no scope to
+            # save under means a permanently-orphaned NULL/NULL row instead
+            # of just skipping the save.
+            parsed["saved_id"] = None
+        else:
+            doc_bytes = json.dumps(parsed).encode()
+            record = Media(
+                filename=f"resume_{uuid.uuid4().hex[:8]}.json",
+                media_type="document",
+                mime_type="application/json",
+                file_data=doc_bytes,
+                file_size=len(doc_bytes),
+                caption=f"{info.get('name')} — {parsed.get('contact', {}).get('title', info.get('title'))}",
+                filter_name="guest_resume",
+                user_id=scope_user_id,
+                guest_id=None if scope_user_id else scope_guest_id,
+                metadata_json={
+                    "user_name": info.get("name"),
+                    "user_email": info.get("email"),
+                    "target_role": parsed.get("contact", {}).get("title"),
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "keywords": parsed.get("keywords", []),
+                },
+            )
+            db.session.add(record)
+            db.session.commit()
+            parsed["saved_id"] = record.id
     except Exception as e:
         print(f"⚠️ Could not save to database: {e}")
         parsed["saved_id"] = None
@@ -719,30 +735,34 @@ def optimize_resume():
     # Persist to database
     try:
         from app.models import Media
-        doc_bytes = json.dumps(parsed).encode()
         scope_user_id, scope_guest_id = get_scope(request)
-        record = Media(
-            filename=f"resume_{uuid.uuid4().hex[:8]}.json",
-            media_type="document",
-            mime_type="application/json",
-            file_data=doc_bytes,
-            file_size=len(doc_bytes),
-            caption=f"{info.get('name')} — {parsed.get('contact', {}).get('title', info.get('title'))}",
-            filter_name="guest_resume",
-            user_id=scope_user_id,
-            guest_id=None if scope_user_id else scope_guest_id,
-            metadata_json={
-                "user_name": info.get("name"),
-                "user_email": info.get("email"),
-                "target_role": parsed.get("contact", {}).get("title"),
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "keywords": parsed.get("keywords", []),
-                "optimized": True,
-            },
-        )
-        db.session.add(record)
-        db.session.commit()
-        parsed["saved_id"] = record.id
+        if not scope_user_id and not scope_guest_id:
+            # See the identical guard in scan_resume() above.
+            parsed["saved_id"] = None
+        else:
+            doc_bytes = json.dumps(parsed).encode()
+            record = Media(
+                filename=f"resume_{uuid.uuid4().hex[:8]}.json",
+                media_type="document",
+                mime_type="application/json",
+                file_data=doc_bytes,
+                file_size=len(doc_bytes),
+                caption=f"{info.get('name')} — {parsed.get('contact', {}).get('title', info.get('title'))}",
+                filter_name="guest_resume",
+                user_id=scope_user_id,
+                guest_id=None if scope_user_id else scope_guest_id,
+                metadata_json={
+                    "user_name": info.get("name"),
+                    "user_email": info.get("email"),
+                    "target_role": parsed.get("contact", {}).get("title"),
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "keywords": parsed.get("keywords", []),
+                    "optimized": True,
+                },
+            )
+            db.session.add(record)
+            db.session.commit()
+            parsed["saved_id"] = record.id
     except Exception as e:
         print(f"⚠️ Could not save to database: {e}")
         parsed["saved_id"] = None

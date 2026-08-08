@@ -229,6 +229,15 @@ export default function Dashboard({ onClose, onNavigate, onOpenLogin }) {
   const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
+    // Signing out happens right on this screen (see the Sign out button
+    // below) — without keying this on the account, the dashboard kept
+    // showing the outgoing user's recent resumes and applications until
+    // the next full remount, even though the header had already flipped
+    // to "signed out."
+    if (authLoading) return;
+    setStatsLoading(true);
+    setSavedResumes([]);
+    setApplications([]);
     Promise.all([
       apiListSaved(),
       apiRequest("/api/v1/applications").catch(() => []),
@@ -236,7 +245,7 @@ export default function Dashboard({ onClose, onNavigate, onOpenLogin }) {
       setSavedResumes(resumes);
       setApplications(apps);
     }).finally(() => setStatsLoading(false));
-  }, []);
+  }, [authLoading, user?.id]);
 
   const go = (id) => {
     tapFeedback();

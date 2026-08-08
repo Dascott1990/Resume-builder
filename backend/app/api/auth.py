@@ -52,6 +52,19 @@ def _utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def _migrate_guest_data(guest_id, user_id):
+    """Reassigns this browser's anonymous rows to a real account — used by
+    both signup() and login(), so anonymous work follows you in whichever
+    one you actually use. Clears guest_id, not just sets user_id: leaving
+    both set would keep the row reachable via the old guest_id forever,
+    which is what let one person's resumes leak to the next person on a
+    shared browser after the first signed out (fixed in useAuth.logout on
+    the frontend too, by rotating the local guest_id — this half handles
+    rows that were already migrated before that fix existed)."""
+    Media.query.filter_by(guest_id=guest_id, user_id=None).update({"user_id": user_id, "guest_id": None})
+    JobApplication.query.filter_by(guest_id=guest_id, user_id=None).update({"user_id": user_id, "guest_id": None})
+
+
 def _email_shell(heading, body_html, cta_label, cta_link, footnote):
     return f"""
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
@@ -120,11 +133,14 @@ def signup():
     db.session.flush()  # assigns user.id before we touch rows that reference it
 
     # Whatever this browser already built anonymously follows them in —
-    # signing up shouldn't mean starting over.
+    # signing up shouldn't mean starting over. Clearing guest_id here (not
+    # just setting user_id) matters: a row left with BOTH set stays
+    # reachable via its old guest_id forever, which is exactly how a
+    # shared/family browser leaks one person's resumes to the next person
+    # who uses it after the first signs out — see _migrate_guest_data.
     _, guest_id = get_scope(request)
     if guest_id:
-        Media.query.filter_by(guest_id=guest_id, user_id=None).update({"user_id": user.id})
-        JobApplication.query.filter_by(guest_id=guest_id, user_id=None).update({"user_id": user.id})
+        _migrate_guest_data(guest_id, user.id)
 
     # Send before committing — an account nobody can ever verify (because
     # the email silently failed) is worse than no account at all.
@@ -198,6 +214,15 @@ def login():
 
     if not user.email_verified:
         raise APIError("Please verify your email before signing in", 403, code="EMAIL_NOT_VERIFIED")
+
+    # Same "anonymous work follows you in" as signup — without this, someone
+    # who built resumes anonymously on this browser and then logs into an
+    # EXISTING account (rather than signing up fresh) had those resumes
+    # just vanish from Saved/the Tracker instead of attaching to their account.
+    _, guest_id = get_scope(request)
+    if guest_id:
+        _migrate_guest_data(guest_id, user.id)
+        db.session.commit()
 
     return jsonify({"success": True, "data": {"user": user.to_dict(), "token": issue_token(user.id)}}), 200
 

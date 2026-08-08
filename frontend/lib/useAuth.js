@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { getToken, setToken } from "./authToken";
+import { rotateGuestId } from "./guestId";
 
 export function useAuth() {
   const [user, setUser] = useState(null);
@@ -59,6 +60,11 @@ export function useAuth() {
   const logout = () => {
     setToken(null);
     setUser(null);
+    // A fresh guest identity the instant someone signs out — otherwise the
+    // next person on this browser (a shared/family device) keeps sending
+    // the outgoing account's old guest id and can end up seeing whatever
+    // of theirs is still reachable by it. See lib/guestId.js.
+    rotateGuestId();
   };
 
   // Verifying signs the user in directly (the click itself proves inbox

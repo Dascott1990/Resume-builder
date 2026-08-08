@@ -117,10 +117,36 @@ def create_app():
         db.create_all()
         _sync_missing_columns(app)
         _bootstrap_admin(app)
+        _backfill_artisan_tokens(app)
         table_names = sorted(db.metadata.tables.keys())
         print(f"✅ Database tables created/verified: {table_names}")
 
     return app
+
+
+def _backfill_artisan_tokens(app):
+    """
+    Every Artisan row with a NULL edit_token is editable/deletable by
+    anyone who has its id, no auth at all (see _authorize_edit's
+    grandfather clause in api/artisans.py) — that was meant to only cover
+    rows that predated edit tokens entirely, but _sync_missing_columns adds
+    new columns NULL with no backfill, so it silently applied to every
+    listing that already existed the moment the column shipped, forever,
+    not just historically. Giving each one a real token here closes that.
+    The original creator won't know this new token (there's nowhere to
+    send it), so they'd need an admin to hand them a way back in — no
+    worse than any other "lost the only credential" situation.
+    """
+    import secrets
+    from app.models import Artisan
+
+    stragglers = Artisan.query.filter(Artisan.edit_token.is_(None)).all()
+    if not stragglers:
+        return
+    for artisan in stragglers:
+        artisan.edit_token = secrets.token_urlsafe(24)
+    db.session.commit()
+    print(f"🔧 Backfilled edit_token for {len(stragglers)} artisan listing(s)")
 
 
 def _bootstrap_admin(app):
