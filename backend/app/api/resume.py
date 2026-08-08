@@ -822,10 +822,33 @@ def interview_chat():
             continue
         clean_messages.append({"role": role, "content": content[:2000]})
 
+    # clean_messages always starts with "assistant" once a conversation is
+    # underway — the frontend's own transcript state seeds itself with the
+    # AI's opening question (see InterviewChat.js), it never echoes back a
+    # synthetic "Let's begin" user turn. A hardcoded assistant turn used to
+    # sit right here between the context message and clean_messages, which
+    # meant every reply after the very first one sent the AI provider TWO
+    # consecutive assistant messages — both Anthropic and Groq's chat APIs
+    # reject non-alternating roles outright, so every follow-up answer in a
+    # mock interview failed. Fixed by dropping that hardcoded turn entirely
+    # — a single leading "user" message plus the frontend's own
+    # (correctly-alternating) transcript already alternates on its own.
     context = f"JOB DESCRIPTION:\n{job_desc}\n\nTALKING POINTS TO DRAW ON:\n" + "\n".join(f"- {t}" for t in interview_tips[:5])
-    chat_messages = [{"role": "user", "content": context}, {"role": "assistant", "content": "Understood — I'll use this to run the mock interview."}, *clean_messages]
+    chat_messages = [{"role": "user", "content": context}, *clean_messages]
     if not clean_messages:
         chat_messages.append({"role": "user", "content": "Let's begin."})
+
+    # Defensive normalization — cheap insurance against this exact bug class
+    # recurring if the transcript shape ever changes again: collapse any
+    # accidental consecutive same-role messages by merging their content,
+    # rather than letting a malformed request reach the AI provider at all.
+    normalized = []
+    for m in chat_messages:
+        if normalized and normalized[-1]["role"] == m["role"]:
+            normalized[-1] = {"role": m["role"], "content": normalized[-1]["content"] + "\n\n" + m["content"]}
+        else:
+            normalized.append(dict(m))
+    chat_messages = normalized
 
     reply = _ai_chat(system=INTERVIEW_CHAT_SYSTEM, messages=chat_messages, effort="low", max_tokens=300, groq_temperature=0.7)
     return jsonify({"success": True, "data": {"message": reply.strip()}}), 200

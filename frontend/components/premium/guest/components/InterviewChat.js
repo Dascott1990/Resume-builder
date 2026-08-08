@@ -19,7 +19,12 @@ export function InterviewChat({ open, onClose, jobDescription, interviewTips }) 
   const scrollRef = useRef(null);
   const startedRef = useRef(false);
 
-  const ask = async (nextMessages) => {
+  // On failure, roll the optimistic update back rather than leaving it in
+  // place — without this, retrying after ANY failure (a network blip, a
+  // rate limit, anything) resent an already-appended user turn plus a new
+  // one, compounding with every retry instead of just trying the same
+  // request again cleanly.
+  const ask = async (nextMessages, rollback) => {
     setSending(true);
     setError("");
     try {
@@ -31,6 +36,10 @@ export function InterviewChat({ open, onClose, jobDescription, interviewTips }) 
       setMessages([...nextMessages, { role: "assistant", content: data.message }]);
     } catch (e) {
       setError(e.message || "Could not reach the interviewer. Try again.");
+      if (rollback) {
+        setMessages(rollback.messages);
+        setInput(rollback.input);
+      }
     } finally {
       setSending(false);
     }
@@ -61,10 +70,11 @@ export function InterviewChat({ open, onClose, jobDescription, interviewTips }) 
   const send = () => {
     const text = input.trim();
     if (!text || sending) return;
+    const rollback = { messages, input: text };
     const next = [...messages, { role: "user", content: text }];
     setMessages(next);
     setInput("");
-    ask(next);
+    ask(next, rollback);
   };
 
   return (
