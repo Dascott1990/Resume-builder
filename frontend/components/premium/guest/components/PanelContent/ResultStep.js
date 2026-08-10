@@ -8,7 +8,7 @@ import { AtsScoreModal } from "../AtsScoreModal";
 // ── Step 3 result — one bold action, everything else a quiet text link ───────
 export function ResultStep({
   genResult, application, coverLetter, isPhone, isDesktop, downloading, resume, jobDescription,
-  onOpenPackage, onDownloadWord, onOpenPreview, onDownloadPdf, onBuildAnother,
+  onOpenPackage, onDownloadWord, onOpenPreview, onDownloadPdf, onBuildAnother, onApplyAts,
 }) {
   const [atsOpen, setAtsOpen] = useState(false);
   return (
@@ -83,7 +83,13 @@ export function ResultStep({
         </div>
       </div>
 
-      <AtsScoreModal open={atsOpen} onClose={() => setAtsOpen(false)} resume={resume} jobDescription={jobDescription} />
+      <AtsScoreModal
+        open={atsOpen}
+        onClose={() => setAtsOpen(false)}
+        resume={resume}
+        jobDescription={jobDescription}
+        onApply={onApplyAts}
+      />
     </div>
   );
 }

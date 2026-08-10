@@ -37,7 +37,15 @@ export async function apiRequest(path, options = {}) {
   try {
     res = await fetch(`${BASE}${path}`, { ...options, headers });
   } catch {
-    throw new Error(`Could not reach the server at ${BASE}. Is the backend running and is NEXT_PUBLIC_API_URL set correctly?`);
+    // Fetch itself throwing (as opposed to resolving with a non-2xx status)
+    // means the request never reached a server at all — dropped connection,
+    // DNS failure, backend down. Tagged so the UI can show a calm "check
+    // your connection" screen instead of the raw dev-facing message below,
+    // which is still attached (as .detail) for the technical-details panel.
+    const err = new Error("Can't reach Noviq's servers right now.");
+    err.code = "NETWORK_ERROR";
+    err.detail = `Could not reach the server at ${BASE}. Is the backend running and is NEXT_PUBLIC_API_URL set correctly?`;
+    throw err;
   }
 
   if (res.status === 204) return null;

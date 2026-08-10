@@ -533,6 +533,7 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
               onOpenPreview={() => setMobileView("preview")}
               onDownloadPdf={handlePdf}
               onBuildAnother={resetWizard}
+              onApplyAts={(fixed) => dispatch({ type: "SET", resume: { ...resume, contact: fixed.contact, sections: fixed.sections } })}
             />
           )}
 

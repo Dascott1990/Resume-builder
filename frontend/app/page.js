@@ -34,6 +34,13 @@ export default function Home() {
   // job" bookmarklet (see lib/bookmarklet.js) — set once, from the ?jd=
   // query param below, consumed once by GuestMode, then cleared.
   const [pendingJobDesc, setPendingJobDesc] = useState(null);
+  // Shared remount key for every view below that isn't Resume (which already
+  // has its own sessionId for this exact purpose). A crash's "Try Again"
+  // needs a genuinely fresh child instance, not just the error screen
+  // hiding itself over the same broken one — see ErrorBoundary.js's own
+  // usage note.
+  const [errorResetKey, setErrorResetKey] = useState(0);
+  const retryView = () => setErrorResetKey((k) => k + 1);
 
   // This page is server-rendered at "/" — the server has no way to know
   // whether this browser has visited before, so it always renders the
@@ -115,80 +122,105 @@ export default function Home() {
 
   if (view === "launcher") {
     return (
-      <LandingPage
-        onOpen={openResume}
-        onOpenArtisans={() => setView("artisans")}
-        onOpenDashboard={() => setView("dashboard")}
-      />
+      <ErrorBoundary key={errorResetKey} onReset={retryView}>
+        <LandingPage
+          onOpen={openResume}
+          onOpenArtisans={() => setView("artisans")}
+          onOpenDashboard={() => setView("dashboard")}
+        />
+      </ErrorBoundary>
     );
   }
 
   if (view === "dashboard") {
     return (
-      <Dashboard
-        // The one true exit back to the marketing page — everywhere else,
-        // "close" means "back to the dashboard," not "back out of the app."
+      <ErrorBoundary
+        key={errorResetKey}
+        onReset={retryView}
         onClose={() => {
           try { localStorage.removeItem(ENTERED_KEY); } catch { /* best-effort */ }
           setView("launcher");
         }}
-        onOpenLogin={() => setView("login")}
-        onNavigate={(id) => {
-          if (id === "resume") openResume();
-          else if (id === "scan") setView("cvscan");
-          else if (id === "jobtracker") setView("jobtracker");
-          else if (id === "artisans") setView("artisans");
-          else if (id === "apply") setView("apply");
-        }}
-      />
+      >
+        <Dashboard
+          // The one true exit back to the marketing page — everywhere else,
+          // "close" means "back to the dashboard," not "back out of the app."
+          onClose={() => {
+            try { localStorage.removeItem(ENTERED_KEY); } catch { /* best-effort */ }
+            setView("launcher");
+          }}
+          onOpenLogin={() => setView("login")}
+          onNavigate={(id) => {
+            if (id === "resume") openResume();
+            else if (id === "scan") setView("cvscan");
+            else if (id === "jobtracker") setView("jobtracker");
+            else if (id === "artisans") setView("artisans");
+            else if (id === "apply") setView("apply");
+          }}
+        />
+      </ErrorBoundary>
     );
   }
 
   if (view === "login") {
     return (
-      <Login
-        onClose={() => setView("dashboard")}
-        onSuccess={() => setView("dashboard")}
-        onSwitchToSignup={() => setView("signup")}
-      />
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+        <Login
+          onClose={() => setView("dashboard")}
+          onSuccess={() => setView("dashboard")}
+          onSwitchToSignup={() => setView("signup")}
+        />
+      </ErrorBoundary>
     );
   }
 
   if (view === "signup") {
     return (
-      <Signup
-        onClose={() => setView("dashboard")}
-        onSuccess={() => setView("dashboard")}
-        onSwitchToLogin={() => setView("login")}
-      />
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+        <Signup
+          onClose={() => setView("dashboard")}
+          onSuccess={() => setView("dashboard")}
+          onSwitchToLogin={() => setView("login")}
+        />
+      </ErrorBoundary>
     );
   }
 
   if (view === "cvscan") {
     return (
-      <CVScan
-        onClose={() => setView("dashboard")}
-        onImported={(data) => {
-          setPendingImport(data);
-          setPendingJobDesc(null);
-          setSessionId((id) => id + 1);
-          setView("resume");
-        }}
-      />
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+        <CVScan
+          onClose={() => setView("dashboard")}
+          onImported={(data) => {
+            setPendingImport(data);
+            setPendingJobDesc(null);
+            setSessionId((id) => id + 1);
+            setView("resume");
+          }}
+        />
+      </ErrorBoundary>
     );
   }
 
   if (view === "jobtracker") {
-    return <JobTracker onClose={() => setView("dashboard")} />;
+    return (
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+        <JobTracker onClose={() => setView("dashboard")} />
+      </ErrorBoundary>
+    );
   }
 
   if (view === "apply") {
-    return <ApplyWithAI onClose={() => setView("dashboard")} />;
+    return (
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+        <ApplyWithAI onClose={() => setView("dashboard")} />
+      </ErrorBoundary>
+    );
   }
 
   if (view === "artisans") {
     return (
-      <ErrorBoundary onReset={() => setView("artisans")} onClose={() => setView("dashboard")}>
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
         <Artisans onClose={() => setView("dashboard")} />
       </ErrorBoundary>
     );

@@ -887,20 +887,12 @@ Rules:
 - Return ONLY the JSON object."""
 
 
-@resume_bp.route("/ats-check", methods=["POST"])
-@limiter.limit("30 per hour")
-def ats_check():
-    """Score a resume's ATS-readiness, optionally against a specific job posting."""
-    body = request.get_json(force=True) or {}
-    resume = body.get("resume") or {}
-    job_desc = (body.get("job_description") or "").strip()[:4000]
-
-    if not resume.get("contact") or not resume.get("sections"):
-        raise APIError("resume (with contact and sections) is required", 400)
-
-    job_context = f"JOB DESCRIPTION (score keyword alignment against this too):\n{job_desc}" if job_desc else "No specific job description provided — score general ATS-readiness only."
+def _score_resume(resume: dict, job_context: str) -> dict:
+    """Shared by /ats-check and /ats-improve so the improve loop scores each
+    rewrite pass with the exact same judge it reports to the user — a resume
+    that "passes" during improvement but re-fails on a fresh /ats-check call
+    would just be confusing."""
     prompt = ATS_CHECK_PROMPT.format(resume_json=json.dumps(resume)[:6000], job_context=job_context)
-
     raw = _ai_complete(system=ATS_CHECK_SYSTEM, prompt=prompt, effort="low", max_tokens=900, groq_temperature=0.3)
     clean = raw.replace("```json", "").replace("```", "").strip()
 
@@ -913,8 +905,165 @@ def ats_check():
         parsed["score"] = max(0, min(100, int(parsed.get("score", 0))))
     except (TypeError, ValueError):
         parsed["score"] = 0
+    parsed.setdefault("issues", [])
+    return parsed
 
+
+@resume_bp.route("/ats-check", methods=["POST"])
+@limiter.limit("30 per hour")
+def ats_check():
+    """Score a resume's ATS-readiness, optionally against a specific job posting."""
+    body = request.get_json(force=True) or {}
+    resume = body.get("resume") or {}
+    job_desc = (body.get("job_description") or "").strip()[:4000]
+
+    if not resume.get("contact") or not resume.get("sections"):
+        raise APIError("resume (with contact and sections) is required", 400)
+
+    job_context = f"JOB DESCRIPTION (score keyword alignment against this too):\n{job_desc}" if job_desc else "No specific job description provided — score general ATS-readiness only."
+    parsed = _score_resume(resume, job_context)
     return jsonify({"success": True, "data": parsed}), 200
+
+
+ATS_IMPROVE_SYSTEM = """You are an elite ATS resume writer. You rewrite resumes to fix specific,
+already-identified ATS issues. You never invent employers, job titles, dates, schools, certifications,
+or achievements that aren't already present in the resume you're given — rephrasing, reordering,
+quantifying, and keyword-aligning REAL content is the job; fabricating credentials is resume fraud and
+is never acceptable, even if it would raise the score. You always respond with ONLY valid JSON."""
+
+ATS_IMPROVE_PROMPT = """CURRENT RESUME (structured JSON):
+{resume_json}
+
+{job_context}
+
+ATS ISSUES TO FIX THIS PASS:
+{issues_text}
+
+TASK:
+Rewrite this resume to fix the issues above, following these rules exactly:
+- Use ONLY information already present in the resume above — the same employers, dates, schools,
+  certifications, and skills. Rephrasing, reordering, quantifying existing achievements, and aligning
+  wording with the job description's keywords are all fine. Inventing a new employer, degree, school,
+  certification, or metric is NEVER fine, even if it would fix the issue.
+- If an issue genuinely can't be fixed without inventing something the candidate hasn't provided (for
+  example, the job wants a certification the resume shows no sign of), do not touch the resume for it.
+  Instead add one entry to "unresolved" naming the real, specific thing the candidate could go get
+  (e.g. "Food Handler Certification" or "a WHMIS course") — a suggestion for them to actually pursue,
+  never something written into the resume as if it already happened.
+- You may add, rename, split, or reorder SECTIONS (e.g. break out a dedicated "Certifications" section
+  from something buried in Skills) if that better organizes content already present — never populate a
+  new section with invented content.
+- Every section MUST use exactly one of these four shapes — the app's renderer only understands
+  these field names, so any other shape (e.g. a "content" array, or fields like "jobtitle"/"achievements")
+  will silently fail to display:
+  {{ "id": "...", "label": "...", "type": "text", "content": "prose string" }}
+  {{ "id": "...", "label": "...", "type": "bullets", "items": ["...", "..."] }}
+  {{ "id": "...", "label": "...", "type": "jobs", "jobs": [
+    {{ "role": "...", "company": "...", "period": "start – end", "location": "...", "bullets": ["...", "..."] }}
+  ] }}
+  {{ "id": "...", "label": "...", "type": "education", "degrees": [
+    {{ "degree": "...", "school": "...", "location": "...", "period": "..." }}
+  ] }}
+  A new section you add (e.g. a "Certifications" section) must still use one of these four shapes —
+  "bullets" for a flat list of certifications is usually the right one.
+
+Return this exact JSON structure (no other text, no markdown fences):
+{{
+  "contact": {{ "name": "...", "title": "...", "email": "...", "phone": "...", "location": "..." }},
+  "sections": [ ...revised sections, each in one of the four shapes above... ],
+  "unresolved": ["real, specific, actionable suggestion — never a fabrication", "..."]
+}}
+
+Return ONLY the JSON object."""
+
+
+def _valid_section(sec) -> bool:
+    """Defense in depth on top of ATS_IMPROVE_PROMPT's schema rules — an AI
+    response that drifts from the four known section shapes must never reach
+    the frontend renderer (Resume.js), which only knows how to draw exactly
+    these four. A malformed section silently failing to render on a resume
+    someone's about to submit for a job is exactly the kind of small bug
+    that isn't small to the person it happens to."""
+    if not isinstance(sec, dict) or not sec.get("id") or not sec.get("label") or not sec.get("type"):
+        return False
+    t = sec["type"]
+    if t == "text":
+        return isinstance(sec.get("content"), str)
+    if t == "bullets":
+        return isinstance(sec.get("items"), list)
+    if t == "jobs":
+        return isinstance(sec.get("jobs"), list)
+    if t == "education":
+        return isinstance(sec.get("degrees"), list)
+    return False
+
+
+@resume_bp.route("/ats-improve", methods=["POST"])
+@limiter.limit("10 per hour")
+def ats_improve():
+    """Score a resume, rewrite it to address the issues found, re-score, and repeat
+    for a small bounded number of passes — the "keep going until it's actually good"
+    loop behind the ATS score modal's "Fix these issues" button. Bounded (not truly
+    "until satisfaction") on purpose: each pass is a real AI call, so an unbounded
+    loop is a cost/latency/rate-limit problem waiting to happen, and diminishing
+    returns set in fast — two focused passes fix what's fixable; a resume that still
+    scores low after that has issues that need real information from the user, not
+    another rewrite (see ATS_IMPROVE_PROMPT's `unresolved` rule)."""
+    body = request.get_json(force=True) or {}
+    resume = body.get("resume") or {}
+    job_desc = (body.get("job_description") or "").strip()[:4000]
+
+    if not resume.get("contact") or not resume.get("sections"):
+        raise APIError("resume (with contact and sections) is required", 400)
+
+    MAX_PASSES = 2
+    TARGET_SCORE = 85
+
+    job_context = f"JOB DESCRIPTION (score/align against this too):\n{job_desc}" if job_desc else "No specific job description provided — score general ATS-readiness only."
+
+    current = {"contact": resume["contact"], "sections": resume["sections"]}
+    history = []
+    unresolved = []
+    check = _score_resume(current, job_context)
+    history.append({"pass": 0, "score": check["score"]})
+
+    passes_run = 0
+    while check["score"] < TARGET_SCORE and check["issues"] and passes_run < MAX_PASSES:
+        issues_text = "\n".join(f"- ({iss.get('severity', 'medium')}) {iss.get('message', '')}" for iss in check["issues"])
+        prompt = ATS_IMPROVE_PROMPT.format(
+            resume_json=json.dumps(current)[:6000],
+            job_context=job_context,
+            issues_text=issues_text,
+        )
+        raw = _ai_complete(system=ATS_IMPROVE_SYSTEM, prompt=prompt, effort="medium", max_tokens=1800, groq_temperature=0.3)
+        clean = raw.replace("```json", "").replace("```", "").strip()
+        passes_run += 1
+
+        try:
+            revised = json.loads(clean)
+        except json.JSONDecodeError:
+            break  # keep the last good version rather than fail the whole request
+
+        if not revised.get("contact") or not revised.get("sections"):
+            break
+
+        valid_sections = [s for s in revised["sections"] if _valid_section(s)]
+        if not valid_sections:
+            break  # nothing usable came back — keep the last good version
+
+        current = {"contact": revised["contact"], "sections": valid_sections}
+        unresolved = revised.get("unresolved") or []
+        check = _score_resume(current, job_context)
+        history.append({"pass": passes_run, "score": check["score"]})
+
+    return jsonify({"success": True, "data": {
+        "resume": current,
+        "score": check["score"],
+        "summary": check["summary"],
+        "issues": check["issues"],
+        "unresolved": unresolved,
+        "history": history,
+    }}), 200
 
 
 def _saved_scope_filter(query):

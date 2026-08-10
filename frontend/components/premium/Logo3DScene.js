@@ -14,22 +14,11 @@
  * rectangular beam per segment plus a circular filler at each joint,
  * merged into a single geometry.
  */
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Center } from "@react-three/drei";
 import { useMarkGeometry } from "./markGeometry";
-
-function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(mq.matches);
-    const onChange = (e) => setReduced(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-  return reduced;
-}
+import { usePrefersReducedMotion } from "@/lib/usePrefersReducedMotion";
 
 function Mark() {
   const geometry = useMarkGeometry();

@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import OfflineBanner from "@/components/premium/shared/OfflineBanner";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import { ServiceWorkerRegister } from "./ServiceWorkerRegister";
 import { KeepAlive } from "./KeepAlive";
@@ -57,6 +58,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className="m-0 overscroll-none bg-background">
         {children}
+        <OfflineBanner />
         <Toaster position="top-center" />
         <ServiceWorkerRegister />
         <KeepAlive />
