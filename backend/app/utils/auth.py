@@ -30,28 +30,40 @@ def verify_password(password: str, password_hash: str) -> bool:
     return check_password_hash(password_hash, password)
 
 
-def issue_token(user_id: str) -> str:
+def issue_token(subject_id: str, role: str = "user") -> str:
     if not JWT_SECRET:
         raise RuntimeError("JWT_SECRET is not configured")
     payload = {
-        "sub": user_id,
+        "sub": subject_id,
+        "role": role,
         "exp": datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRY_DAYS),
         "iat": datetime.now(timezone.utc),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def verify_token(token: str):
-    """Returns the user_id the token was issued for, or None if it's missing,
-    expired, or was signed with a different secret. Never raises — every
-    caller treats an invalid token exactly like "not logged in", not an error."""
+def verify_token(token: str, expected_role: str = "user"):
+    """Returns the subject id the token was issued for, or None if it's
+    missing, expired, signed with a different secret, or issued for a
+    different role than expected. Never raises — every caller treats an
+    invalid token exactly like "not logged in", not an error.
+
+    The role check matters once two separate account systems (User,
+    Artisan) both issue Bearer-style tokens from the same JWT_SECRET —
+    without it, a customer's token and an artisan's token would be
+    interchangeable anywhere a raw id is trusted, even though they're rows
+    in different tables. Tokens issued before this claim existed have none
+    — treated as "user", the only role that existed back then, so no
+    already-issued session breaks."""
     if not token or not JWT_SECRET:
         return None
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return payload.get("sub")
     except jwt.PyJWTError:
         return None
+    if payload.get("role", "user") != expected_role:
+        return None
+    return payload.get("sub")
 
 
 def get_scope(request):
@@ -62,9 +74,32 @@ def get_scope(request):
     user_id = None
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
-        user_id = verify_token(auth_header[len("Bearer "):].strip())
+        user_id = verify_token(auth_header[len("Bearer "):].strip(), expected_role="user")
     guest_id = request.headers.get("X-Guest-Id") or None
     return user_id, guest_id
+
+
+def get_artisan_scope(request):
+    """artisan_id for the current request, or None. Deliberately its own
+    header (X-Artisan-Token), not Authorization — a browser can be signed
+    in as BOTH a customer (User account) and an artisan at once, and reusing
+    Authorization: Bearer for both would make the two sessions collide,
+    each overwriting the other. No guest fallback: unlike the rest of this
+    app, receiving/accepting job requests requires a real artisan account —
+    see JobRequest's accept/complete routes in api/requests.py."""
+    token = request.headers.get("X-Artisan-Token") or ""
+    return verify_token(token, expected_role="artisan")
+
+
+def require_artisan_scope(request):
+    """Same as get_artisan_scope, but raises instead of returning None —
+    the one-liner every artisan-only route starts with."""
+    from app.middleware.error_handlers import APIError
+
+    artisan_id = get_artisan_scope(request)
+    if not artisan_id:
+        raise APIError("Artisan sign-in required", 401)
+    return artisan_id
 
 
 def get_admin_user(request):

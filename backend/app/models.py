@@ -83,6 +83,15 @@ class Artisan(db.Model):
     # anyone who knows the id. NULL on rows created before this existed —
     # see the grandfather clause in api/artisans.py's _authorize_edit.
     edit_token = db.Column(db.String(64), index=True, nullable=True)
+    # Everything below is for the OPTIONAL account layer on top of this same
+    # listing (see api/artisans.py's /signup, /login, /me) — the plain
+    # anonymous "list yourself" flow above never touches these, so every
+    # pre-existing listing simply has them all NULL and keeps working
+    # exactly as before. An artisan only starts receiving job requests (see
+    # JobRequest below) once they've signed up for real AND turned
+    # is_available on — neither is assumed just because a listing exists.
+    password_hash = db.Column(db.String(255), nullable=True)
+    is_available = db.Column(db.Boolean, nullable=True)
 
     def to_dict(self):
         return {
@@ -90,6 +99,63 @@ class Artisan(db.Model):
             "city": self.city, "phone": self.phone, "email": self.email,
             "bio": self.bio, "years_experience": self.years_experience,
             "rating_avg": self.rating_avg, "rating_count": self.rating_count or 0,
+            "has_account": self.password_hash is not None,
+            "is_available": bool(self.is_available),
+        }
+
+
+class JobRequest(db.Model):
+    """
+    The "Uber/Lyft for artisans" request-and-accept flow: a customer posts
+    what they need (trade + city + description), and any signed-in,
+    available artisan whose trade/city match can see it in their pool and
+    accept it — first to accept gets it (see api/requests.py's atomic
+    accept, a single conditional UPDATE so two artisans racing on the same
+    request can't both "win" it).
+
+    No live location, no map, no dispatch algorithm — matching is a simple
+    trade+city filter, not geodistance, since Artisan only stores a city
+    string today, not coordinates.
+    """
+    __tablename__ = "job_requests"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    # Same dual-scoping as Media/JobApplication — whoever posted this,
+    # anonymous or signed in.
+    guest_id = db.Column(db.String(64), index=True, nullable=True)
+    user_id = db.Column(db.String(32), db.ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
+
+    trade = db.Column(db.String(100), nullable=False, index=True)
+    city = db.Column(db.String(120), index=True)
+    description = db.Column(db.String(1000), nullable=False)
+    # Contact info is captured directly on the request, not resolved via
+    # guest_id/user_id lookup — a guest customer has no profile row an
+    # artisan could look up, and even a signed-in one might want to give a
+    # different phone number for this particular job.
+    contact_name = db.Column(db.String(150), nullable=False)
+    contact_phone = db.Column(db.String(40), nullable=False)
+    contact_email = db.Column(db.String(190), nullable=True)
+
+    # requested -> accepted -> completed, or requested/accepted -> cancelled
+    status = db.Column(db.String(20), nullable=False, default="requested", index=True)
+    artisan_id = db.Column(
+        db.String(32), db.ForeignKey("artisans.id", ondelete="SET NULL"),
+        index=True, nullable=True,
+    )
+
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    accepted_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "trade": self.trade, "city": self.city,
+            "description": self.description,
+            "contact_name": self.contact_name, "contact_phone": self.contact_phone,
+            "contact_email": self.contact_email,
+            "status": self.status, "artisan_id": self.artisan_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "accepted_at": self.accepted_at.isoformat() if self.accepted_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }
 
 

@@ -1,5 +1,6 @@
-"""app/api/artisans.py — artisan directory: CRUD + AI bio polish."""
+"""app/api/artisans.py — artisan directory: CRUD + AI bio polish + accounts."""
 import os
+import re
 import secrets
 import anthropic
 import requests
@@ -8,9 +9,10 @@ from sqlalchemy import func
 from app import db, limiter
 from app.models import Artisan, Review
 from app.middleware.error_handlers import APIError
-from app.utils.auth import get_admin_user
+from app.utils.auth import get_admin_user, require_artisan_scope, hash_password, verify_password, issue_token
 
 artisans_bp = Blueprint("artisans", __name__)
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _authorize_edit(a):
@@ -176,6 +178,89 @@ def create_artisan():
     # there's no later request where it could leak to anyone but the
     # person who just created the listing.
     return jsonify({"success": True, "data": {**a.to_dict(), "edit_token": token}}), 201
+
+
+@artisans_bp.route("/signup", methods=["POST"])
+@limiter.limit("8 per hour")
+def artisan_signup():
+    """Creates a real artisan ACCOUNT — separate from the plain anonymous
+    "list yourself" flow above (POST ""), which is untouched by this and
+    keeps working exactly as it did. An account is what lets an artisan
+    sign in to accept job requests (see api/requests.py); the anonymous
+    listing has no need for either an email or a password. Deliberately no
+    email-verification step here (unlike User signup) — the goal is a
+    tradesperson can sign up and start receiving job leads in one step;
+    the request/accept flow itself is the real proof this account is
+    theirs, not an unclickable inbox link."""
+    body = request.get_json(force=True) or {}
+    name, trade, phone = body.get("name"), body.get("trade"), body.get("phone")
+    email = (body.get("email") or "").strip().lower()
+    password = body.get("password") or ""
+
+    if not (name and trade and phone):
+        raise APIError("name, trade and phone are required", 400)
+    if not EMAIL_RE.match(email):
+        raise APIError("Enter a valid email address", 400)
+    if len(password) < 8:
+        raise APIError("Password must be at least 8 characters", 400)
+    if Artisan.query.filter(Artisan.email == email, Artisan.password_hash.isnot(None)).first():
+        raise APIError("An artisan account with that email already exists", 409)
+
+    a = Artisan(
+        name=name, trade=trade, phone=phone, email=email,
+        city=body.get("city"), bio=body.get("bio"),
+        years_experience=_clean_years_experience(body.get("years_experience")),
+        edit_token=secrets.token_urlsafe(24),
+        password_hash=hash_password(password),
+        is_available=False,
+    )
+    db.session.add(a)
+    db.session.commit()
+    return jsonify({"success": True, "data": {"artisan": a.to_dict(), "token": issue_token(a.id, role="artisan")}}), 201
+
+
+@artisans_bp.route("/login", methods=["POST"])
+@limiter.limit("10 per minute")
+def artisan_login():
+    body = request.get_json(force=True) or {}
+    email = (body.get("email") or "").strip().lower()
+    password = body.get("password") or ""
+
+    a = Artisan.query.filter(Artisan.email == email, Artisan.password_hash.isnot(None)).first()
+    # Same message either way — confirming "no account with that email" is
+    # a free enumeration oracle, same reasoning as the User login route.
+    if not a or not verify_password(password, a.password_hash):
+        raise APIError("Incorrect email or password", 401)
+
+    return jsonify({"success": True, "data": {"artisan": a.to_dict(), "token": issue_token(a.id, role="artisan")}}), 200
+
+
+@artisans_bp.route("/me", methods=["GET"])
+def artisan_me():
+    artisan_id = require_artisan_scope(request)
+    a = db.session.get(Artisan, artisan_id)
+    if not a:
+        raise APIError("Artisan account not found", 404)
+    return jsonify({"success": True, "data": a.to_dict()}), 200
+
+
+@artisans_bp.route("/me/availability", methods=["PATCH"])
+def artisan_set_availability():
+    """The one on/off switch that decides whether this artisan shows up in
+    anyone's request pool at all — see api/requests.py's matching query.
+    Off by default from signup (see artisan_signup) and after every login
+    is unaffected by this (availability persists across sessions; someone
+    who was On yesterday is still On until they explicitly flip it)."""
+    artisan_id = require_artisan_scope(request)
+    a = db.session.get(Artisan, artisan_id)
+    if not a:
+        raise APIError("Artisan account not found", 404)
+    body = request.get_json(force=True) or {}
+    if "is_available" not in body:
+        raise APIError("is_available is required", 400)
+    a.is_available = bool(body["is_available"])
+    db.session.commit()
+    return jsonify({"success": True, "data": a.to_dict()}), 200
 
 
 def _clean_pagination(default_limit, max_limit):

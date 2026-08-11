@@ -46,7 +46,7 @@ def create_app():
             # one included, Artisan listing edits too) was failing its CORS
             # preflight and never actually reaching the server.
             "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id", "X-Edit-Token", "X-Artisan-Token"],
             "supports_credentials": True
         },
         # The "tailor for this job" bookmarklet runs on whatever job board
@@ -88,6 +88,9 @@ def create_app():
 
     from app.api.artisans import artisans_bp
     app.register_blueprint(artisans_bp, url_prefix="/api/v1/artisans")
+
+    from app.api.requests import requests_bp
+    app.register_blueprint(requests_bp, url_prefix="/api/v1/requests")
 
     from app.api.auth import auth_bp
     app.register_blueprint(auth_bp, url_prefix="/api/v1/auth")

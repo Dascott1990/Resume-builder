@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import Resume from "../components/premium/Resume";
 import ErrorBoundary from "../components/premium/ErrorBoundary";
 import Artisans from "../components/premium/Artisans";
+import ArtisanDashboard from "../components/premium/artisan/ArtisanDashboard";
 import LandingPage from "../components/premium/landing/LandingPage";
 import Dashboard from "../components/premium/Dashboard";
 import Login from "../components/premium/auth/Login";
@@ -221,7 +222,15 @@ export default function Home() {
   if (view === "artisans") {
     return (
       <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
-        <Artisans onClose={() => setView("dashboard")} />
+        <Artisans onClose={() => setView("dashboard")} onOpenArtisanDashboard={() => setView("artisan-dashboard")} />
+      </ErrorBoundary>
+    );
+  }
+
+  if (view === "artisan-dashboard") {
+    return (
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("artisans")}>
+        <ArtisanDashboard onClose={() => setView("artisans")} />
       </ErrorBoundary>
     );
   }

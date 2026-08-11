@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw } from "lucide-react";
+import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tintFor, initialsOf, formatPhone, truncateBio } from "./shared/artisanDisplay";
@@ -36,11 +36,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TRADES_WITH_ALL } from "./shared/trades";
+import RequestJobModal from "./artisan/RequestJobModal";
+import MyRequestsPane from "./artisan/MyRequestsPane";
 
 const PAGE_SIZE = 20;
 
 const NAV_ITEMS = [
   { id: "browse", Icon: Search, label: "Browse" },
+  { id: "requests", Icon: ClipboardList, label: "My requests" },
   { id: "form", Icon: UserPlus, label: "List yourself" },
 ];
 
@@ -48,8 +52,7 @@ const MY_IDS_KEY = "noviq_my_artisan_ids";
 const MY_TOKENS_KEY = "noviq_my_artisan_tokens";
 const RATED_IDS_KEY = "noviq_rated_artisan_ids";
 
-const TRADES = ["All", "Carpenter", "Electrician", "Handyman", "HVAC", "Landscaper",
-  "Mason", "Mover", "Painter", "Plumber", "Roofer"];
+const TRADES = TRADES_WITH_ALL;
 
 const SORTS = [
   { id: "newest", label: "Newest" },
@@ -276,9 +279,11 @@ function Field({ label, required, hint, value, onChange, placeholder, type = "te
   );
 }
 
-export default function Artisans({ onClose }) {
+export default function Artisans({ onClose, onOpenArtisanDashboard }) {
   const { isDesktop } = useViewport();
   const [tab, setTab] = useState("browse");
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [requestModalTrade, setRequestModalTrade] = useState(null);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -455,6 +460,15 @@ export default function Artisans({ onClose }) {
   const browsePane = (
     <motion.div key="browse" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="flex min-h-0 flex-1 flex-col gap-3">
+      <button
+        type="button"
+        onClick={() => { setRequestModalTrade(trade !== "All" ? trade : null); setRequestModalOpen(true); }}
+        className="flex shrink-0 items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-3 text-left"
+      >
+        <span className="text-[13px] font-bold text-primary">Need something done? Post a job request</span>
+        <ClipboardList className="size-4 shrink-0 text-primary" />
+      </button>
+
       <SearchBar value={query} onChange={setQuery} />
 
       <TradeChips active={trade} onSelect={setTrade} />
@@ -564,12 +578,34 @@ export default function Artisans({ onClose }) {
         <IconTile icon={Hammer} size="sm" />
         <p className="m-0 font-serif text-[17px] italic text-foreground">Find an Artisan</p>
       </div>
-      {onClose && (
-        <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
-          <X className="size-5" />
-        </Button>
-      )}
+      <div className="flex items-center gap-1">
+        {onOpenArtisanDashboard && (
+          <Button variant="ghost" size="icon" aria-label="Artisan sign in" onClick={onOpenArtisanDashboard} title="Artisan sign in">
+            <Wrench className="size-[17px]" />
+          </Button>
+        )}
+        {onClose && (
+          <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
+            <X className="size-5" />
+          </Button>
+        )}
+      </div>
     </div>
+  );
+
+  const requestsPane = (
+    <motion.div key="requests" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="flex min-h-0 flex-1 flex-col gap-3">
+      <button
+        type="button"
+        onClick={() => { setRequestModalTrade(null); setRequestModalOpen(true); }}
+        className="flex shrink-0 items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-3 text-left"
+      >
+        <span className="text-[13px] font-bold text-primary">Post a new job request</span>
+        <ClipboardList className="size-4 shrink-0 text-primary" />
+      </button>
+      <MyRequestsPane />
+    </motion.div>
   );
 
   // ── Desktop (≥1024px): persistent master-detail split, mirroring
@@ -584,7 +620,7 @@ export default function Artisans({ onClose }) {
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <div className="flex w-[380px] shrink-0 flex-col gap-3.5 overflow-hidden border-r border-border p-5">
             {errorBanner}
-            <AnimatePresence mode="wait">{tab === "browse" ? browsePane : formPane}</AnimatePresence>
+            <AnimatePresence mode="wait">{tab === "browse" ? browsePane : tab === "requests" ? requestsPane : formPane}</AnimatePresence>
           </div>
           <div className="min-w-0 flex-1 overflow-y-auto">
             {viewingArtisan ? (
@@ -602,6 +638,11 @@ export default function Artisans({ onClose }) {
             )}
           </div>
         </div>
+        <RequestJobModal
+          open={requestModalOpen}
+          onClose={() => setRequestModalOpen(false)}
+          defaultTrade={requestModalTrade}
+        />
       </div>
     );
   }
@@ -625,11 +666,16 @@ export default function Artisans({ onClose }) {
             style={{ paddingBottom: "calc(86px + env(safe-area-inset-bottom, 0px))" }}
           >
             {errorBanner}
-            <AnimatePresence mode="wait">{tab === "browse" ? browsePane : formPane}</AnimatePresence>
+            <AnimatePresence mode="wait">{tab === "browse" ? browsePane : tab === "requests" ? requestsPane : formPane}</AnimatePresence>
           </div>
           <BottomNav items={NAV_ITEMS} active={tab} onChange={onNavChange} />
         </motion.div>
       )}
+      <RequestJobModal
+        open={requestModalOpen}
+        onClose={() => setRequestModalOpen(false)}
+        defaultTrade={requestModalTrade}
+      />
     </AnimatePresence>
   );
 }
