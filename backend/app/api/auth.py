@@ -7,6 +7,8 @@ POST /api/v1/auth/login
 POST /api/v1/auth/forgot-password
 POST /api/v1/auth/reset-password
 GET  /api/v1/auth/me
+PATCH /api/v1/auth/me
+POST /api/v1/auth/change-password
 
 Entirely optional layer on top of the anonymous guest_id system already
 used everywhere else — nothing else in the app requires any of this.
@@ -27,7 +29,7 @@ from flask import Blueprint, request, jsonify
 from app import db, limiter
 from app.models import User, Media, JobApplication, CareerProfile, ApplicationRun
 from app.middleware.error_handlers import APIError
-from app.utils.auth import hash_password, verify_password, issue_token, get_scope
+from app.utils.auth import hash_password, verify_password, issue_token, get_scope, require_customer_scope
 from app.utils.mail import send_email
 
 auth_bp = Blueprint("auth", __name__)
@@ -40,6 +42,17 @@ FRONTEND_URL = (os.environ.get("FRONTEND_URL") or "http://localhost:3000").rstri
 
 def _new_token():
     return secrets.token_urlsafe(32)
+
+
+def _clean_emoji(raw):
+    """avatar_emoji is a String(16) column — a single emoji (even a
+    multi-codepoint ZWJ sequence) is well under that, but the field is
+    otherwise unvalidated free text from the client, so this stays cheap
+    insurance against a raw DB error for a purely cosmetic field."""
+    if not raw:
+        return None
+    cleaned = str(raw).strip()[:16]
+    return cleaned or None
 
 
 def _utcnow():
@@ -308,3 +321,43 @@ def me():
     if not user:
         raise APIError("Not signed in", 401)
     return jsonify({"success": True, "data": user.to_dict()}), 200
+
+
+@auth_bp.route("/me", methods=["PATCH"])
+def update_me():
+    user_id = require_customer_scope(request)
+    user = db.session.get(User, user_id)
+    if not user:
+        raise APIError("Not signed in", 401)
+    body = request.get_json(force=True) or {}
+    if "name" in body:
+        name = (body["name"] or "").strip()
+        user.name = name or None
+    if "avatar_emoji" in body:
+        user.avatar_emoji = _clean_emoji(body["avatar_emoji"])
+    db.session.commit()
+    return jsonify({"success": True, "data": user.to_dict()}), 200
+
+
+@auth_bp.route("/change-password", methods=["POST"])
+@limiter.limit("10 per hour")
+def change_password():
+    user_id = require_customer_scope(request)
+    user = db.session.get(User, user_id)
+    if not user:
+        raise APIError("Not signed in", 401)
+
+    body = request.get_json(force=True) or {}
+    current_password = body.get("current_password") or ""
+    new_password = body.get("new_password") or ""
+
+    if not verify_password(current_password, user.password_hash):
+        raise APIError("Current password is incorrect", 400)
+    if len(new_password) < 8:
+        raise APIError("New password must be at least 8 characters", 400)
+
+    # The JWT isn't derived from the password hash, so it stays valid —
+    # no need to re-issue a token or force a re-login after this.
+    user.password_hash = hash_password(new_password)
+    db.session.commit()
+    return jsonify({"success": True, "data": {"message": "Password updated"}}), 200

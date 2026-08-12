@@ -74,6 +74,34 @@ def _clean_years_experience(raw):
     return value
 
 
+def _clean_emoji(raw):
+    """avatar_emoji is a String(16) column, otherwise-unvalidated free text
+    from the client — cheap insurance against a raw DB error for a purely
+    cosmetic field, same helper as auth.py's."""
+    if not raw:
+        return None
+    cleaned = str(raw).strip()[:16]
+    return cleaned or None
+
+
+def _apply_profile_fields(a, body):
+    """The actual field-assignment logic behind editing an artisan's own
+    listing — shared by update_artisan (authorized via the anonymous
+    edit_token) and artisan_update_me (authorized via the artisan's own
+    session token, see PATCH /me below). Same fields, same geocode-on-
+    city-change behavior, regardless of which door was used to get here."""
+    city_changed = "city" in body and body["city"] != a.city
+    for field in ["name", "trade", "city", "phone", "email", "bio"]:
+        if field in body:
+            setattr(a, field, body[field])
+    if "years_experience" in body:
+        a.years_experience = _clean_years_experience(body["years_experience"])
+    if "avatar_emoji" in body:
+        a.avatar_emoji = _clean_emoji(body["avatar_emoji"])
+    if city_changed:
+        _apply_geocode(a, a.city)
+
+
 BIO_SYSTEM_PROMPT = (
     "You write concise, credible professional bios for skilled "
     "tradespeople. Plain text only — no markdown, no quotes, "
@@ -284,6 +312,46 @@ def artisan_set_availability():
     return jsonify({"success": True, "data": a.to_dict()}), 200
 
 
+@artisans_bp.route("/me", methods=["PATCH"])
+def artisan_update_me():
+    """The fix for a real gap: an artisan signed in normally (via this
+    session token) previously had no way to edit their own name/trade/
+    city/phone/bio at all — only the anonymous edit_token flow could
+    (see _authorize_edit/update_artisan), and a real signed-up artisan is
+    never handed that token. Same field logic either door uses — see
+    _apply_profile_fields."""
+    artisan_id = require_artisan_scope(request)
+    a = db.session.get(Artisan, artisan_id)
+    if not a:
+        raise APIError("Artisan account not found", 404)
+    body = request.get_json(force=True) or {}
+    _apply_profile_fields(a, body)
+    db.session.commit()
+    return jsonify({"success": True, "data": a.to_dict()}), 200
+
+
+@artisans_bp.route("/me/change-password", methods=["POST"])
+@limiter.limit("10 per hour")
+def artisan_change_password():
+    artisan_id = require_artisan_scope(request)
+    a = db.session.get(Artisan, artisan_id)
+    if not a:
+        raise APIError("Artisan account not found", 404)
+
+    body = request.get_json(force=True) or {}
+    current_password = body.get("current_password") or ""
+    new_password = body.get("new_password") or ""
+
+    if not verify_password(current_password, a.password_hash):
+        raise APIError("Current password is incorrect", 400)
+    if len(new_password) < 8:
+        raise APIError("New password must be at least 8 characters", 400)
+
+    a.password_hash = hash_password(new_password)
+    db.session.commit()
+    return jsonify({"success": True, "data": {"message": "Password updated"}}), 200
+
+
 def _clean_pagination(default_limit, max_limit):
     try:
         limit = int(request.args.get("limit", default_limit))
@@ -366,14 +434,7 @@ def update_artisan(artisan_id):
         raise APIError("Artisan not found", 404)
     _authorize_edit(a)
     body = request.get_json(force=True) or {}
-    city_changed = "city" in body and body["city"] != a.city
-    for field in ["name", "trade", "city", "phone", "email", "bio"]:
-        if field in body:
-            setattr(a, field, body[field])
-    if "years_experience" in body:
-        a.years_experience = _clean_years_experience(body["years_experience"])
-    if city_changed:
-        _apply_geocode(a, a.city)
+    _apply_profile_fields(a, body)
     db.session.commit()
     return jsonify({"success": True, "data": a.to_dict()}), 200
 

@@ -2,6 +2,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import OfflineBanner from "@/components/premium/shared/OfflineBanner";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { ACCENT_INIT_SCRIPT } from "@/lib/accentColor";
 import { ServiceWorkerRegister } from "./ServiceWorkerRegister";
 import { KeepAlive } from "./KeepAlive";
 
@@ -47,6 +48,10 @@ export default function RootLayout({ children }) {
             localStorage), and a light-mode visitor would see a flash of
             dark before React mounts and corrects it. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Same reasoning, one property lower — the stored accent color
+            (default amber) applied before first paint via inline style
+            overrides on the CSS custom properties globals.css defines. */}
+        <script dangerouslySetInnerHTML={{ __html: ACCENT_INIT_SCRIPT }} />
         {/* Caveat — the handwriting font drawn onto the pen-writing 3D
             scene's canvas textures (PaperTransformScene.js). Loaded as a
             real stylesheet, not next/font, since it needs to be resolvable

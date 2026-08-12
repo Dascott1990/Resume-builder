@@ -15,6 +15,9 @@ class User(db.Model):
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
     email = db.Column(db.String(190), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
+    # Optional — signup never asks for either, only the Settings screen does.
+    name = db.Column(db.String(150), nullable=True)
+    avatar_emoji = db.Column(db.String(16), nullable=True)
     # A real account isn't "created," it's "claimed" — email_verified stays
     # False (and login is refused) until the address is proven reachable.
     # Without this, signup is just a form that hands out session tokens to
@@ -33,7 +36,10 @@ class User(db.Model):
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
 
     def to_dict(self):
-        return {"id": self.id, "email": self.email, "email_verified": bool(self.email_verified), "is_admin": bool(self.is_admin)}
+        return {
+            "id": self.id, "email": self.email, "name": self.name, "avatar_emoji": self.avatar_emoji,
+            "email_verified": bool(self.email_verified), "is_admin": bool(self.is_admin),
+        }
 
 
 class Media(db.Model):
@@ -101,6 +107,7 @@ class Artisan(db.Model):
     lat = db.Column(db.Float, nullable=True)
     lng = db.Column(db.Float, nullable=True)
     geocoded_city = db.Column(db.String(190), nullable=True)
+    avatar_emoji = db.Column(db.String(16), nullable=True)
 
     def to_dict(self):
         return {
@@ -110,7 +117,7 @@ class Artisan(db.Model):
             "rating_avg": self.rating_avg, "rating_count": self.rating_count or 0,
             "has_account": self.password_hash is not None,
             "is_available": bool(self.is_available),
-            "lat": self.lat, "lng": self.lng,
+            "lat": self.lat, "lng": self.lng, "avatar_emoji": self.avatar_emoji,
         }
 
 

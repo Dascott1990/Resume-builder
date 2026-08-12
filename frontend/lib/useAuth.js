@@ -80,6 +80,26 @@ export function useAuth() {
     return data.user;
   };
 
+  // Doesn't need a fresh token — the JWT isn't derived from profile
+  // fields, only user.id — but does need the local user state to reflect
+  // the edit immediately (Settings.js reads straight off this hook).
+  const updateProfile = async (fields) => {
+    const data = await apiRequest("/api/v1/auth/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+    });
+    setUser(data);
+    return data;
+  };
+
+  const changePassword = (currentPassword, newPassword) =>
+    apiRequest("/api/v1/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+
   const resendVerification = (email) =>
     apiRequest("/api/v1/auth/resend-verification", {
       method: "POST",
@@ -111,5 +131,6 @@ export function useAuth() {
   return {
     user, loading, login, signup, logout, refreshUser,
     verifyEmail, resendVerification, forgotPassword, resetPassword,
+    updateProfile, changePassword,
   };
 }

@@ -7,6 +7,7 @@ import Artisans from "../components/premium/Artisans";
 import ArtisanDashboard from "../components/premium/artisan/ArtisanDashboard";
 import LandingPage from "../components/premium/landing/LandingPage";
 import Dashboard from "../components/premium/Dashboard";
+import Settings from "../components/premium/Settings";
 import Login from "../components/premium/auth/Login";
 import Signup from "../components/premium/auth/Signup";
 import CVScan from "../components/premium/CVScan";
@@ -22,7 +23,7 @@ import Logo from "../components/premium/Logo";
 const ENTERED_KEY = "noviq_entered_app";
 
 export default function Home() {
-  const [view, setView] = useState("launcher"); // "launcher" | "dashboard" | "login" | "signup" | "resume" | "artisans" | "cvscan" | "jobtracker"
+  const [view, setView] = useState("launcher"); // "launcher" | "dashboard" | "login" | "signup" | "resume" | "artisans" | "artisan-dashboard" | "cvscan" | "jobtracker" | "apply" | "settings"
   // Bumped on "Try Again" (and on any fresh entry into the studio) to force
   // a new <Resume> instance instead of reusing whatever was mounted before.
   const [sessionId, setSessionId] = useState(0);
@@ -150,13 +151,13 @@ export default function Home() {
             try { localStorage.removeItem(ENTERED_KEY); } catch { /* best-effort */ }
             setView("launcher");
           }}
-          onOpenLogin={() => setView("login")}
           onNavigate={(id) => {
             if (id === "resume") openResume();
             else if (id === "scan") setView("cvscan");
             else if (id === "jobtracker") setView("jobtracker");
             else if (id === "artisans") setView("artisans");
             else if (id === "apply") setView("apply");
+            else if (id === "settings") setView("settings");
           }}
         />
       </ErrorBoundary>
@@ -215,6 +216,18 @@ export default function Home() {
     return (
       <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
         <ApplyWithAI onClose={() => setView("dashboard")} />
+      </ErrorBoundary>
+    );
+  }
+
+  if (view === "settings") {
+    return (
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+        <Settings
+          onClose={() => setView("dashboard")}
+          onOpenLogin={() => setView("login")}
+          onOpenArtisanAuth={() => setView("artisan-dashboard")}
+        />
       </ErrorBoundary>
     );
   }

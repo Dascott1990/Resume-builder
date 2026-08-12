@@ -74,6 +74,20 @@ export const artisanMarkThreadRead = (jobId) => apiRequest(`/api/v1/messages/thr
 
 export const artisanUnreadCount = () => apiRequest("/api/v1/messages/unread-count", { headers: authHeaders() });
 
+// Edits the signed-in artisan's own listing directly via their session —
+// the fix for the old edit_token-only gap (see Settings.js).
+export const artisanUpdateProfile = (fields) => apiRequest("/api/v1/artisans/me", {
+  method: "PATCH",
+  headers: { "Content-Type": "application/json", ...authHeaders() },
+  body: JSON.stringify(fields),
+});
+
+export const artisanChangePassword = (currentPassword, newPassword) => apiRequest("/api/v1/artisans/me/change-password", {
+  method: "POST",
+  headers: { "Content-Type": "application/json", ...authHeaders() },
+  body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+});
+
 // Public route (same one ArtisanProfile.js uses for a customer's view of
 // this artisan) — no X-Artisan-Token needed, just the artisan's own id.
 export const artisanReviews = (artisanId, limit = 3) =>
