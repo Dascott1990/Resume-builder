@@ -1,23 +1,25 @@
 "use client";
 /**
- * RequestJobModal.js — the customer half of the "Uber/Lyft for artisans"
- * flow: post what you need, and any signed-in, available artisan whose
- * trade/city match (see backend/app/api/requests.py) can see it in their
- * pool and accept it. No target artisan is chosen here — this is a
- * broadcast to the matching pool, not a message to one specific person.
+ * RequestJobModal.js — "Request this artisan": a customer requests one
+ * specific, named artisan from their profile (see ArtisanProfile.js's
+ * primary CTA). Targeted, not a broadcast — only `targetArtisan` ever sees
+ * this request, and only they can accept or decline it (see
+ * backend/app/api/requests.py's create_request/pool/decline).
  */
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ClipboardList } from "lucide-react";
 import { apiRequest } from "../shared/api";
 import { Field, Btn } from "../guest/components/primitives";
-import { TRADES } from "../shared/trades";
+import { useAuth } from "@/lib/useAuth";
+import BookingAuthGate from "./BookingAuthGate";
 
-const emptyForm = { trade: "", city: "", description: "", contact_name: "", contact_phone: "", contact_email: "" };
+const emptyForm = { city: "", description: "", contact_name: "", contact_phone: "", contact_email: "" };
 
-export default function RequestJobModal({ open, onClose, defaultTrade }) {
+export default function RequestJobModal({ open, onClose, targetArtisan }) {
+  const { user, loading: authLoading } = useAuth();
+  const [authGateOpen, setAuthGateOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -25,7 +27,7 @@ export default function RequestJobModal({ open, onClose, defaultTrade }) {
 
   useEffect(() => {
     if (!open) return;
-    setForm({ ...emptyForm, trade: defaultTrade || "" });
+    setForm({ ...emptyForm, city: targetArtisan?.city || "" });
     setError("");
     setDone(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -33,61 +35,63 @@ export default function RequestJobModal({ open, onClose, defaultTrade }) {
 
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const submit = async (e) => {
-    e.preventDefault();
-    setError("");
-    if (!form.trade || !form.description.trim() || !form.contact_name.trim() || !form.contact_phone.trim()) {
-      setError("Trade, description, your name, and phone are required.");
-      return;
-    }
+  const postRequest = async () => {
     setSubmitting(true);
     try {
       await apiRequest("/api/v1/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, artisan_id: targetArtisan.id }),
       });
       setDone(true);
-      toast.success("Request posted");
+      toast.success("Request sent");
     } catch (err) {
-      setError(err.message || "Could not post this request. Try again.");
+      setError(err.message || "Could not send this request. Try again.");
     } finally {
       setSubmitting(false);
     }
   };
 
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (!form.description.trim() || !form.contact_name.trim() || !form.contact_phone.trim()) {
+      setError("Description, your name, and phone are required.");
+      return;
+    }
+    // Booking requires a signed-in customer account (see backend's
+    // require_customer_scope) — check here rather than letting the
+    // request 401, so a signed-out visitor gets a sign-in prompt instead
+    // of a confusing error after they've already filled out the form.
+    if (!user) {
+      setAuthGateOpen(true);
+      return;
+    }
+    await postRequest();
+  };
+
+  if (!targetArtisan) return null;
+
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <>
+    <Dialog open={open && !authGateOpen} onOpenChange={(v) => !v && onClose()}>
       <DialogContent showCloseButton className="flex max-h-[85dvh] w-full max-w-[440px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[440px]">
         <div className="min-h-0 overflow-y-auto overscroll-contain p-[22px] [-webkit-overflow-scrolling:touch]">
-          <p className="m-0 mb-4 flex items-center gap-2 font-serif text-xl italic text-foreground">
-            <ClipboardList className="size-[17px] text-primary" /> Post a job request
+          <p className="m-0 mb-1 flex items-center gap-2 font-serif text-xl italic text-foreground">
+            <ClipboardList className="size-[17px] text-primary" /> Request {targetArtisan.name}
           </p>
+          <p className="m-0 mb-4 text-[12.5px] text-muted-foreground">{targetArtisan.trade}</p>
 
           {done ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <p className="m-0 text-sm font-bold text-foreground">Request posted</p>
+              <p className="m-0 text-sm font-bold text-foreground">Request sent</p>
               <p className="m-0 max-w-[300px] text-[12.5px] leading-relaxed text-muted-foreground">
-                Available {form.trade.toLowerCase()}s in your area have been notified. Check "My requests" for updates.
+                {targetArtisan.name} has been notified. Check "My requests" for updates.
               </p>
               <Btn small variant="gold" onClick={onClose}>Done</Btn>
             </div>
           ) : (
             <form onSubmit={submit} className="grid gap-0">
-              <div className="mb-3.5">
-                <div className="mb-1.5 text-[13.5px] font-bold tracking-wide text-foreground">
-                  Trade<span className="text-primary"> *</span>
-                </div>
-                <Select value={form.trade} onValueChange={set("trade")}>
-                  <SelectTrigger className="h-[52px] w-full rounded-[10px] text-base">
-                    <SelectValue placeholder="Select a trade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TRADES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-
               <Field label="City" hint="optional" placeholder="City" value={form.city} onChange={set("city")} />
               <Field label="Description" required multiline rows={3}
                 placeholder="What do you need done?" value={form.description} onChange={set("description")} />
@@ -101,13 +105,20 @@ export default function RequestJobModal({ open, onClose, defaultTrade }) {
                 </div>
               )}
 
-              <Btn variant="gold" type="submit" disabled={submitting} loading={submitting}>
-                {submitting ? "Posting…" : "Post request"}
+              <Btn variant="gold" type="submit" disabled={submitting || authLoading} loading={submitting}>
+                {submitting ? "Sending…" : "Send request"}
               </Btn>
             </form>
           )}
         </div>
       </DialogContent>
     </Dialog>
+
+    <BookingAuthGate
+      open={authGateOpen}
+      onClose={() => setAuthGateOpen(false)}
+      onSuccess={() => { setAuthGateOpen(false); postRequest(); }}
+    />
+    </>
   );
 }

@@ -92,6 +92,9 @@ def create_app():
     from app.api.requests import requests_bp
     app.register_blueprint(requests_bp, url_prefix="/api/v1/requests")
 
+    from app.api.messages import messages_bp
+    app.register_blueprint(messages_bp, url_prefix="/api/v1/messages")
+
     from app.api.auth import auth_bp
     app.register_blueprint(auth_bp, url_prefix="/api/v1/auth")
 

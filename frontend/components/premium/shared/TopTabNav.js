@@ -15,6 +15,13 @@ export function TopTabNav({ items, active, onChange }) {
             }`}>
             <item.Icon className={`size-4 ${isActive ? "text-primary" : "text-muted-foreground/60"}`} />
             {item.label}
+            {/* Optional — items without a badge (every existing caller,
+                today) render exactly as before. */}
+            {!!item.badge && (
+              <span className="flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                {item.badge > 9 ? "9+" : item.badge}
+              </span>
+            )}
           </button>
         );
       })}

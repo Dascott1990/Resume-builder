@@ -79,6 +79,25 @@ def get_scope(request):
     return user_id, guest_id
 
 
+def require_customer_scope(request):
+    """user_id for the current request, or raises — the booking/messaging/
+    payment gate. Deliberately NOT get_scope's (user_id, guest_id) pair: the
+    rest of this app treats guest_id as an equally valid identity for
+    "your stuff," but posting a job request, messaging about one, or paying
+    for one are the three actions the product explicitly requires a real
+    account for (see api/requests.py's create_request) — an anonymous
+    visitor can still browse/search freely, this only gates the moment they
+    try to act. Returns the user_id (not the User row) so callers that
+    don't need the full row avoid an extra query, same shape as
+    get_artisan_scope/require_artisan_scope's artisan_id-only return."""
+    from app.middleware.error_handlers import APIError
+
+    user_id, _ = get_scope(request)
+    if not user_id:
+        raise APIError("Sign in to book, message, or pay", 401)
+    return user_id
+
+
 def get_artisan_scope(request):
     """artisan_id for the current request, or None. Deliberately its own
     header (X-Artisan-Token), not Authorization — a browser can be signed

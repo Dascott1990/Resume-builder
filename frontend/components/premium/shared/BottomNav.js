@@ -47,6 +47,13 @@ export function BottomNav({ items, active, onChange }) {
               transition={{ type: "spring", damping: 18, stiffness: 380 }}
               className="relative flex">
               <item.Icon className={`size-[21px] ${isActive ? "text-primary" : "text-muted-foreground/60"}`} />
+              {/* Optional — items without a badge (every existing caller,
+                  today) render exactly as before. */}
+              {!!item.badge && (
+                <span className="absolute -top-1 -right-1.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-primary px-[3px] text-[9px] font-bold text-primary-foreground">
+                  {item.badge > 9 ? "9+" : item.badge}
+                </span>
+              )}
             </motion.span>
             <span className={`relative text-[12.5px] ${isActive ? "font-bold text-primary" : "font-medium text-muted-foreground/60"} tracking-[0.01em]`}>
               {item.label}

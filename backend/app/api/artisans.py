@@ -1,15 +1,18 @@
 """app/api/artisans.py — artisan directory: CRUD + AI bio polish + accounts."""
 import os
 import re
+import io
 import secrets
 import anthropic
 import requests
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from sqlalchemy import func
 from app import db, limiter
-from app.models import Artisan, Review
+from app.models import Artisan, ArtisanPhoto, Review
 from app.middleware.error_handlers import APIError
 from app.utils.auth import get_admin_user, require_artisan_scope, hash_password, verify_password, issue_token
+from app.utils.geocoding import geocode_city, haversine_km
+from app.utils.ratings import recompute_rating
 
 artisans_bp = Blueprint("artisans", __name__)
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -28,6 +31,22 @@ def _authorize_edit(a):
     provided = request.headers.get("X-Edit-Token") or (request.get_json(silent=True) or {}).get("edit_token")
     if provided != a.edit_token:
         raise APIError("Not authorized to edit this listing", 403)
+
+
+def _apply_geocode(a, city):
+    """Best-effort geocode on save — called from every path that sets/changes
+    an artisan's city (create_artisan, artisan_signup, update_artisan).
+    Never blocks the save on failure: geocode_city() already swallows its
+    own errors, so a bad network call or an unresolvable city just leaves
+    lat/lng/geocoded_city NULL, exactly like a listing that never set a
+    city at all — browse's near-me sort already treats that as append-at-
+    the-end, not reject-the-save.
+    """
+    if not city:
+        return
+    result = geocode_city(city)
+    if result:
+        a.lat, a.lng, a.geocoded_city = result
 
 CLAUDE_MODEL = "claude-opus-5"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -171,6 +190,7 @@ def create_artisan():
         years_experience=_clean_years_experience(body.get("years_experience")),
         edit_token=token,
     )
+    _apply_geocode(a, body.get("city"))
     db.session.add(a)
     db.session.commit()
     # edit_token only ever appears in THIS response — to_dict() (used by
@@ -214,6 +234,7 @@ def artisan_signup():
         password_hash=hash_password(password),
         is_available=False,
     )
+    _apply_geocode(a, body.get("city"))
     db.session.add(a)
     db.session.commit()
     return jsonify({"success": True, "data": {"artisan": a.to_dict(), "token": issue_token(a.id, role="artisan")}}), 201
@@ -291,6 +312,41 @@ def browse():
         q = q.filter(Artisan.trade.ilike(f"%{trade}%"))
     if city := request.args.get("city"):
         q = q.filter(Artisan.city.ilike(f"%{city}%"))
+
+    near_lat, near_lng = request.args.get("near_lat"), request.args.get("near_lng")
+    if near_lat and near_lng:
+        try:
+            near_lat, near_lng = float(near_lat), float(near_lng)
+            radius_km = float(request.args.get("radius_km", 50))
+        except (TypeError, ValueError):
+            raise APIError("near_lat, near_lng and radius_km must be numbers", 400)
+
+        # Distance sort can't be pushed down to SQL (Postgres has no built-in
+        # great-circle distance without PostGIS, which this app doesn't run),
+        # so pull the trade/city-filtered set into Python and sort there.
+        # Fine at this app's actual scale; revisit only if a single
+        # trade/city ever has thousands of rows.
+        with_dist, without_dist = [], []
+        for a in q.all():
+            if a.lat is not None and a.lng is not None:
+                dist = haversine_km(near_lat, near_lng, a.lat, a.lng)
+                if dist <= radius_km:
+                    with_dist.append((dist, a))
+            else:
+                without_dist.append(a)
+        with_dist.sort(key=lambda pair: pair[0])
+        # Not-yet-geocoded listings are appended, not hidden — "near me"
+        # shouldn't make a real, available artisan invisible just because
+        # their city string hasn't resolved to coordinates yet.
+        page = (with_dist + [(None, a) for a in without_dist])[offset:offset + limit]
+        data = []
+        for dist, a in page:
+            d = a.to_dict()
+            if dist is not None:
+                d["distance_km"] = round(dist, 1)
+            data.append(d)
+        return jsonify({"success": True, "data": data}), 200
+
     items = q.order_by(Artisan.created_at.desc()).offset(offset).limit(limit).all()
     return jsonify({"success": True, "data": [a.to_dict() for a in items]}), 200
 
@@ -310,11 +366,14 @@ def update_artisan(artisan_id):
         raise APIError("Artisan not found", 404)
     _authorize_edit(a)
     body = request.get_json(force=True) or {}
+    city_changed = "city" in body and body["city"] != a.city
     for field in ["name", "trade", "city", "phone", "email", "bio"]:
         if field in body:
             setattr(a, field, body[field])
     if "years_experience" in body:
         a.years_experience = _clean_years_experience(body["years_experience"])
+    if city_changed:
+        _apply_geocode(a, a.city)
     db.session.commit()
     return jsonify({"success": True, "data": a.to_dict()}), 200
 
@@ -326,11 +385,100 @@ def delete_artisan(artisan_id):
         raise APIError("Artisan not found", 404)
     _authorize_edit(a)
     # SQLite (local dev) doesn't enforce the FK's ondelete=CASCADE, only
-    # Postgres (prod) does — deleting reviews explicitly here means this
-    # works the same way in both, instead of only failing in prod the
-    # first time someone deletes a listing that has reviews.
+    # Postgres (prod) does — deleting reviews/photos explicitly here means
+    # this works the same way in both, instead of only failing in prod the
+    # first time someone deletes a listing that has reviews or photos.
     Review.query.filter_by(artisan_id=artisan_id).delete()
+    ArtisanPhoto.query.filter_by(artisan_id=artisan_id).delete()
     db.session.delete(a)
+    db.session.commit()
+    return jsonify({"success": True}), 200
+
+
+MAX_PHOTO_BYTES = 5 * 1024 * 1024  # 5MB
+
+
+@artisans_bp.route("/<artisan_id>/photos", methods=["POST"])
+def upload_photo(artisan_id):
+    a = Artisan.query.get(artisan_id)
+    if not a:
+        raise APIError("Artisan not found", 404)
+    _authorize_edit(a)
+
+    file = request.files.get("file")
+    if not file or not file.filename:
+        raise APIError("file is required", 400)
+    if not (file.mimetype or "").startswith("image/"):
+        raise APIError("Only image files are allowed", 400)
+
+    data = file.read()
+    if len(data) > MAX_PHOTO_BYTES:
+        raise APIError("Photo must be 5MB or smaller", 400)
+
+    # New uploads go to the end of the strip by default — sort_order is
+    # only ever reordered explicitly via PATCH, never inferred otherwise.
+    max_order = db.session.query(func.max(ArtisanPhoto.sort_order)).filter_by(artisan_id=artisan_id).scalar()
+    photo = ArtisanPhoto(
+        artisan_id=artisan_id, filename=file.filename, mime_type=file.mimetype,
+        file_data=data, file_size=len(data), caption=(request.form.get("caption") or "").strip() or None,
+        sort_order=(max_order + 1) if max_order is not None else 0,
+    )
+    db.session.add(photo)
+    db.session.commit()
+    return jsonify({"success": True, "data": photo.to_dict()}), 201
+
+
+@artisans_bp.route("/<artisan_id>/photos", methods=["GET"])
+def list_photos(artisan_id):
+    if not Artisan.query.get(artisan_id):
+        raise APIError("Artisan not found", 404)
+    items = ArtisanPhoto.query.filter_by(artisan_id=artisan_id).order_by(ArtisanPhoto.sort_order, ArtisanPhoto.created_at).all()
+    return jsonify({"success": True, "data": [p.to_dict() for p in items]}), 200
+
+
+@artisans_bp.route("/<artisan_id>/photos/<photo_id>/raw", methods=["GET"])
+def get_photo_raw(artisan_id, photo_id):
+    photo = ArtisanPhoto.query.filter_by(id=photo_id, artisan_id=artisan_id).first()
+    if not photo:
+        raise APIError("Photo not found", 404)
+    # No auth check — portfolio photos are public, same as the listing
+    # itself (browsing/viewing stays open to anyone). This is what an
+    # <img src> tag points at directly, never base64-inlined in the JSON.
+    return send_file(io.BytesIO(photo.file_data), mimetype=photo.mime_type, max_age=3600)
+
+
+@artisans_bp.route("/<artisan_id>/photos/<photo_id>", methods=["PATCH"])
+def update_photo(artisan_id, photo_id):
+    a = Artisan.query.get(artisan_id)
+    if not a:
+        raise APIError("Artisan not found", 404)
+    _authorize_edit(a)
+    photo = ArtisanPhoto.query.filter_by(id=photo_id, artisan_id=artisan_id).first()
+    if not photo:
+        raise APIError("Photo not found", 404)
+
+    body = request.get_json(force=True) or {}
+    if "caption" in body:
+        photo.caption = (body["caption"] or "").strip() or None
+    if "sort_order" in body:
+        try:
+            photo.sort_order = int(body["sort_order"])
+        except (TypeError, ValueError):
+            raise APIError("sort_order must be a whole number", 400)
+    db.session.commit()
+    return jsonify({"success": True, "data": photo.to_dict()}), 200
+
+
+@artisans_bp.route("/<artisan_id>/photos/<photo_id>", methods=["DELETE"])
+def delete_photo(artisan_id, photo_id):
+    a = Artisan.query.get(artisan_id)
+    if not a:
+        raise APIError("Artisan not found", 404)
+    _authorize_edit(a)
+    photo = ArtisanPhoto.query.filter_by(id=photo_id, artisan_id=artisan_id).first()
+    if not photo:
+        raise APIError("Photo not found", 404)
+    db.session.delete(photo)
     db.session.commit()
     return jsonify({"success": True}), 200
 
@@ -360,13 +508,7 @@ def create_review(artisan_id):
     review = Review(artisan_id=artisan_id, stars=stars, comment=comment)
     db.session.add(review)
     db.session.flush()  # include the new row in the aggregate below
-
-    count, avg = db.session.query(
-        func.count(Review.id), func.avg(Review.stars)
-    ).filter(Review.artisan_id == artisan_id).one()
-    a.rating_count = count or 0
-    a.rating_avg = round(float(avg), 2) if avg is not None else None
-
+    recompute_rating(artisan_id)
     db.session.commit()
     data = review.to_dict()
     data["rating_avg"] = a.rating_avg

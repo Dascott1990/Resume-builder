@@ -8,13 +8,29 @@
  * shadcn's DialogContent caps at sm:max-w-sm, too cramped for this much
  * content, and the app already treats "look at one thing full screen" as a
  * state swap at two other levels.
+ *
+ * Visually speaks the same artisan-brand language as ArtisanDashboard.js/
+ * JobDetailDialog.js — mono tracking-wide section labels with icons, a
+ * status badge reusing the same available/off language as the artisan's
+ * own dashboard, staggered entrance on the hero block.
+ *
+ * Contact (Request/Call/Text/Email) is a sticky sheet pinned to the
+ * bottom of the screen, NOT part of the scrolling content — the whole
+ * point of this page is to reach the artisan, so that action shouldn't
+ * require scrolling past bio/photos/reviews to find it. It slides up once
+ * on mount, the same "always reachable at the bottom" feel as iOS's
+ * incoming-call sheet, then just stays put through however much the rest
+ * of the page scrolls underneath it.
  */
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { ChevronLeft, MapPin, Phone, MessageSquare, Mail, RefreshCw } from "lucide-react";
+import { ChevronLeft, MapPin, Phone, MessageSquare, Mail, RefreshCw, ClipboardList, Star, MessageCircle } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import { tintFor, initialsOf, formatPhone } from "./shared/artisanDisplay";
 import { Btn } from "./guest/components/primitives";
+import PhotoPortfolio from "./artisan/PhotoPortfolio";
+import RequestJobModal from "./artisan/RequestJobModal";
 import StarRating from "./shared/StarRating";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tapFeedback } from "@/lib/haptics";
@@ -36,10 +52,19 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString();
 }
 
+function Section({ icon: Icon, children }) {
+  return (
+    <div className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">
+      <Icon className="size-3" /> {children}
+    </div>
+  );
+}
+
 export default function ArtisanProfile({
-  artisan, isMine, onBack, onEdit, onDelete, myRating, onRated, onRatingUpdate,
+  artisan, isMine, editToken, onBack, onEdit, onDelete, myRating, onRated, onRatingUpdate,
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [reviewsError, setReviewsError] = useState(null);
@@ -58,6 +83,11 @@ export default function ArtisanProfile({
   useEffect(loadReviews, [artisan.id]);
 
   const tint = tintFor(artisan.name || "?");
+  // Requesting needs a real account on the other end (see backend's
+  // create_request) — most existing listings are the anonymous "list
+  // yourself" kind with no account, for which Call/Text/Email is and
+  // stays the only path. is_available is the artisan's own on/off switch.
+  const canRequest = !isMine && artisan.has_account && artisan.is_available;
 
   const submitRating = async () => {
     setSubmitting(true);
@@ -80,8 +110,9 @@ export default function ArtisanProfile({
   };
 
   return (
+    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
     <div
-      className="flex h-full flex-col gap-4 overflow-y-auto bg-background px-5 pb-5 text-foreground"
+      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5"
       style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
     >
       <div className="flex shrink-0 items-center justify-between">
@@ -105,7 +136,10 @@ export default function ArtisanProfile({
         )}
       </div>
 
-      <div className="flex items-center gap-3">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }}
+        className="flex items-center gap-3"
+      >
         <div className={`flex size-16 shrink-0 items-center justify-center rounded-full border font-mono text-xl font-bold ${tint}`}>
           {initialsOf(artisan.name)}
         </div>
@@ -118,6 +152,24 @@ export default function ArtisanProfile({
                 {artisan.years_experience}+ YRS
               </Badge>
             )}
+            {/* The same available/off language as the artisan's own
+                dashboard status card (ArtisanDashboard.js) — a customer
+                gets the same signal the artisan sees about themselves,
+                instead of only discovering it once the Request button
+                does or doesn't appear. */}
+            {!isMine && artisan.has_account && (
+              <Badge
+                variant="outline"
+                className={`gap-1 rounded-full text-[10px] font-bold ${
+                  artisan.is_available
+                    ? "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[var(--success,#22c55e)]"
+                    : "border-border bg-muted text-muted-foreground"
+                }`}
+              >
+                <span className={`size-[5px] rounded-full ${artisan.is_available ? "bg-[var(--success,#22c55e)]" : "bg-muted-foreground/50"}`} />
+                {artisan.is_available ? "Available now" : "Not accepting requests"}
+              </Badge>
+            )}
           </div>
           {artisan.city && (
             <div className="mt-1 flex items-center gap-1">
@@ -126,9 +178,12 @@ export default function ArtisanProfile({
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
 
-      <div className="flex items-center gap-2.5 border-y border-border py-3.5">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}
+        className="flex items-center gap-2.5 border-y border-border py-3.5"
+      >
         {artisan.rating_count > 0 ? (
           <>
             <span className="text-2xl font-bold text-foreground">{artisan.rating_avg.toFixed(1)}</span>
@@ -140,11 +195,13 @@ export default function ArtisanProfile({
         ) : (
           <span className="text-[13px] text-muted-foreground">No ratings yet — be the first</span>
         )}
-      </div>
+      </motion.div>
 
       {artisan.bio && (
         <p className="text-[13.5px] leading-relaxed text-foreground">{artisan.bio}</p>
       )}
+
+      <PhotoPortfolio artisanId={artisan.id} isMine={isMine} editToken={editToken} />
 
       {!isMine && (
         <div className="rounded-xl border border-border p-3.5">
@@ -185,7 +242,7 @@ export default function ArtisanProfile({
 
       {reviewsLoading && (
         <div className="grid gap-2.5">
-          <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">RECENT REVIEWS</p>
+          <Section icon={Star}>RECENT REVIEWS</Section>
           <div className="rounded-lg border border-border p-2.5">
             <Skeleton className="h-3.5 w-24" />
             <Skeleton className="mt-2 h-3 w-full" />
@@ -206,13 +263,25 @@ export default function ArtisanProfile({
         </div>
       )}
 
-      {!reviewsLoading && !reviewsError && reviews.length > 0 && (
+      {!reviewsLoading && !reviewsError && (
         <div className="grid gap-2.5">
-          <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">RECENT REVIEWS</p>
-          {reviews.map((r) => (
+          <Section icon={Star}>RECENT REVIEWS</Section>
+          {reviews.length === 0 ? (
+            <div className="flex items-center gap-2.5 rounded-lg border border-dashed border-border px-3 py-3">
+              <MessageCircle className="size-4 shrink-0 text-muted-foreground/60" />
+              <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">No reviews yet — job-verified reviews show up here once work's completed.</p>
+            </div>
+          ) : reviews.map((r) => (
             <div key={r.id} className="rounded-lg border border-border p-2.5">
               <div className="flex items-center justify-between gap-2">
-                <StarRating readOnly value={r.stars} size="size-3.5" />
+                <div className="flex items-center gap-1.5">
+                  <StarRating readOnly value={r.stars} size="size-3.5" />
+                  {r.verified && (
+                    <Badge variant="outline" className="rounded-full border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[9.5px] font-bold text-[var(--success,#22c55e)]">
+                      Verified job
+                    </Badge>
+                  )}
+                </div>
                 <span className="text-[11px] text-muted-foreground/70">{timeAgo(r.created_at)}</span>
               </div>
               {r.comment && (
@@ -223,14 +292,51 @@ export default function ArtisanProfile({
         </div>
       )}
 
+    </div>
+
       {/* Same underlying Button primitive Btn itself wraps (asChild renders
           the real <a> so tel:/sms:/mailto: semantics stay correct), sized
           with Btn's own default/small classes — pixel-identical to the
-          rest of the app's gold-CTA + quiet-secondary pattern. */}
-      <div className="mt-auto grid gap-2.5 pt-2">
-        <Button asChild className="h-[54px] w-full gap-2 rounded-xl px-[18px] text-[15px] font-bold">
+          rest of the app's gold-CTA + quiet-secondary pattern.
+
+          "Request this artisan" is the primary action once they have a
+          real account and are available (see canRequest above) — Call
+          becomes the secondary/fallback path instead of the only one.
+          Without an account (most existing listings, per the code comment
+          above) Call/Text/Email are simply the only way to reach out — no
+          note needed, since there was never an in-app request path to
+          begin with. Only when the artisan HAS an account but toggled
+          themselves off does a short note explain the gap (the header
+          badge above already says "Not accepting requests," so this stays
+          brief rather than repeating it verbatim).
+
+          Pinned outside the scrolling column above (see the file-level
+          comment) — a border + blur reads as a distinct sheet sitting on
+          top of the content, the same visual cue as an iOS action sheet
+          rather than just "the last thing in the list." */}
+      <motion.div
+        initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", damping: 24, stiffness: 300 }}
+        className="shrink-0 border-t border-border bg-background/95 px-5 pt-3 backdrop-blur-xl supports-backdrop-filter:bg-background/80"
+        style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+      >
+      <div className="grid gap-2.5">
+        {canRequest ? (
+          <Button className="h-[54px] w-full gap-2 rounded-xl px-[18px] text-[15px] font-bold" onClick={() => setRequestOpen(true)}>
+            <ClipboardList className="size-[18px]" /> Request {artisan.name.split(" ")[0]}
+          </Button>
+        ) : !isMine && artisan.has_account && (
+          <p className="m-0 text-center text-[12px] text-muted-foreground">
+            Try calling instead — back in a bit, most likely
+          </p>
+        )}
+        <Button
+          asChild
+          variant={canRequest ? "outline" : "default"}
+          className={canRequest ? "h-11 w-full gap-1.5 rounded-[10px] px-4 text-sm font-bold" : "h-[54px] w-full gap-2 rounded-xl px-[18px] text-[15px] font-bold"}
+        >
           <a href={`tel:${artisan.phone}`}>
-            <Phone className="size-[18px]" /> Call {formatPhone(artisan.phone)}
+            <Phone className={canRequest ? "size-4" : "size-[18px]"} /> Call {formatPhone(artisan.phone)}
           </a>
         </Button>
         <div className={artisan.email ? "grid grid-cols-2 gap-2.5" : "grid grid-cols-1 gap-2.5"}>
@@ -248,6 +354,9 @@ export default function ArtisanProfile({
           )}
         </div>
       </div>
+      </motion.div>
+
+      <RequestJobModal open={requestOpen} onClose={() => setRequestOpen(false)} targetArtisan={artisan} />
     </div>
   );
 }

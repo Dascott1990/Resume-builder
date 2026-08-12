@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
-import { tintFor, initialsOf, formatPhone, truncateBio } from "./shared/artisanDisplay";
+import { tintFor, initialsOf, formatPhone, truncateBio, formatDistance } from "./shared/artisanDisplay";
 import { Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import ArtisanProfile from "./ArtisanProfile";
@@ -37,15 +37,23 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TRADES_WITH_ALL } from "./shared/trades";
-import RequestJobModal from "./artisan/RequestJobModal";
 import MyRequestsPane from "./artisan/MyRequestsPane";
+import { getUnreadCount } from "./messages/api";
 
 const PAGE_SIZE = 20;
 
-const NAV_ITEMS = [
+// Two personas, not five flat tabs — hiring (Browse, My requests) and
+// being an artisan (List yourself, or sign in for the real dashboard) are
+// different people with different goals; mixing them in one nav made a
+// customer see "List yourself" and an artisan see "My requests," neither
+// of which is theirs.
+const PERSONAS = [
+  { id: "hire", Icon: Search, label: "Hire an artisan" },
+  { id: "artisan", Icon: UserPlus, label: "I'm an artisan" },
+];
+const HIRE_TABS = [
   { id: "browse", Icon: Search, label: "Browse" },
   { id: "requests", Icon: ClipboardList, label: "My requests" },
-  { id: "form", Icon: UserPlus, label: "List yourself" },
 ];
 
 const MY_IDS_KEY = "noviq_my_artisan_ids";
@@ -57,6 +65,7 @@ const TRADES = TRADES_WITH_ALL;
 const SORTS = [
   { id: "newest", label: "Newest" },
   { id: "experience", label: "Most experienced" },
+  { id: "distance", label: "Nearest" },
 ];
 
 const emptyForm = { name: "", trade: "", city: "", phone: "", email: "", years_experience: "", bio: "" };
@@ -164,11 +173,24 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete }) {
                   {a.rating_avg.toFixed(1)} · {a.rating_count}
                 </Badge>
               )}
+              {/* Only the positive signal shows here — a muted "not
+                  accepting" badge on every unavailable card in a long list
+                  would be noise; the full status (available or off) shows
+                  once you open the profile either way. */}
+              {a.has_account && a.is_available && (
+                <Badge variant="outline" className="gap-1 rounded-full border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[10px] font-bold text-[var(--success,#22c55e)]">
+                  <span className="size-[5px] rounded-full bg-[var(--success,#22c55e)]" />
+                  Available
+                </Badge>
+              )}
             </div>
             {a.city && (
               <div className="mt-1 flex items-center gap-1">
                 <MapPin className="size-[11px] text-muted-foreground" />
                 <span className="text-[12.5px] text-muted-foreground">{a.city}</span>
+                {a.distance_km != null && (
+                  <span className="text-[12.5px] text-muted-foreground/60">· {formatDistance(a.distance_km)}</span>
+                )}
               </div>
             )}
           </div>
@@ -281,9 +303,8 @@ function Field({ label, required, hint, value, onChange, placeholder, type = "te
 
 export default function Artisans({ onClose, onOpenArtisanDashboard }) {
   const { isDesktop } = useViewport();
-  const [tab, setTab] = useState("browse");
-  const [requestModalOpen, setRequestModalOpen] = useState(false);
-  const [requestModalTrade, setRequestModalTrade] = useState(null);
+  const [persona, setPersona] = useState("hire"); // "hire" | "artisan"
+  const [tab, setTab] = useState("browse"); // sub-tab within the "hire" persona: "browse" | "requests"
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -300,15 +321,47 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
   const [query, setQuery] = useState("");
   const [trade, setTrade] = useState("All");
   const [sort, setSort] = useState("newest");
+  // Only ever set once geolocation actually succeeds — picking "Nearest"
+  // in the sort dropdown is what triggers the browser's permission prompt
+  // (see the effect below), not a separate toggle, so there's exactly one
+  // control for this instead of two that can disagree with each other.
+  const [nearMe, setNearMe] = useState(null); // { lat, lng } | null
+  const [unread, setUnread] = useState(0);
 
   useEffect(() => { setMyIds(getMyIds()); setRatedIds(getRatedIds()); }, []);
 
-  const load = async (activeTrade) => {
+  // Unread-message badge on "My requests" — a slower, separate poll from
+  // an open thread's own 4s cadence (see MessageThread.js): this only
+  // needs to feel current, not live, while no specific thread is open.
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => getUnreadCount().then((d) => !cancelled && setUnread(d.count)).catch(() => {});
+    poll();
+    const interval = setInterval(poll, 25000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  useEffect(() => {
+    if (sort !== "distance" || nearMe) return;
+    if (!navigator.geolocation) {
+      toast.error("Location isn't available in this browser.");
+      setSort("newest");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setNearMe({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => { toast.error("Couldn't get your location — check your browser's permission settings."); setSort("newest"); },
+      { timeout: 10000 }
+    );
+  }, [sort, nearMe]);
+
+  const load = async (activeTrade, near) => {
     setLoading(true);
     setError(null);
     try {
       const qs = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (activeTrade && activeTrade !== "All") qs.set("trade", activeTrade);
+      if (near) { qs.set("near_lat", String(near.lat)); qs.set("near_lng", String(near.lng)); qs.set("radius_km", "50"); }
       const data = await apiRequest(`/api/v1/artisans?${qs}`);
       setList(data);
       // apiRequest unwraps straight to the data array (no envelope-level
@@ -321,13 +374,14 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
       setLoading(false);
     }
   };
-  useEffect(() => { load(trade); }, [trade]);
+  useEffect(() => { load(trade, sort === "distance" ? nearMe : null); }, [trade, sort === "distance" ? nearMe : null]);
 
   const loadMore = async () => {
     setLoadingMore(true);
     try {
       const qs = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(list.length) });
       if (trade && trade !== "All") qs.set("trade", trade);
+      if (sort === "distance" && nearMe) { qs.set("near_lat", String(nearMe.lat)); qs.set("near_lng", String(nearMe.lng)); qs.set("radius_km", "50"); }
       const data = await apiRequest(`/api/v1/artisans?${qs}`);
       setList((l) => [...l, ...data]);
       setHasMore(data.length === PAGE_SIZE);
@@ -359,10 +413,10 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
       name: a.name, trade: a.trade, city: a.city || "", phone: a.phone,
       email: a.email || "", years_experience: a.years_experience || "", bio: a.bio || "",
     });
-    setTab("form");
+    setPersona("artisan");
   };
 
-  const startCreate = () => { setEditingId(null); setForm(emptyForm); setError(null); setTab("form"); };
+  const startCreate = () => { setEditingId(null); setForm(emptyForm); setError(null); setPersona("artisan"); };
 
   const remove = async (id) => {
     try {
@@ -426,6 +480,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
       }
       setForm(emptyForm);
       setEditingId(null);
+      setPersona("hire");
       setTab("browse");
       await load(trade);
     } catch (e) {
@@ -435,10 +490,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
     }
   };
 
-  const onNavChange = (v) => {
-    if (v === "form") startCreate();
-    else { setTab(v); setError(null); }
-  };
+  const onNavChange = (v) => { setTab(v); setError(null); };
 
   const errorBanner = error && (
     <Alert variant="destructive" className="shrink-0">
@@ -460,21 +512,13 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
   const browsePane = (
     <motion.div key="browse" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="flex min-h-0 flex-1 flex-col gap-3">
-      <button
-        type="button"
-        onClick={() => { setRequestModalTrade(trade !== "All" ? trade : null); setRequestModalOpen(true); }}
-        className="flex shrink-0 items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-3 text-left"
-      >
-        <span className="text-[13px] font-bold text-primary">Need something done? Post a job request</span>
-        <ClipboardList className="size-4 shrink-0 text-primary" />
-      </button>
-
       <SearchBar value={query} onChange={setQuery} />
 
       <TradeChips active={trade} onSelect={setTrade} />
 
       <div className="flex shrink-0 items-center justify-between">
-        <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">
+        <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">
+          <ClipboardList className="size-3" />
           {loading ? "LOADING…" : `${visibleList.length} LISTING${visibleList.length === 1 ? "" : "S"}`}
         </span>
         <Select value={sort} onValueChange={setSort}>
@@ -515,12 +559,24 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
       {editingId && (
         <button
           type="button"
-          onClick={() => { setEditingId(null); setForm(emptyForm); setTab("browse"); }}
+          onClick={() => { setEditingId(null); setForm(emptyForm); setPersona("hire"); setTab("browse"); }}
           className="flex items-center gap-1 justify-self-start border-none bg-transparent p-0 text-xs text-muted-foreground"
         >
           <ChevronLeft className="size-3" /> Cancel edit
         </button>
       )}
+
+      <div className="mb-1 flex items-center gap-3">
+        <IconTile icon={Hammer} size="sm" />
+        <div>
+          <p className="m-0 font-serif text-[17px] italic text-foreground">
+            {editingId ? "Edit your listing" : "List yourself"}
+          </p>
+          <p className="m-0 text-[12px] text-muted-foreground">
+            {editingId ? "Changes go live immediately." : "Live in under a minute — no account required."}
+          </p>
+        </div>
+      </div>
 
       <Field label="Name" required placeholder="Full name" value={form.name}
         onChange={(v) => setForm({ ...form, name: v })} />
@@ -555,6 +611,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
   const profileProps = viewingArtisan && {
     artisan: viewingArtisan,
     isMine: myIds.includes(viewingArtisan.id),
+    editToken: getMyArtisanToken(viewingArtisan.id),
     onBack: () => setViewingArtisan(null),
     onEdit: (a) => { setViewingArtisan(null); startEdit(a); },
     onDelete: async (id) => { await remove(id); setViewingArtisan(null); },
@@ -596,16 +653,55 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
   const requestsPane = (
     <motion.div key="requests" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="flex min-h-0 flex-1 flex-col gap-3">
-      <button
-        type="button"
-        onClick={() => { setRequestModalTrade(null); setRequestModalOpen(true); }}
-        className="flex shrink-0 items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-3 text-left"
-      >
-        <span className="text-[13px] font-bold text-primary">Post a new job request</span>
-        <ClipboardList className="size-4 shrink-0 text-primary" />
-      </button>
+      <div className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5">
+        <ClipboardList className="size-3.5 shrink-0 text-muted-foreground/60" />
+        <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
+          To request an artisan, open their profile from Browse and tap "Request."
+        </p>
+      </div>
       <MyRequestsPane />
     </motion.div>
+  );
+
+  const hireTabs = HIRE_TABS.map((t) => t.id === "requests" ? { ...t, badge: unread } : t);
+
+  const artisanPane = (
+    <motion.div key="artisan" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+      {onOpenArtisanDashboard && (
+        <button
+          type="button"
+          onClick={onOpenArtisanDashboard}
+          className="flex shrink-0 items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-3 text-left"
+        >
+          <span className="text-[13px] font-bold text-primary">Already listed? Sign in to receive job requests</span>
+          <Wrench className="size-4 shrink-0 text-primary" />
+        </button>
+      )}
+      {formPane}
+    </motion.div>
+  );
+
+  const personaSwitch = (
+    <div className="flex shrink-0 justify-center px-5 pb-3">
+      <ToggleGroup
+        type="single"
+        value={persona}
+        onValueChange={(v) => v && setPersona(v)}
+        className="gap-1.5"
+      >
+        {PERSONAS.map((p) => (
+          <ToggleGroupItem
+            key={p.id}
+            value={p.id}
+            className="gap-1.5 rounded-full border border-border bg-transparent px-4 text-[12.5px] font-semibold text-muted-foreground data-[state=on]:border-primary/30 data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
+          >
+            <p.Icon className="size-3.5" />
+            {p.label}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
   );
 
   // ── Desktop (≥1024px): persistent master-detail split, mirroring
@@ -616,33 +712,42 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
     return (
       <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
         {header}
-        <TopTabNav items={NAV_ITEMS} active={tab} onChange={onNavChange} />
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-          <div className="flex w-[380px] shrink-0 flex-col gap-3.5 overflow-hidden border-r border-border p-5">
+        {personaSwitch}
+        {persona === "hire" && <TopTabNav items={hireTabs} active={tab} onChange={onNavChange} />}
+        {persona === "artisan" ? (
+          // Full-width, single column — there's no list-to-select-from
+          // concept here, so the browse persona's right-pane placeholder
+          // ("Select an artisan to view their profile") doesn't apply and
+          // would just be a confusing non-sequitur next to a listing form.
+          <div className="mx-auto w-full max-w-[480px] flex-1 overflow-y-auto p-5">
             {errorBanner}
-            <AnimatePresence mode="wait">{tab === "browse" ? browsePane : tab === "requests" ? requestsPane : formPane}</AnimatePresence>
+            {artisanPane}
           </div>
-          <div className="min-w-0 flex-1 overflow-y-auto">
-            {viewingArtisan ? (
-              <ArtisanProfile key={viewingArtisan.id} {...profileProps} />
-            ) : (
-              <div className="grid h-full justify-items-center content-center gap-2.5 px-5 text-center">
-                <div className="flex size-11 items-center justify-center rounded-full border border-border bg-card">
-                  <User className="size-[18px] text-muted-foreground" />
+        ) : (
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            <div className="flex w-[380px] shrink-0 flex-col gap-3.5 overflow-hidden border-r border-border p-5">
+              {errorBanner}
+              <AnimatePresence mode="wait">
+                {tab === "browse" ? browsePane : requestsPane}
+              </AnimatePresence>
+            </div>
+            <div className="min-w-0 flex-1 overflow-y-auto">
+              {viewingArtisan ? (
+                <ArtisanProfile key={viewingArtisan.id} {...profileProps} />
+              ) : (
+                <div className="grid h-full justify-items-center content-center gap-2.5 px-5 text-center">
+                  <div className="flex size-11 items-center justify-center rounded-full border border-border bg-card">
+                    <User className="size-[18px] text-muted-foreground" />
+                  </div>
+                  <p className="m-0 text-sm font-bold text-foreground">Select an artisan to view their profile</p>
+                  <p className="m-0 max-w-[280px] text-[12.5px] leading-relaxed text-muted-foreground">
+                    Select a listing to see their full profile.
+                  </p>
                 </div>
-                <p className="m-0 text-sm font-bold text-foreground">Select an artisan to view their profile</p>
-                <p className="m-0 max-w-[280px] text-[12.5px] leading-relaxed text-muted-foreground">
-                  Select a listing to see their full profile.
-                </p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-        <RequestJobModal
-          open={requestModalOpen}
-          onClose={() => setRequestModalOpen(false)}
-          defaultTrade={requestModalTrade}
-        />
+        )}
       </div>
     );
   }
@@ -661,21 +766,19 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
         <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           className="flex h-full flex-col overflow-hidden bg-background text-foreground">
           {header}
+          {personaSwitch}
           <div
             className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-5"
-            style={{ paddingBottom: "calc(86px + env(safe-area-inset-bottom, 0px))" }}
+            style={{ paddingBottom: persona === "hire" ? "calc(86px + env(safe-area-inset-bottom, 0px))" : "env(safe-area-inset-bottom, 0px)" }}
           >
             {errorBanner}
-            <AnimatePresence mode="wait">{tab === "browse" ? browsePane : tab === "requests" ? requestsPane : formPane}</AnimatePresence>
+            <AnimatePresence mode="wait">
+              {persona === "artisan" ? artisanPane : tab === "browse" ? browsePane : requestsPane}
+            </AnimatePresence>
           </div>
-          <BottomNav items={NAV_ITEMS} active={tab} onChange={onNavChange} />
+          {persona === "hire" && <BottomNav items={hireTabs} active={tab} onChange={onNavChange} />}
         </motion.div>
       )}
-      <RequestJobModal
-        open={requestModalOpen}
-        onClose={() => setRequestModalOpen(false)}
-        defaultTrade={requestModalTrade}
-      />
     </AnimatePresence>
   );
 }

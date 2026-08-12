@@ -47,3 +47,11 @@ export function truncateBio(bio, max = 88) {
   const lastSpace = cut.lastIndexOf(" ");
   return `${cut.slice(0, lastSpace > 40 ? lastSpace : max)}…`;
 }
+
+// Sub-km distances read as "450 m away" — "0.5 km away" makes a
+// two-minutes-down-the-street artisan sound farther than they are.
+export function formatDistance(km) {
+  if (km == null) return null;
+  if (km < 1) return `${Math.round(km * 1000)} m away`;
+  return `${km < 10 ? km.toFixed(1) : Math.round(km)} km away`;
+}

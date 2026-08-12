@@ -92,6 +92,15 @@ class Artisan(db.Model):
     # is_available on — neither is assumed just because a listing exists.
     password_hash = db.Column(db.String(255), nullable=True)
     is_available = db.Column(db.Boolean, nullable=True)
+    # Best-effort geocode of `city` (see utils/geocoding.py), set on save —
+    # NULL on every row until it's (re)saved after this shipped, and NULL
+    # forever for a city string that fails to geocode. A separate column
+    # from `city` on purpose: the free-text field is what the artisan
+    # actually typed and always renders as-is; a failed/ambiguous geocode
+    # must never silently overwrite that with garbage or wipe it out.
+    lat = db.Column(db.Float, nullable=True)
+    lng = db.Column(db.Float, nullable=True)
+    geocoded_city = db.Column(db.String(190), nullable=True)
 
     def to_dict(self):
         return {
@@ -101,6 +110,41 @@ class Artisan(db.Model):
             "rating_avg": self.rating_avg, "rating_count": self.rating_count or 0,
             "has_account": self.password_hash is not None,
             "is_available": bool(self.is_available),
+            "lat": self.lat, "lng": self.lng,
+        }
+
+
+class ArtisanPhoto(db.Model):
+    """
+    An artisan's public portfolio image — a new table, not a reuse of
+    Media (see models.py's docstring context / the marketplace plan):
+    Media is scoped by guest_id/user_id (the customer identity system) and
+    carries resume-specific fields; this is scoped by artisan_id and needs
+    sort_order/caption that would be dead weight on every resume row.
+    Same physical storage choice as Media (Postgres LargeBinary, not S3) —
+    consistent with the rest of this app, revisit only if it becomes a
+    real bottleneck.
+    """
+    __tablename__ = "artisan_photos"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    artisan_id = db.Column(
+        db.String(32), db.ForeignKey("artisans.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    filename = db.Column(db.String(255), nullable=False)
+    mime_type = db.Column(db.String(100), nullable=False)
+    file_data = db.Column(db.LargeBinary, nullable=False)
+    file_size = db.Column(db.Integer)
+    caption = db.Column(db.String(200), nullable=True)
+    sort_order = db.Column(db.Integer, default=0, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id": self.id, "artisan_id": self.artisan_id,
+            "mime_type": self.mime_type, "caption": self.caption,
+            "sort_order": self.sort_order,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 
@@ -113,9 +157,10 @@ class JobRequest(db.Model):
     accept, a single conditional UPDATE so two artisans racing on the same
     request can't both "win" it).
 
-    No live location, no map, no dispatch algorithm — matching is a simple
-    trade+city filter, not geodistance, since Artisan only stores a city
-    string today, not coordinates.
+    No live dispatch algorithm — the pool an artisan sees is a simple
+    trade+city text filter (api/requests.py's pool()), independent of the
+    real lat/lng distance sort that exists on browse (see Artisan.lat/lng)
+    for the customer-facing directory.
     """
     __tablename__ = "job_requests"
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
@@ -146,6 +191,17 @@ class JobRequest(db.Model):
     accepted_at = db.Column(db.DateTime, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
 
+    # A simple propose/confirm pair rather than a separate negotiation
+    # table — realistically a handful of back-and-forths per job, not
+    # enough to earn its own schema. Whoever proposes sets scheduled_at +
+    # scheduled_proposed_by and clears scheduled_confirmed; only the OTHER
+    # party's confirm flips it back to True (see api/requests.py's
+    # propose-time/confirm-time). Re-proposing before confirmation just
+    # overwrites the previous proposal.
+    scheduled_at = db.Column(db.DateTime, nullable=True)
+    scheduled_proposed_by = db.Column(db.String(10), nullable=True)  # "customer" | "artisan"
+    scheduled_confirmed = db.Column(db.Boolean, nullable=True)
+
     def to_dict(self):
         return {
             "id": self.id, "trade": self.trade, "city": self.city,
@@ -153,19 +209,78 @@ class JobRequest(db.Model):
             "contact_name": self.contact_name, "contact_phone": self.contact_phone,
             "contact_email": self.contact_email,
             "status": self.status, "artisan_id": self.artisan_id,
+            "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
+            "scheduled_proposed_by": self.scheduled_proposed_by,
+            "scheduled_confirmed": bool(self.scheduled_confirmed),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "accepted_at": self.accepted_at.isoformat() if self.accepted_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }
 
 
+class Message(db.Model):
+    """
+    A chat thread is exactly the set of Message rows sharing a
+    job_request_id — one thread per job, not a general inbox (see
+    api/messages.py). Only postable once a job is accepted; there's no
+    counterpart to message before then.
+
+    Uses a plain autoincrementing integer id, not this app's usual UUID
+    hex — it doubles as the chronological polling cursor (?since_id=). A
+    UUID doesn't sort chronologically, and created_at alone risks
+    same-millisecond ties on a rapid back-and-forth. Every read here is
+    already scoped to one job_request_id and gated to that job's own two
+    participants (see _job_side in api/requests.py), so a sequential id
+    doesn't leak anything a UUID would have hidden — unlike, say, Artisan
+    or User ids, which stay UUIDs because they're looked up directly.
+    """
+    __tablename__ = "messages"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    job_request_id = db.Column(
+        db.String(32), db.ForeignKey("job_requests.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    sender_type = db.Column(db.String(10), nullable=False)  # "customer" | "artisan"
+    # Captured directly, not resolved via lookup — same reasoning as
+    # JobRequest.contact_name/phone: a guest customer has no profile row to
+    # look up, and this is simply whichever id (user_id/guest_id, or
+    # artisan_id) _job_side already matched the sender against.
+    sender_id = db.Column(db.String(64), nullable=False)
+    body = db.Column(db.String(2000), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    read_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "job_request_id": self.job_request_id,
+            "sender_type": self.sender_type, "body": self.body,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "read_at": self.read_at.isoformat() if self.read_at else None,
+        }
+
+
 class Review(db.Model):
+    """
+    Free-floating (job_request_id NULL, verified False) by default — the
+    original anonymous "rate this artisan" widget, unchanged, since most
+    existing listings have no job history to gate a review against.
+    job_request_id/verified=True is the additive job-gated path: only
+    postable once a JobRequest is completed, only by that job's own
+    customer, one per job (see api/requests.py's POST /<id>/review) — a
+    stronger trust signal than the free-floating path, surfaced as a
+    "Verified job" badge, not a replacement for it.
+    """
     __tablename__ = "reviews"
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
     artisan_id = db.Column(
         db.String(32), db.ForeignKey("artisans.id", ondelete="CASCADE"),
         nullable=False, index=True,
     )
+    job_request_id = db.Column(
+        db.String(32), db.ForeignKey("job_requests.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
+    verified = db.Column(db.Boolean, nullable=False, default=False)
     stars = db.Column(db.Integer, nullable=False)
     comment = db.Column(db.String(280))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -174,6 +289,7 @@ class Review(db.Model):
         return {
             "id": self.id, "artisan_id": self.artisan_id, "stars": self.stars,
             "comment": self.comment,
+            "job_request_id": self.job_request_id, "verified": bool(self.verified),
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

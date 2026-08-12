@@ -37,7 +37,44 @@ export const artisanAcceptRequest = (id) => apiRequest(`/api/v1/requests/${id}/a
   headers: authHeaders(),
 });
 
+export const artisanDeclineRequest = (id) => apiRequest(`/api/v1/requests/${id}/decline`, {
+  method: "POST",
+  headers: authHeaders(),
+});
+
 export const artisanCompleteRequest = (id) => apiRequest(`/api/v1/requests/${id}/complete`, {
   method: "POST",
   headers: authHeaders(),
 });
+
+export const artisanProposeTime = (id, scheduledAt) => apiRequest(`/api/v1/requests/${id}/propose-time`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json", ...authHeaders() },
+  body: JSON.stringify({ scheduled_at: scheduledAt }),
+});
+
+export const artisanConfirmTime = (id) => apiRequest(`/api/v1/requests/${id}/confirm-time`, {
+  method: "POST",
+  headers: authHeaders(),
+});
+
+export const artisanGetThread = (jobId, sinceId = 0) =>
+  apiRequest(`/api/v1/messages/threads/${jobId}?since_id=${sinceId}`, { headers: authHeaders() });
+
+export const artisanPostMessage = (jobId, body) => apiRequest(`/api/v1/messages/threads/${jobId}`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json", ...authHeaders() },
+  body: JSON.stringify({ body }),
+});
+
+export const artisanMarkThreadRead = (jobId) => apiRequest(`/api/v1/messages/threads/${jobId}/read`, {
+  method: "POST",
+  headers: authHeaders(),
+});
+
+export const artisanUnreadCount = () => apiRequest("/api/v1/messages/unread-count", { headers: authHeaders() });
+
+// Public route (same one ArtisanProfile.js uses for a customer's view of
+// this artisan) — no X-Artisan-Token needed, just the artisan's own id.
+export const artisanReviews = (artisanId, limit = 3) =>
+  apiRequest(`/api/v1/artisans/${artisanId}/reviews?limit=${limit}`);

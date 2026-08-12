@@ -1,19 +1,19 @@
 """
-app/api/requests.py — the request/accept pool behind the "Uber/Lyft for
-artisans" flow: a customer posts what they need, any signed-in, available
-artisan whose trade/city match can see it and accept it. First to accept
-wins; no live location, no map, no dispatch algorithm — Artisan only
-stores a city string today, not coordinates, so matching is trade+city,
-not geodistance.
+app/api/requests.py — the request/accept/decline flow behind "Request this
+artisan": a customer targets one specific artisan from their profile; that
+artisan alone can accept or decline. Not a broadcast — matching already
+happened when the customer picked who to ask, so there's no pool of
+candidates to filter, only one recipient per request.
 """
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
-from sqlalchemy import func, update
+from sqlalchemy import update
 from app import db, limiter
-from app.models import Artisan, JobRequest
+from app.models import Artisan, JobRequest, Review
 from app.middleware.error_handlers import APIError
-from app.utils.auth import get_scope, require_artisan_scope
+from app.utils.auth import get_scope, get_artisan_scope, require_artisan_scope, require_customer_scope
 from app.utils.mail import send_email
+from app.utils.ratings import recompute_rating
 
 requests_bp = Blueprint("job_requests", __name__)
 
@@ -25,81 +25,71 @@ def _utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def _city_matches(a, b) -> bool:
-    """Both Artisan.city and JobRequest.city are free text ("Toronto",
-    "Toronto, ON", "toronto ontario", ...), typed independently by two
-    different people — neither is reliably a substring of the other in a
-    fixed direction, so a single-direction SQL ILIKE misses real matches
-    (this is exactly the bug a first pass here shipped with: "Toronto" is
-    not a substring of "Toronto, ON", only the reverse is). Checking both
-    directions in Python, after a cheap trade-only DB filter, is simpler
-    and more correct than fighting cross-dialect SQL string functions for
-    what's a small result set either way. A blank city on either side
-    doesn't exclude the match — better to over-include than silently drop
-    someone who just didn't fill in a city."""
-    if not a or not b:
-        return True
-    a, b = a.strip().lower(), b.strip().lower()
-    return a in b or b in a
-
-
-def _notify_matching_artisans(job):
-    """Best-effort email to every available artisan whose trade/city match
-    this new request — never raises into the request-creation path, same
-    "email failures print, don't crash" pattern as auth.py's password-reset
-    flow. A missed notification just means that artisan finds the job in
-    their pool a little later instead of getting pinged for it; a request
-    that failed to SAVE because an email provider hiccuped would be worse."""
-    candidates = Artisan.query.filter(
-        Artisan.password_hash.isnot(None),
-        Artisan.is_available.is_(True),
-        func.lower(Artisan.trade) == job.trade.lower(),
-    ).all()
-    matches = [a for a in candidates if _city_matches(a.city, job.city)]
-
-    for artisan in matches:
-        if not artisan.email:
-            continue
-        try:
-            send_email(
-                artisan.email,
-                f"New {job.trade} job request near {job.city or 'you'}",
-                f"""
-                <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
-                  <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOVIQ</p>
-                  <h2 style="color:#111;margin:0 0 12px;">New {job.trade} request</h2>
-                  <p style="color:#444;line-height:1.6;margin:0 0 4px;"><b>Location:</b> {job.city or 'Not specified'}</p>
-                  <p style="color:#444;line-height:1.6;margin:0 0 16px;">{job.description}</p>
-                  <p style="color:#888;font-size:12.5px;line-height:1.5;">Sign in to your artisan dashboard to accept this job before someone else does.</p>
-                </div>
-                """,
-            )
-        except Exception as exc:
-            print(f"⚠️ Could not notify artisan {artisan.id} ({artisan.email}) of job request {job.id}: {exc}")
+def _notify_target_artisan(job, artisan):
+    """Best-effort email to the one artisan this request is addressed to —
+    never raises into the request-creation path, same "email failures
+    print, don't crash" pattern as auth.py's password-reset flow. A missed
+    notification just means they find it in "Requests for you" a little
+    later instead of getting pinged for it; a request that failed to SAVE
+    because an email provider hiccuped would be worse."""
+    if not artisan.email:
+        return
+    try:
+        send_email(
+            artisan.email,
+            f"New {job.trade} request from a customer",
+            f"""
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
+              <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOVIQ</p>
+              <h2 style="color:#111;margin:0 0 12px;">New job request</h2>
+              <p style="color:#444;line-height:1.6;margin:0 0 4px;"><b>Location:</b> {job.city or 'Not specified'}</p>
+              <p style="color:#444;line-height:1.6;margin:0 0 16px;">{job.description}</p>
+              <p style="color:#888;font-size:12.5px;line-height:1.5;">Sign in to your artisan dashboard to accept or decline.</p>
+            </div>
+            """,
+        )
+    except Exception as exc:
+        print(f"⚠️ Could not notify artisan {artisan.id} ({artisan.email}) of job request {job.id}: {exc}")
 
 
 @requests_bp.route("", methods=["POST"])
 @limiter.limit("10 per hour")
 def create_request():
     body = request.get_json(force=True) or {}
-    trade = (body.get("trade") or "").strip()
+    target_artisan_id = (body.get("artisan_id") or "").strip()
     description = (body.get("description") or "").strip()
     contact_name = (body.get("contact_name") or "").strip()
     contact_phone = (body.get("contact_phone") or "").strip()
 
-    if not (trade and description and contact_name and contact_phone):
-        raise APIError("trade, description, contact_name and contact_phone are required", 400)
+    if not (target_artisan_id and description and contact_name and contact_phone):
+        raise APIError("artisan_id, description, contact_name and contact_phone are required", 400)
     if len(description) > 1000:
         raise APIError("description must be 1000 characters or fewer", 400)
 
-    user_id, guest_id = get_scope(request)
-    if not user_id and not guest_id:
-        raise APIError("Missing guest or user identity", 400)
+    target = db.session.get(Artisan, target_artisan_id)
+    if not target:
+        raise APIError("Artisan not found", 404)
+    if not target.password_hash:
+        raise APIError("This artisan hasn't set up an account to receive requests", 400)
+    if not target.is_available:
+        raise APIError("This artisan isn't accepting requests right now", 400)
+
+    # Booking is one of the three actions this product explicitly requires
+    # a real account for (see require_customer_scope's docstring) — unlike
+    # nearly everything else in this app, X-Guest-Id alone doesn't count
+    # here. Existing guest-scoped rows from before this shipped still work
+    # fine for read/cancel/schedule (those stay on get_scope) — this only
+    # tightens where NEW requests can come from.
+    user_id = require_customer_scope(request)
 
     job = JobRequest(
-        guest_id=guest_id if not user_id else None,
         user_id=user_id,
-        trade=trade,
+        artisan_id=target.id,
+        # Denormalized from the target at creation time — this was only
+        # ever a broadcast-matching field; with a named target it's just
+        # display data, so it's set from the artisan's own record, not
+        # client input.
+        trade=target.trade,
         city=(body.get("city") or "").strip() or None,
         description=description,
         contact_name=contact_name,
@@ -109,7 +99,7 @@ def create_request():
     db.session.add(job)
     db.session.commit()
 
-    _notify_matching_artisans(job)
+    _notify_target_artisan(job, target)
 
     return jsonify({"success": True, "data": job.to_dict()}), 201
 
@@ -125,7 +115,22 @@ def my_requests():
     else:
         return jsonify({"success": True, "data": []}), 200
     items = q.order_by(JobRequest.created_at.desc()).all()
-    return jsonify({"success": True, "data": [j.to_dict() for j in items]}), 200
+
+    # One cheap batch query for "has this job already been reviewed" rather
+    # than N+1 — the frontend needs this to know whether to offer "Leave a
+    # review" on a completed job (see MyRequestsPane.js).
+    reviewed_ids = {
+        row[0] for row in db.session.query(Review.job_request_id)
+        .filter(Review.job_request_id.in_([j.id for j in items]))
+        .all()
+    } if items else set()
+
+    data = []
+    for j in items:
+        d = j.to_dict()
+        d["reviewed"] = j.id in reviewed_ids
+        data.append(d)
+    return jsonify({"success": True, "data": data}), 200
 
 
 @requests_bp.route("/<request_id>/cancel", methods=["POST"])
@@ -148,25 +153,37 @@ def cancel_request(request_id):
 
 @requests_bp.route("/pool", methods=["GET"])
 def pool():
-    """Open requests this signed-in artisan could accept — their own
-    trade, matching city, still unclaimed. Requires availability to be on;
-    an artisan who's toggled themselves Off sees an empty pool, same as if
-    they weren't in it at all."""
+    """"Requests for you" — pending requests addressed to this artisan
+    specifically. No trade/city matching needed here anymore: matching
+    already happened when the customer picked this artisan by name (see
+    create_request). Availability does NOT gate this list — it only gates
+    whether NEW requests can be created targeting this artisan; a request
+    already sent stays visible/actionable even if they later toggle
+    themselves off, same as a real inbox."""
     artisan_id = require_artisan_scope(request)
-    artisan = db.session.get(Artisan, artisan_id)
-    if not artisan:
-        raise APIError("Artisan account not found", 404)
-    if not artisan.is_available:
-        return jsonify({"success": True, "data": []}), 200
-
-    candidates = (
+    items = (
         JobRequest.query
-        .filter(JobRequest.status == "requested", func.lower(JobRequest.trade) == artisan.trade.lower())
+        .filter(JobRequest.artisan_id == artisan_id, JobRequest.status == "requested")
         .order_by(JobRequest.created_at.desc())
         .all()
     )
-    items = [j for j in candidates if _city_matches(artisan.city, j.city)]
     return jsonify({"success": True, "data": [j.to_dict() for j in items]}), 200
+
+
+@requests_bp.route("/<request_id>/decline", methods=["POST"])
+def decline_request(request_id):
+    artisan_id = require_artisan_scope(request)
+    job = db.session.get(JobRequest, request_id)
+    if not job:
+        raise APIError("Request not found", 404)
+    if job.artisan_id != artisan_id:
+        raise APIError("Not authorized to decline this request", 403)
+    if job.status != "requested":
+        raise APIError(f"Cannot decline a request that's already {job.status}", 400)
+
+    job.status = "declined"
+    db.session.commit()
+    return jsonify({"success": True, "data": job.to_dict()}), 200
 
 
 @requests_bp.route("/accepted", methods=["GET"])
@@ -190,16 +207,16 @@ def accept_request(request_id):
     if not artisan:
         raise APIError("Artisan account not found", 404)
 
-    # A single conditional UPDATE, not read-then-write — two artisans
-    # hitting Accept on the same request within milliseconds of each other
-    # is exactly the race this guards against. Whichever request's UPDATE
-    # commits first is the one that actually flips status; the loser's
-    # WHERE clause matches zero rows and gets a clean "already taken"
-    # instead of silently overwriting the winner's claim.
+    # A single conditional UPDATE, not read-then-write — protects against a
+    # double-tap (two Accept clicks in quick succession) resolving twice.
+    # artisan_id is now part of the WHERE too: a request is addressed to
+    # one artisan from creation (see create_request), so no other artisan's
+    # id should ever match here — this just makes that invariant explicit
+    # rather than trusting it silently.
     result = db.session.execute(
         update(JobRequest)
-        .where(JobRequest.id == request_id, JobRequest.status == "requested")
-        .values(status="accepted", artisan_id=artisan_id, accepted_at=_utcnow())
+        .where(JobRequest.id == request_id, JobRequest.artisan_id == artisan_id, JobRequest.status == "requested")
+        .values(status="accepted", accepted_at=_utcnow())
     )
     db.session.commit()
 
@@ -207,9 +224,78 @@ def accept_request(request_id):
         job = db.session.get(JobRequest, request_id)
         if not job:
             raise APIError("Request not found", 404)
-        raise APIError("This request was already accepted by someone else", 409)
+        if job.artisan_id != artisan_id:
+            raise APIError("Not authorized to accept this request", 403)
+        raise APIError(f"Cannot accept a request that's already {job.status}", 409)
 
     job = db.session.get(JobRequest, request_id)
+    return jsonify({"success": True, "data": job.to_dict()}), 200
+
+
+def _job_side(job, request):
+    """(is_customer, is_artisan) for whoever's calling — either can be True
+    for a given caller, never both. Shared by propose/confirm-time so both
+    routes check authorization identically."""
+    user_id, guest_id = get_scope(request)
+    artisan_id = get_artisan_scope(request)
+    is_customer = bool((user_id and job.user_id == user_id) or (guest_id and job.guest_id == guest_id))
+    is_artisan = bool(artisan_id and job.artisan_id == artisan_id)
+    return is_customer, is_artisan
+
+
+@requests_bp.route("/<request_id>/propose-time", methods=["POST"])
+def propose_time(request_id):
+    job = db.session.get(JobRequest, request_id)
+    if not job:
+        raise APIError("Request not found", 404)
+    if job.status != "accepted":
+        raise APIError("Can only schedule a time once the job's been accepted", 400)
+
+    is_customer, is_artisan = _job_side(job, request)
+    if not (is_customer or is_artisan):
+        raise APIError("Not authorized to schedule this job", 403)
+
+    body = request.get_json(force=True) or {}
+    raw = body.get("scheduled_at")
+    if not raw:
+        raise APIError("scheduled_at is required", 400)
+    try:
+        scheduled_at = datetime.fromisoformat(raw)
+    except ValueError:
+        raise APIError("scheduled_at must be a valid ISO datetime", 400)
+
+    # Strip any timezone offset the client sent — this app stores every
+    # timestamp naive-UTC (see _utcnow's own reasoning above); a bare
+    # datetime-local input from the frontend has no offset anyway, but a
+    # defensive strip here means a stray offset never round-trips wrong.
+    job.scheduled_at = scheduled_at.replace(tzinfo=None)
+    job.scheduled_proposed_by = "artisan" if is_artisan else "customer"
+    job.scheduled_confirmed = False
+    db.session.commit()
+    return jsonify({"success": True, "data": job.to_dict()}), 200
+
+
+@requests_bp.route("/<request_id>/confirm-time", methods=["POST"])
+def confirm_time(request_id):
+    job = db.session.get(JobRequest, request_id)
+    if not job:
+        raise APIError("Request not found", 404)
+    if not job.scheduled_at or job.scheduled_confirmed:
+        raise APIError("Nothing to confirm", 400)
+
+    is_customer, is_artisan = _job_side(job, request)
+    if not (is_customer or is_artisan):
+        raise APIError("Not authorized to confirm this job's schedule", 403)
+
+    # Only the side that DIDN'T propose can confirm — a propose/confirm
+    # pair only means something if it takes two sides, not the same person
+    # rubber-stamping their own proposal.
+    proposer_is_artisan = job.scheduled_proposed_by == "artisan"
+    if (proposer_is_artisan and is_artisan) or (not proposer_is_artisan and is_customer):
+        raise APIError("Waiting on the other side to confirm this time", 400)
+
+    job.scheduled_confirmed = True
+    db.session.commit()
     return jsonify({"success": True, "data": job.to_dict()}), 200
 
 
@@ -227,4 +313,54 @@ def complete_request(request_id):
     job.status = "completed"
     job.completed_at = _utcnow()
     db.session.commit()
-    return jsonify({"success": True, "data": job.to_dict()}), 200
+
+    data = job.to_dict()
+    # Non-blocking — plenty of real jobs just get done without a formal
+    # scheduled/confirmed time on record; this is a caution for the UI to
+    # surface, not a reason to refuse marking the work as finished.
+    if not job.scheduled_confirmed:
+        data["warning"] = "Marked complete without a confirmed schedule."
+    return jsonify({"success": True, "data": data}), 200
+
+
+@requests_bp.route("/<request_id>/review", methods=["POST"])
+def review_request(request_id):
+    """The job-gated review path — additive to the free-floating one at
+    POST /api/v1/artisans/<id>/reviews (see that route's own docstring
+    context), not a replacement for it. Only the job's own customer, only
+    once it's completed, only once per job."""
+    job = db.session.get(JobRequest, request_id)
+    if not job:
+        raise APIError("Request not found", 404)
+    if job.status != "completed":
+        raise APIError("Can only review a completed job", 400)
+    if not job.artisan_id:
+        raise APIError("This job has no artisan to review", 400)
+
+    user_id = require_customer_scope(request)
+    if job.user_id != user_id:
+        raise APIError("Not authorized to review this job", 403)
+    if Review.query.filter_by(job_request_id=request_id).first():
+        raise APIError("This job has already been reviewed", 409)
+
+    body = request.get_json(force=True) or {}
+    try:
+        stars = int(body.get("stars"))
+    except (TypeError, ValueError):
+        raise APIError("stars is required and must be a whole number from 1 to 5", 400)
+    if stars < 1 or stars > 5:
+        raise APIError("stars must be between 1 and 5", 400)
+    comment = (body.get("comment") or "").strip() or None
+    if comment and len(comment) > 280:
+        raise APIError("comment must be 280 characters or fewer", 400)
+
+    review = Review(artisan_id=job.artisan_id, job_request_id=request_id, verified=True, stars=stars, comment=comment)
+    db.session.add(review)
+    db.session.flush()
+    artisan = recompute_rating(job.artisan_id)
+    db.session.commit()
+
+    data = review.to_dict()
+    data["rating_avg"] = artisan.rating_avg if artisan else None
+    data["rating_count"] = artisan.rating_count if artisan else None
+    return jsonify({"success": True, "data": data}), 201
