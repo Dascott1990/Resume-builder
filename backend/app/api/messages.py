@@ -12,9 +12,10 @@ real infra changes.
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from app import db, limiter
-from app.models import JobRequest, Message
+from app.models import Artisan, JobRequest, Message
 from app.middleware.error_handlers import APIError
 from app.utils.auth import get_scope, get_artisan_scope
+from app.utils.mail import send_email
 from app.api.requests import _job_side
 
 messages_bp = Blueprint("messages", __name__)
@@ -56,6 +57,58 @@ def get_thread(job_id):
     return jsonify({"success": True, "data": [m.to_dict() for m in items]}), 200
 
 
+def _notify_new_message(job, msg):
+    """Best-effort, same "never raises into the caller" pattern as
+    requests.py's _notify_target_artisan.
+
+    Debounced: an unread thread with five messages piling up should send
+    ONE email, not five — there's no message queue in this app to batch
+    notifications, so this fires only when the count of unread messages
+    from this sender (in this thread) is exactly 1, i.e. this is the
+    first thing the recipient hasn't seen yet. Once they're already
+    sitting on an unread notification, further messages before they
+    check just accumulate quietly instead of re-notifying.
+
+    Only the artisan side has an actual preference to check (see
+    Artisan.notify_new_message) — the customer side has no account/
+    Settings surface to opt out from, so it uses the same "they gave
+    this email specifically for this job" reasoning contact_email
+    already relies on elsewhere (job-request creation, etc.)."""
+    unread_from_sender = Message.query.filter(
+        Message.job_request_id == job.id,
+        Message.sender_type == msg.sender_type,
+        Message.read_at.is_(None),
+    ).count()
+    if unread_from_sender != 1:
+        return
+
+    if msg.sender_type == "customer":
+        artisan = db.session.get(Artisan, job.artisan_id)
+        if not artisan or not artisan.email or artisan.notify_new_message is False:
+            return
+        recipient = artisan.email
+    else:
+        if not job.contact_email:
+            return
+        recipient = job.contact_email
+
+    try:
+        send_email(
+            recipient,
+            f"New message about your {job.trade} request",
+            f"""
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
+              <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOVIQ</p>
+              <h2 style="color:#111;margin:0 0 12px;">New message</h2>
+              <p style="color:#444;line-height:1.6;margin:0 0 16px;">{msg.body}</p>
+              <p style="color:#888;font-size:12.5px;line-height:1.5;">Sign in to reply.</p>
+            </div>
+            """,
+        )
+    except Exception as exc:
+        print(f"⚠️ Could not send message notification for job {job.id}: {exc}")
+
+
 @messages_bp.route("/threads/<job_id>", methods=["POST"])
 def post_message(job_id):
     job, is_customer, is_artisan = _authorize_thread(job_id)
@@ -77,6 +130,7 @@ def post_message(job_id):
     msg = Message(job_request_id=job_id, sender_type=sender_type, sender_id=sender_id, body=body)
     db.session.add(msg)
     db.session.commit()
+    _notify_new_message(job, msg)
     return jsonify({"success": True, "data": msg.to_dict()}), 201
 
 

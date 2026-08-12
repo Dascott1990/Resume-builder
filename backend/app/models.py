@@ -113,6 +113,15 @@ class Artisan(db.Model):
     lng = db.Column(db.Float, nullable=True)
     geocoded_city = db.Column(db.String(190), nullable=True)
     avatar_emoji = db.Column(db.String(16), nullable=True)
+    # Nullable, default-ON-when-NULL (see to_dict below) rather than a
+    # Boolean default=True column — _sync_missing_columns adds new columns
+    # via a bare ALTER TABLE with no backfill (see _backfill_artisan_tokens'
+    # own comment on this exact gotcha), so every existing artisan would
+    # get NULL here regardless of any Python-level default. Treating NULL
+    # the same as True is what actually makes "on by default" true for
+    # rows that existed before this column did, not just new signups.
+    notify_new_request = db.Column(db.Boolean, nullable=True)
+    notify_new_message = db.Column(db.Boolean, nullable=True)
 
     def to_dict(self):
         return {
@@ -123,6 +132,8 @@ class Artisan(db.Model):
             "has_account": self.password_hash is not None,
             "is_available": bool(self.is_available),
             "lat": self.lat, "lng": self.lng, "avatar_emoji": self.avatar_emoji,
+            "notify_new_request": self.notify_new_request is not False,
+            "notify_new_message": self.notify_new_message is not False,
         }
 
 

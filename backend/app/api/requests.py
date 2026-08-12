@@ -34,6 +34,8 @@ def _notify_target_artisan(job, artisan):
     because an email provider hiccuped would be worse."""
     if not artisan.email:
         return
+    if artisan.notify_new_request is False:
+        return
     try:
         send_email(
             artisan.email,

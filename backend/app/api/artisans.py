@@ -98,6 +98,10 @@ def _apply_profile_fields(a, body):
         a.years_experience = _clean_years_experience(body["years_experience"])
     if "avatar_emoji" in body:
         a.avatar_emoji = _clean_emoji(body["avatar_emoji"])
+    if "notify_new_request" in body:
+        a.notify_new_request = bool(body["notify_new_request"])
+    if "notify_new_message" in body:
+        a.notify_new_message = bool(body["notify_new_message"])
     if city_changed:
         _apply_geocode(a, a.city)
 

@@ -22,14 +22,16 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
   Settings as SettingsIcon, X, User, Wrench, Palette, LogOut, KeyRound,
-  CheckCircle2, Loader2, Check, Smile,
+  CheckCircle2, Loader2, Check, Smile, Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field, Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
+import Emoji3D from "./shared/Emoji3D";
 import { ThemeToggle } from "./shared/ThemeToggle";
 import { tintFor, initialsOf } from "./shared/artisanDisplay";
 import { TRADES } from "./shared/trades";
@@ -236,6 +238,22 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
     }
   };
 
+  // Instant, not bundled into "Save profile" — a preference toggle should
+  // behave like ArtisanDashboard.js's availability Switch (takes effect
+  // immediately), not sit half-changed until someone remembers to hit Save.
+  const toggleArtisanNotify = async (field, checked) => {
+    const previous = artisan[field];
+    setArtisan((a) => ({ ...a, [field]: checked }));
+    setArtisanForm((f) => ({ ...f, [field]: checked }));
+    try {
+      await artisanUpdateProfile({ [field]: checked });
+    } catch (e) {
+      setArtisan((a) => ({ ...a, [field]: previous }));
+      setArtisanForm((f) => ({ ...f, [field]: previous }));
+      toast.error(e.message);
+    }
+  };
+
   const artisanSignOut = () => {
     setArtisanToken(null);
     setArtisan(null);
@@ -293,8 +311,8 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
           ) : (
             <Card className="grid gap-3 p-3.5">
               <div className="flex items-center gap-3">
-                <div className={`flex size-11 shrink-0 items-center justify-center rounded-full border ${avatarEmoji ? "text-xl" : "font-mono text-sm font-bold"} ${tintFor(user.name || user.email)}`}>
-                  {avatarEmoji || initialsOf(user.name || user.email)}
+                <div className={`flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full border ${avatarEmoji ? "" : "font-mono text-sm font-bold"} ${tintFor(user.name || user.email)}`}>
+                  {avatarEmoji ? <Emoji3D emoji={avatarEmoji} size={44} /> : initialsOf(user.name || user.email)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
@@ -350,8 +368,8 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
           ) : (
             <Card className="grid gap-3 p-3.5">
               <div className="flex items-center gap-3">
-                <div className={`flex size-11 shrink-0 items-center justify-center rounded-full border ${artisanForm.avatar_emoji ? "text-xl" : "font-mono text-sm font-bold"} ${tintFor(artisan.name)}`}>
-                  {artisanForm.avatar_emoji || initialsOf(artisan.name)}
+                <div className={`flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisanForm.avatar_emoji ? "" : "font-mono text-sm font-bold"} ${tintFor(artisan.name)}`}>
+                  {artisanForm.avatar_emoji ? <Emoji3D emoji={artisanForm.avatar_emoji} size={44} /> : initialsOf(artisan.name)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="m-0 truncate text-[13.5px] font-bold text-foreground">{artisan.name}</p>
@@ -367,6 +385,26 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
                 >
                   {artisan.is_available ? "Available" : "Off"}
                 </Badge>
+              </div>
+
+              <div className="grid gap-2 rounded-lg border border-border p-3">
+                <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-muted-foreground">
+                  <Bell className="size-3" /> NOTIFICATIONS
+                </span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[12.5px] text-foreground">New job requests</span>
+                  <Switch
+                    checked={artisan.notify_new_request}
+                    onCheckedChange={(checked) => toggleArtisanNotify("notify_new_request", checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[12.5px] text-foreground">New messages</span>
+                  <Switch
+                    checked={artisan.notify_new_message}
+                    onCheckedChange={(checked) => toggleArtisanNotify("notify_new_message", checked)}
+                  />
+                </div>
               </div>
 
               <Field label="Name" value={artisanForm.name || ""} onChange={(v) => setArtisanForm((f) => ({ ...f, name: v }))} />
