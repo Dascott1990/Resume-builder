@@ -47,12 +47,12 @@ import json
 import re
 
 from flask import Blueprint, request, jsonify
-from sqlalchemy import func
 
 from app import db
-from app.models import User, Media, Artisan, Review, JobApplication, JdCapture
+from app.models import User, Media, Artisan, Review, JobApplication, JdCapture, CareerProfile, ApplicationRun
 from app.middleware.error_handlers import APIError
 from app.utils.auth import require_admin
+from app.utils.ratings import recompute_rating
 from app.api.resume import _ai_complete
 
 admin_bp = Blueprint("admin", __name__)
@@ -182,7 +182,13 @@ def delete_user(user_id):
         # Postgres enforces the FK's ondelete=CASCADE, SQLite (local dev)
         # doesn't — deleting these explicitly works the same in both,
         # rather than only failing locally the first time an admin removes
-        # a user who has saved resumes or job applications.
+        # a user who has saved resumes or job applications. ApplicationRun/
+        # CareerProfile go first: an ApplicationRun can reference this same
+        # user's Media as resume_id/review_screenshot_media_id, and THAT FK
+        # has no ondelete at all (see delete_resume below) — deleting Media
+        # first would 500 on that reference still pointing at it.
+        ApplicationRun.query.filter_by(user_id=user_id).delete()
+        CareerProfile.query.filter_by(user_id=user_id).delete()
         Media.query.filter_by(user_id=user_id).delete()
         JobApplication.query.filter_by(user_id=user_id).delete()
         db.session.delete(user)
@@ -274,6 +280,17 @@ def delete_resume(media_id):
     require_admin(request)
     m = db.session.get(Media, media_id)
     if m:
+        # None of resume_id/review_screenshot_media_id cascade at the DB
+        # level (see their model comments — deliberately not ondelete=
+        # CASCADE, since a resume being removed from "Saved" shouldn't
+        # need to touch every application/run that once pointed at it).
+        # Without nulling them first, Postgres rejects this delete outright
+        # whenever the resume was ever attached to a JobApplication or
+        # ApplicationRun — "delete" silently doing nothing is worse than
+        # this being explicit.
+        JobApplication.query.filter_by(resume_id=media_id).update({"resume_id": None})
+        ApplicationRun.query.filter_by(resume_id=media_id).update({"resume_id": None})
+        ApplicationRun.query.filter_by(review_screenshot_media_id=media_id).update({"review_screenshot_media_id": None})
         db.session.delete(m)
         db.session.commit()
     return jsonify({"success": True}), 200
@@ -340,14 +357,6 @@ def delete_review(review_id):
     artisan_id = review.artisan_id
     db.session.delete(review)
     db.session.flush()  # exclude the deleted row from the aggregate below
-
-    count, avg = db.session.query(
-        func.count(Review.id), func.avg(Review.stars)
-    ).filter(Review.artisan_id == artisan_id).one()
-    artisan = db.session.get(Artisan, artisan_id)
-    if artisan:
-        artisan.rating_count = count or 0
-        artisan.rating_avg = round(float(avg), 2) if avg is not None else None
-
+    recompute_rating(artisan_id)
     db.session.commit()
     return jsonify({"success": True}), 200

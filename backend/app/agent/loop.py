@@ -101,6 +101,27 @@ def _build_profile_context(profile_snapshot):
     return "VERIFIED CANDIDATE PROFILE (only source of truth — nothing outside this is verified):\n" + json.dumps(profile_snapshot, indent=2)
 
 
+def _build_answered_qa_context(pending_questions):
+    """run_agent_loop is re-entered as a brand-new call after every
+    ask_user pause (see apply.py's `while True` loop) — with a fresh
+    history built from the current page state, nothing here otherwise
+    tells the model a question it might be about to ask again was
+    already asked and answered last time around. Without this, the run
+    can loop asking the same question every time it revisits the field
+    that triggered it."""
+    answered = [q for q in (pending_questions or []) if q.get("answered") and q.get("answer") is not None]
+    if not answered:
+        return ""
+    lines = [
+        "ALREADY-ANSWERED QUESTIONS FROM EARLIER IN THIS RUN — do not call ask_user again for any of these. "
+        "For a sensitive field, pass profile_field_key=\"qa.<id>\" to reference the verified answer; for an "
+        "ordinary field, the answer text below can be used directly:"
+    ]
+    for q in answered:
+        lines.append(f"- id={q['id']} | question: {q['question']} | answer: {q['answer']}")
+    return "\n".join(lines)
+
+
 def _state_to_observation_text(state):
     fields = [
         {k: v for k, v in el.items() if k in ("ref", "tag", "type", "label", "value", "options", "required")}
@@ -265,6 +286,9 @@ def run_agent_loop(session, profile_snapshot, pending_questions, unfillable_fiel
     """
     ctx = ToolContext(session, profile_snapshot, pending_questions, unfillable_fields)
     system = SYSTEM_PROMPT + "\n\n" + _build_profile_context(profile_snapshot)
+    qa_context = _build_answered_qa_context(pending_questions)
+    if qa_context:
+        system += "\n\n" + qa_context
 
     state = session.extract_state()
     history = [{"role": "user", "content": _state_to_observation_text(state)}]

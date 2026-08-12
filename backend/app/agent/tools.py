@@ -19,26 +19,52 @@ import re
 from app.agent.browser import is_submit_classified
 
 
-# ── Sensitive-field classification — by the FIELD'S LABEL on the real page,
-# not by anything the model claims about it. ────────────────────────────────
+# ── Sensitive-field classification — by the FIELD'S LABEL (and, since most
+# ATS forms encode these as a radio/checkbox GROUP whose individual option
+# only ever says "Yes"/"No", also its group label and its `name` attribute
+# — a bare label check alone misses the single most common real-world
+# encoding of exactly the fields this exists to protect). Never by
+# anything the model claims about the field itself. ─────────────────────────
 _SENSITIVE_PATTERNS = {
-    "work_authorization": re.compile(r"work authoriz|visa|sponsor|immigration|right to work|legally (authorized|eligible)", re.I),
+    "work_authorization": re.compile(r"work authoriz|visa|sponsor|immigration|right to work|legally (authorized|eligible)|citizen(ship)?|permanent resident", re.I),
     "security_clearance": re.compile(r"security clearance|clearance level", re.I),
-    "education": re.compile(r"\bdegree\b|education level|gpa\b|graduat", re.I),
+    "education": re.compile(r"\bdegree\b|education level|gpa\b|graduat|\bschool\b|university|\bmajor\b|alma mater", re.I),
     "certification": re.compile(r"certificat|\blicense\b", re.I),
     "employment_dates": re.compile(r"start date|end date|employment date|hire date|date of birth|\bdob\b", re.I),
     "years_experience": re.compile(r"years? of experience|years? experience", re.I),
     "salary": re.compile(r"salary|compensation|pay expectation|desired pay|current pay", re.I),
     "background": re.compile(r"criminal|conviction|background check|felony", re.I),
+    "identity": re.compile(r"social security|\bssn\b|national insurance|passport", re.I),
+    "eeo_demographics": re.compile(
+        r"\bveteran\b|military status|\bdisab(led|ility)\b|\bgender\b|\bsex\b\W|hispanic|latino|race\b|ethnicit|"
+        r"protected (class|veteran)|voluntary (self[- ]identif|disclosure)",
+        re.I,
+    ),
 }
 
 
-def classify_sensitive(label):
-    if not label:
-        return None
-    for category, pattern in _SENSITIVE_PATTERNS.items():
-        if pattern.search(label):
-            return category
+_CAMEL_BOUNDARY_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+
+
+def _normalize_for_match(text):
+    """Field `name` attributes are usually snake_case or camelCase (e.g.
+    'veteran_status', 'veteranStatus') — since '_' counts as a word
+    character in regex, \\b-anchored patterns like \\bveteran\\b never
+    match inside them as-is. Split camelCase and swap separators for
+    spaces so those patterns match name/id attributes the same way they
+    already match natural-language labels."""
+    text = _CAMEL_BOUNDARY_RE.sub(" ", text)
+    return re.sub(r"[_\-]+", " ", text)
+
+
+def classify_sensitive(*texts):
+    for text in texts:
+        if not text:
+            continue
+        normalized = _normalize_for_match(text)
+        for category, pattern in _SENSITIVE_PATTERNS.items():
+            if pattern.search(text) or pattern.search(normalized):
+                return category
     return None
 
 
@@ -107,7 +133,7 @@ def tool_fill_field(ctx, tool_input):
     if err:
         return err
 
-    category = classify_sensitive(meta.get("label", ""))
+    category = classify_sensitive(meta.get("label", ""), meta.get("group_label", ""), meta.get("name", ""))
     if category:
         resolved, err_msg = resolve_profile_value(profile_field_key, ctx.profile_snapshot, ctx.answered_map)
         if err_msg:
@@ -137,7 +163,7 @@ def tool_select_dropdown(ctx, tool_input):
     if err:
         return err
 
-    category = classify_sensitive(meta.get("label", ""))
+    category = classify_sensitive(meta.get("label", ""), meta.get("group_label", ""), meta.get("name", ""))
     if category:
         resolved, err_msg = resolve_profile_value(profile_field_key, ctx.profile_snapshot, ctx.answered_map)
         if err_msg:
@@ -155,6 +181,7 @@ def tool_select_dropdown(ctx, tool_input):
 
 def tool_click(ctx, tool_input):
     ref = tool_input.get("ref")
+    profile_field_key = tool_input.get("profile_field_key")
     meta, err = _element_meta_or_error(ctx, ref)
     if err:
         return err
@@ -165,8 +192,22 @@ def tool_click(ctx, tool_input):
             "message": "Refused: this looks like the final submit button. This agent never clicks that — call done() once the rest of the form is filled; a human reviews and submits separately.",
         }
 
+    # The most common real-world encoding of exactly the fields the
+    # allowlist exists to protect is a radio/checkbox GROUP ("Are you
+    # legally authorized to work in the US? ( ) Yes ( ) No") — without this
+    # check, fill_field/select_dropdown's whole guardrail was moot, since
+    # clicking "Yes" on a work-authorization question never went through
+    # either of those tools at all. Same enforcement level as them: a
+    # sensitive option can only be clicked when grounded in verified data,
+    # not invented from nothing.
+    category = classify_sensitive(meta.get("label", ""), meta.get("group_label", ""), meta.get("name", ""))
+    if category:
+        _, err_msg = resolve_profile_value(profile_field_key, ctx.profile_snapshot, ctx.answered_map)
+        if err_msg:
+            return {"ok": False, "message": f"[{category}] {err_msg} This looks like a {category} question — call ask_user instead of clicking an option with no verified basis for it."}
+
     ctx.session.click(ref)
-    return {"ok": True, "message": f"Clicked '{meta.get('label') or ref}'"}
+    return {"ok": True, "message": f"Clicked '{meta.get('label') or meta.get('group_label') or ref}'"}
 
 
 def tool_upload_file(ctx, tool_input):
@@ -201,6 +242,15 @@ def tool_ask_user(ctx, tool_input):
 
 
 def tool_done(ctx, tool_input):
+    # The model's one chance to report fields it genuinely had no way to
+    # fill (a file type it can't produce, a widget it couldn't operate) —
+    # distinct from ask_user, which is for missing FACTS. Without this,
+    # unfillable_fields never had anything writing to it, so the review
+    # screen's "needs your attention" panel could never render even when
+    # the agent knew something was left incomplete.
+    for issue in (tool_input.get("remaining_issues") or [])[:10]:
+        if isinstance(issue, str) and issue.strip():
+            ctx.unfillable_fields.append(issue.strip()[:300])
     ctx.stop_requested = True
     ctx.stop_reason = "done"
     return {"ok": True, "message": "Form filling complete."}
@@ -246,10 +296,13 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "click",
-        "description": "Click a button/link/checkbox/radio. Refused automatically if it looks like the application's final submit button — call done() instead once the form is filled.",
+        "description": "Click a button/link/checkbox/radio. Refused automatically if it looks like the application's final submit button — call done() instead once the form is filled. If this option belongs to a sensitive question (work authorization, visa/immigration, security clearance, education, certifications, employment dates, years of experience, salary, background, veteran/disability/demographic status), you MUST pass profile_field_key — clicking one of those with no verified basis will be refused.",
         "input_schema": {
             "type": "object",
-            "properties": {"ref": {"type": "string"}},
+            "properties": {
+                "ref": {"type": "string"},
+                "profile_field_key": {"type": "string", "description": "Required for a sensitive question's option — e.g. 'profile.work_authorization.status'."},
+            },
             "required": ["ref"],
         },
     },
@@ -279,7 +332,15 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "done",
-        "description": "Call this once every required field is filled (or flagged as unfillable/asked about). This ends the run and hands it to the human for review — you never click the final submit button yourself.",
-        "input_schema": {"type": "object", "properties": {}},
+        "description": "Call this once every required field is filled, asked about, or reported unfillable. This ends the run and hands it to the human for review — you never click the final submit button yourself.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "remaining_issues": {
+                    "type": "array", "items": {"type": "string"},
+                    "description": "Short notes on any required field you genuinely couldn't fill (not a missing fact — e.g. a file type you can't produce, a widget you couldn't operate). Leave empty if everything's handled.",
+                },
+            },
+        },
     },
 ]

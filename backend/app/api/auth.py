@@ -25,7 +25,7 @@ from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, request, jsonify
 from app import db, limiter
-from app.models import User, Media, JobApplication
+from app.models import User, Media, JobApplication, CareerProfile, ApplicationRun
 from app.middleware.error_handlers import APIError
 from app.utils.auth import hash_password, verify_password, issue_token, get_scope
 from app.utils.mail import send_email
@@ -63,6 +63,23 @@ def _migrate_guest_data(guest_id, user_id):
     rows that were already migrated before that fix existed)."""
     Media.query.filter_by(guest_id=guest_id, user_id=None).update({"user_id": user_id, "guest_id": None})
     JobApplication.query.filter_by(guest_id=guest_id, user_id=None).update({"user_id": user_id, "guest_id": None})
+    ApplicationRun.query.filter_by(guest_id=guest_id, user_id=None).update({"user_id": user_id, "guest_id": None})
+
+    # CareerProfile is one-per-scope (see its model docstring) — a bulk
+    # update here could leave a signed-in user with two rows, and
+    # everywhere else that reads it (e.g. api/apply.py's
+    # `.filter_by(user_id=...).first()`) would then pick between them
+    # arbitrarily. Only adopt the guest's profile if the account doesn't
+    # already have one; otherwise the guest copy is superseded — delete it
+    # rather than leaving it dangling under the old guest_id, still
+    # reachable by whoever inherits that id next.
+    guest_profile = CareerProfile.query.filter_by(guest_id=guest_id, user_id=None).first()
+    if guest_profile:
+        if CareerProfile.query.filter_by(user_id=user_id).first():
+            db.session.delete(guest_profile)
+        else:
+            guest_profile.user_id = user_id
+            guest_profile.guest_id = None
 
 
 def _email_shell(heading, body_html, cta_label, cta_link, footnote):

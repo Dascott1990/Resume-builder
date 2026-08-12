@@ -35,6 +35,7 @@ import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 from flask import Blueprint, current_app, request, jsonify
 
@@ -65,11 +66,23 @@ class _RunLock:
     entire feature for every guest/user until the process happened to
     restart. try_acquire() forces the lock open first if it's been held
     implausibly long, rather than trusting every code path to have released
-    it correctly."""
+    it correctly.
+
+    Ownership token, not just an open/closed lock: force-opening past
+    max_hold_seconds doesn't mean the original holder actually died — it
+    might just be a genuinely slow run that's about to finish and call its
+    own release(). Without a token, that late release() would silently
+    release whichever NEW run had since acquired the lock instead — one
+    slow run corrupting a totally unrelated one's concurrency guarantee.
+    Each acquire gets a fresh token; release(token) is a no-op unless it
+    still matches the current holder, so only the run that actually holds
+    the lock right now can ever release it."""
 
     def __init__(self, max_hold_seconds):
         self._lock = threading.Lock()
         self._acquired_at = None
+        self._token = None
+        self._next_token = 1
         self._max_hold_seconds = max_hold_seconds
 
     def try_acquire(self):
@@ -81,11 +94,21 @@ class _RunLock:
                 except RuntimeError:
                     pass
         acquired = self._lock.acquire(blocking=False)
-        if acquired:
-            self._acquired_at = time.monotonic()
-        return acquired
+        if not acquired:
+            return None
+        token = self._next_token
+        self._next_token += 1
+        self._token = token
+        self._acquired_at = time.monotonic()
+        return token
 
-    def release(self):
+    def release(self, token):
+        if token != self._token:
+            # Stale caller — either this run was already force-reclaimed by
+            # try_acquire's self-heal, or it never actually held the lock.
+            # Releasing here would tear down whatever run holds it now.
+            return
+        self._token = None
         self._acquired_at = None
         try:
             self._lock.release()
@@ -238,6 +261,34 @@ def _prepare_tailored_resume(profile_dict, job_text, user_id, guest_id):
     return record
 
 
+def _build_review_snapshot(elements):
+    """Turns raw extracted elements into what a human reviewer should
+    actually see. Raw el['value'] is wrong for two of the three input
+    shapes: a <select>'s .value is often a meaningless backend code (use
+    the selected option's visible text instead), and a checkbox/radio's
+    .value is usually a fixed constant like "on" regardless of whether it
+    was checked (use .checked, and label the *group's* question — an
+    option's own label is often just "Yes"/"No" with no context)."""
+    entries = []
+    for el in elements:
+        is_choice = el.get("checked") is not None
+        if el.get("tag") == "select":
+            value = el.get("selected_label")
+            field_label = el.get("label") or el.get("name") or ""
+        elif is_choice:
+            if not el.get("checked"):
+                continue
+            value = el.get("label") or "Selected"
+            field_label = el.get("group_label") or el.get("label") or el.get("name") or ""
+        else:
+            value = el.get("value")
+            field_label = el.get("label") or el.get("name") or ""
+        if not value:
+            continue
+        entries.append({"label": field_label, "value": value})
+    return entries
+
+
 # ── The automation phase — reading_job through ready_for_review ───────────
 def _do_automation_phase(run):
     session = AgentBrowserSession(run.id)
@@ -314,8 +365,20 @@ def _do_automation_phase(run):
         if result["stop_reason"] == "done":
             break
 
-        run.status = "failed" if result["stop_reason"] in ("failed",) else result["stop_reason"]
-        run.error_message = result.get("error")
+        # Every non-"done"/non-"needs_input" stop_reason lands here, including
+        # "step_limit_exceeded"/"time_limit_exceeded" — those used to be
+        # written straight into run.status, but the frontend's status maps
+        # (ProgressChecklist, TerminalScreen) only recognize the DB enum's
+        # actual terminal values, so a capped run stuck displaying nothing
+        # ever, forever "in progress" from the user's point of view. Always
+        # land on "failed"; the real reason still reaches the user via
+        # error_message, and whatever got filled survives in
+        # filled_form_snapshot/steps_log either way.
+        run.status = "failed"
+        run.error_message = result.get("error") or {
+            "step_limit_exceeded": "The application took too many steps to fill out automatically — review what was completed so far.",
+            "time_limit_exceeded": "The application took too long to fill out automatically — review what was completed so far.",
+        }.get(result["stop_reason"], f"Stopped: {result['stop_reason']}")
         run.completed_at = datetime.now(timezone.utc)
         db.session.commit()
         session.close()
@@ -332,12 +395,26 @@ def _do_automation_phase(run):
     run.review_screenshot_media_id = shot.id
 
     final_state = session.extract_state()
-    run.filled_form_snapshot = {
-        "elements": [{"label": el["label"], "value": el["value"]} for el in final_state["elements"] if el["value"]]
-    }
+    run.filled_form_snapshot = {"elements": _build_review_snapshot(final_state["elements"])}
     run.status = "ready_for_review"
     db.session.commit()
     return session  # kept alive on purpose — the caller owns the review-wait phase
+
+
+def _company_name_from_url(target_url):
+    """filled_form_snapshot has no "company" key — it's a flat list of
+    {label, value} pairs (see _build_review_snapshot), and even if some
+    ATS form happened to have a field literally labeled "company", that's
+    just as likely to be "current employer" (a PREVIOUS company) as the
+    one being applied to — scraping it would risk mislabeling the tracker
+    entry with the wrong company entirely. The URL's own hostname is the
+    one signal that's always present and unambiguous."""
+    try:
+        host = urlparse(target_url).netloc
+    except ValueError:
+        host = ""
+    host = re.sub(r"^www\.", "", host)
+    return host or "Unknown"
 
 
 def _find_submit_ref(session):
@@ -348,7 +425,7 @@ def _find_submit_ref(session):
     return None
 
 
-def _execute_run(app, run_id):
+def _execute_run(app, run_id, lock_token):
     try:
         with app.app_context():
             run = db.session.get(ApplicationRun, run_id)
@@ -368,45 +445,69 @@ def _execute_run(app, run_id):
 
             pending = PendingReview()
             session_id = register_session(pending)
-            run.browser_session_id = session_id
-            run.review_expires_at = datetime.now(timezone.utc) + timedelta(minutes=REVIEW_TIMEOUT_MINUTES)
-            db.session.commit()
+            # Everything below owns a live Chromium process (`session`) and a
+            # registry entry (`session_id`) that a concurrent /confirm-submit
+            # or /cancel request thread may be blocked on right now
+            # (`pending.decided.wait`) or about to block on (`pending.acted.wait`
+            # — see PendingReview usage in the routes below). Any unhandled
+            # exception here — a dropped DB connection, a Playwright crash —
+            # must still release all three, or the browser leaks forever and
+            # the other thread hangs until its own timeout instead of getting
+            # an answer.
+            try:
+                run.browser_session_id = session_id
+                run.review_expires_at = datetime.now(timezone.utc) + timedelta(minutes=REVIEW_TIMEOUT_MINUTES)
+                db.session.commit()
 
-            pending.decided.wait(timeout=REVIEW_TIMEOUT_MINUTES * 60)
+                pending.decided.wait(timeout=REVIEW_TIMEOUT_MINUTES * 60)
 
-            if pending.outcome == "submit":
-                try:
-                    ref = _find_submit_ref(session)
-                    if not ref:
-                        raise RuntimeError("Could not find the submit button on the page.")
-                    session.click(ref)
-                    run.status = "submitted"
-                    if run.resume_id:
-                        db.session.add(JobApplication(
-                            company=(run.filled_form_snapshot or {}).get("company", "Unknown"),
-                            role="Applied via Apply with AI", status="applied",
-                            resume_id=run.resume_id, user_id=run.user_id,
-                            guest_id=None if run.user_id else run.guest_id,
-                        ))
+                if pending.outcome == "submit":
+                    try:
+                        ref = _find_submit_ref(session)
+                        if not ref:
+                            raise RuntimeError("Could not find the submit button on the page.")
+                        session.click(ref)
+                        run.status = "submitted"
+                        if run.resume_id:
+                            db.session.add(JobApplication(
+                                company=_company_name_from_url(run.target_url),
+                                role="Applied via Apply with AI", status="applied",
+                                resume_id=run.resume_id, user_id=run.user_id,
+                                guest_id=None if run.user_id else run.guest_id,
+                            ))
+                        pending.result = {"ok": True}
+                    except Exception as e:
+                        run.status = "failed"
+                        run.error_message = f"Submit failed: {e}"[:1000]
+                        pending.result = {"ok": False}
+                        pending.error = str(e)
+                elif pending.outcome == "cancel":
+                    run.status = "cancelled"
                     pending.result = {"ok": True}
-                except Exception as e:
-                    run.status = "failed"
-                    run.error_message = f"Submit failed: {e}"[:1000]
-                    pending.result = {"ok": False}
-                    pending.error = str(e)
-            elif pending.outcome == "cancel":
-                run.status = "cancelled"
-                pending.result = {"ok": True}
-            else:
-                run.status = "expired"
+                else:
+                    run.status = "expired"
 
-            run.completed_at = datetime.now(timezone.utc)
-            db.session.commit()
-            pending.acted.set()
-            unregister_session(session_id)
-            session.close()
+                run.completed_at = datetime.now(timezone.utc)
+                db.session.commit()
+            except Exception as e:
+                pending.result = {"ok": False}
+                pending.error = str(e)
+                try:
+                    run.status = "failed"
+                    run.error_message = f"Review-wait phase error: {e}"[:1000]
+                    run.completed_at = datetime.now(timezone.utc)
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+            finally:
+                pending.acted.set()
+                unregister_session(session_id)
+                try:
+                    session.close()
+                except Exception:
+                    pass
     finally:
-        _RUN_LOCK.release()
+        _RUN_LOCK.release(lock_token)
 
 
 # ── Routes ──────────────────────────────────────────────────────────────
@@ -425,19 +526,29 @@ def create_run():
     if not _URL_RE.match(target_url):
         raise APIError("target_url must be a valid http(s) URL", 400)
 
-    if not _RUN_LOCK.try_acquire():
+    lock_token = _RUN_LOCK.try_acquire()
+    if lock_token is None:
         raise APIError("An automation is already running for this app — please try again shortly.", 429)
 
-    run = ApplicationRun(
-        target_url=target_url, status="queued",
-        user_id=user_id, guest_id=None if user_id else guest_id,
-        steps_log=[], pending_questions=[], unfillable_fields=[],
-    )
-    db.session.add(run)
-    db.session.commit()
+    # The lock is held from here on — anything that fails before the
+    # background thread takes ownership of lock_token (in its own
+    # finally: _RUN_LOCK.release(lock_token)) must release it itself, or a
+    # DB hiccup on this one request would wedge every future run behind a
+    # lock nothing will ever release.
+    try:
+        run = ApplicationRun(
+            target_url=target_url, status="queued",
+            user_id=user_id, guest_id=None if user_id else guest_id,
+            steps_log=[], pending_questions=[], unfillable_fields=[],
+        )
+        db.session.add(run)
+        db.session.commit()
 
-    app_obj = current_app._get_current_object()
-    threading.Thread(target=_execute_run, args=(app_obj, run.id), daemon=True).start()
+        app_obj = current_app._get_current_object()
+        threading.Thread(target=_execute_run, args=(app_obj, run.id, lock_token), daemon=True).start()
+    except Exception:
+        _RUN_LOCK.release(lock_token)
+        raise
 
     return jsonify({"success": True, "data": _serialize_run(run)}), 201
 

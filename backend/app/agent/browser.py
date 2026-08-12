@@ -38,23 +38,37 @@ class PendingReview:
     actual result instead of just firing and hoping."""
 
     def __init__(self):
+        self._decision_lock = threading.Lock()
         self.decided = threading.Event()
         self.acted = threading.Event()
         self.outcome = None  # "submit" | "cancel" | None (timed out)
         self.result = None
         self.error = None
 
-    def confirm(self, timeout=30):
-        self.outcome = "submit"
-        self.decided.set()
+    def _decide(self, outcome, timeout):
+        # First decision wins — without the lock, confirm() and cancel()
+        # racing from two request threads (e.g. a double-click, or two
+        # tabs open on the same run) could both write self.outcome, and
+        # whichever writes LAST wins even if it wasn't first — including
+        # after the owning background thread has already woken up on
+        # `decided` but before it's read self.outcome, silently switching
+        # which action actually executes. Locking the read-modify-write
+        # and only ever setting outcome once makes the first caller's
+        # decision the only one that can ever take effect; a second,
+        # racing caller just waits for and receives the SAME real outcome
+        # instead of corrupting it.
+        with self._decision_lock:
+            if not self.decided.is_set():
+                self.outcome = outcome
+                self.decided.set()
         self.acted.wait(timeout=timeout)
         return self.result, self.error
 
+    def confirm(self, timeout=30):
+        return self._decide("submit", timeout)
+
     def cancel(self, timeout=30):
-        self.outcome = "cancel"
-        self.decided.set()
-        self.acted.wait(timeout=timeout)
-        return self.result, self.error
+        return self._decide("cancel", timeout)
 
 
 def register_session(pending: PendingReview) -> str:
@@ -90,13 +104,21 @@ _CONFIRMATION_URL_RE = re.compile(
 )
 
 
-def is_submit_classified(label: str, tag: str, el_type: str, in_form: bool) -> bool:
+def is_submit_classified(label: str, tag: str = None, el_type: str = None, in_form: bool = None) -> bool:
+    # Text match ONLY — used to require tag in (button, input) AND in_form,
+    # which sounds tighter but actually missed the two most common real
+    # submit buttons: a styled `<div role="button">Submit application</div>`
+    # (not a real button/input tag) and any React/Workday-style form with no
+    # `<form>` ancestor at all (most SPA forms don't use one). Either gap
+    # alone meant the agent could click a real final submit itself with no
+    # human ever approving it — the exact thing this classifier exists to
+    # prevent. Deliberately over-inclusive on text alone: better to
+    # occasionally refuse a legitimate "next section" button than ever miss
+    # a real one. tag/el_type/in_form are accepted but unused now, kept so
+    # existing call sites don't need to change their argument lists.
     if not label:
         return False
-    if not _SUBMIT_TEXT_RE.search(label):
-        return False
-    looks_like_button = tag == "button" or (tag == "input" and el_type in ("submit", "button"))
-    return looks_like_button and in_form
+    return bool(_SUBMIT_TEXT_RE.search(label))
 
 
 def looks_like_confirmation_page(url: str, title: str) -> bool:
@@ -147,6 +169,33 @@ _EXTRACT_JS = r"""
     return "";
   };
 
+  // Radio/checkbox OPTIONS almost never carry the sensitive question text
+  // themselves (their own label is just "Yes"/"No"/"Male"/etc.) — the
+  // question lives on the group, not the option. Without this, "Are you
+  // legally authorized to work in the US?" never matches any sensitive
+  // pattern because classify_sensitive only ever saw "Yes".
+  const groupLabelFor = (el) => {
+    const type = (el.getAttribute("type") || "").toLowerCase();
+    const role = el.getAttribute("role") || "";
+    if (type !== "radio" && type !== "checkbox" && role !== "radio" && role !== "checkbox") return "";
+    const group = el.closest('[role="radiogroup"], [role="group"]');
+    if (group) {
+      const aria = group.getAttribute("aria-label");
+      if (aria && aria.trim()) return aria.trim();
+      const labelledby = group.getAttribute("aria-labelledby");
+      if (labelledby) {
+        const parts = labelledby.split(/\s+/).map(id => document.getElementById(id)?.innerText?.trim()).filter(Boolean);
+        if (parts.length) return parts.join(" ");
+      }
+    }
+    const fieldset = el.closest("fieldset");
+    if (fieldset) {
+      const legend = fieldset.querySelector("legend");
+      if (legend && legend.innerText.trim()) return legend.innerText.trim();
+    }
+    return "";
+  };
+
   const els = Array.from(document.querySelectorAll(
     "input, select, textarea, button, [role=button], [role=combobox], [role=checkbox], [role=radio]"
   ));
@@ -157,13 +206,23 @@ _EXTRACT_JS = r"""
     const options = tag === "select"
       ? Array.from(el.options).map(o => o.text.trim())
       : (el.getAttribute("role") === "combobox" ? null : null);
+    // For a <select>, .value is the option's `value` attribute (often a
+    // meaningless code like "4"), never what a human reviewing the filled
+    // form would recognize — the selected option's own visible TEXT is
+    // what actually belongs on a review screen.
+    const selectedLabel = tag === "select" && el.selectedIndex >= 0
+      ? el.options[el.selectedIndex].text.trim()
+      : null;
     return {
       index: i,
       tag,
       type,
       name: el.getAttribute("name") || "",
       label: labelFor(el),
+      group_label: groupLabelFor(el),
       value: (el.value !== undefined ? String(el.value) : "").slice(0, 300),
+      selected_label: selectedLabel,
+      checked: (type === "checkbox" || type === "radio") ? !!el.checked : null,
       options,
       required: el.required === true || el.getAttribute("aria-required") === "true",
       visible: isVisible(el),
@@ -236,12 +295,29 @@ class AgentBrowserSession:
         entry = self._ref_map.get(ref)
         if not entry:
             raise ValueError(f"Unknown or stale ref '{ref}' — page state changed, re-observe before acting.")
-        frame, index = entry["frame"], entry["index"]
+        frame, index, meta = entry["frame"], entry["index"], entry["meta"]
         handle = frame.evaluate_handle(
             "(i) => Array.from(document.querySelectorAll('input, select, textarea, button, [role=button], [role=combobox], [role=checkbox], [role=radio]'))[i]",
             index,
         )
-        return frame, handle.as_element()
+        el = handle.as_element()
+        if el is None:
+            raise ValueError(f"Ref '{ref}' no longer exists on the page — re-observe before acting.")
+        # A cheap identity check before acting — a DOM insertion/removal
+        # between extract_state() and this call (a conditional field
+        # appearing, a React re-render) can shift what the same index
+        # points to. Without this, a value classify_sensitive() approved
+        # against the OLD element's label could silently land in a
+        # completely different field. Doesn't catch every possible drift
+        # (same tag/type/name but different visible text), but catches the
+        # structural case cheaply without a full re-extraction on every action.
+        current = frame.evaluate(
+            "(i) => { const e = Array.from(document.querySelectorAll('input, select, textarea, button, [role=button], [role=combobox], [role=checkbox], [role=radio]'))[i]; return e ? {tag: e.tagName.toLowerCase(), type: (e.getAttribute('type')||'').toLowerCase(), name: e.getAttribute('name')||''} : null; }",
+            index,
+        )
+        if not current or current["tag"] != meta.get("tag") or current["name"] != meta.get("name"):
+            raise ValueError(f"Ref '{ref}' no longer matches what was last observed there — the page changed, re-observe before acting.")
+        return frame, el
 
     def element_meta(self, ref):
         entry = self._ref_map.get(ref)

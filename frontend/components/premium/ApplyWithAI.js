@@ -72,6 +72,16 @@ function ProfileForm({ initial, onConfirmed }) {
   }));
   const [saving, setSaving] = useState(false);
 
+  // This form only ever exposes ONE work-history/education entry for
+  // editing — but a profile built from an uploaded resume can have several
+  // (see CareerProfile's AI-extraction path). Replacing the whole array
+  // with just what's on screen would silently discard every entry past
+  // the first every time someone opens this form to tweak, say, their
+  // phone number. Splice the edited first entry back into whatever else
+  // was already there instead.
+  const extraWorkHistory = (initial?.work_history || []).slice(1);
+  const extraEducation = (initial?.education || []).slice(1);
+
   const submit = async (e) => {
     e.preventDefault();
     if (!form.full_name.trim() || !form.email.trim()) {
@@ -80,14 +90,18 @@ function ProfileForm({ initial, onConfirmed }) {
     }
     setSaving(true);
     try {
+      const newWorkEntry = form.role
+        ? [{ role: form.role, company: form.company, period: form.period, bullets: form.bullets.split("\n").map((b) => b.trim()).filter(Boolean) }]
+        : [];
+      const newEduEntry = form.degree ? [{ degree: form.degree, school: form.school, period: form.edu_period }] : [];
       const data = await apiRequest("/api/v1/apply/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           full_name: form.full_name, email: form.email, phone: form.phone, location: form.location,
           work_authorization: { status: form.work_auth_status || "unknown" },
-          work_history: form.role ? [{ role: form.role, company: form.company, period: form.period, bullets: form.bullets.split("\n").map((b) => b.trim()).filter(Boolean) }] : [],
-          education: form.degree ? [{ degree: form.degree, school: form.school, period: form.edu_period }] : [],
+          work_history: [...newWorkEntry, ...extraWorkHistory],
+          education: [...newEduEntry, ...extraEducation],
           skills: form.skills.split(",").map((s) => s.trim()).filter(Boolean),
           confirm: true,
         }),
@@ -140,11 +154,21 @@ function ProfileForm({ initial, onConfirmed }) {
       <Field label="What you did there (one per line)">
         <Textarea rows={3} value={form.bullets} onChange={(e) => setForm({ ...form, bullets: e.target.value })} />
       </Field>
+      {extraWorkHistory.length > 0 && (
+        <p className="m-0 mb-3 -mt-2 text-[11.5px] text-muted-foreground">
+          + {extraWorkHistory.length} earlier {extraWorkHistory.length === 1 ? "role" : "roles"} from your resume, kept as-is.
+        </p>
+      )}
 
       <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2">
         <Field label="Degree"><Input value={form.degree} onChange={(e) => setForm({ ...form, degree: e.target.value })} className="h-11" /></Field>
         <Field label="School"><Input value={form.school} onChange={(e) => setForm({ ...form, school: e.target.value })} className="h-11" /></Field>
       </div>
+      {extraEducation.length > 0 && (
+        <p className="m-0 mb-3 -mt-2 text-[11.5px] text-muted-foreground">
+          + {extraEducation.length} more {extraEducation.length === 1 ? "entry" : "entries"} from your resume, kept as-is.
+        </p>
+      )}
       <Field label="Skills (comma separated)">
         <Input value={form.skills} onChange={(e) => setForm({ ...form, skills: e.target.value })} placeholder="Python, React, SQL" className="h-11" />
       </Field>
@@ -231,8 +255,8 @@ function ProgressChecklist({ run, onAnswered, onCancelled }) {
 
   const cancel = async () => {
     try {
-      await apiRequest(`/api/v1/apply/runs/${run.id}/cancel`, { method: "POST" });
-      onCancelled();
+      const updatedRun = await apiRequest(`/api/v1/apply/runs/${run.id}/cancel`, { method: "POST" });
+      onCancelled(updatedRun);
     } catch (err) {
       toast.error(err.message);
     }
@@ -298,8 +322,8 @@ function ReviewScreen({ run, onSubmitted, onCancelled }) {
   const confirmSubmit = async () => {
     setSubmitting(true);
     try {
-      await apiRequest(`/api/v1/apply/runs/${run.id}/confirm-submit`, { method: "POST" });
-      onSubmitted();
+      const updatedRun = await apiRequest(`/api/v1/apply/runs/${run.id}/confirm-submit`, { method: "POST" });
+      onSubmitted(updatedRun);
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -309,8 +333,8 @@ function ReviewScreen({ run, onSubmitted, onCancelled }) {
 
   const cancel = async () => {
     try {
-      await apiRequest(`/api/v1/apply/runs/${run.id}/cancel`, { method: "POST" });
-      onCancelled();
+      const updatedRun = await apiRequest(`/api/v1/apply/runs/${run.id}/cancel`, { method: "POST" });
+      onCancelled(updatedRun);
     } catch (err) {
       toast.error(err.message);
     }
@@ -466,8 +490,20 @@ export default function ApplyWithAI({ onClose }) {
         )}
         {phase === "profile" && <ProfileForm initial={profile} onConfirmed={(p) => { setProfile(p); setPhase("url"); }} />}
         {phase === "url" && <UrlForm onStarted={handleRunStarted} />}
-        {phase === "progress" && run && <ProgressChecklist run={run} onAnswered={() => {}} onCancelled={() => { setPhase("terminal"); }} />}
-        {phase === "review" && run && <ReviewScreen run={run} onSubmitted={() => setPhase("terminal")} onCancelled={() => setPhase("terminal")} />}
+        {phase === "progress" && run && (
+          <ProgressChecklist
+            run={run}
+            onAnswered={() => {}}
+            onCancelled={(updatedRun) => { stopPolling(); setRun(updatedRun); setPhase("terminal"); }}
+          />
+        )}
+        {phase === "review" && run && (
+          <ReviewScreen
+            run={run}
+            onSubmitted={(updatedRun) => { setRun(updatedRun); setPhase("terminal"); }}
+            onCancelled={(updatedRun) => { setRun(updatedRun); setPhase("terminal"); }}
+          />
+        )}
         {phase === "terminal" && run && <TerminalScreen run={run} onRestart={restart} />}
       </div>
     </motion.div>
