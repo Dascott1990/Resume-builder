@@ -15,9 +15,13 @@ class User(db.Model):
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
     email = db.Column(db.String(190), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
-    # Optional — signup never asks for either, only the Settings screen does.
+    # Optional — signup never asks for any of these, only the Settings
+    # screen does. status_line mirrors Artisan.bio's role, just shorter —
+    # a one-line headline shown next to the name ("Open to work"), not a
+    # paragraph.
     name = db.Column(db.String(150), nullable=True)
     avatar_emoji = db.Column(db.String(16), nullable=True)
+    status_line = db.Column(db.String(80), nullable=True)
     # A real account isn't "created," it's "claimed" — email_verified stays
     # False (and login is refused) until the address is proven reachable.
     # Without this, signup is just a form that hands out session tokens to
@@ -38,6 +42,7 @@ class User(db.Model):
     def to_dict(self):
         return {
             "id": self.id, "email": self.email, "name": self.name, "avatar_emoji": self.avatar_emoji,
+            "status_line": self.status_line,
             "email_verified": bool(self.email_verified), "is_admin": bool(self.is_admin),
         }
 

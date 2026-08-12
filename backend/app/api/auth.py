@@ -335,6 +335,9 @@ def update_me():
         user.name = name or None
     if "avatar_emoji" in body:
         user.avatar_emoji = _clean_emoji(body["avatar_emoji"])
+    if "status_line" in body:
+        status_line = (body["status_line"] or "").strip()[:80]
+        user.status_line = status_line or None
     db.session.commit()
     return jsonify({"success": True, "data": user.to_dict()}), 200
 

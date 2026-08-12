@@ -102,7 +102,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go }
     <div className="mx-auto w-full max-w-3xl px-5 py-6 sm:px-8 sm:py-8">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mb-6">
         <p className="m-0 text-[13px] font-semibold text-muted-foreground">
-          {greeting()}{user ? `, ${user.email.split("@")[0]}` : ""}
+          {greeting()}{user ? `, ${user.name || user.email.split("@")[0]}` : ""}
         </p>
         <h1 className="m-0 text-[26px] font-bold text-foreground">Let's get you hired.</h1>
       </motion.div>

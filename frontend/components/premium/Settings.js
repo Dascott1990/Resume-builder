@@ -184,11 +184,13 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
   const { user, loading: authLoading, updateProfile, changePassword, logout } = useAuth();
   const [name, setName] = useState("");
   const [avatarEmoji, setAvatarEmoji] = useState(null);
+  const [statusLine, setStatusLine] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   useEffect(() => {
     setName(user?.name || "");
     setAvatarEmoji(user?.avatar_emoji || null);
-  }, [user?.id, user?.name, user?.avatar_emoji]);
+    setStatusLine(user?.status_line || "");
+  }, [user?.id, user?.name, user?.avatar_emoji, user?.status_line]);
 
   const [artisan, setArtisan] = useState(null);
   const [artisanLoading, setArtisanLoading] = useState(true);
@@ -206,7 +208,7 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
   const saveProfile = async () => {
     setSavingProfile(true);
     try {
-      await updateProfile({ name: name.trim(), avatar_emoji: avatarEmoji });
+      await updateProfile({ name: name.trim(), avatar_emoji: avatarEmoji, status_line: statusLine.trim() });
       toast.success("Profile updated");
     } catch (e) {
       toast.error(e.message);
@@ -295,7 +297,10 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
                   {avatarEmoji || initialsOf(user.name || user.email)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="m-0 truncate text-[13.5px] font-bold text-foreground">{user.name || "No name set"}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="m-0 truncate text-[13.5px] font-bold text-foreground">{user.name || "No name set"}</p>
+                    {user.status_line && <span className="truncate text-[12px] text-primary">· {user.status_line}</span>}
+                  </div>
                   <div className="flex items-center gap-1.5">
                     <span className="truncate text-[12px] text-muted-foreground">{user.email}</span>
                     {user.email_verified && <CheckCircle2 className="size-3 shrink-0 text-[var(--success,#22c55e)]" />}
@@ -304,10 +309,16 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
               </div>
 
               <Field label="Name" hint="optional" placeholder="Your name" value={name} onChange={setName} />
+              <Field label="Status" hint="optional" placeholder="Open to work" value={statusLine} onChange={setStatusLine} />
               <EmojiPicker value={avatarEmoji} onChange={setAvatarEmoji} />
               <Btn
                 small variant="gold" className="justify-self-start"
-                disabled={savingProfile || (name.trim() === (user.name || "") && avatarEmoji === (user.avatar_emoji || null))}
+                disabled={
+                  savingProfile ||
+                  (name.trim() === (user.name || "") &&
+                    avatarEmoji === (user.avatar_emoji || null) &&
+                    statusLine.trim() === (user.status_line || ""))
+                }
                 loading={savingProfile} onClick={saveProfile}
               >
                 Save profile
