@@ -13,25 +13,11 @@ export function useOnlineStatus() {
   useEffect(() => {
     const goOnline = () => setOnline(true);
     const goOffline = () => setOnline(false);
-    // The 'online'/'offline' events aren't fully reliable on their own —
-    // confirmed during offline-caching testing that a page reload served
-    // by the service worker's cache can come back up without the browser
-    // ever dispatching 'online', leaving the banner stuck. Re-checking
-    // navigator.onLine (a plain property read, not a request) whenever the
-    // tab regains focus/visibility, plus a light periodic poll, catches
-    // anything the event itself missed without depending on it alone.
-    const recheck = () => setOnline(navigator.onLine);
     window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);
-    window.addEventListener("focus", recheck);
-    document.addEventListener("visibilitychange", recheck);
-    const poll = setInterval(recheck, 15000);
     return () => {
       window.removeEventListener("online", goOnline);
       window.removeEventListener("offline", goOffline);
-      window.removeEventListener("focus", recheck);
-      document.removeEventListener("visibilitychange", recheck);
-      clearInterval(poll);
     };
   }, []);
 
