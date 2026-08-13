@@ -769,7 +769,11 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
           {personaSwitch}
           <div
             className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-5"
-            style={{ paddingBottom: persona === "hire" ? "calc(86px + env(safe-area-inset-bottom, 0px))" : "env(safe-area-inset-bottom, 0px)" }}
+            // BottomNav's real footprint is ~80px (12px offset + ~66px bar) —
+            // 86px left only a 6px buffer, the thinnest margin in the app
+            // (Dashboard.js uses 96px, GuestMode.js uses 116px). Matched to
+            // Dashboard.js's own value here for consistency.
+            style={{ paddingBottom: persona === "hire" ? "calc(96px + env(safe-area-inset-bottom, 0px))" : "env(safe-area-inset-bottom, 0px)" }}
           >
             {errorBanner}
             <AnimatePresence mode="wait">

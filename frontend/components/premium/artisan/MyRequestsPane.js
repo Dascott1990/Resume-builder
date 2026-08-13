@@ -123,7 +123,19 @@ export default function MyRequestsPane() {
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* On mobile this div is the ACTUAL scrollport (see the file-level
+          comment above), not the page-level ancestor — nested min-h-0/
+          flex-1 bounds it before it can ever overflow into that ancestor,
+          so Artisans.js's own BottomNav clearance never applies here. This
+          was the same bug the user reported elsewhere in the app: the
+          floating BottomNav hiding the last card(s) in a list with barely
+          any bottom padding of its own. Generous on purpose, same
+          reasoning MobileNav.js's own comment gives — a little extra
+          blank space at the end of a scroll is harmless, a covered card
+          isn't. Harmless on desktop too (just a bit of unused space at
+          the bottom of the 380px column; there's no floating nav there
+          to clear). */}
+      <div className="min-h-0 flex-1 overflow-y-auto" style={{ paddingBottom: "calc(100px + env(safe-area-inset-bottom, 0px))" }}>
         {items === null ? (
           <div className="flex flex-col items-center gap-2.5 py-10">
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
