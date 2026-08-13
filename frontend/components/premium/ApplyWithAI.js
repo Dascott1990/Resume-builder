@@ -20,6 +20,7 @@ import { apiRequest } from "./shared/api";
 import { Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import Logo from "./Logo";
+import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -59,8 +60,13 @@ function Field({ label, children }) {
 }
 
 // ── Phase 1: confirm the career profile (the agent's only source of truth) ─
+const APPLY_PROFILE_DRAFT_KEY = "resumeBuilder:applyProfileDraft:v1";
+
 function ProfileForm({ initial, onConfirmed }) {
-  const [form, setForm] = useState(() => ({
+  // A saved draft (unconfirmed edits from before a refresh) wins over the
+  // backend-fetched `initial` baseline — same reasoning as every other
+  // form draft: the whole point is recovering what hasn't been saved yet.
+  const [form, setForm] = useState(() => loadFormDraft(APPLY_PROFILE_DRAFT_KEY)?.form || {
     full_name: initial?.full_name || "", email: initial?.email || "",
     phone: initial?.phone || "", location: initial?.location || "",
     work_auth_status: initial?.work_authorization?.status || "",
@@ -69,8 +75,15 @@ function ProfileForm({ initial, onConfirmed }) {
     degree: initial?.education?.[0]?.degree || "", school: initial?.education?.[0]?.school || "",
     edu_period: initial?.education?.[0]?.period || "",
     skills: (initial?.skills || []).join(", "),
-  }));
+  });
   const [saving, setSaving] = useState(false);
+
+  const draftSaveTimer = useRef(null);
+  useEffect(() => {
+    clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => saveFormDraft(APPLY_PROFILE_DRAFT_KEY, { form }), 300);
+    return () => clearTimeout(draftSaveTimer.current);
+  }, [form]);
 
   // This form only ever exposes ONE work-history/education entry for
   // editing — but a profile built from an uploaded resume can have several
@@ -107,6 +120,7 @@ function ProfileForm({ initial, onConfirmed }) {
         }),
       });
       toast.success("Profile confirmed.");
+      clearFormDraft(APPLY_PROFILE_DRAFT_KEY);
       onConfirmed(data);
     } catch (err) {
       toast.error(err.message);
@@ -180,10 +194,19 @@ function ProfileForm({ initial, onConfirmed }) {
   );
 }
 
+const APPLY_URL_DRAFT_KEY = "resumeBuilder:applyUrlDraft:v1";
+
 // ── Phase 2: paste the job URL ──────────────────────────────────────────
 function UrlForm({ onStarted }) {
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(() => loadFormDraft(APPLY_URL_DRAFT_KEY)?.url || "");
   const [starting, setStarting] = useState(false);
+
+  const draftSaveTimer = useRef(null);
+  useEffect(() => {
+    clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => saveFormDraft(APPLY_URL_DRAFT_KEY, { url }), 300);
+    return () => clearTimeout(draftSaveTimer.current);
+  }, [url]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -198,6 +221,7 @@ function UrlForm({ onStarted }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target_url: url.trim() }),
       });
+      clearFormDraft(APPLY_URL_DRAFT_KEY);
       onStarted(run);
     } catch (err) {
       toast.error(err.message);

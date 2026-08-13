@@ -6,7 +6,7 @@
  * so onImported's caller can hand it directly to GuestMode as a
  * pendingImport with no adapter step in between.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { UploadCloud, FileText, X, Loader2, ScanLine } from "lucide-react";
@@ -14,6 +14,7 @@ import { apiRequest } from "./shared/api";
 import { Field, Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import Logo from "./Logo";
+import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 // Mirrors the backend's own cutoff (see /resume/scan) — below this, a
@@ -21,15 +22,28 @@ const MAX_BYTES = 8 * 1024 * 1024;
 // and the scan stays a plain import instead of silently doing a low-quality
 // tailoring pass.
 const MIN_JOB_DESC = 50;
+// The picked File object itself can't survive a refresh no matter what
+// (browsers don't let a page re-read an arbitrary local file without the
+// user re-selecting it) — but the pasted job posting is plain text a
+// visitor may have spent real effort copying in, and there's no reason
+// that has to be lost too. Same shared helper as the other form drafts.
+const CVSCAN_DRAFT_KEY = "resumeBuilder:cvScanDraft:v1";
 
 export default function CVScan({ onClose, onImported }) {
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
   const [file, setFile] = useState(null);
-  const [jobDesc, setJobDesc] = useState("");
+  const [jobDesc, setJobDesc] = useState(() => loadFormDraft(CVSCAN_DRAFT_KEY)?.jobDesc || "");
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
   const tailoring = jobDesc.trim().length >= MIN_JOB_DESC;
+
+  const draftSaveTimer = useRef(null);
+  useEffect(() => {
+    clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => saveFormDraft(CVSCAN_DRAFT_KEY, { jobDesc }), 300);
+    return () => clearTimeout(draftSaveTimer.current);
+  }, [jobDesc]);
 
   const validate = (f) => {
     const name = (f.name || "").toLowerCase();
@@ -60,6 +74,7 @@ export default function CVScan({ onClose, onImported }) {
       if (tailoring) formData.append("job_description", jobDesc.trim());
       const data = await apiRequest("/api/v1/resume/scan", { method: "POST", body: formData });
       toast.success(tailoring ? "Tailored — review your resume and cover letter below." : "Imported — review and download below.");
+      clearFormDraft(CVSCAN_DRAFT_KEY);
       onImported(data);
     } catch (e) {
       setError(e.message);
