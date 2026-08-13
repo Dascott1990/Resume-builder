@@ -138,7 +138,7 @@ export default function ArtisanProfile({
 
       <motion.div
         initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }}
-        className="flex items-center gap-3"
+        className="flex items-center gap-3 rounded-2xl border border-foreground/10 bg-card/95 p-4 shadow-[0_8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl supports-backdrop-filter:bg-card/75 dark:shadow-[0_10px_36px_rgba(0,0,0,0.4),0_1px_0_rgba(255,255,255,0.06)_inset]"
       >
         <div className={`flex size-16 shrink-0 items-center justify-center rounded-full border font-mono text-xl font-bold ${tint}`}>
           {initialsOf(artisan.name)}
@@ -182,7 +182,7 @@ export default function ArtisanProfile({
 
       <motion.div
         initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}
-        className="flex items-center gap-2.5 border-y border-border py-3.5"
+        className="flex items-center gap-2.5 rounded-2xl border border-foreground/10 bg-card/95 px-4 py-3.5 shadow-[0_8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl supports-backdrop-filter:bg-card/75 dark:shadow-[0_10px_36px_rgba(0,0,0,0.4),0_1px_0_rgba(255,255,255,0.06)_inset]"
       >
         {artisan.rating_count > 0 ? (
           <>
@@ -204,7 +204,7 @@ export default function ArtisanProfile({
       <PhotoPortfolio artisanId={artisan.id} isMine={isMine} editToken={editToken} />
 
       {!isMine && (
-        <div className="rounded-xl border border-border p-3.5">
+        <div className="rounded-2xl border border-foreground/10 bg-card/95 p-3.5 shadow-[0_8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl supports-backdrop-filter:bg-card/75 dark:shadow-[0_10px_36px_rgba(0,0,0,0.4),0_1px_0_rgba(255,255,255,0.06)_inset]">
           {myRating != null ? (
             <div className="flex items-center gap-2">
               <StarRating readOnly value={myRating} size="size-4" />
@@ -317,7 +317,7 @@ export default function ArtisanProfile({
       <motion.div
         initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", damping: 24, stiffness: 300 }}
-        className="shrink-0 border-t border-border bg-background/95 px-5 pt-3 backdrop-blur-xl supports-backdrop-filter:bg-background/80"
+        className="shrink-0 border-t border-foreground/10 bg-background/95 px-5 pt-3 shadow-[0_-8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl supports-backdrop-filter:bg-background/80 dark:shadow-[0_-10px_32px_rgba(0,0,0,0.4)]"
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
       <div className="grid gap-2.5">

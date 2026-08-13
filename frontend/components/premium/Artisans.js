@@ -152,7 +152,16 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete }) {
       tabIndex={0}
       onClick={() => onOpen(a)}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(a); } }}
-      className="cursor-pointer gap-0 overflow-hidden py-0"
+      // "Classic glass card" — a frosted, translucent surface rather than
+      // the flat opaque default, reusing this app's own existing frosted-
+      // sheet recipe (BottomNav, ArtisanProfile's contact sheet) instead of
+      // inventing a new one: border/shadow opacity are tuned off `foreground`
+      // (not a literal white), so this reads correctly in both the light and
+      // dark themes — a bare white border would vanish on light mode's
+      // near-white card background. supports-backdrop-filter degrades to a
+      // near-opaque fill on browsers without blur support, same guard the
+      // sticky contact sheet already uses.
+      className="cursor-pointer gap-0 overflow-hidden rounded-2xl border border-foreground/10 bg-card/95 py-0 ring-0 shadow-[0_8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl transition-colors duration-200 supports-backdrop-filter:bg-card/75 hover:border-foreground/20 dark:shadow-[0_10px_36px_rgba(0,0,0,0.4),0_1px_0_rgba(255,255,255,0.06)_inset] dark:hover:border-white/25"
     >
       <div className="flex items-start justify-between gap-2 p-3.5 pb-3">
         <div className="flex min-w-0 gap-3">
