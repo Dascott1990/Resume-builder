@@ -17,7 +17,7 @@
  * Same "home base" shape as ArtisanDashboard.js: motion fade-in, header
  * with IconTile + close, mono-label sections, Card content blocks.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -39,6 +39,7 @@ import { useAuth } from "@/lib/useAuth";
 import { useAccentColor } from "@/lib/useAccentColor";
 import { useBrightness } from "@/lib/useBrightness";
 import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
+import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
 import { artisanMe, artisanUpdateProfile, artisanChangePassword } from "./artisan/api";
 
 const AVATAR_EMOJI = [
@@ -217,35 +218,78 @@ function EmojiPicker({ value, onChange }) {
   );
 }
 
+const SETTINGS_PROFILE_DRAFT_KEY = "resumeBuilder:settingsProfileDraft:v1";
+const SETTINGS_ARTISAN_DRAFT_KEY = "resumeBuilder:settingsArtisanDraft:v1";
+
 export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
   const { user, loading: authLoading, updateProfile, changePassword, logout } = useAuth();
-  const [name, setName] = useState("");
-  const [avatarEmoji, setAvatarEmoji] = useState(null);
-  const [statusLine, setStatusLine] = useState("");
+  const profileDraftAtMount = useRef(loadFormDraft(SETTINGS_PROFILE_DRAFT_KEY)).current;
+  const [name, setName] = useState(() => profileDraftAtMount?.name ?? "");
+  const [avatarEmoji, setAvatarEmoji] = useState(() => profileDraftAtMount?.avatarEmoji ?? null);
+  const [statusLine, setStatusLine] = useState(() => profileDraftAtMount?.statusLine ?? "");
   const [savingProfile, setSavingProfile] = useState(false);
+  // Every field here is prefilled from the backend-fetched `user` object,
+  // so this effect normally exists to sync in fresh values (including the
+  // real "switch to a different signed-in account" case). But firing it
+  // unconditionally the moment auth finishes loading would immediately
+  // stomp whatever a restored draft just put in these fields on a refresh
+  // mid-edit — so it's skipped exactly once, only right after a draft
+  // restore, and only for the SAME user that draft was for; a genuine
+  // account switch (a different user.id shows up later) still re-syncs
+  // normally.
+  const syncedUserId = useRef(profileDraftAtMount ? "pending-draft" : undefined);
   useEffect(() => {
-    setName(user?.name || "");
-    setAvatarEmoji(user?.avatar_emoji || null);
-    setStatusLine(user?.status_line || "");
-  }, [user?.id, user?.name, user?.avatar_emoji, user?.status_line]);
+    if (!user) return;
+    if (syncedUserId.current === user.id) return;
+    if (syncedUserId.current === "pending-draft") { syncedUserId.current = user.id; return; }
+    setName(user.name || "");
+    setAvatarEmoji(user.avatar_emoji || null);
+    setStatusLine(user.status_line || "");
+    syncedUserId.current = user.id;
+  }, [user]);
+
+  const profileDraftSaveTimer = useRef(null);
+  useEffect(() => {
+    clearTimeout(profileDraftSaveTimer.current);
+    profileDraftSaveTimer.current = setTimeout(() => {
+      saveFormDraft(SETTINGS_PROFILE_DRAFT_KEY, { name, avatarEmoji, statusLine });
+    }, 300);
+    return () => clearTimeout(profileDraftSaveTimer.current);
+  }, [name, avatarEmoji, statusLine]);
 
   const [artisan, setArtisan] = useState(null);
   const [artisanLoading, setArtisanLoading] = useState(true);
-  const [artisanForm, setArtisanForm] = useState(null);
+  const artisanDraftAtMount = useRef(loadFormDraft(SETTINGS_ARTISAN_DRAFT_KEY)).current;
+  const [artisanForm, setArtisanForm] = useState(artisanDraftAtMount || null);
   const [savingArtisan, setSavingArtisan] = useState(false);
 
   useEffect(() => {
     if (!getArtisanToken()) { setArtisan(null); setArtisanLoading(false); return; }
     artisanMe()
-      .then((a) => { setArtisan(a); setArtisanForm(a); })
+      .then((a) => {
+        setArtisan(a);
+        // Same reasoning as the customer profile above — a restored draft
+        // (unsaved edits from before a refresh) wins over the freshly-
+        // fetched baseline; only fall back to it when there's nothing
+        // pending.
+        setArtisanForm((current) => current || a);
+      })
       .catch(() => { setArtisanToken(null); setArtisan(null); })
       .finally(() => setArtisanLoading(false));
   }, []);
+
+  const artisanDraftSaveTimer = useRef(null);
+  useEffect(() => {
+    clearTimeout(artisanDraftSaveTimer.current);
+    artisanDraftSaveTimer.current = setTimeout(() => saveFormDraft(SETTINGS_ARTISAN_DRAFT_KEY, artisanForm), 300);
+    return () => clearTimeout(artisanDraftSaveTimer.current);
+  }, [artisanForm]);
 
   const saveProfile = async () => {
     setSavingProfile(true);
     try {
       await updateProfile({ name: name.trim(), avatar_emoji: avatarEmoji, status_line: statusLine.trim() });
+      clearFormDraft(SETTINGS_PROFILE_DRAFT_KEY);
       toast.success("Profile updated");
     } catch (e) {
       toast.error(e.message);
@@ -265,6 +309,7 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
       });
       setArtisan(updated);
       setArtisanForm(updated);
+      clearFormDraft(SETTINGS_ARTISAN_DRAFT_KEY);
       toast.success("Profile updated");
     } catch (e) {
       toast.error(e.message);
