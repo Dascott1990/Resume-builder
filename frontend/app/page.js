@@ -22,6 +22,26 @@ import Logo from "../components/premium/Logo";
 // lands back on the dashboard instead.
 const ENTERED_KEY = "noviq_entered_app";
 
+// Which screen a refresh should land back on — the last one actually
+// worth returning to. Deliberately excludes "launcher" (governed by
+// ENTERED_KEY instead) and "login"/"signup" (transient forms; refreshing
+// mid-signup and finding the same empty form again isn't "picking up
+// where you left off," it's just confusing — dashboard is the more
+// sensible landing spot for those two).
+const VIEW_KEY = "noviq_last_view";
+const RESTORABLE_VIEWS = new Set([
+  "dashboard", "resume", "cvscan", "jobtracker", "apply", "settings", "artisans", "artisan-dashboard",
+]);
+
+function restoreView() {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    return RESTORABLE_VIEWS.has(v) ? v : "dashboard";
+  } catch {
+    return "dashboard";
+  }
+}
+
 export default function Home() {
   const [view, setView] = useState("launcher"); // "launcher" | "dashboard" | "login" | "signup" | "resume" | "artisans" | "artisan-dashboard" | "cvscan" | "jobtracker" | "apply" | "settings"
   // Bumped on "Try Again" (and on any fresh entry into the studio) to force
@@ -82,7 +102,7 @@ export default function Home() {
           // "have they visited before" flow below rather than stalling on
           // a blank screen.
           try {
-            if (localStorage.getItem(ENTERED_KEY) === "1") setView("dashboard");
+            if (localStorage.getItem(ENTERED_KEY) === "1") setView(restoreView());
           } catch { /* best-effort */ }
         })
         // Held until the fetch settles either way — flipping this straight
@@ -93,7 +113,7 @@ export default function Home() {
     }
 
     try {
-      if (localStorage.getItem(ENTERED_KEY) === "1") setView("dashboard");
+      if (localStorage.getItem(ENTERED_KEY) === "1") setView(restoreView());
     } catch { /* best-effort */ }
     setMounted(true);
   }, []);
@@ -103,6 +123,20 @@ export default function Home() {
   useEffect(() => {
     if (!mounted || view === "launcher") return;
     try { localStorage.setItem(ENTERED_KEY, "1"); } catch { /* best-effort */ }
+  }, [mounted, view]);
+
+  // Remembers whichever restorable screen is current, so a refresh lands
+  // back where they actually were instead of always bouncing to the
+  // dashboard — the same reasoning as ENTERED_KEY above, one level more
+  // specific. Only ever reads back through restoreView() at mount time
+  // (above), never mid-session, so this can't fight with normal in-app
+  // navigation.
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      if (RESTORABLE_VIEWS.has(view)) localStorage.setItem(VIEW_KEY, view);
+      else localStorage.removeItem(VIEW_KEY);
+    } catch { /* best-effort */ }
   }, [mounted, view]);
 
   if (!mounted) {
@@ -140,7 +174,7 @@ export default function Home() {
         key={errorResetKey}
         onReset={retryView}
         onClose={() => {
-          try { localStorage.removeItem(ENTERED_KEY); } catch { /* best-effort */ }
+          try { localStorage.removeItem(ENTERED_KEY); localStorage.removeItem(VIEW_KEY); } catch { /* best-effort */ }
           setView("launcher");
         }}
       >
@@ -148,7 +182,7 @@ export default function Home() {
           // The one true exit back to the marketing page — everywhere else,
           // "close" means "back to the dashboard," not "back out of the app."
           onClose={() => {
-            try { localStorage.removeItem(ENTERED_KEY); } catch { /* best-effort */ }
+            try { localStorage.removeItem(ENTERED_KEY); localStorage.removeItem(VIEW_KEY); } catch { /* best-effort */ }
             setView("launcher");
           }}
           onNavigate={(id) => {
