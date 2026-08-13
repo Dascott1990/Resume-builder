@@ -8,6 +8,7 @@ import requests
 from flask import Blueprint, request, jsonify, send_file
 from sqlalchemy import func
 from app import db, limiter
+from flask_limiter.util import get_remote_address
 from app.models import Artisan, ArtisanPhoto, Review
 from app.middleware.error_handlers import APIError
 from app.utils.auth import get_admin_user, require_artisan_scope, hash_password, verify_password, issue_token
@@ -562,11 +563,13 @@ def _clean_stars(raw):
 # Unauthenticated by design (see the Review model's own docstring — this
 # is the free-floating "bring your existing reputation" path, not a bug),
 # which is exactly why it's the one write endpoint in this file with no
-# identity to dedupe against. A rate limit is the only lever available
-# here to stop scripted review-bombing/rating manipulation — tighter than
-# create_request's 10/hour since a real person posts a review here at
-# most a handful of times ever, not routinely.
-@limiter.limit("5 per hour")
+# identity to dedupe against. Scoped to (IP, this artisan) rather than
+# the default per-IP-only key: the thing actually worth protecting is one
+# artisan's rating integrity, not "how many reviews can this visitor post
+# in total" — a global cap would wrongly block someone reviewing five
+# different artisans from a shared office/campus network, which has
+# nothing to do with review-bombing any one of them.
+@limiter.limit("5 per hour", key_func=lambda: f"{get_remote_address()}:{request.view_args.get('artisan_id')}")
 def create_review(artisan_id):
     a = Artisan.query.get(artisan_id)
     if not a:
