@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench } from "lucide-react";
+import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, Map as MapIcon } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tintFor, initialsOf, formatPhone, truncateBio, formatDistance } from "./shared/artisanDisplay";
@@ -38,6 +38,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TRADES_WITH_ALL } from "./shared/trades";
 import MyRequestsPane from "./artisan/MyRequestsPane";
+import ArtisanMapLoader from "./artisan/ArtisanMapLoader";
 import { getUnreadCount } from "./messages/api";
 
 const PAGE_SIZE = 20;
@@ -321,6 +322,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
   const [query, setQuery] = useState("");
   const [trade, setTrade] = useState("All");
   const [sort, setSort] = useState("newest");
+  const [view, setView] = useState("list"); // "list" | "map" — Browse-pane-local
   // Only ever set once geolocation actually succeeds — picking "Nearest"
   // in the sort dropdown is what triggers the browser's permission prompt
   // (see the effect below), not a separate toggle, so there's exactly one
@@ -516,40 +518,67 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
 
       <TradeChips active={trade} onSelect={setTrade} />
 
-      <div className="flex shrink-0 items-center justify-between">
+      <div className="flex shrink-0 items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">
           <ClipboardList className="size-3" />
           {loading ? "LOADING…" : `${visibleList.length} LISTING${visibleList.length === 1 ? "" : "S"}`}
         </span>
-        <Select value={sort} onValueChange={setSort}>
-          <SelectTrigger className="h-auto border-none bg-transparent px-0 text-[11.5px] font-semibold text-muted-foreground shadow-none">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end">
-            {SORTS.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="flex shrink-0 items-center gap-2">
+          <ToggleGroup type="single" value={view} onValueChange={(v) => v && setView(v)} className="gap-1">
+            <ToggleGroupItem value="list" aria-label="List view" className="size-7 rounded-md p-0 data-[state=on]:bg-primary/10 data-[state=on]:text-primary">
+              <List className="size-3.5" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="map" aria-label="Map view" className="size-7 rounded-md p-0 data-[state=on]:bg-primary/10 data-[state=on]:text-primary">
+              <MapIcon className="size-3.5" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <Select value={sort} onValueChange={setSort}>
+            <SelectTrigger className="h-auto border-none bg-transparent px-0 text-[11.5px] font-semibold text-muted-foreground shadow-none">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              {SORTS.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <div className="grid gap-2.5 overflow-y-auto pb-1">
-        {loading && <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>}
-        {!loading && visibleList.length === 0 && (
-          <EmptyState trade={trade} onListYourself={startCreate} />
-        )}
-        {!loading && visibleList.map((a) => (
-          <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id)}
-            onOpen={setViewingArtisan} onEdit={startEdit} onDelete={remove} />
-        ))}
-        {/* Only offered once the current filter/search is otherwise exhausted —
-            "Load more" fetches the next page from the backend; it's deliberately
-            not auto-triggered on scroll (a button is simpler and avoids scroll-jank
-            risk for what's currently a small dataset). */}
-        {!loading && hasMore && !query && (
-          <Btn small variant="ghost" onClick={loadMore} loading={loadingMore} className="justify-self-center">
-            {loadingMore ? "Loading…" : "Load more"}
-          </Btn>
-        )}
-      </div>
+      {view === "map" ? (
+        <div className="min-h-0 flex-1">
+          {loading ? (
+            <Skeleton className="h-full w-full rounded-lg" />
+          ) : (
+            <ArtisanMapLoader
+              artisans={visibleList}
+              nearMe={sort === "distance" ? nearMe : null}
+              onOpenArtisan={setViewingArtisan}
+              hasMore={hasMore && !query}
+              onLoadMore={loadMore}
+              loadingMore={loadingMore}
+            />
+          )}
+        </div>
+      ) : (
+        <div className="grid gap-2.5 overflow-y-auto pb-1">
+          {loading && <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>}
+          {!loading && visibleList.length === 0 && (
+            <EmptyState trade={trade} onListYourself={startCreate} />
+          )}
+          {!loading && visibleList.map((a) => (
+            <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id)}
+              onOpen={setViewingArtisan} onEdit={startEdit} onDelete={remove} />
+          ))}
+          {/* Only offered once the current filter/search is otherwise exhausted —
+              "Load more" fetches the next page from the backend; it's deliberately
+              not auto-triggered on scroll (a button is simpler and avoids scroll-jank
+              risk for what's currently a small dataset). */}
+          {!loading && hasMore && !query && (
+            <Btn small variant="ghost" onClick={loadMore} loading={loadingMore} className="justify-self-center">
+              {loadingMore ? "Loading…" : "Load more"}
+            </Btn>
+          )}
+        </div>
+      )}
     </motion.div>
   );
 
