@@ -1,6 +1,12 @@
 // ── PDF: text-based via browser print (preserves selectable text) ─────────────
 // We inject a dedicated print stylesheet and isolate the preview element.
 // Result: clean text PDF — every word is selectable and copyable.
+//
+// Shared by both editors ("My Resumes" and Guest Mode AI) — previewEl is now
+// the multi-page container from usePaginatedBlocks (a flex column of one or
+// more ResumePageSheet instances), not a single page div, so on top of the
+// existing ancestor-chain isolation this also has to undo each sheet's own
+// on-screen scale-down transform and force one physical page per sheet.
 export function printPdf(previewEl) {
   if (!previewEl) return;
   const PRINT_ID    = "__resume_pdf_print__";
@@ -49,6 +55,20 @@ export function printPdf(previewEl) {
       #${PRINT_ID} { display: block !important; position: static !important;
                  transform: none !important; box-shadow: none !important;
                  border-radius: 0 !important; width: 100% !important; }
+      /* Each page's own sizing wrapper (ResumePageSheet's outer div, scaled
+         down for on-screen display via width/height in px) — let it size to
+         its real content instead of the shrunk on-screen box. */
+      #${PRINT_ID} > div { width: auto !important; height: auto !important; overflow: visible !important; }
+      /* The actual page — ResumePageSheet's inner .resume-page-sheet div —
+         carries the on-screen scale-down transform and absolute positioning;
+         both need to go so it prints at true physical size in normal flow.
+         One physical printed page per sheet, with no trailing blank page
+         after the last one. */
+      #${PRINT_ID} .resume-page-sheet {
+        position: static !important; transform: none !important;
+        box-shadow: none !important; break-after: page;
+      }
+      #${PRINT_ID} > div:last-child .resume-page-sheet { break-after: auto !important; }
     }
   `;
   document.head.appendChild(style);

@@ -17,6 +17,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Layers, Palette, Check, PanelLeft, FileText, Sparkle, Download, X } from "lucide-react";
 import ResumeGuestMode from "./guest";
+import { usePaginatedBlocks } from "./shared/paginateBlocks";
+import { ResumePageSheet } from "./shared/ResumePageSheet";
+import { printPdf } from "./shared/printPdf";
 import Logo from "./Logo";
 import Flag3D from "./flag/Flag3D";
 import { useCountryDetect } from "@/lib/useCountryDetect";
@@ -732,29 +735,46 @@ async function downloadDocx(resume, style) {
   a.click(); URL.revokeObjectURL(url);
 }
 
-// The print-only visibility rule lives as a static <style> tag elsewhere in
-// this component's JSX (search "#nova-resume-print") and already handles
-// this correctly via `visibility`, which cascades past nesting — unlike an
-// earlier version of this function that injected its own `display: none`
-// rule on `body`'s direct children. That doesn't work: the preview sits
-// several levels deep, not a direct child of body, and `display: none` on
-// an ancestor can't be overridden by a descendant's `display: block` — the
-// entire subtree stayed hidden and the printed page came out blank. This
-// version just tags the element the static rule already targets.
+// PDF export now goes through the same shared printPdf() Guest Mode AI
+// uses (components/premium/shared/printPdf.js) — this used to be its own
+// primitive here, tagging the preview element for a static print-only
+// `visibility` rule elsewhere in this component's JSX. That rule never
+// reset the preview's own on-screen scale-down transform/fixed size/
+// overflow-hidden, so a printed page came out scaled and clipped to
+// whatever the on-screen preview happened to be, not true page size. The
+// shared version walks the real ancestor chain and resets all of that
+// before printing, plus now also handles multiple page-sheets correctly
+// (one physical page per sheet) now that this preview can paginate.
 function downloadPdf(previewRef) {
-  const el = previewRef.current;
-  if (el) el.id = "nova-resume-print";
-  window.print();
-  setTimeout(() => { if (el) el.removeAttribute("id"); }, 1000);
+  printPdf(previewRef.current);
 }
 
 // ── Live preview (unchanged) ──────────────────────────────────────────────────
-const Preview = React.forwardRef(({ resume, style, onEditContact, onEditText, onEditBullet, onEditJob, onEditDegree }, ref) => {
+const LETTER_WIDTH_PX = 816;
+const LETTER_HEIGHT_PX = 1056;
+const PREVIEW_PAD_Y_MM = 22;
+const PREVIEW_PAD_X_MM = 20;
+const PREVIEW_MM_TO_PX = 96 / 25.4; // CSS's own mm↔px ratio (a "reference pixel" is always 96/in).
+const PREVIEW_CONTENT_WIDTH = LETTER_WIDTH_PX - PREVIEW_PAD_X_MM * 2 * PREVIEW_MM_TO_PX;
+const PREVIEW_CONTENT_HEIGHT = LETTER_HEIGHT_PX - PREVIEW_PAD_Y_MM * 2 * PREVIEW_MM_TO_PX;
+
+// Real multi-page pagination — see components/premium/shared/paginateBlocks.js
+// for the measure-then-split mechanics, and LivePreview.js (Guest Mode AI's
+// equivalent of this component) for the identical technique and the same
+// block-granularity rules (a job's header glued to its first bullet, every
+// other bullet its own block, so a long job's later bullets can move to the
+// next page independently). Previously this rendered as one continuous div
+// sized to exactly one page — content past that just silently overflowed.
+const Preview = React.forwardRef(({ resume, style, scale = 1, onEditContact, onEditText, onEditBullet, onEditJob, onEditDegree }, ref) => {
   const font = FONTS.find(f => f.id === style.font)?.css || FONTS[0].css;
   const accent = ACCENTS.find(a => a.id === style.accent)?.hex || "#1F3864";
   const fs = style.fontSize;
   const lh = style.lineHeight;
-  const base = { fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh, color: "#1A1A1A" };
+
+  const contentStyle = {
+    padding: `${PREVIEW_PAD_Y_MM}mm ${PREVIEW_PAD_X_MM}mm`,
+    fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh, color: "#1A1A1A",
+  };
 
   const EditableText = ({ value, onChange, style: extraStyle = {}, multiline }) => {
     const [editing, setEditing] = useState(false);
@@ -784,8 +804,12 @@ const Preview = React.forwardRef(({ resume, style, onEditContact, onEditText, on
     </div>
   );
 
-  return (
-    <div ref={ref} style={{ ...base, background: "white", padding: "22mm 20mm", minHeight: "279mm", width: "216mm", boxSizing: "border-box", boxShadow: "0 8px 40px rgba(0,0,0,0.18)", borderRadius: 2 }}>
+  // ── Flat block list — same granularity rules as LivePreview.js ──────────
+  const blocks = [];
+
+  blocks.push({
+    id: "header",
+    node: (
       <div style={{ textAlign: "center", marginBottom: 12 }}>
         <div style={{ fontSize: `${fs + 6}pt`, fontWeight: "bold", color: accent, letterSpacing: "0.04em", marginBottom: 3, fontFamily: font }}>
           <EditableText value={resume.contact.name} onChange={v => onEditContact("name", v)} style={{ fontSize: `${fs + 6}pt`, fontWeight: "bold", color: accent }} />
@@ -799,15 +823,30 @@ const Preview = React.forwardRef(({ resume, style, onEditContact, onEditText, on
           <EditableText value={resume.contact.email} onChange={v => onEditContact("email", v)} />
         </div>
       </div>
-      {resume.sections.map((section) => (
-        <div key={section.id}>
-          <SectionHeading label={section.label} />
-          {section.type === "text" && (
+    ),
+  });
+
+  resume.sections.forEach((section) => {
+    if (section.type === "text") {
+      blocks.push({
+        id: `sec-${section.id}`,
+        node: (
+          <div>
+            <SectionHeading label={section.label} />
             <div style={{ fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh, color: "#2C2C2C" }}>
               <EditableText value={section.content} onChange={v => onEditText(section.id, v)} multiline style={{ display: "block", width: "100%" }} />
             </div>
-          )}
-          {section.type === "bullets" && (
+          </div>
+        ),
+      });
+    }
+
+    if (section.type === "bullets") {
+      blocks.push({
+        id: `sec-${section.id}`,
+        node: (
+          <div>
+            <SectionHeading label={section.label} />
             <ul style={{ margin: "2px 0 6px", paddingLeft: 20 }}>
               {(section.items || []).map((item, i) => (
                 <li key={i} style={{ fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh, color: "#2C2C2C", marginBottom: 2 }}>
@@ -815,48 +854,110 @@ const Preview = React.forwardRef(({ resume, style, onEditContact, onEditText, on
                 </li>
               ))}
             </ul>
-          )}
-          {section.type === "jobs" && (section.jobs || []).map((job, ji) => (
-            <div key={ji} style={{ marginBottom: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <div style={{ fontFamily: font, fontWeight: "bold", fontSize: `${fs}pt` }}>
-                  <EditableText value={job.role} onChange={v => onEditJob(section.id, ji, "role", v)} />
-                  <span style={{ fontWeight: "normal", marginLeft: 6, color: "#595959" }}>
-                    <EditableText value={job.company} onChange={v => onEditJob(section.id, ji, "company", v)} />
-                  </span>
+          </div>
+        ),
+      });
+    }
+
+    if (section.type === "jobs") {
+      (section.jobs || []).forEach((job, ji) => {
+        const bullets = job.bullets || [];
+        blocks.push({
+          id: `sec-${section.id}-job-${ji}-head`,
+          node: (
+            <div>
+              {ji === 0 && <SectionHeading label={section.label} />}
+              <div style={{ marginBottom: bullets.length > 1 ? 0 : 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <div style={{ fontFamily: font, fontWeight: "bold", fontSize: `${fs}pt` }}>
+                    <EditableText value={job.role} onChange={v => onEditJob(section.id, ji, "role", v)} />
+                    <span style={{ fontWeight: "normal", marginLeft: 6, color: "#595959" }}>
+                      <EditableText value={job.company} onChange={v => onEditJob(section.id, ji, "company", v)} />
+                    </span>
+                  </div>
+                  <div style={{ fontFamily: font, fontSize: `${fs - 1}pt`, color: "#595959", whiteSpace: "nowrap" }}>
+                    <EditableText value={job.period} onChange={v => onEditJob(section.id, ji, "period", v)} />
+                  </div>
                 </div>
-                <div style={{ fontFamily: font, fontSize: `${fs - 1}pt`, color: "#595959", whiteSpace: "nowrap" }}>
-                  <EditableText value={job.period} onChange={v => onEditJob(section.id, ji, "period", v)} />
-                </div>
+                {bullets.length > 0 && (
+                  <ul style={{ margin: "2px 0 4px", paddingLeft: 20 }}>
+                    <li style={{ fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh, color: "#2C2C2C", marginBottom: 2 }}>
+                      <EditableText value={bullets[0]} onChange={v => onEditBullet(section.id + "_" + ji, 0, v, section.id, ji)} />
+                    </li>
+                  </ul>
+                )}
               </div>
-              <ul style={{ margin: "2px 0 4px", paddingLeft: 20 }}>
-                {(job.bullets || []).map((b, bi) => (
-                  <li key={bi} style={{ fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh, color: "#2C2C2C", marginBottom: 2 }}>
-                    <EditableText value={b} onChange={v => onEditBullet(section.id + "_" + ji, bi, v, section.id, ji)} />
-                  </li>
-                ))}
+            </div>
+          ),
+        });
+
+        bullets.slice(1).forEach((b, idx) => {
+          const bi = idx + 1;
+          const isLast = bi === bullets.length - 1;
+          blocks.push({
+            id: `sec-${section.id}-job-${ji}-bullet-${bi}`,
+            node: (
+              <ul style={{ margin: "0 0 4px", paddingLeft: 20, marginBottom: isLast ? 8 : 2 }}>
+                <li style={{ fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh, color: "#2C2C2C", marginBottom: 2 }}>
+                  <EditableText value={b} onChange={v => onEditBullet(section.id + "_" + ji, bi, v, section.id, ji)} />
+                </li>
               </ul>
-            </div>
-          ))}
-          {section.type === "education" && (section.degrees || []).map((deg, di) => (
-            <div key={di} style={{ marginBottom: 6 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <div style={{ fontFamily: font, fontSize: `${fs}pt` }}>
-                  <strong><EditableText value={deg.degree} onChange={v => onEditDegree(section.id, di, "degree", v)} /></strong>
-                  <span style={{ color: "#595959", margin: "0 4px" }}>•</span>
-                  <EditableText value={deg.school} onChange={v => onEditDegree(section.id, di, "school", v)} />
-                  <span style={{ color: "#595959", margin: "0 4px" }}>•</span>
-                  <span style={{ color: "#595959" }}><EditableText value={deg.location} onChange={v => onEditDegree(section.id, di, "location", v)} /></span>
-                </div>
-                <div style={{ fontFamily: font, fontSize: `${fs - 1}pt`, color: "#595959", fontStyle: "italic", whiteSpace: "nowrap" }}>
-                  <EditableText value={deg.period} onChange={v => onEditDegree(section.id, di, "period", v)} />
+            ),
+          });
+        });
+      });
+    }
+
+    if (section.type === "education") {
+      (section.degrees || []).forEach((deg, di) => {
+        blocks.push({
+          id: `sec-${section.id}-deg-${di}`,
+          node: (
+            <div>
+              {di === 0 && <SectionHeading label={section.label} />}
+              <div style={{ marginBottom: 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <div style={{ fontFamily: font, fontSize: `${fs}pt` }}>
+                    <strong><EditableText value={deg.degree} onChange={v => onEditDegree(section.id, di, "degree", v)} /></strong>
+                    <span style={{ color: "#595959", margin: "0 4px" }}>•</span>
+                    <EditableText value={deg.school} onChange={v => onEditDegree(section.id, di, "school", v)} />
+                    <span style={{ color: "#595959", margin: "0 4px" }}>•</span>
+                    <span style={{ color: "#595959" }}><EditableText value={deg.location} onChange={v => onEditDegree(section.id, di, "location", v)} /></span>
+                  </div>
+                  <div style={{ fontFamily: font, fontSize: `${fs - 1}pt`, color: "#595959", fontStyle: "italic", whiteSpace: "nowrap" }}>
+                    <EditableText value={deg.period} onChange={v => onEditDegree(section.id, di, "period", v)} />
+                  </div>
                 </div>
               </div>
             </div>
-          ))}
-        </div>
-      ))}
-    </div>
+          ),
+        });
+      });
+    }
+  });
+
+  const { pages, measureLayer } = usePaginatedBlocks(
+    blocks,
+    { pageContentWidth: PREVIEW_CONTENT_WIDTH, pageContentHeight: PREVIEW_CONTENT_HEIGHT },
+    [resume, fs, lh, font]
+  );
+
+  return (
+    <>
+      {measureLayer}
+      <div ref={ref} className="flex flex-col items-center gap-6">
+        {pages.map((pageBlocks, pi) => (
+          <ResumePageSheet
+            key={pi} width={LETTER_WIDTH_PX} height={LETTER_HEIGHT_PX} scale={scale}
+            shadowClassName="shadow-[0_8px_40px_rgba(0,0,0,0.18)]"
+            className="rounded-[2px]"
+            contentStyle={contentStyle}
+          >
+            {pageBlocks}
+          </ResumePageSheet>
+        ))}
+      </div>
+    </>
   );
 });
 Preview.displayName = "Preview";
@@ -968,9 +1069,6 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
   const Label = ({ children }) => (
     <p className="m-0 mb-1.5 font-mono text-[9px] tracking-[0.1em] text-muted-foreground/45">{children}</p>
   );
-
-  const scaledW = Math.round(A4W * scale);
-  const scaledH = Math.round(A4H * scale);
 
   // ── Sidebar for "My Resumes" mode ──────────────────────────────────────────
   const SidebarContent = () => (
@@ -1102,10 +1200,6 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
     <div className="fixed inset-0 z-50 overflow-hidden bg-background [perspective:2200px] [perspective-origin:50%_50%]"
       style={{ bottom: "var(--taskbar-height,52px)" }}>
 
-      <style>{`
-        @media print { body * { visibility: hidden; } #nova-resume-print, #nova-resume-print * { visibility: visible; } #nova-resume-print { position: fixed; left: 0; top: 0; width: 100%; } }
-      `}</style>
-
       <AnimatePresence mode="wait" custom={flipDir}>
         {mode === "guest" ? (
           // Guest mode is a fully self-contained, full-screen experience —
@@ -1219,13 +1313,12 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
                 <div className="mb-2.5 font-mono text-[9px] tracking-[0.08em] text-[#888]">
                   {Math.round(scale * 100)}% · Click any text to edit
                 </div>
-                <div style={{ width: scaledW, height: scaledH }} className="relative shrink-0">
-                  <div style={{ width: A4W, height: A4H, transform: `scale(${scale})` }} className="absolute top-0 left-0 origin-top-left shadow-[0_4px_32px_rgba(0,0,0,0.3)]">
-                    <Preview ref={previewRef} resume={resumeData} style={style}
-                      onEditContact={onEditContact} onEditText={onEditText}
-                      onEditBullet={onEditBullet} onEditJob={onEditJob} onEditDegree={onEditDegree} />
-                  </div>
-                </div>
+                {/* Preview now owns its own page sizing/scaling and can
+                    render more than one sheet — see its own comment for
+                    why that responsibility moved in from out here. */}
+                <Preview ref={previewRef} resume={resumeData} style={style} scale={scale}
+                  onEditContact={onEditContact} onEditText={onEditText}
+                  onEditBullet={onEditBullet} onEditJob={onEditJob} onEditDegree={onEditDegree} />
               </div>
             </div>
           </motion.div>

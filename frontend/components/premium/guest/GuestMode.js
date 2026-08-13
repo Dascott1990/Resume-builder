@@ -34,7 +34,7 @@ import { loadDraft, clearDraft, loadProfile, saveProfile, clearProfile, DRAFT_KE
 import { apiGenerate, apiOptimize, apiListSaved, apiGetSaved, apiDelete } from "./api";
 import { downloadDocx } from "./export/docx";
 import { downloadCoverLetterDocx } from "./export/coverLetterDocx";
-import { printPdf, printCoverLetterPdf } from "./export/pdf";
+import { printPdf, printCoverLetterPdf } from "../shared/printPdf";
 import { useViewport } from "@/lib/useViewport";
 import { useSignupNudge } from "@/lib/useSignupNudge";
 import { SignupNudgeModal } from "../shared/SignupNudgeModal";
@@ -460,14 +460,21 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
       <p className="m-0 mb-2.5 px-3 text-center font-mono text-[9px] tracking-[0.08em] text-[#666] select-none">
         {loadingResumeId ? "Loading…" : `${Math.round(scale * 100)}% · ${resume ? "Tap any text to edit" : "Generate to see your resume"}`}
       </p>
-      <div style={{ width: scaledW, height: scaledH }} className="relative shrink-0">
-        <div style={{ width: A4w, height: A4h, transform: `scale(${scale})` }}
-          className="absolute top-0 left-0 origin-top-left shadow-[0_6px_40px_rgba(0,0,0,0.35)]">
-          {loadingResumeId
-            ? <ResumeSkeleton />
-            : <LivePreview ref={previewRef} resume={resume} docStyle={docStyle} onEdit={onEdit} />}
+      {loadingResumeId ? (
+        <div style={{ width: scaledW, height: scaledH }} className="relative shrink-0">
+          <div style={{ width: A4w, height: A4h, transform: `scale(${scale})` }}
+            className="absolute top-0 left-0 origin-top-left shadow-[0_6px_40px_rgba(0,0,0,0.35)]">
+            <ResumeSkeleton />
+          </div>
         </div>
-      </div>
+      ) : (
+        // LivePreview now owns its own page sizing/scaling — how many
+        // sheets exist is inherently its own concern once a resume can
+        // span more than one page (see LivePreview.js's own file-level
+        // comment), so it's no longer wrapped in a single fixed-size box
+        // from out here the way a strictly-one-page component would be.
+        <LivePreview ref={previewRef} resume={resume} docStyle={docStyle} onEdit={onEdit} scale={scale} />
+      )}
     </div>
   );
 
