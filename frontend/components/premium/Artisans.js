@@ -13,7 +13,7 @@
  * badge, tap-to-call) instead of a flat text list, and loading/empty are
  * real states instead of a blank screen.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, Map as MapIcon } from "lucide-react";
@@ -38,6 +38,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TRADES_WITH_ALL } from "./shared/trades";
 import MyRequestsPane from "./artisan/MyRequestsPane";
+import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
 import ArtisanMapLoader from "./artisan/ArtisanMapLoader";
 import { getUnreadCount } from "./messages/api";
 
@@ -70,6 +71,10 @@ const SORTS = [
 ];
 
 const emptyForm = { name: "", trade: "", city: "", phone: "", email: "", years_experience: "", bio: "" };
+// A 7-field listing form (including free-text bio) with no persistence
+// at all was lost outright on a refresh — same class of bug as the
+// resume editors, fixed the same way (see myResumeDraft.js).
+const ARTISAN_FORM_DRAFT_KEY = "resumeBuilder:artisanListingDraft:v1";
 
 const getMyIds = () => {
   try { return JSON.parse(localStorage.getItem(MY_IDS_KEY) || "[]"); }
@@ -313,15 +318,25 @@ function Field({ label, required, hint, value, onChange, placeholder, type = "te
 
 export default function Artisans({ onClose, onOpenArtisanDashboard }) {
   const { isDesktop } = useViewport();
-  const [persona, setPersona] = useState("hire"); // "hire" | "artisan"
+  // Read once, synchronously, before first render — same pattern as
+  // GuestMode.js's own draftAtMount / myResumeDraft.js.
+  const artisanDraftAtMount = useRef(loadFormDraft(ARTISAN_FORM_DRAFT_KEY)).current;
+  // Restoring the "artisan" persona only when there's an actual in-progress
+  // form to show for it (some field actually filled in, or mid-edit of an
+  // existing listing) — otherwise every returning visitor would get
+  // dropped onto "List yourself" instead of Browse for no reason, since
+  // the saved draft object always exists once anyone's ever typed
+  // anything here, empty or not.
+  const hasDraftContent = artisanDraftAtMount?.editingId || Object.values(artisanDraftAtMount?.form || {}).some((v) => String(v || "").trim());
+  const [persona, setPersona] = useState(() => (hasDraftContent ? "artisan" : "hire")); // "hire" | "artisan"
   const [tab, setTab] = useState("browse"); // sub-tab within the "hire" persona: "browse" | "requests"
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [myIds, setMyIds] = useState([]);
-  const [form, setForm] = useState(emptyForm);
-  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(() => artisanDraftAtMount?.form || emptyForm);
+  const [editingId, setEditingId] = useState(() => artisanDraftAtMount?.editingId ?? null);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [polishing, setPolishing] = useState(false);
@@ -340,6 +355,20 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => { setMyIds(getMyIds()); setRatedIds(getRatedIds()); }, []);
+
+  // Debounced, same 300ms shape as myResumeDraft.js/useGuestDraft.js — an
+  // empty/reset form still gets saved (harmless, just overwrites the old
+  // draft with the same empty shape), which is what makes the explicit
+  // clearFormDraft calls after a successful submit actually matter instead
+  // of racing this effect back in.
+  const artisanDraftSaveTimer = useRef(null);
+  useEffect(() => {
+    clearTimeout(artisanDraftSaveTimer.current);
+    artisanDraftSaveTimer.current = setTimeout(() => {
+      saveFormDraft(ARTISAN_FORM_DRAFT_KEY, { form, editingId });
+    }, 300);
+    return () => clearTimeout(artisanDraftSaveTimer.current);
+  }, [form, editingId]);
 
   // Unread-message badge on "My requests" — a slower, separate poll from
   // an open thread's own 4s cadence (see MessageThread.js): this only
@@ -491,6 +520,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
       }
       setForm(emptyForm);
       setEditingId(null);
+      clearFormDraft(ARTISAN_FORM_DRAFT_KEY);
       setPersona("hire");
       setTab("browse");
       await load(trade);

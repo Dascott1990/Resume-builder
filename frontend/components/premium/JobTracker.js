@@ -4,12 +4,13 @@
  * anonymously by guest_id (or by account, once signed in) exactly like
  * Saved resumes — same backend pattern, see backend/app/api/applications.py.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { X, RefreshCw, ClipboardList, FileText, Clock } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import { apiListSaved } from "./guest/api";
+import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
 import { Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import { tapFeedback } from "@/lib/haptics";
@@ -30,6 +31,10 @@ const STATUSES = [
 const statusMeta = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0];
 
 const EMPTY_FORM = { company: "", role: "", status: "applied", date_applied: "", notes: "", resume_id: "" };
+// Same class of bug as the resume editors and the artisan listing form —
+// a 6-field form (including free-text notes) with no persistence at all
+// was silently wiped on a refresh (see myResumeDraft.js/formDraft.js).
+const JOB_FORM_DRAFT_KEY = "resumeBuilder:jobTrackerDraft:v1";
 
 function Field({ label, children }) {
   return (
@@ -44,14 +49,29 @@ export default function JobTracker({ onClose }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  // Read once, synchronously, before first render — same pattern as
+  // GuestMode.js's own draftAtMount / myResumeDraft.js / Artisans.js.
+  const jobDraftAtMount = useRef(loadFormDraft(JOB_FORM_DRAFT_KEY)).current;
+  const hasJobDraftContent = jobDraftAtMount?.editingId
+    || Object.entries(jobDraftAtMount?.form || {}).some(([k, v]) => k !== "status" && String(v || "").trim());
+  const [formOpen, setFormOpen] = useState(() => !!hasJobDraftContent);
+  const [editingId, setEditingId] = useState(() => jobDraftAtMount?.editingId ?? null);
+  const [form, setForm] = useState(() => jobDraftAtMount?.form || EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   // For the optional "which resume did you send" picker — same list
   // Dashboard's "Recent resumes" already fetches, loaded independently
   // here since this screen can be opened without ever visiting Dashboard.
   const [savedResumes, setSavedResumes] = useState([]);
+
+  // Debounced, same 300ms shape as myResumeDraft.js/Artisans.js.
+  const jobDraftSaveTimer = useRef(null);
+  useEffect(() => {
+    clearTimeout(jobDraftSaveTimer.current);
+    jobDraftSaveTimer.current = setTimeout(() => {
+      saveFormDraft(JOB_FORM_DRAFT_KEY, { form, editingId });
+    }, 300);
+    return () => clearTimeout(jobDraftSaveTimer.current);
+  }, [form, editingId]);
 
   const load = async () => {
     setLoading(true);
@@ -108,6 +128,7 @@ export default function JobTracker({ onClose }) {
       setFormOpen(false);
       setForm(EMPTY_FORM);
       setEditingId(null);
+      clearFormDraft(JOB_FORM_DRAFT_KEY);
       await load();
     } catch (e) {
       toast.error(e.message);
@@ -166,7 +187,7 @@ export default function JobTracker({ onClose }) {
             >
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm font-bold text-foreground">{editingId ? "Edit application" : "New application"}</span>
-                <button type="button" onClick={() => { setFormOpen(false); setEditingId(null); }} aria-label="Cancel"
+                <button type="button" onClick={() => { setFormOpen(false); setForm(EMPTY_FORM); setEditingId(null); clearFormDraft(JOB_FORM_DRAFT_KEY); }} aria-label="Cancel"
                   className="border-none bg-transparent p-0.5 text-muted-foreground/60">
                   <X className="size-4" />
                 </button>

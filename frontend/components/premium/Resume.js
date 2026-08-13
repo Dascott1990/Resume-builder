@@ -24,6 +24,7 @@ import Logo from "./Logo";
 import Flag3D from "./flag/Flag3D";
 import { useCountryDetect } from "@/lib/useCountryDetect";
 import { COUNTRY_NAMES } from "@/lib/countryTemplates";
+import { loadMyResumeDraft, saveMyResumeDraft } from "./myResumeDraft";
 
 // This file's icons were drawn at a slightly thinner default stroke (1.6 vs
 // lucide's default of 2) — preserved here so nothing on screen shifts.
@@ -984,15 +985,22 @@ const FLIP_VARIANTS = {
 // MAIN Resume component
 // ═══════════════════════════════════════════════════════════════════════════════
 const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
+  // Read once, synchronously, before first render — same pattern as
+  // GuestMode.js's own draftAtMount — so the initial useState value is
+  // already correct instead of flashing the default template for one
+  // frame before an effect corrects it.
+  const draftAtMount = useRef(loadMyResumeDraft()).current;
+
   // "mine" = pre-built resumes, "guest" = AI wizard — a CV scan result (or
   // a job description handed off by the "tailor for this job" bookmarklet)
   // lives in the wizard, so land there directly instead of on the
-  // pre-built list someone would just have to click past.
-  const [mode,         setMode]         = useState(() => (pendingImport || pendingJobDesc) ? "guest" : "mine");
+  // pre-built list someone would just have to click past. Falls back to
+  // the restored draft's own mode only when neither of those is present.
+  const [mode,         setMode]         = useState(() => (pendingImport || pendingJobDesc) ? "guest" : (draftAtMount?.mode || "mine"));
   const [flipDir,      setFlipDir]      = useState(1); // 1 = flipping forward (mine→guest), -1 = flipping back
-  const [activeResume, setActiveResume] = useState("it");
-  const [resumeData,   setResumeData]   = useState(() => JSON.parse(JSON.stringify(RESUMES["it"])));
-  const [style,        setStyle]        = useState({ font: "calibri", fontSize: 11, lineHeight: 1.4, accent: "navy" });
+  const [activeResume, setActiveResume] = useState(() => draftAtMount?.activeResume || "it");
+  const [resumeData,   setResumeData]   = useState(() => draftAtMount?.resumeData || JSON.parse(JSON.stringify(RESUMES["it"])));
+  const [style,        setStyle]        = useState(() => draftAtMount?.style || { font: "calibri", fontSize: 11, lineHeight: 1.4, accent: "navy" });
   const [panel,        setPanel]        = useState("style");
   const [downloading,  setDownloading]  = useState(null);
   const [sidebarOpen,  setSidebarOpen]  = useState(true);
@@ -1017,6 +1025,18 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
     window.addEventListener("resize", compute);
     return () => { ro?.disconnect(); window.removeEventListener("resize", compute); };
   }, [sidebarOpen, isMobile]);
+
+  // Mirrors GuestMode.js's own debounced draft save exactly — 300ms so
+  // rapid-fire typing doesn't hit localStorage on every keystroke, just
+  // once things settle.
+  const draftSaveTimer = useRef(null);
+  useEffect(() => {
+    clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => {
+      saveMyResumeDraft({ mode, activeResume, resumeData, style });
+    }, 300);
+    return () => clearTimeout(draftSaveTimer.current);
+  }, [mode, activeResume, resumeData, style]);
 
   const switchResume = (key) => {
     setActiveResume(key);
