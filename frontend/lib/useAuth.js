@@ -37,12 +37,23 @@ export function useAuth() {
   // Does NOT sign the user in — the account exists but is unverified until
   // they click the link that just landed in their inbox. Returns the
   // backend's "check your email" message for the UI to show.
+  //
+  // Still rotates the local guest id, same as login/logout below: the
+  // backend migrates this browser's anonymous data into the new account
+  // as part of THIS call (see api/auth.py's signup()), even though no
+  // session exists yet — so by the time this returns, that data is gone
+  // from the old guest_id's scope. Leaving the browser still pointed at
+  // that now-empty id would be harmless on its own, but rotating here
+  // keeps the rule simple and exception-free: any call that can cause a
+  // migration also leaves this browser with a fresh, unclaimed id
+  // afterward, the same guarantee logout already gives the next person.
   const signup = async (email, password) => {
     const data = await apiRequest("/api/v1/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
+    rotateGuestId();
     return data;
   };
 
@@ -54,6 +65,18 @@ export function useAuth() {
     });
     setToken(data.token);
     setUser(data.user);
+    // The backend just migrated whatever this browser's OLD guest id owned
+    // into the account above (see api/auth.py's login()) — on a personal
+    // device that's exactly the point (your anonymous work follows you
+    // in). On a shared/family/library computer, it's also the moment a
+    // stranger's earlier anonymous session (never explicitly signed in,
+    // so it never hit the logout-time rotation below) can get silently
+    // swept into whoever logs in next. Rotating here can't undo a
+    // migration that already happened, but it stops the SAME stale id
+    // from being available to claim again — closing the gap for
+    // whoever uses this browser after this session, not just after an
+    // explicit sign-out.
+    rotateGuestId();
     return data.user;
   };
 
@@ -77,6 +100,10 @@ export function useAuth() {
     });
     setToken(data.token);
     setUser(data.user);
+    // Same reasoning as login() above — this browser is now tied to a
+    // real account, so it shouldn't keep carrying whatever guest id it
+    // had before.
+    rotateGuestId();
     return data.user;
   };
 
@@ -125,6 +152,8 @@ export function useAuth() {
     });
     setToken(data.token);
     setUser(data.user);
+    // Same reasoning as login()/verifyEmail() above.
+    rotateGuestId();
     return data.user;
   };
 
