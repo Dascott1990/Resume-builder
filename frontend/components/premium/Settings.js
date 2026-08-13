@@ -37,6 +37,7 @@ import { tintFor, initialsOf } from "./shared/artisanDisplay";
 import { TRADES } from "./shared/trades";
 import { useAuth } from "@/lib/useAuth";
 import { useAccentColor } from "@/lib/useAccentColor";
+import { useBrightness } from "@/lib/useBrightness";
 import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
 import { artisanMe, artisanUpdateProfile, artisanChangePassword } from "./artisan/api";
 
@@ -135,6 +136,40 @@ function AccentColorPicker() {
           {accent === c.id && <Check className="size-4" style={{ color: c.foreground }} />}
         </button>
       ))}
+    </div>
+  );
+}
+
+// Device-local, same as accent color — see lib/brightness.js for why this
+// is an overlay effect rather than something that can touch the real
+// hardware backlight. 100 is neutral and has no visual/perf cost at all;
+// dragging either direction fades in a dim or brightening overlay live.
+function BrightnessSlider() {
+  const { brightness, setBrightness, min, max, default: defaultValue } = useBrightness();
+  return (
+    <div>
+      <div className="mb-2 flex items-baseline justify-between">
+        <p className="m-0 text-[12px] font-semibold text-muted-foreground">Screen brightness</p>
+        <span className="font-mono text-[11px] text-muted-foreground/70">{brightness}%</span>
+      </div>
+      <input
+        type="range" min={min} max={max} step={5} value={brightness}
+        onChange={(e) => setBrightness(parseFloat(e.target.value))}
+        className="w-full accent-primary"
+      />
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[9px] text-muted-foreground/45">Dimmer</span>
+        {brightness !== defaultValue && (
+          <button
+            type="button"
+            onClick={() => setBrightness(defaultValue)}
+            className="border-none bg-transparent p-0 text-[10.5px] font-bold text-primary"
+          >
+            Reset
+          </button>
+        )}
+        <span className="font-mono text-[9px] text-muted-foreground/45">Brighter</span>
+      </div>
     </div>
   );
 }
@@ -292,6 +327,9 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
             <div className="border-t border-border pt-3">
               <p className="m-0 mb-2 text-[12px] font-semibold text-muted-foreground">Accent color</p>
               <AccentColorPicker />
+            </div>
+            <div className="border-t border-border pt-3">
+              <BrightnessSlider />
             </div>
           </Card>
         </div>

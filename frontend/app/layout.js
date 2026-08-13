@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import OfflineBanner from "@/components/premium/shared/OfflineBanner";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import { ACCENT_INIT_SCRIPT } from "@/lib/accentColor";
+import { BRIGHTNESS_INIT_SCRIPT } from "@/lib/brightness";
 import { ServiceWorkerRegister } from "./ServiceWorkerRegister";
 import { KeepAlive } from "./KeepAlive";
 
@@ -52,6 +53,11 @@ export default function RootLayout({ children }) {
             (default amber) applied before first paint via inline style
             overrides on the CSS custom properties globals.css defines. */}
         <script dangerouslySetInnerHTML={{ __html: ACCENT_INIT_SCRIPT }} />
+        {/* Same reasoning again, for the screen brightness overlay below —
+            sets the two CSS variables its opacity reads from before first
+            paint, so reopening the app at a saved dim/boost level doesn't
+            flash neutral brightness first. */}
+        <script dangerouslySetInnerHTML={{ __html: BRIGHTNESS_INIT_SCRIPT }} />
         {/* Caveat — the handwriting font drawn onto the pen-writing 3D
             scene's canvas textures (PaperTransformScene.js). Loaded as a
             real stylesheet, not next/font, since it needs to be resolvable
@@ -67,6 +73,16 @@ export default function RootLayout({ children }) {
         <Toaster position="top-center" />
         <ServiceWorkerRegister />
         <KeepAlive />
+        {/* Screen brightness — see lib/brightness.js for why this is two
+            always-mounted overlays (opacity driven purely by the CSS
+            variables the script/hook above set) rather than a `filter` on
+            a content wrapper: filter creates a new containing block for
+            `position: fixed` descendants, which would silently break every
+            fixed-position surface in the app underneath it. Both are inert
+            — pointer-events:none, and at opacity 0 (the default/neutral
+            value) they cost nothing visually or interactively. */}
+        <div aria-hidden className="pointer-events-none fixed inset-0 z-[999999999] bg-black" style={{ opacity: "var(--brightness-dim-opacity, 0)" }} />
+        <div aria-hidden className="pointer-events-none fixed inset-0 z-[999999999] bg-white mix-blend-screen" style={{ opacity: "var(--brightness-boost-opacity, 0)" }} />
       </body>
     </html>
   );
