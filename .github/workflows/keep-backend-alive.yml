@@ -1,0 +1,28 @@
+name: Keep backend alive
+
+# Render's free tier spins the backend down after 15 minutes with no
+# traffic (see frontend/app/KeepAlive.js's own comment) — that component
+# only pings while a tab is already open, so it does nothing for the
+# first visitor after the app's been idle, or anyone opening a fresh tab
+# into a cold backend. This pings the real health endpoint on a schedule
+# that runs whether or not anyone has the site open at all, so the
+# backend is never actually asleep for a real visitor to wake up.
+#
+# Every 10 minutes, not 15 — GitHub's own docs note scheduled runs can be
+# delayed under high platform load, so this stays under the threshold
+# with room to spare even if one run lands a few minutes late.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {} # manual "Run workflow" button, for testing this itself
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend health endpoint
+        # No -f: a single failed/slow ping isn't worth a red X on the
+        # Actions tab — the next run 10 minutes later still keeps things
+        # well under Render's 15-minute idle window.
+        run: |
+          curl -s -o /dev/null -w "status: %{http_code}, time: %{time_total}s\n" --max-time 60 https://resume-builder-blfc.onrender.com/api/v1/health
