@@ -41,6 +41,8 @@ export default function MyRequestsPane() {
   const [busy, setBusy] = useState(false);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [payBusy, setPayBusy] = useState(false);
+  const [releaseBusy, setReleaseBusy] = useState(false);
 
   const load = () => {
     setRefreshing(true);
@@ -92,6 +94,36 @@ export default function MyRequestsPane() {
       toast.error(e.message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Redirects the whole tab to Stripe's own hosted Checkout page — not an
+  // in-app form, card details never touch this app at all (see
+  // backend's create_request/pay). Coming back is handled by the same
+  // "restore whatever screen was last open" mechanism the rest of the
+  // app already uses (app/page.js's view persistence) rather than a
+  // dedicated return page this app has no real route for.
+  const pay = async () => {
+    setPayBusy(true);
+    try {
+      const { checkout_url } = await apiRequest(`/api/v1/requests/${openId}/pay`, { method: "POST" });
+      window.location.href = checkout_url;
+    } catch (e) {
+      toast.error(e.message);
+      setPayBusy(false);
+    }
+  };
+
+  const releasePayment = async () => {
+    setReleaseBusy(true);
+    try {
+      await apiRequest(`/api/v1/requests/${openId}/release-payment`, { method: "POST" });
+      toast.success("Payment released to the artisan");
+      load();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setReleaseBusy(false);
     }
   };
 
@@ -193,6 +225,10 @@ export default function MyRequestsPane() {
         onProposeTime={proposeTime}
         onConfirmTime={confirmTime}
         onCancel={cancel}
+        onPay={pay}
+        payBusy={payBusy}
+        onReleasePayment={releasePayment}
+        releaseBusy={releaseBusy}
         reviewed={openJob?.reviewed}
         onSubmitReview={submitReview}
         reviewSubmitting={reviewSubmitting}

@@ -15,7 +15,7 @@ import { Field, Btn } from "../guest/components/primitives";
 import { useAuth } from "@/lib/useAuth";
 import BookingAuthGate from "./BookingAuthGate";
 
-const emptyForm = { city: "", description: "", contact_name: "", contact_phone: "", contact_email: "" };
+const emptyForm = { city: "", description: "", amount: "", contact_name: "", contact_phone: "", contact_email: "" };
 
 export default function RequestJobModal({ open, onClose, targetArtisan }) {
   const { user, loading: authLoading } = useAuth();
@@ -38,10 +38,14 @@ export default function RequestJobModal({ open, onClose, targetArtisan }) {
   const postRequest = async () => {
     setSubmitting(true);
     try {
+      const { amount, ...rest } = form;
       await apiRequest("/api/v1/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, artisan_id: targetArtisan.id }),
+        // In whole cents, not dollars — see backend's create_request.
+        // Math.round guards against float weirdness like 19.99 * 100
+        // landing on 1998.9999999999998.
+        body: JSON.stringify({ ...rest, amount_cents: Math.round(parseFloat(amount) * 100), artisan_id: targetArtisan.id }),
       });
       setDone(true);
       toast.success("Request sent");
@@ -57,6 +61,11 @@ export default function RequestJobModal({ open, onClose, targetArtisan }) {
     setError("");
     if (!form.description.trim() || !form.contact_name.trim() || !form.contact_phone.trim()) {
       setError("Description, your name, and phone are required.");
+      return;
+    }
+    const amountNum = parseFloat(form.amount);
+    if (!form.amount.trim() || !Number.isFinite(amountNum) || amountNum < 1 || amountNum > 50000) {
+      setError("Enter what you're offering to pay — between $1 and $50,000.");
       return;
     }
     // Booking requires a signed-in customer account (see backend's
@@ -95,6 +104,8 @@ export default function RequestJobModal({ open, onClose, targetArtisan }) {
               <Field label="City" hint="optional" placeholder="City" value={form.city} onChange={set("city")} />
               <Field label="Description" required multiline rows={3}
                 placeholder="What do you need done?" value={form.description} onChange={set("description")} />
+              <Field label="What you're offering to pay" required type="number" hint="held in escrow, released once you confirm the job's done"
+                placeholder="150" value={form.amount} onChange={set("amount")} />
               <Field label="Your name" required placeholder="Full name" value={form.contact_name} onChange={set("contact_name")} />
               <Field label="Your phone" required type="tel" placeholder="(xxx) xxx-xxxx" value={form.contact_phone} onChange={set("contact_phone")} />
               <Field label="Your email" hint="optional" type="email" placeholder="you@example.com" value={form.contact_email} onChange={set("contact_email")} />

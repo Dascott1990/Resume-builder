@@ -24,7 +24,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   MapPin, Clock, CheckCircle2, Hammer, Phone, Mail, CalendarClock,
-  MessageCircle, Star, X, Ban, FileText,
+  MessageCircle, Star, X, Ban, FileText, Banknote, Lock,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,22 @@ const STATUS_META = {
   cancelled: { label: "Cancelled", icon: X, className: "border-border bg-muted text-muted-foreground/60", accent: "var(--muted-foreground)" },
 };
 
+// Where escrow actually happens, between the two of them — unpaid until
+// the customer funds it (see MyRequestsPane.js's pay()), held on this
+// platform's own Stripe balance (not the artisan's) until the customer
+// explicitly releases it post-completion, or refunded if the job's
+// cancelled while funded (see backend's cancel_request).
+const PAYMENT_STATUS_META = {
+  unpaid: { label: "Unpaid", className: "border-border bg-muted text-muted-foreground" },
+  held: { label: "Escrow held", className: "border-primary/30 bg-primary/10 text-primary" },
+  released: { label: "Released", className: "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[var(--success,#22c55e)]" },
+  refunded: { label: "Refunded", className: "border-border bg-muted text-muted-foreground" },
+};
+
+function formatCents(cents) {
+  return `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function Section({ icon: Icon, children }) {
   return (
     <div className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">
@@ -55,6 +71,7 @@ function Section({ icon: Icon, children }) {
 export default function JobDetailDialog({
   open, onClose, job, viewerIsArtisan, busy,
   onProposeTime, onConfirmTime, onComplete, onCancel,
+  onPay, payBusy, onReleasePayment, releaseBusy,
   reviewed, onSubmitReview, reviewSubmitting,
   onFetchMessages, onSendMessage, onMarkMessagesRead,
 }) {
@@ -74,9 +91,11 @@ export default function JobDetailDialog({
   // heading with nothing under it reads as a bug, not a state).
   const showScheduling = job.status === "accepted" || (job.status === "completed" && !!job.scheduled_at);
   const showContact = job.status === "accepted" || job.status === "completed";
+  const canReleasePayment = !viewerIsArtisan && job.status === "completed" && job.payment_status === "held";
   const hasAction =
     (viewerIsArtisan && job.status === "accepted") ||
-    (!viewerIsArtisan && (job.status === "requested" || job.status === "accepted"));
+    (!viewerIsArtisan && (job.status === "requested" || job.status === "accepted")) ||
+    canReleasePayment;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -109,6 +128,19 @@ export default function JobDetailDialog({
           <p className="m-0 mb-3.5 rounded-lg border border-border bg-muted/40 p-3 text-[13px] leading-relaxed text-foreground">
             {job.description}
           </p>
+
+          {job.amount_cents != null && (
+            <div className="mb-3.5">
+              <Section icon={Banknote}>PAYMENT</Section>
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 p-3">
+                <span className="text-[15px] font-bold text-foreground">{formatCents(job.amount_cents)}</span>
+                <Badge variant="outline" className={`gap-1 rounded-full text-[10px] font-bold ${(PAYMENT_STATUS_META[job.payment_status] || PAYMENT_STATUS_META.unpaid).className}`}>
+                  {job.payment_status === "held" && <Lock className="size-3" />}
+                  {(PAYMENT_STATUS_META[job.payment_status] || PAYMENT_STATUS_META.unpaid).label}
+                </Badge>
+              </div>
+            </div>
+          )}
 
           {showScheduling && (
             <div className="mb-3.5">
@@ -185,9 +217,19 @@ export default function JobDetailDialog({
                     Mark complete
                   </Btn>
                 )}
+                {!viewerIsArtisan && job.status === "accepted" && job.payment_status === "unpaid" && (
+                  <Btn small variant="gold" icon="Lock" disabled={payBusy} loading={payBusy} onClick={onPay} className="flex-1">
+                    Pay & fund escrow
+                  </Btn>
+                )}
                 {!viewerIsArtisan && (job.status === "requested" || job.status === "accepted") && (
                   <Btn small variant="ghost" disabled={busy} loading={busy} onClick={onCancel} className="flex-1">
                     Cancel request
+                  </Btn>
+                )}
+                {canReleasePayment && (
+                  <Btn small variant="gold" icon="Check" disabled={releaseBusy} loading={releaseBusy} onClick={onReleasePayment} className="flex-1">
+                    Release payment
                   </Btn>
                 )}
               </div>

@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   Loader2, MapPin, Clock, X, Wrench, RefreshCw, ClipboardList, Hammer,
-  CheckCircle2, Inbox, Star, MessageCircle,
+  CheckCircle2, Inbox, Star, MessageCircle, Banknote,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,7 @@ import {
   artisanAcceptRequest, artisanDeclineRequest, artisanCompleteRequest,
   artisanProposeTime, artisanConfirmTime,
   artisanGetThread, artisanPostMessage, artisanMarkThreadRead, artisanUnreadCount,
-  artisanReviews,
+  artisanReviews, artisanConnectOnboard, artisanConnectStatus,
 } from "./api";
 
 function timeAgo(iso) {
@@ -151,6 +151,8 @@ export default function ArtisanDashboard({ onClose }) {
   const [openId, setOpenId] = useState(null); // job id whose detail dialog is open, or null
   const [unread, setUnread] = useState(0);
   const [reviews, setReviews] = useState(null);
+  const [payoutStatus, setPayoutStatus] = useState(null); // { payouts_enabled, onboarding_started } | null while loading
+  const [connectingPayouts, setConnectingPayouts] = useState(false);
 
   const loadAll = async () => {
     try {
@@ -179,6 +181,26 @@ export default function ArtisanDashboard({ onClose }) {
     if (!artisan?.id) return;
     artisanReviews(artisan.id).then(setReviews).catch(() => setReviews([]));
   }, [artisan?.id]);
+
+  // Payout readiness (see backend/app/api/payments.py) — fetch-once on
+  // sign-in is enough for the same reason reviews are: nothing changes
+  // this mid-session except the artisan themselves leaving for Stripe's
+  // onboarding flow and coming back, which remounts this screen anyway.
+  useEffect(() => {
+    if (!signedIn) return;
+    artisanConnectStatus().then(setPayoutStatus).catch(() => setPayoutStatus({ payouts_enabled: false, onboarding_started: false }));
+  }, [signedIn]);
+
+  const startPayoutOnboarding = async () => {
+    setConnectingPayouts(true);
+    try {
+      const { url } = await artisanConnectOnboard();
+      window.location.href = url;
+    } catch (e) {
+      toast.error(e.message);
+      setConnectingPayouts(false);
+    }
+  };
 
   // Unread badge on the header — a slower, separate poll from the message
   // thread's own 4s cadence (see MessageThread.js): this only needs to
@@ -382,6 +404,42 @@ export default function ArtisanDashboard({ onClose }) {
             <Switch checked={!!artisan?.is_available} disabled={togglingAvail} onCheckedChange={toggleAvailability} />
           </div>
         </Card>
+
+        {/* Where escrow actually lands — a job's payment can't be
+            released to this artisan (see JobDetailDialog.js's "Release
+            payment" action) until Stripe confirms this account can
+            receive a Transfer. Visible here even once ready, not hidden
+            after setup, so it's always clear payouts are live. */}
+        {payoutStatus && !payoutStatus.payouts_enabled ? (
+          <Card className="mt-2.5 flex flex-row items-center justify-between gap-3 p-3.5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-full border border-border bg-muted">
+                <Banknote className="size-[18px] text-muted-foreground" />
+              </div>
+              <div className="min-w-0">
+                <p className="m-0 text-[13.5px] font-bold text-foreground">
+                  {payoutStatus.onboarding_started ? "Finish payout setup" : "Set up payouts"}
+                </p>
+                <p className="m-0 text-[12px] text-muted-foreground">
+                  Required before you can be paid for a completed job.
+                </p>
+              </div>
+            </div>
+            <Btn small variant="gold" disabled={connectingPayouts} loading={connectingPayouts} onClick={startPayoutOnboarding}>
+              {payoutStatus.onboarding_started ? "Finish" : "Set up"}
+            </Btn>
+          </Card>
+        ) : payoutStatus?.payouts_enabled ? (
+          <Card className="mt-2.5 flex flex-row items-center gap-3 p-3.5" style={{
+            borderColor: "color-mix(in oklch, var(--success, #22c55e) 35%, var(--border))",
+            background: "color-mix(in oklch, var(--success, #22c55e) 6%, var(--card))",
+          }}>
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--success,#22c55e)]/15">
+              <CheckCircle2 className="size-[16px] text-[var(--success,#22c55e)]" />
+            </div>
+            <p className="m-0 text-[13px] font-bold text-foreground">Payouts ready — escrowed jobs can be released to you.</p>
+          </Card>
+        ) : null}
       </div>
 
       <div

@@ -122,6 +122,14 @@ class Artisan(db.Model):
     # rows that existed before this column did, not just new signups.
     notify_new_request = db.Column(db.Boolean, nullable=True)
     notify_new_message = db.Column(db.Boolean, nullable=True)
+    # Stripe Connect (Express) — set once this artisan starts payout
+    # onboarding (see api/payments.py's /connect/onboard). NULL means
+    # they've never started it. stripe_payouts_enabled only flips True via
+    # the account.updated webhook once Stripe's own KYC/bank-details flow
+    # is fully complete — that's the actual gate on whether a Transfer to
+    # this account can succeed, not just "an account id exists."
+    stripe_account_id = db.Column(db.String(64), nullable=True)
+    stripe_payouts_enabled = db.Column(db.Boolean, nullable=True)
 
     def to_dict(self):
         return {
@@ -134,6 +142,7 @@ class Artisan(db.Model):
             "lat": self.lat, "lng": self.lng, "avatar_emoji": self.avatar_emoji,
             "notify_new_request": self.notify_new_request is not False,
             "notify_new_message": self.notify_new_message is not False,
+            "stripe_payouts_enabled": bool(self.stripe_payouts_enabled),
         }
 
 
@@ -225,6 +234,19 @@ class JobRequest(db.Model):
     scheduled_proposed_by = db.Column(db.String(10), nullable=True)  # "customer" | "artisan"
     scheduled_confirmed = db.Column(db.Boolean, nullable=True)
 
+    # Escrow (see api/requests.py's /pay, /release-payment, and
+    # api/payments.py's webhook). amount_cents is set by the customer at
+    # request creation — there's no price-negotiation flow yet, an artisan
+    # accepting the job is accepting the stated price. Nullable only so
+    # historical rows (created before this shipped) don't break; every new
+    # request requires it. payment_status walks unpaid -> held -> released,
+    # or unpaid/held -> refunded if the job's cancelled after being funded.
+    amount_cents = db.Column(db.Integer, nullable=True)
+    payment_status = db.Column(db.String(20), nullable=False, default="unpaid")
+    stripe_checkout_session_id = db.Column(db.String(120), nullable=True)
+    stripe_payment_intent_id = db.Column(db.String(120), nullable=True)
+    stripe_transfer_id = db.Column(db.String(120), nullable=True)
+
     def to_dict(self):
         return {
             "id": self.id, "trade": self.trade, "city": self.city,
@@ -238,6 +260,8 @@ class JobRequest(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "accepted_at": self.accepted_at.isoformat() if self.accepted_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "amount_cents": self.amount_cents,
+            "payment_status": self.payment_status or "unpaid",
         }
 
 

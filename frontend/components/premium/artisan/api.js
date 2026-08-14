@@ -92,3 +92,13 @@ export const artisanChangePassword = (currentPassword, newPassword) => apiReques
 // this artisan) — no X-Artisan-Token needed, just the artisan's own id.
 export const artisanReviews = (artisanId, limit = 3) =>
   apiRequest(`/api/v1/artisans/${artisanId}/reviews?limit=${limit}`);
+
+// Stripe Connect payout setup (see backend/app/api/payments.py) — safe to
+// call onboard() again if they dropped off partway through Stripe's flow,
+// it just returns a fresh link.
+export const artisanConnectOnboard = () => apiRequest("/api/v1/payments/connect/onboard", {
+  method: "POST",
+  headers: authHeaders(),
+});
+
+export const artisanConnectStatus = () => apiRequest("/api/v1/payments/connect/status", { headers: authHeaders() });

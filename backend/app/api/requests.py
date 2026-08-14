@@ -6,6 +6,7 @@ happened when the customer picked who to ask, so there's no pool of
 candidates to filter, only one recipient per request.
 """
 from datetime import datetime, timezone
+import stripe
 from flask import Blueprint, request, jsonify
 from sqlalchemy import update
 from app import db, limiter
@@ -14,6 +15,7 @@ from app.middleware.error_handlers import APIError
 from app.utils.auth import get_scope, get_artisan_scope, require_artisan_scope, require_customer_scope
 from app.utils.mail import send_email
 from app.utils.ratings import recompute_rating
+from app.utils.stripe_client import stripe_configured, FRONTEND_URL
 
 requests_bp = Blueprint("job_requests", __name__)
 
@@ -68,6 +70,18 @@ def create_request():
     if len(description) > 1000:
         raise APIError("description must be 1000 characters or fewer", 400)
 
+    # In whole cents, from the client — avoids float-cents rounding
+    # ambiguity entirely rather than accepting dollars and multiplying
+    # here. No price-negotiation flow exists yet (see JobRequest's own
+    # model comment): the customer states what they're offering to pay,
+    # and an artisan accepting the job is accepting that price.
+    try:
+        amount_cents = int(body.get("amount_cents"))
+    except (TypeError, ValueError):
+        raise APIError("amount_cents is required and must be a whole number of cents", 400)
+    if amount_cents < 100 or amount_cents > 5_000_000:
+        raise APIError("amount_cents must be between 100 ($1) and 5,000,000 ($50,000)", 400)
+
     target = db.session.get(Artisan, target_artisan_id)
     if not target:
         raise APIError("Artisan not found", 404)
@@ -97,6 +111,7 @@ def create_request():
         contact_name=contact_name,
         contact_phone=contact_phone,
         contact_email=(body.get("contact_email") or "").strip() or None,
+        amount_cents=amount_cents,
     )
     db.session.add(job)
     db.session.commit()
@@ -148,7 +163,108 @@ def cancel_request(request_id):
     if job.status not in ("requested", "accepted"):
         raise APIError(f"Cannot cancel a request that's already {job.status}", 400)
 
+    # A customer's money can't get stuck just because the job fell
+    # through after they'd already funded escrow — refund before marking
+    # cancelled, not after, so a failed refund blocks the cancellation
+    # instead of silently leaving payment_status wrong.
+    if job.payment_status == "held" and job.stripe_payment_intent_id:
+        stripe.Refund.create(payment_intent=job.stripe_payment_intent_id)
+        job.payment_status = "refunded"
+
     job.status = "cancelled"
+    db.session.commit()
+    return jsonify({"success": True, "data": job.to_dict()}), 200
+
+
+@requests_bp.route("/<request_id>/pay", methods=["POST"])
+@limiter.limit("10 per hour")
+def pay_for_request(request_id):
+    """Funds escrow for an accepted job — creates a Stripe Checkout
+    Session (a Stripe-hosted payment page) for the job's agreed amount.
+    The charge lands on THIS platform's own Stripe balance, not the
+    artisan's — that's what makes it escrow rather than an instant
+    payout; see api/payments.py's module docstring for the full
+    "separate charges and transfers" reasoning. payment_status only
+    actually flips to "held" once the webhook confirms the Checkout
+    Session completed, not here — this route just starts it."""
+    if not stripe_configured():
+        raise APIError("Payments aren't configured on this server yet.", 503)
+
+    job = db.session.get(JobRequest, request_id)
+    if not job:
+        raise APIError("Request not found", 404)
+
+    user_id = require_customer_scope(request)
+    if job.user_id != user_id:
+        raise APIError("Not authorized to pay for this request", 403)
+    if job.status != "accepted":
+        raise APIError("Can only fund escrow once the job's been accepted", 400)
+    if job.payment_status != "unpaid":
+        raise APIError(f"This job's payment is already {job.payment_status}", 400)
+    if not job.amount_cents:
+        raise APIError("This job has no agreed amount to pay", 400)
+
+    artisan = db.session.get(Artisan, job.artisan_id) if job.artisan_id else None
+    session = stripe.checkout.Session.create(
+        mode="payment",
+        payment_method_types=["card"],
+        line_items=[{
+            "price_data": {
+                "currency": "usd",
+                "unit_amount": job.amount_cents,
+                "product_data": {
+                    "name": f"{job.trade} — {artisan.name if artisan else 'Artisan'}",
+                    "description": job.description[:500],
+                },
+            },
+            "quantity": 1,
+        }],
+        # Read back by the webhook (checkout.session.completed) to know
+        # which JobRequest this payment belongs to.
+        metadata={"job_request_id": job.id},
+        success_url=f"{FRONTEND_URL}?payment=success",
+        cancel_url=f"{FRONTEND_URL}?payment=cancelled",
+    )
+    job.stripe_checkout_session_id = session.id
+    db.session.commit()
+    return jsonify({"success": True, "data": {"checkout_url": session.url}}), 200
+
+
+@requests_bp.route("/<request_id>/release-payment", methods=["POST"])
+@limiter.limit("10 per hour")
+def release_payment(request_id):
+    """The customer's explicit "I'm satisfied, pay the artisan" action —
+    deliberately separate from the artisan's own complete_request above,
+    not automatic the moment a job's marked complete. Standard escrow
+    safeguard: an artisan marking their own job done shouldn't be what
+    moves money, only the customer confirming it should."""
+    if not stripe_configured():
+        raise APIError("Payments aren't configured on this server yet.", 503)
+
+    job = db.session.get(JobRequest, request_id)
+    if not job:
+        raise APIError("Request not found", 404)
+
+    user_id = require_customer_scope(request)
+    if job.user_id != user_id:
+        raise APIError("Not authorized to release payment for this request", 403)
+    if job.status != "completed":
+        raise APIError("Can only release payment once the job's marked complete", 400)
+    if job.payment_status != "held":
+        raise APIError(f"This job's payment is {job.payment_status}, not held", 400)
+
+    artisan = db.session.get(Artisan, job.artisan_id) if job.artisan_id else None
+    if not artisan or not artisan.stripe_account_id or not artisan.stripe_payouts_enabled:
+        raise APIError("This artisan hasn't finished payout setup yet — try again once they have.", 400)
+
+    transfer = stripe.Transfer.create(
+        amount=job.amount_cents,  # full amount — no platform fee for now
+        currency="usd",
+        destination=artisan.stripe_account_id,
+        transfer_group=job.id,
+    )
+    job.payment_status = "released"
+    job.stripe_transfer_id = transfer.id
     db.session.commit()
     return jsonify({"success": True, "data": job.to_dict()}), 200
 
