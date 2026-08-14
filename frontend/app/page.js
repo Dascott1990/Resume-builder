@@ -1,19 +1,49 @@
 "use client";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import Resume from "../components/premium/Resume";
+import dynamic from "next/dynamic";
 import ErrorBoundary from "../components/premium/ErrorBoundary";
-import Artisans from "../components/premium/Artisans";
-import ArtisanDashboard from "../components/premium/artisan/ArtisanDashboard";
 import LandingPage from "../components/premium/landing/LandingPage";
 import Dashboard from "../components/premium/Dashboard";
-import Settings from "../components/premium/Settings";
-import Login from "../components/premium/auth/Login";
-import Signup from "../components/premium/auth/Signup";
-import CVScan from "../components/premium/CVScan";
-import JobTracker from "../components/premium/JobTracker";
-import ApplyWithAI from "../components/premium/ApplyWithAI";
 import Logo from "../components/premium/Logo";
+
+// Every screen here used to be a plain static import — meaning a
+// brand-new visitor's very first page load pulled down the full code for
+// the resume editor, Settings, Artisans (map included), the job tracker,
+// CV scan, and the whole Apply-with-AI agent flow, all before they'd
+// even seen the landing page, since this file is the one root client
+// component every one of those screens is reached through (see the
+// view-state switch below — there's no real per-route code splitting to
+// fall back on the way file-based Next.js routes get for free). next/
+// dynamic defers each one to its own chunk, fetched only the first time
+// someone actually navigates there. LandingPage and Dashboard stay
+// static/eager on purpose — they're what a first-time visitor and a
+// returning visitor respectively see FIRST, so those two shouldn't pay a
+// loading-chunk delay on top of everything else; every screen reached
+// one click deeper than that is fair game.
+const dynamicScreen = (loader) => dynamic(loader, { ssr: false, loading: () => <ScreenLoading /> });
+const Resume = dynamicScreen(() => import("../components/premium/Resume"));
+const Artisans = dynamicScreen(() => import("../components/premium/Artisans"));
+const ArtisanDashboard = dynamicScreen(() => import("../components/premium/artisan/ArtisanDashboard"));
+const Settings = dynamicScreen(() => import("../components/premium/Settings"));
+const Login = dynamicScreen(() => import("../components/premium/auth/Login"));
+const Signup = dynamicScreen(() => import("../components/premium/auth/Signup"));
+const CVScan = dynamicScreen(() => import("../components/premium/CVScan"));
+const JobTracker = dynamicScreen(() => import("../components/premium/JobTracker"));
+const ApplyWithAI = dynamicScreen(() => import("../components/premium/ApplyWithAI"));
+
+// Same pulsing-logo treatment as the !mounted gate below, not a generic
+// spinner — a chunk fetch is usually near-instant on a warm cache, but
+// when it isn't, this should still feel like part of the same product.
+function ScreenLoading() {
+  return (
+    <div className="flex h-[100dvh] w-full items-center justify-center bg-background">
+      <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}>
+        <Logo size={28} />
+      </motion.div>
+    </div>
+  );
+}
 
 // Once someone's actually used the product, refreshing the tab shouldn't
 // bounce them back out to the marketing page — that's a re-onboarding
