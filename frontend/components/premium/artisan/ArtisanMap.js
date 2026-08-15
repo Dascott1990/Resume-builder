@@ -87,7 +87,15 @@ export default function ArtisanMap({ artisans, nearMe, onOpenArtisan, hasMore, o
   // Initial center/zoom are placeholders — FitBounds takes over on mount
   // and every time the pinned set or nearMe changes.
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg border border-border">
+    // isolate — Leaflet's own CSS gives its internal panes/controls z-index
+    // values from 400 up to 1000 (leaflet.css), which otherwise compete
+    // directly against this app's own overlays (e.g. the sort dropdown's
+    // z-50 popover) in the SAME global stacking order and wins outright —
+    // exactly what caused the sort menu to render behind the map. Isolation
+    // creates a new stacking context here, so everything Leaflet does
+    // internally is contained to this box and can never out-rank anything
+    // outside it, regardless of the raw numbers Leaflet itself uses.
+    <div className="relative isolate h-full w-full overflow-hidden rounded-lg border border-border">
       <MapContainer center={[pinned[0].lat, pinned[0].lng]} zoom={12} className="h-full w-full" scrollWheelZoom>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
