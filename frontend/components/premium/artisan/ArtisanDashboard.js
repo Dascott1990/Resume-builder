@@ -369,29 +369,65 @@ export default function ArtisanDashboard({ onClose }) {
 
       {/* Availability is the single most important fact on this screen —
           it decides whether any customer can reach this artisan at all —
-          so it gets real visual weight: a glowing ring when live, a
-          pulsing dot, dimmed entirely when off. Not just a switch in a row
-          of text. Pinned outside the scrolling list below (see the
-          file-level comment) so it never scrolls out of view. */}
+          so it gets real visual weight: a glowing ring around the avatar
+          when live (an actual pulsing sonar-style ring, not just a border
+          tint), an ambient glow breathing behind the whole card, and the
+          avatar itself desaturated when off. Pinned outside the scrolling
+          list below (see the file-level comment) so it never scrolls out
+          of view. */}
       <div className="shrink-0 px-5 pb-3.5">
         <Card
-          className="flex flex-row items-center justify-between gap-3 p-3.5 transition-colors"
+          className="relative flex flex-row items-center justify-between gap-3 overflow-hidden p-3.5 transition-colors"
           style={artisan?.is_available ? {
             borderColor: "color-mix(in oklch, var(--success, #22c55e) 35%, var(--border))",
             background: "color-mix(in oklch, var(--success, #22c55e) 6%, var(--card))",
           } : undefined}
         >
-          <div className="flex min-w-0 items-center gap-3">
-            <div className={`flex size-11 shrink-0 items-center justify-center rounded-full border font-mono text-sm font-bold ${tint}`}>
-              {initialsOf(artisan?.name || "?")}
+          {/* Ambient glow, not just a border tint — purely decorative
+              (aria-hidden, no pointer events), absent entirely when off
+              so a quiet status doesn't compete for attention. */}
+          {artisan?.is_available && (
+            <motion.div
+              aria-hidden="true"
+              animate={{ opacity: [0.5, 0.85, 0.5] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              className="pointer-events-none absolute -top-10 -left-6 size-32 rounded-full blur-3xl"
+              style={{ background: "var(--success, #22c55e)" }}
+            />
+          )}
+
+          <div className="relative flex min-w-0 items-center gap-3">
+            <div className="relative shrink-0">
+              {/* The sonar-style pulse this card's own comment always
+                  promised but never actually built — a ring expanding
+                  outward and fading, the classic "this is live right now"
+                  micro-interaction. */}
+              {artisan?.is_available && (
+                <motion.div
+                  aria-hidden="true"
+                  initial={{ scale: 1, opacity: 0.55 }}
+                  animate={{ scale: 1.7, opacity: 0 }}
+                  transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut" }}
+                  className="absolute inset-0 rounded-full"
+                  style={{ background: "var(--success, #22c55e)" }}
+                />
+              )}
+              <div
+                className={`relative flex size-11 items-center justify-center rounded-full border font-mono text-sm font-bold transition-all duration-500 ${tint} ${!artisan?.is_available ? "opacity-50 grayscale" : ""}`}
+                style={artisan?.is_available ? {
+                  boxShadow: "0 0 0 3px color-mix(in oklch, var(--success,#22c55e) 25%, transparent), 0 0 18px color-mix(in oklch, var(--success,#22c55e) 40%, transparent)",
+                } : undefined}
+              >
+                {initialsOf(artisan?.name || "?")}
+              </div>
             </div>
             <div className="min-w-0">
               <p className="m-0 truncate text-[13.5px] font-bold text-foreground">{artisan?.name}</p>
               <p className="m-0 text-[12px] text-muted-foreground">{artisan?.trade} · {artisan?.city || "No city set"}</p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="flex items-center gap-1.5 text-[12px] font-semibold text-muted-foreground">
+          <div className="relative flex shrink-0 items-center gap-2.5">
+            <span className={`flex items-center gap-1.5 font-mono text-[10.5px] font-bold tracking-[0.1em] ${artisan?.is_available ? "text-[var(--success,#22c55e)]" : "text-muted-foreground/60"}`}>
               {artisan?.is_available && (
                 <motion.span
                   animate={{ opacity: [1, 0.35, 1] }}
@@ -399,7 +435,7 @@ export default function ArtisanDashboard({ onClose }) {
                   className="size-[7px] shrink-0 rounded-full bg-[var(--success,#22c55e)]"
                 />
               )}
-              {artisan?.is_available ? "Available" : "Off"}
+              {artisan?.is_available ? "LIVE" : "OFF"}
             </span>
             <Switch checked={!!artisan?.is_available} disabled={togglingAvail} onCheckedChange={toggleAvailability} />
           </div>
