@@ -86,6 +86,11 @@ export default function Home() {
   // job" bookmarklet (see lib/bookmarklet.js) — set once, from the ?jd=
   // query param below, consumed once by GuestMode, then cleared.
   const [pendingJobDesc, setPendingJobDesc] = useState(null);
+  // Set only by Dashboard.js's notification bell, for a click on a
+  // customer-side unread item — Artisans opens straight to "My requests"
+  // instead of Browse. Cleared on every other path into "artisans" so a
+  // stale deep-link never resurfaces on an unrelated later visit.
+  const [artisansInitialTab, setArtisansInitialTab] = useState(null);
   // Shared remount key for every view below that isn't Resume (which already
   // has its own sessionId for this exact purpose). A crash's "Try Again"
   // needs a genuinely fresh child instance, not just the error screen
@@ -215,7 +220,8 @@ export default function Home() {
             try { localStorage.removeItem(ENTERED_KEY); localStorage.removeItem(VIEW_KEY); } catch { /* best-effort */ }
             setView("launcher");
           }}
-          onNavigate={(id) => {
+          onNavigate={(id, opts) => {
+            setArtisansInitialTab(id === "artisans" ? opts?.tab || null : null);
             if (id === "resume") openResume();
             else if (id === "scan") setView("cvscan");
             else if (id === "jobtracker") setView("jobtracker");
@@ -300,7 +306,11 @@ export default function Home() {
   if (view === "artisans") {
     return (
       <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
-        <Artisans onClose={() => setView("dashboard")} onOpenArtisanDashboard={() => setView("artisan-dashboard")} />
+        <Artisans
+          onClose={() => setView("dashboard")}
+          onOpenArtisanDashboard={() => setView("artisan-dashboard")}
+          initialTab={artisansInitialTab}
+        />
       </ErrorBoundary>
     );
   }

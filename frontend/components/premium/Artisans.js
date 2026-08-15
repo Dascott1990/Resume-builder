@@ -398,7 +398,7 @@ function Field({ label, required, hint, value, onChange, placeholder, type = "te
   );
 }
 
-export default function Artisans({ onClose, onOpenArtisanDashboard }) {
+export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }) {
   const { isDesktop } = useViewport();
   // Read once, synchronously, before first render — same pattern as
   // GuestMode.js's own draftAtMount / myResumeDraft.js.
@@ -411,7 +411,11 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
   // anything here, empty or not.
   const hasDraftContent = artisanDraftAtMount?.editingId || Object.values(artisanDraftAtMount?.form || {}).some((v) => String(v || "").trim());
   const [persona, setPersona] = useState(() => (hasDraftContent ? "artisan" : "hire")); // "hire" | "artisan"
-  const [tab, setTab] = useState("browse"); // sub-tab within the "hire" persona: "browse" | "requests"
+  // initialTab — set by Dashboard.js's notification bell (a click on a
+  // customer-side unread item lands here directly instead of on Browse,
+  // same reasoning as onOpenArtisanDashboard existing for the artisan
+  // side already).
+  const [tab, setTab] = useState(initialTab === "requests" ? "requests" : "browse"); // sub-tab within the "hire" persona: "browse" | "requests"
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);

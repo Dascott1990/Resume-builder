@@ -18,7 +18,9 @@ import { motion } from "framer-motion";
 import {
   Home, FileText, ScanLine, ClipboardList, Hammer, Settings as SettingsIcon,
   ArrowRight, ChevronRight, CalendarCheck, X, Clock, Sparkles, Bell,
+  MessageCircle, Wrench, Inbox,
 } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
 import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
@@ -77,6 +79,64 @@ function ActionTile({ Icon, label, sub, onClick }) {
         <p className="m-0 mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{sub}</p>
       </div>
     </motion.button>
+  );
+}
+
+// The actual notification list — every item is its own message thread
+// (see useUnreadNotifications), so a click opens whatever THAT thread is
+// actually about (a customer's own request, or a job in an artisan's own
+// dashboard), never a single guessed destination regardless of which
+// item was tapped.
+function NotificationsDialog({ open, onClose, items, onOpenItem }) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent showCloseButton className="flex max-h-[70dvh] w-full max-w-[420px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[420px]">
+        <div className="shrink-0 border-b border-border p-4">
+          <p className="m-0 font-serif text-lg italic text-foreground">Notifications</p>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {items.length === 0 ? (
+            <div className="grid justify-items-center gap-2.5 px-5 py-10 text-center">
+              <div className="flex size-11 items-center justify-center rounded-full border border-border bg-card">
+                <Inbox className="size-[18px] text-muted-foreground" />
+              </div>
+              <p className="m-0 text-sm font-bold text-foreground">You're all caught up</p>
+              <p className="m-0 max-w-[240px] text-[12.5px] leading-relaxed text-muted-foreground">
+                Unread messages on your requests or jobs show up here.
+              </p>
+            </div>
+          ) : (
+            items.map((it) => (
+              <button
+                key={it.job_request_id}
+                type="button"
+                onClick={() => onOpenItem(it)}
+                className="flex w-full items-start gap-3 border-b border-border p-4 text-left last:border-b-0 hover:bg-muted/50"
+              >
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
+                  {it.viewer_role === "artisan" ? <Wrench className="size-4" /> : <MessageCircle className="size-4" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 text-[13px] font-bold text-foreground">
+                    {it.viewer_role === "artisan"
+                      ? `${it.other_name} messaged you about a ${it.trade} job`
+                      : `${it.other_name} messaged you about your ${it.trade} request`}
+                  </p>
+                  {it.preview && (
+                    <p className="m-0 mt-0.5 truncate text-[12px] text-muted-foreground">{it.preview}</p>
+                  )}
+                </div>
+                {it.unread_count > 1 && (
+                  <span className="mt-0.5 flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10.5px] font-bold text-primary-foreground">
+                    {it.unread_count}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -250,18 +310,24 @@ export default function Dashboard({ onClose, onNavigate }) {
     }).finally(() => setStatsLoading(false));
   }, [authLoading, user?.id]);
 
-  const go = (id) => {
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  const go = (id, opts) => {
     tapFeedback();
     if (id === "home") return;
-    onNavigate(id);
+    onNavigate(id, opts);
   };
 
-  // Whichever side actually has something waiting — an artisan's own
-  // unread messages outrank the customer side on the assumption that
-  // being asked for a job is the more time-sensitive of the two, but this
-  // only matters when both are simultaneously nonzero (one browser signed
-  // in as both a customer and an artisan).
-  const goToNotifications = () => go(unread.artisanCount > 0 ? "artisan-dashboard" : "artisans");
+  // Each notification already knows what it's actually about (see
+  // useUnreadNotifications' viewer_role) — this is what replaced the
+  // earlier version's single blind guess ("go wherever has more unread"),
+  // which sent every click to the same screen regardless of which item
+  // someone actually meant to open.
+  const openNotification = (item) => {
+    setNotifOpen(false);
+    if (item.viewer_role === "artisan") go("artisan-dashboard");
+    else go("artisans", { tab: "requests" });
+  };
 
   const contentProps = { user, statsLoading, savedResumes, applications, go };
 
@@ -294,7 +360,7 @@ export default function Dashboard({ onClose, onNavigate }) {
             <ThemeToggle compact />
             <div className="flex items-center gap-1.5">
               <button
-                onClick={goToNotifications}
+                onClick={() => setNotifOpen(true)}
                 aria-label="Notifications"
                 className="relative flex size-9 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
               >
@@ -326,6 +392,7 @@ export default function Dashboard({ onClose, onNavigate }) {
           )}
           <DashboardContent {...contentProps} />
         </main>
+        <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={openNotification} />
       </motion.div>
     );
   }
@@ -344,7 +411,7 @@ export default function Dashboard({ onClose, onNavigate }) {
         <Logo size={22} />
         <div className="flex items-center gap-2">
           <ThemeToggle compact />
-          <button onClick={goToNotifications} aria-label="Notifications" className="relative flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground">
+          <button onClick={() => setNotifOpen(true)} aria-label="Notifications" className="relative flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <Bell className="size-[15px]" />
             {unread.count > 0 && (
               <span className="absolute top-0.5 right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
@@ -368,6 +435,7 @@ export default function Dashboard({ onClose, onNavigate }) {
       </div>
 
       <BottomNav items={NAV_ITEMS} active="home" onChange={go} />
+      <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={openNotification} />
     </motion.div>
   );
 }

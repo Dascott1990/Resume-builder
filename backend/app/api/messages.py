@@ -178,3 +178,56 @@ def unread_count():
         Message.read_at.is_(None),
     ).count()
     return jsonify({"success": True, "data": {"count": count}}), 200
+
+
+@messages_bp.route("/unread", methods=["GET"])
+def unread_threads():
+    """The per-thread breakdown behind unread_count's single number — what
+    actually powers the notification bell's dropdown (Dashboard.js). A
+    bare count can only ever point at ONE hardcoded screen when clicked;
+    this is what lets each notification say what it's actually about and
+    open the right place for THAT item, not a guess based on whichever
+    side has the bigger number. Same dual-scope check as unread_count.
+    Small-scale N+1 here (a query per job) — deliberately not optimized
+    into a join, since this app's own job-request volume per caller is
+    tiny (see other routes in this file for the same non-concern)."""
+    artisan_id = get_artisan_scope(request)
+    if artisan_id:
+        jobs = JobRequest.query.filter_by(artisan_id=artisan_id).all()
+        viewer_role, other_type = "artisan", "customer"
+    else:
+        user_id, guest_id = get_scope(request)
+        if not (user_id or guest_id):
+            return jsonify({"success": True, "data": []}), 200
+        q = JobRequest.query.filter_by(user_id=user_id) if user_id else JobRequest.query.filter_by(guest_id=guest_id)
+        jobs = q.all()
+        viewer_role, other_type = "customer", "artisan"
+
+    items = []
+    for job in jobs:
+        count = Message.query.filter(
+            Message.job_request_id == job.id,
+            Message.sender_type == other_type,
+            Message.read_at.is_(None),
+        ).count()
+        if not count:
+            continue
+        last = (
+            Message.query.filter_by(job_request_id=job.id, sender_type=other_type)
+            .order_by(Message.created_at.desc()).first()
+        )
+        if viewer_role == "customer":
+            other = db.session.get(Artisan, job.artisan_id)
+            other_name = other.name if other else job.trade
+        else:
+            other_name = job.contact_name
+        items.append({
+            "job_request_id": job.id,
+            "trade": job.trade,
+            "other_name": other_name,
+            "unread_count": count,
+            "preview": last.body[:120] if last else None,
+            "viewer_role": viewer_role,
+        })
+    items.sort(key=lambda it: it["unread_count"], reverse=True)
+    return jsonify({"success": True, "data": items}), 200
