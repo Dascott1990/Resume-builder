@@ -965,7 +965,14 @@ Preview.displayName = "Preview";
 
 // ── Window width hook ──────────────────────────────────────────────────────────
 function useWindowWidth() {
-  const [w, setW] = useState(1024);
+  // Lazy-initialized from the real width, not a hardcoded 1024 — this
+  // component is ssr:false-loaded so window is always present by the
+  // time it renders. A hardcoded desktop-sized default made isMobile
+  // false for the whole first render on an actual mobile device (fixed
+  // only once this hook's own effect ran, one tick after mount), which
+  // in turn made Resume.js's sidebar render unconditionally for that
+  // first frame regardless of sidebarOpen's own value.
+  const [w, setW] = useState(() => (typeof window === "undefined" ? 1024 : window.innerWidth));
   useEffect(() => {
     const fn = () => setW(window.innerWidth);
     fn(); window.addEventListener("resize", fn);
@@ -1003,7 +1010,15 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
   const [style,        setStyle]        = useState(() => draftAtMount?.style || { font: "calibri", fontSize: 11, lineHeight: 1.4, accent: "navy" });
   const [panel,        setPanel]        = useState("style");
   const [downloading,  setDownloading]  = useState(null);
-  const [sidebarOpen,  setSidebarOpen]  = useState(true);
+  // Lazy-initialized from the real viewport width (this component is
+  // ssr:false-loaded — window is always present by the time it renders) —
+  // NOT a plain `true` default. useWindowWidth() below only settles its
+  // first real reading inside an effect, one render after mount, so a
+  // `true` default here made the style sidebar cover the resume preview
+  // on mobile for that first frame, and stay that way until whichever
+  // resolved first: the resize effect, or the async country-detect
+  // effect's own switchResume() call closing it as a side effect.
+  const [sidebarOpen,  setSidebarOpen]  = useState(() => typeof window === "undefined" ? true : window.innerWidth >= 700);
   const [scale,        setScale]        = useState(1);
   const previewRef = useRef(null);
   const canvasRef  = useRef(null);
