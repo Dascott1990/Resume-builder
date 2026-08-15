@@ -17,10 +17,11 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Home, FileText, ScanLine, ClipboardList, Hammer, Settings as SettingsIcon,
-  ArrowRight, ChevronRight, CalendarCheck, X, Clock, Sparkles,
+  ArrowRight, ChevronRight, CalendarCheck, X, Clock, Sparkles, Bell,
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
+import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
 import { tapFeedback } from "@/lib/haptics";
 import { apiRequest } from "./shared/api";
 import { apiListSaved } from "./guest/api";
@@ -225,6 +226,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go }
 export default function Dashboard({ onClose, onNavigate }) {
   const { user, loading: authLoading } = useAuth();
   const { isDesktop } = useViewport();
+  const unread = useUnreadNotifications();
   const [savedResumes, setSavedResumes] = useState([]);
   const [applications, setApplications] = useState([]);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -253,6 +255,13 @@ export default function Dashboard({ onClose, onNavigate }) {
     if (id === "home") return;
     onNavigate(id);
   };
+
+  // Whichever side actually has something waiting — an artisan's own
+  // unread messages outrank the customer side on the assumption that
+  // being asked for a job is the more time-sensitive of the two, but this
+  // only matters when both are simultaneously nonzero (one browser signed
+  // in as both a customer and an artisan).
+  const goToNotifications = () => go(unread.artisanCount > 0 ? "artisan-dashboard" : "artisans");
 
   const contentProps = { user, statsLoading, savedResumes, applications, go };
 
@@ -283,13 +292,27 @@ export default function Dashboard({ onClose, onNavigate }) {
           </nav>
           <div className="flex items-center justify-between border-t border-border p-3">
             <ThemeToggle compact />
-            <button
-              onClick={() => go("settings")}
-              aria-label="Settings"
-              className="flex size-9 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
-            >
-              <SettingsIcon className="size-4" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={goToNotifications}
+                aria-label="Notifications"
+                className="relative flex size-9 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
+              >
+                <Bell className="size-4" />
+                {unread.count > 0 && (
+                  <span className="absolute top-1 right-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                    {unread.count > 9 ? "9+" : unread.count}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => go("settings")}
+                aria-label="Settings"
+                className="flex size-9 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
+              >
+                <SettingsIcon className="size-4" />
+              </button>
+            </div>
           </div>
         </aside>
 
@@ -321,6 +344,14 @@ export default function Dashboard({ onClose, onNavigate }) {
         <Logo size={22} />
         <div className="flex items-center gap-2">
           <ThemeToggle compact />
+          <button onClick={goToNotifications} aria-label="Notifications" className="relative flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground">
+            <Bell className="size-[15px]" />
+            {unread.count > 0 && (
+              <span className="absolute top-0.5 right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                {unread.count > 9 ? "9+" : unread.count}
+              </span>
+            )}
+          </button>
           <button onClick={() => go("settings")} aria-label="Settings" className="flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <SettingsIcon className="size-[15px]" />
           </button>

@@ -220,6 +220,7 @@ export default function Home() {
             else if (id === "scan") setView("cvscan");
             else if (id === "jobtracker") setView("jobtracker");
             else if (id === "artisans") setView("artisans");
+            else if (id === "artisan-dashboard") setView("artisan-dashboard");
             else if (id === "apply") setView("apply");
             else if (id === "settings") setView("settings");
           }}

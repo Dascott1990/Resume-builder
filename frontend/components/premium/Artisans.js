@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, Map as MapIcon } from "lucide-react";
+import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tintFor, initialsOf, formatPhone, truncateBio, formatDistance, avatarPhotoUrl } from "./shared/artisanDisplay";
@@ -62,6 +62,7 @@ const HIRE_TABS = [
 const MY_IDS_KEY = "noviq_my_artisan_ids";
 const MY_TOKENS_KEY = "noviq_my_artisan_tokens";
 const RATED_IDS_KEY = "noviq_rated_artisan_ids";
+const ARTISAN_VIEW_KEY = "noviq_artisan_browse_view";
 
 const TRADES = TRADES_WITH_ALL;
 
@@ -148,38 +149,132 @@ function TradeChips({ active, onSelect }) {
   );
 }
 
-function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete }) {
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const tint = tintFor(a.name || "?");
+// Same "sonar" pulse language as ArtisanDashboard.js's own status card,
+// just scaled down to badge size — one dot, a ring expanding off it,
+// nothing else competing for attention. Shared between the list and grid
+// card layouts below rather than duplicated per variant.
+function AvailableBadge({ small }) {
   return (
-    <motion.div whileTap={{ scale: 0.97 }}>
-    <Card
-      role="button"
-      tabIndex={0}
-      onClick={() => onOpen(a)}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(a); } }}
-      // "Classic glass card" — a frosted, translucent surface rather than
-      // the flat opaque default, reusing this app's own existing frosted-
-      // sheet recipe (BottomNav, ArtisanProfile's contact sheet) instead of
-      // inventing a new one: border/shadow opacity are tuned off `foreground`
-      // (not a literal white), so this reads correctly in both the light and
-      // dark themes — a bare white border would vanish on light mode's
-      // near-white card background. supports-backdrop-filter degrades to a
-      // near-opaque fill on browsers without blur support, same guard the
-      // sticky contact sheet already uses.
-      className="cursor-pointer gap-0 overflow-hidden rounded-2xl border border-foreground/10 bg-card/95 py-0 ring-0 shadow-[0_8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl transition-colors duration-200 supports-backdrop-filter:bg-card/75 hover:border-foreground/20 dark:shadow-[0_10px_36px_rgba(0,0,0,0.4),0_1px_0_rgba(255,255,255,0.06)_inset] dark:hover:border-white/25"
-    >
-      <div className="flex items-start justify-between gap-2 p-3.5 pb-3">
-        <div className="flex min-w-0 gap-3">
-          <div className={`flex size-[42px] shrink-0 items-center justify-center overflow-hidden rounded-full border ${a.has_avatar_photo || a.avatar_emoji ? "" : "font-mono text-sm font-bold"} ${tint}`}>
-            {a.has_avatar_photo ? (
-              <img src={avatarPhotoUrl(a.id)} alt="" className="size-full object-cover" />
-            ) : a.avatar_emoji ? (
-              <Emoji3D emoji={a.avatar_emoji} size={42} />
-            ) : (
-              initialsOf(a.name)
+    <Badge variant="outline" className={`gap-1 rounded-full border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 pl-1.5 text-[10px] font-bold text-[var(--success,#22c55e)] ${small ? "px-1.5 py-0" : ""}`}>
+      <span className="relative flex size-[7px] shrink-0 items-center justify-center">
+        <motion.span
+          aria-hidden="true"
+          initial={{ scale: 1, opacity: 0.6 }}
+          animate={{ scale: 2.4, opacity: 0 }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut" }}
+          className="absolute inset-0 rounded-full bg-[var(--success,#22c55e)]"
+        />
+        <motion.span
+          animate={{ opacity: [1, 0.4, 1] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+          className="relative size-[5px] rounded-full bg-[var(--success,#22c55e)]"
+        />
+      </span>
+      Available
+    </Badge>
+  );
+}
+
+function ArtisanAvatar({ a, size, className }) {
+  return (
+    <div className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border ${a.has_avatar_photo || a.avatar_emoji ? "" : "font-mono font-bold"} ${tintFor(a.name || "?")} ${className || ""}`}>
+      {a.has_avatar_photo ? (
+        <img src={avatarPhotoUrl(a.id)} alt="" className="size-full object-cover" />
+      ) : a.avatar_emoji ? (
+        <Emoji3D emoji={a.avatar_emoji} size={size} />
+      ) : (
+        initialsOf(a.name)
+      )}
+    </div>
+  );
+}
+
+function EditDeleteButtons({ a, onEdit, onDelete, confirmOpen, setConfirmOpen }) {
+  return (
+    <>
+      <Btn small icon="Pencil" aria-label="Edit listing"
+        onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
+        <span className="sr-only">Edit</span>
+      </Btn>
+      <DeleteListingDialog
+        name={a.name}
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        onConfirm={() => onDelete(a.id)}
+        trigger={
+          <Btn small variant="danger" icon="Trash2" aria-label="Delete listing"
+            onClick={(e) => e.stopPropagation()}>
+            <span className="sr-only">Delete</span>
+          </Btn>
+        }
+      />
+    </>
+  );
+}
+
+// "Classic glass card" — a frosted, translucent surface rather than the
+// flat opaque default, reusing this app's own existing frosted-sheet
+// recipe (BottomNav, ArtisanProfile's contact sheet) instead of inventing
+// a new one: border/shadow opacity are tuned off `foreground` (not a
+// literal white), so this reads correctly in both the light and dark
+// themes — a bare white border would vanish on light mode's near-white
+// card background. supports-backdrop-filter degrades to a near-opaque
+// fill on browsers without blur support, same guard the sticky contact
+// sheet already uses. Shared verbatim by both layouts below.
+const CARD_SURFACE = "cursor-pointer gap-0 overflow-hidden rounded-2xl border border-foreground/10 bg-card/95 py-0 ring-0 shadow-[0_8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl transition-colors duration-200 supports-backdrop-filter:bg-card/75 hover:border-foreground/20 dark:shadow-[0_10px_36px_rgba(0,0,0,0.4),0_1px_0_rgba(255,255,255,0.06)_inset] dark:hover:border-white/25";
+
+// variant "list" — the original horizontal row, full details, one per
+// line. variant "grid" — a compact vertical tile for a multi-column grid;
+// same underlying data (avatar precedence, badges, edit/delete), just no
+// bio and no full-width call button, since neither fits a tile this
+// narrow without either truncating illegibly or forcing the grid to a
+// single column, which would defeat the point of a grid view at all.
+function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete, variant = "list" }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const openProps = {
+    role: "button", tabIndex: 0, onClick: () => onOpen(a),
+    onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(a); } },
+  };
+
+  if (variant === "grid") {
+    return (
+      <motion.div whileTap={{ scale: 0.97 }}>
+        <Card {...openProps} className={`${CARD_SURFACE} p-3.5`}>
+          {isMine && (
+            <div className="mb-2 flex justify-end gap-1.5">
+              <EditDeleteButtons a={a} onEdit={onEdit} onDelete={onDelete} confirmOpen={confirmOpen} setConfirmOpen={setConfirmOpen} />
+            </div>
+          )}
+          <div className="flex flex-col items-center gap-1.5 text-center">
+            <ArtisanAvatar a={a} size={52} className="size-[52px] text-base" />
+            <div className="min-w-0 w-full">
+              <div className="truncate text-[13.5px] font-bold text-foreground">{a.name}</div>
+              <div className="truncate text-[11.5px] font-bold text-primary">{a.trade}</div>
+            </div>
+            {a.has_account && a.is_available && <AvailableBadge small />}
+            {a.city && (
+              <div className="flex min-w-0 items-center gap-1">
+                <MapPin className="size-[10px] shrink-0 text-muted-foreground" />
+                <span className="truncate text-[11px] text-muted-foreground">{a.city}</span>
+              </div>
+            )}
+            {a.rating_count > 0 && (
+              <span className="flex items-center gap-1 font-mono text-[10.5px] text-muted-foreground">
+                <Star className="size-3 fill-primary text-primary" /> {a.rating_avg.toFixed(1)} · {a.rating_count}
+              </span>
             )}
           </div>
+        </Card>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div whileTap={{ scale: 0.97 }}>
+    <Card {...openProps} className={CARD_SURFACE}>
+      <div className="flex items-start justify-between gap-2 p-3.5 pb-3">
+        <div className="flex min-w-0 gap-3">
+          <ArtisanAvatar a={a} size={42} className="size-[42px] text-sm" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-[14.5px] font-bold text-foreground">{a.name}</div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -198,29 +293,8 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete }) {
               {/* Only the positive signal shows here — a muted "not
                   accepting" badge on every unavailable card in a long list
                   would be noise; the full status (available or off) shows
-                  once you open the profile either way. Same "sonar" pulse
-                  language as ArtisanDashboard.js's own status card, just
-                  scaled down to badge size — one dot, a ring expanding off
-                  it, nothing else competing for attention. */}
-              {a.has_account && a.is_available && (
-                <Badge variant="outline" className="gap-1 rounded-full border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 pl-1.5 text-[10px] font-bold text-[var(--success,#22c55e)]">
-                  <span className="relative flex size-[7px] shrink-0 items-center justify-center">
-                    <motion.span
-                      aria-hidden="true"
-                      initial={{ scale: 1, opacity: 0.6 }}
-                      animate={{ scale: 2.4, opacity: 0 }}
-                      transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut" }}
-                      className="absolute inset-0 rounded-full bg-[var(--success,#22c55e)]"
-                    />
-                    <motion.span
-                      animate={{ opacity: [1, 0.4, 1] }}
-                      transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-                      className="relative size-[5px] rounded-full bg-[var(--success,#22c55e)]"
-                    />
-                  </span>
-                  Available
-                </Badge>
-              )}
+                  once you open the profile either way. */}
+              {a.has_account && a.is_available && <AvailableBadge />}
             </div>
             {a.city && (
               <div className="mt-1 flex items-center gap-1">
@@ -235,22 +309,7 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete }) {
         </div>
         {isMine && (
           <div className="flex shrink-0 flex-col gap-1.5">
-            <Btn small icon="Pencil" aria-label="Edit listing"
-              onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
-              <span className="sr-only">Edit</span>
-            </Btn>
-            <DeleteListingDialog
-              name={a.name}
-              open={confirmOpen}
-              onOpenChange={setConfirmOpen}
-              onConfirm={() => onDelete(a.id)}
-              trigger={
-                <Btn small variant="danger" icon="Trash2" aria-label="Delete listing"
-                  onClick={(e) => e.stopPropagation()}>
-                  <span className="sr-only">Delete</span>
-                </Btn>
-              }
-            />
+            <EditDeleteButtons a={a} onEdit={onEdit} onDelete={onDelete} confirmOpen={confirmOpen} setConfirmOpen={setConfirmOpen} />
           </div>
         )}
       </div>
@@ -369,7 +428,16 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
   const [query, setQuery] = useState("");
   const [trade, setTrade] = useState("All");
   const [sort, setSort] = useState("newest");
-  const [view, setView] = useState("list"); // "list" | "map" — Browse-pane-local
+  // "list" | "grid" | "map" — Browse-pane-local. Persisted per-browser
+  // (not per-account — this is a display preference, not profile data) so
+  // picking grid once means every future visit opens in grid, not just
+  // this session.
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem(ARTISAN_VIEW_KEY) || "list"; } catch { return "list"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(ARTISAN_VIEW_KEY, view); } catch { /* best-effort */ }
+  }, [view]);
   // Only ever set once geolocation actually succeeds — picking "Nearest"
   // in the sort dropdown is what triggers the browser's permission prompt
   // (see the effect below), not a separate toggle, so there's exactly one
@@ -590,6 +658,9 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
             <ToggleGroupItem value="list" aria-label="List view" className="size-7 rounded-md p-0 data-[state=on]:bg-primary/10 data-[state=on]:text-primary">
               <List className="size-3.5" />
             </ToggleGroupItem>
+            <ToggleGroupItem value="grid" aria-label="Grid view" className="size-7 rounded-md p-0 data-[state=on]:bg-primary/10 data-[state=on]:text-primary">
+              <LayoutGrid className="size-3.5" />
+            </ToggleGroupItem>
             <ToggleGroupItem value="map" aria-label="Map view" className="size-7 rounded-md p-0 data-[state=on]:bg-primary/10 data-[state=on]:text-primary">
               <MapIcon className="size-3.5" />
             </ToggleGroupItem>
@@ -621,13 +692,19 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
           )}
         </div>
       ) : (
-        <div className="grid gap-2.5 overflow-y-auto pb-1">
-          {loading && <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>}
+        <div className={`grid gap-2.5 overflow-y-auto pb-1 ${view === "grid" ? "grid-cols-2" : ""}`}>
+          {loading && (
+            view === "grid"
+              ? <><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+              : <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+          )}
           {!loading && visibleList.length === 0 && (
-            <EmptyState trade={trade} onListYourself={startCreate} />
+            <div className={view === "grid" ? "col-span-2" : ""}>
+              <EmptyState trade={trade} onListYourself={startCreate} />
+            </div>
           )}
           {!loading && visibleList.map((a) => (
-            <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id)}
+            <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id)} variant={view === "grid" ? "grid" : "list"}
               onOpen={setViewingArtisan} onEdit={startEdit} onDelete={remove} />
           ))}
           {/* Only offered once the current filter/search is otherwise exhausted —
@@ -635,7 +712,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard }) {
               not auto-triggered on scroll (a button is simpler and avoids scroll-jank
               risk for what's currently a small dataset). */}
           {!loading && hasMore && !query && (
-            <Btn small variant="ghost" onClick={loadMore} loading={loadingMore} className="justify-self-center">
+            <Btn small variant="ghost" onClick={loadMore} loading={loadingMore} className={`justify-self-center ${view === "grid" ? "col-span-2" : ""}`}>
               {loadingMore ? "Loading…" : "Load more"}
             </Btn>
           )}
