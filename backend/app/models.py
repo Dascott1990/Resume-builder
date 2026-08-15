@@ -130,6 +130,13 @@ class Artisan(db.Model):
     # this account can succeed, not just "an account id exists."
     stripe_account_id = db.Column(db.String(64), nullable=True)
     stripe_payouts_enabled = db.Column(db.Boolean, nullable=True)
+    # A real profile photo, same physical storage choice as ArtisanPhoto
+    # (Postgres LargeBinary, not S3) for the same reason — consistent with
+    # the rest of this app. Takes precedence over avatar_emoji, which in
+    # turn takes precedence over the initials-and-tint fallback every
+    # artisan starts with; see shared/artisanDisplay.js on the frontend.
+    avatar_photo_data = db.Column(db.LargeBinary, nullable=True)
+    avatar_photo_mime_type = db.Column(db.String(100), nullable=True)
 
     def to_dict(self):
         return {
@@ -140,6 +147,7 @@ class Artisan(db.Model):
             "has_account": self.password_hash is not None,
             "is_available": bool(self.is_available),
             "lat": self.lat, "lng": self.lng, "avatar_emoji": self.avatar_emoji,
+            "has_avatar_photo": self.avatar_photo_data is not None,
             "notify_new_request": self.notify_new_request is not False,
             "notify_new_message": self.notify_new_message is not False,
             "stripe_payouts_enabled": bool(self.stripe_payouts_enabled),

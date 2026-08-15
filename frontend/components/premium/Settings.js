@@ -22,7 +22,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
   Settings as SettingsIcon, X, User, Wrench, Palette, LogOut, KeyRound,
-  CheckCircle2, Loader2, Check, Smile, Bell,
+  CheckCircle2, Loader2, Check, Smile, Bell, ImagePlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,14 +33,17 @@ import { Field, Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import Emoji3D from "./shared/Emoji3D";
 import { ThemeToggle } from "./shared/ThemeToggle";
-import { tintFor, initialsOf } from "./shared/artisanDisplay";
+import { tintFor, initialsOf, avatarPhotoUrl } from "./shared/artisanDisplay";
 import { TRADES } from "./shared/trades";
 import { useAuth } from "@/lib/useAuth";
 import { useAccentColor } from "@/lib/useAccentColor";
 import { useBrightness } from "@/lib/useBrightness";
 import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
 import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
-import { artisanMe, artisanUpdateProfile, artisanChangePassword } from "./artisan/api";
+import {
+  artisanMe, artisanUpdateProfile, artisanChangePassword,
+  artisanUploadAvatarPhoto, artisanDeleteAvatarPhoto,
+} from "./artisan/api";
 
 const AVATAR_EMOJI = [
   "😀", "😎", "🤓", "🥳", "🦄", "🐱", "🐶", "🦊",
@@ -262,6 +265,8 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
   const artisanDraftAtMount = useRef(loadFormDraft(SETTINGS_ARTISAN_DRAFT_KEY)).current;
   const [artisanForm, setArtisanForm] = useState(artisanDraftAtMount || null);
   const [savingArtisan, setSavingArtisan] = useState(false);
+  const [avatarPhotoUploading, setAvatarPhotoUploading] = useState(false);
+  const avatarFileInputRef = useRef(null);
 
   useEffect(() => {
     if (!getArtisanToken()) { setArtisan(null); setArtisanLoading(false); return; }
@@ -315,6 +320,40 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
       toast.error(e.message);
     } finally {
       setSavingArtisan(false);
+    }
+  };
+
+  // Also instant, not bundled into "Save profile" — same reasoning as
+  // toggleArtisanNotify below: this is a real file upload with its own
+  // request, not a text field that makes sense to batch. Updates `artisan`
+  // itself (the server truth this section's own preview reads from), not
+  // just artisanForm's draft.
+  const uploadAvatarPhoto = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast.error("Only image files are allowed."); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Photo must be 5MB or smaller."); return; }
+    setAvatarPhotoUploading(true);
+    try {
+      const updated = await artisanUploadAvatarPhoto(file);
+      setArtisan(updated);
+      toast.success("Profile photo updated");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setAvatarPhotoUploading(false);
+    }
+  };
+
+  const removeAvatarPhoto = async () => {
+    setAvatarPhotoUploading(true);
+    try {
+      const updated = await artisanDeleteAvatarPhoto();
+      setArtisan(updated);
+      toast.success("Profile photo removed");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setAvatarPhotoUploading(false);
     }
   };
 
@@ -451,8 +490,14 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
           ) : (
             <Card className="grid gap-3 p-3.5">
               <div className="flex items-center gap-3">
-                <div className={`flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisanForm.avatar_emoji ? "" : "font-mono text-sm font-bold"} ${tintFor(artisan.name)}`}>
-                  {artisanForm.avatar_emoji ? <Emoji3D emoji={artisanForm.avatar_emoji} size={44} /> : initialsOf(artisan.name)}
+                <div className={`flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisan.has_avatar_photo || artisanForm.avatar_emoji ? "" : "font-mono text-sm font-bold"} ${tintFor(artisan.name)}`}>
+                  {artisan.has_avatar_photo ? (
+                    <img src={avatarPhotoUrl(artisan.id)} alt="" className="size-full object-cover" />
+                  ) : artisanForm.avatar_emoji ? (
+                    <Emoji3D emoji={artisanForm.avatar_emoji} size={44} />
+                  ) : (
+                    initialsOf(artisan.name)
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="m-0 truncate text-[13.5px] font-bold text-foreground">{artisan.name}</p>
@@ -491,6 +536,38 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
               </div>
 
               <Field label="Name" value={artisanForm.name || ""} onChange={(v) => setArtisanForm((f) => ({ ...f, name: v }))} />
+              <div className="mb-3.5 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => avatarFileInputRef.current?.click()}
+                  disabled={avatarPhotoUploading}
+                  className="flex items-center gap-1.5 border-none bg-transparent p-0 text-[12.5px] font-bold text-primary disabled:opacity-50"
+                >
+                  {avatarPhotoUploading ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
+                  {artisan.has_avatar_photo ? "Change profile photo" : "Set a profile photo"}
+                </button>
+                {artisan.has_avatar_photo && (
+                  <button
+                    type="button"
+                    onClick={removeAvatarPhoto}
+                    disabled={avatarPhotoUploading}
+                    className="border-none bg-transparent p-0 text-[11.5px] font-semibold text-muted-foreground disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                )}
+                <input
+                  ref={avatarFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => { uploadAvatarPhoto(e.target.files?.[0]); e.target.value = ""; }}
+                />
+              </div>
+              {/* A photo always wins over an emoji in every rendered avatar
+                  (see shared/artisanDisplay.js) — the picker still works
+                  with a photo set, it just won't show anywhere until the
+                  photo itself is removed. */}
               <EmojiPicker
                 value={artisanForm.avatar_emoji}
                 onChange={(e) => setArtisanForm((f) => ({ ...f, avatar_emoji: e }))}

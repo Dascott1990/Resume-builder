@@ -8,21 +8,32 @@
  * Logo3D.js → Logo3DScene.js pattern for the same class of problem.
  *
  * Markers are custom L.divIcons (not Leaflet's default marker image, which
- * breaks under webpack bundling) built from the exact same tintFor/
- * initialsOf helpers ArtisanCard uses, so a pin always matches its card.
+ * breaks under webpack bundling) built from the same photo/emoji/initials
+ * precedence ArtisanCard uses, so a pin always matches its card.
  */
 import { useEffect, useMemo } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import { MapPin } from "lucide-react";
-import { tintFor, initialsOf } from "../shared/artisanDisplay";
+import { tintFor, initialsOf, avatarPhotoUrl } from "../shared/artisanDisplay";
 import { Btn } from "../guest/components/primitives";
 
-function pinIcon(name) {
+// Raw HTML, not React — Leaflet's divIcon renders outside React's tree, so
+// this can't reuse ArtisanCard's <Emoji3D> (a WebGL canvas per pin would be
+// wasteful at this size anyway). Photo beats a flat emoji character beats
+// initials, same precedence ArtisanCard/ArtisanProfile use.
+function pinIcon(a) {
+  const name = a?.name || "?";
+  const textless = a?.has_avatar_photo || a?.avatar_emoji;
+  const inner = a?.has_avatar_photo
+    ? `<img src="${avatarPhotoUrl(a.id)}" alt="" style="width:100%;height:100%;object-fit:cover;" />`
+    : a?.avatar_emoji
+      ? `<span style="font-size:16px;line-height:1;">${a.avatar_emoji}</span>`
+      : initialsOf(name);
   return L.divIcon({
     className: "",
-    html: `<div title="${(name || "").replace(/"/g, "&quot;")}" class="flex size-8 items-center justify-center rounded-full border-2 shadow-md font-mono text-[11px] font-bold ${tintFor(name || "?")} bg-background">${initialsOf(name || "?")}</div>`,
+    html: `<div title="${name.replace(/"/g, "&quot;")}" class="flex size-8 items-center justify-center overflow-hidden rounded-full border-2 shadow-md ${textless ? "" : "font-mono text-[11px] font-bold"} ${tintFor(name)} bg-background">${inner}</div>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16],
   });
@@ -105,7 +116,7 @@ export default function ArtisanMap({ artisans, nearMe, onOpenArtisan, hasMore, o
           <Marker
             key={a.id}
             position={[a.lat, a.lng]}
-            icon={pinIcon(a.name)}
+            icon={pinIcon(a)}
             eventHandlers={{ click: () => onOpenArtisan(a) }}
           />
         ))}

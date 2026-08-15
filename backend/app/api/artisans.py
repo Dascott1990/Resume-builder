@@ -357,6 +357,55 @@ def artisan_change_password():
     return jsonify({"success": True, "data": {"message": "Password updated"}}), 200
 
 
+@artisans_bp.route("/me/avatar-photo", methods=["POST"])
+def artisan_upload_avatar_photo():
+    """JWT-scoped like the rest of /me, not the edit_token door the plain
+    "list yourself" listing uses — a signed-up artisan is never handed an
+    edit_token (see artisan_update_me's own comment on that exact gap), so
+    this is the only door that actually works from Settings.js."""
+    artisan_id = require_artisan_scope(request)
+    a = db.session.get(Artisan, artisan_id)
+    if not a:
+        raise APIError("Artisan account not found", 404)
+
+    file = request.files.get("file")
+    if not file or not file.filename:
+        raise APIError("file is required", 400)
+    if not (file.mimetype or "").startswith("image/"):
+        raise APIError("Only image files are allowed", 400)
+
+    data = file.read()
+    if len(data) > MAX_PHOTO_BYTES:
+        raise APIError("Photo must be 5MB or smaller", 400)
+
+    a.avatar_photo_data = data
+    a.avatar_photo_mime_type = file.mimetype
+    db.session.commit()
+    return jsonify({"success": True, "data": a.to_dict()}), 200
+
+
+@artisans_bp.route("/me/avatar-photo", methods=["DELETE"])
+def artisan_delete_avatar_photo():
+    artisan_id = require_artisan_scope(request)
+    a = db.session.get(Artisan, artisan_id)
+    if not a:
+        raise APIError("Artisan account not found", 404)
+    a.avatar_photo_data = None
+    a.avatar_photo_mime_type = None
+    db.session.commit()
+    return jsonify({"success": True, "data": a.to_dict()}), 200
+
+
+@artisans_bp.route("/<artisan_id>/avatar-photo", methods=["GET"])
+def get_avatar_photo(artisan_id):
+    # Public, no auth — this is what an <img src> tag on a listing card or
+    # profile points straight at, same reasoning as get_photo_raw below.
+    a = Artisan.query.get(artisan_id)
+    if not a or not a.avatar_photo_data:
+        raise APIError("Avatar photo not found", 404)
+    return send_file(io.BytesIO(a.avatar_photo_data), mimetype=a.avatar_photo_mime_type, max_age=3600)
+
+
 def _clean_pagination(default_limit, max_limit):
     try:
         limit = int(request.args.get("limit", default_limit))

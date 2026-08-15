@@ -28,7 +28,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Btn } from "../guest/components/primitives";
-import { truncateBio, tintFor, initialsOf } from "../shared/artisanDisplay";
+import { truncateBio, tintFor, initialsOf, avatarPhotoUrl } from "../shared/artisanDisplay";
+import Emoji3D from "../shared/Emoji3D";
 import StarRating from "../shared/StarRating";
 import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
 import ArtisanAuth from "./ArtisanAuth";
@@ -413,12 +414,18 @@ export default function ArtisanDashboard({ onClose }) {
                 />
               )}
               <div
-                className={`relative flex size-11 items-center justify-center rounded-full border font-mono text-sm font-bold transition-all duration-500 ${tint} ${!artisan?.is_available ? "opacity-50 grayscale" : ""}`}
+                className={`relative flex size-11 items-center justify-center overflow-hidden rounded-full border transition-all duration-500 ${artisan?.has_avatar_photo || artisan?.avatar_emoji ? "" : "font-mono text-sm font-bold"} ${tint} ${!artisan?.is_available ? "opacity-50 grayscale" : ""}`}
                 style={artisan?.is_available ? {
                   boxShadow: "0 0 0 3px color-mix(in oklch, var(--success,#22c55e) 25%, transparent), 0 0 18px color-mix(in oklch, var(--success,#22c55e) 40%, transparent)",
                 } : undefined}
               >
-                {initialsOf(artisan?.name || "?")}
+                {artisan?.has_avatar_photo ? (
+                  <img src={avatarPhotoUrl(artisan.id)} alt="" className="size-full object-cover" />
+                ) : artisan?.avatar_emoji ? (
+                  <Emoji3D emoji={artisan.avatar_emoji} size={44} />
+                ) : (
+                  initialsOf(artisan?.name || "?")
+                )}
               </div>
             </div>
             <div className="min-w-0">

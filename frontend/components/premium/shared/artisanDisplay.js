@@ -2,6 +2,18 @@
 // Artisans.js (the card) and ArtisanProfile.js (the full profile). Split out
 // so neither file has to import the other just to reuse these.
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+
+// Points straight at the backend's raw-byte route (GET /api/v1/artisans/
+// <id>/avatar-photo) via a plain <img>, never base64-inlined in a listing
+// response — same reasoning as PhotoPortfolio.js's own rawUrl. Only ever
+// worth calling when an artisan's has_avatar_photo is true; pointing an
+// <img> at this for every artisan regardless would mean a 404 network
+// request for everyone who's never set one.
+export function avatarPhotoUrl(artisanId) {
+  return `${API_BASE}/api/v1/artisans/${artisanId}/avatar-photo`;
+}
+
 // Kept off amber on purpose — amber is the app's one primary/brand accent,
 // so these categorical avatar tints use a separate palette to avoid
 // visually colliding with it.

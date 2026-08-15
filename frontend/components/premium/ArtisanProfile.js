@@ -27,9 +27,10 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { ChevronLeft, MapPin, Phone, MessageSquare, Mail, RefreshCw, ClipboardList, Star, MessageCircle } from "lucide-react";
 import { apiRequest } from "./shared/api";
-import { tintFor, initialsOf, formatPhone } from "./shared/artisanDisplay";
+import { tintFor, initialsOf, formatPhone, avatarPhotoUrl } from "./shared/artisanDisplay";
 import { Btn } from "./guest/components/primitives";
 import PhotoPortfolio from "./artisan/PhotoPortfolio";
+import Emoji3D from "./shared/Emoji3D";
 import RequestJobModal from "./artisan/RequestJobModal";
 import StarRating from "./shared/StarRating";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
@@ -140,8 +141,14 @@ export default function ArtisanProfile({
         initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }}
         className="flex items-center gap-3 rounded-2xl border border-foreground/10 bg-card/95 p-4 shadow-[0_8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl supports-backdrop-filter:bg-card/75 dark:shadow-[0_10px_36px_rgba(0,0,0,0.4),0_1px_0_rgba(255,255,255,0.06)_inset]"
       >
-        <div className={`flex size-16 shrink-0 items-center justify-center rounded-full border font-mono text-xl font-bold ${tint}`}>
-          {initialsOf(artisan.name)}
+        <div className={`flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisan.has_avatar_photo || artisan.avatar_emoji ? "" : "font-mono text-xl font-bold"} ${tint}`}>
+          {artisan.has_avatar_photo ? (
+            <img src={avatarPhotoUrl(artisan.id)} alt="" className="size-full object-cover" />
+          ) : artisan.avatar_emoji ? (
+            <Emoji3D emoji={artisan.avatar_emoji} size={64} />
+          ) : (
+            initialsOf(artisan.name)
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-xl font-bold text-foreground">{artisan.name}</div>

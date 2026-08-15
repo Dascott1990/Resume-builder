@@ -88,6 +88,24 @@ export const artisanChangePassword = (currentPassword, newPassword) => apiReques
   body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
 });
 
+// FormData, not JSON — deliberately no "Content-Type" header here, same as
+// PhotoPortfolio.js's own upload: fetch sets the multipart boundary itself
+// only when it builds the body, which an explicit override would break.
+export const artisanUploadAvatarPhoto = (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiRequest("/api/v1/artisans/me/avatar-photo", {
+    method: "POST",
+    headers: authHeaders(),
+    body: formData,
+  });
+};
+
+export const artisanDeleteAvatarPhoto = () => apiRequest("/api/v1/artisans/me/avatar-photo", {
+  method: "DELETE",
+  headers: authHeaders(),
+});
+
 // Public route (same one ArtisanProfile.js uses for a customer's view of
 // this artisan) — no X-Artisan-Token needed, just the artisan's own id.
 export const artisanReviews = (artisanId, limit = 3) =>

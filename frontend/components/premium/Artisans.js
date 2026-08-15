@@ -19,9 +19,10 @@ import { toast } from "sonner";
 import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, Map as MapIcon } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
-import { tintFor, initialsOf, formatPhone, truncateBio, formatDistance } from "./shared/artisanDisplay";
+import { tintFor, initialsOf, formatPhone, truncateBio, formatDistance, avatarPhotoUrl } from "./shared/artisanDisplay";
 import { Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
+import Emoji3D from "./shared/Emoji3D";
 import ArtisanProfile from "./ArtisanProfile";
 import { tapFeedback } from "@/lib/haptics";
 import { useViewport } from "@/lib/useViewport";
@@ -170,8 +171,14 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete }) {
     >
       <div className="flex items-start justify-between gap-2 p-3.5 pb-3">
         <div className="flex min-w-0 gap-3">
-          <div className={`flex size-[42px] shrink-0 items-center justify-center rounded-full border font-mono text-sm font-bold ${tint}`}>
-            {initialsOf(a.name)}
+          <div className={`flex size-[42px] shrink-0 items-center justify-center overflow-hidden rounded-full border ${a.has_avatar_photo || a.avatar_emoji ? "" : "font-mono text-sm font-bold"} ${tint}`}>
+            {a.has_avatar_photo ? (
+              <img src={avatarPhotoUrl(a.id)} alt="" className="size-full object-cover" />
+            ) : a.avatar_emoji ? (
+              <Emoji3D emoji={a.avatar_emoji} size={42} />
+            ) : (
+              initialsOf(a.name)
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[14.5px] font-bold text-foreground">{a.name}</div>
