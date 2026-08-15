@@ -35,7 +35,29 @@ export default function RequestJobModal({ open, onClose, targetArtisan }) {
 
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
 
+  // Pulled out of submit() so postRequest() can enforce it on its OWN,
+  // not just trust that whoever called it already ran submit()'s checks.
+  // That trust is exactly what broke: the auth-gate's onSuccess below used
+  // to call postRequest() straight from a signed-in-elsewhere callback,
+  // with zero re-validation — the one path a stale `form` (or a future
+  // caller) could reach the backend with a missing amount and surface its
+  // raw "amount_cents is required..." message instead of this one.
+  const validate = () => {
+    if (!form.description.trim() || !form.contact_name.trim() || !form.contact_phone.trim()) {
+      setError("Description, your name, and phone are required.");
+      return false;
+    }
+    const amountNum = parseFloat(form.amount);
+    if (!form.amount.trim() || !Number.isFinite(amountNum) || amountNum < 1 || amountNum > 50000) {
+      setError("Enter what you're offering to pay — between $1 and $50,000.");
+      return false;
+    }
+    return true;
+  };
+
   const postRequest = async () => {
+    setError("");
+    if (!validate()) return;
     setSubmitting(true);
     try {
       const { amount, ...rest } = form;
@@ -59,15 +81,7 @@ export default function RequestJobModal({ open, onClose, targetArtisan }) {
   const submit = async (e) => {
     e.preventDefault();
     setError("");
-    if (!form.description.trim() || !form.contact_name.trim() || !form.contact_phone.trim()) {
-      setError("Description, your name, and phone are required.");
-      return;
-    }
-    const amountNum = parseFloat(form.amount);
-    if (!form.amount.trim() || !Number.isFinite(amountNum) || amountNum < 1 || amountNum > 50000) {
-      setError("Enter what you're offering to pay — between $1 and $50,000.");
-      return;
-    }
+    if (!validate()) return;
     // Booking requires a signed-in customer account (see backend's
     // require_customer_scope) — check here rather than letting the
     // request 401, so a signed-out visitor gets a sign-in prompt instead
