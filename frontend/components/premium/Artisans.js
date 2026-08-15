@@ -193,9 +193,8 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete }) {
                   would be noise; the full status (available or off) shows
                   once you open the profile either way. Same "sonar" pulse
                   language as ArtisanDashboard.js's own status card, just
-                  scaled down to badge size — a ring expanding off the dot,
-                  the dot itself breathing, and a lightning emoji giving it
-                  a little life without needing a screen's worth of room. */}
+                  scaled down to badge size — one dot, a ring expanding off
+                  it, nothing else competing for attention. */}
               {a.has_account && a.is_available && (
                 <Badge variant="outline" className="gap-1 rounded-full border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 pl-1.5 text-[10px] font-bold text-[var(--success,#22c55e)]">
                   <span className="relative flex size-[7px] shrink-0 items-center justify-center">
@@ -212,14 +211,6 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete }) {
                       className="relative size-[5px] rounded-full bg-[var(--success,#22c55e)]"
                     />
                   </span>
-                  <motion.span
-                    aria-hidden="true"
-                    animate={{ rotate: [0, -14, 12, -8, 0] }}
-                    transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 1.8, ease: "easeInOut" }}
-                    className="leading-none"
-                  >
-                    ⚡
-                  </motion.span>
                   Available
                 </Badge>
               )}
