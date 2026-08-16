@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon, Heart, Briefcase } from "lucide-react";
+import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon, Heart } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tintFor, initialsOf, formatPhone, truncateBio, formatDistance, avatarPhotoUrl } from "./shared/artisanDisplay";
@@ -253,93 +253,58 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete, variant = "list", is
   };
 
   if (variant === "grid") {
-    const hasRating = a.rating_count > 0;
+    // Pure visual grid — no name, no trade, no stats on the tile itself.
+    // The photo (or its tint/emoji/initials fallback) fills the entire
+    // card; identity is one tap away on the profile, not crammed into a
+    // card too narrow to hold it legibly. This is the same move
+    // Instagram/Pinterest/Airbnb host grids make: let the image carry
+    // the card, disclose everything else on open rather than on the tile.
     return (
-      <motion.div whileTap={{ scale: 0.97 }}>
-        {/* A solid card, not the glass surface the list variant uses —
-            this is meant to read as a portfolio/profile tile, closer to
-            the photo itself than to a data row. bg-card/border/shadow
-            still come from the app's own tokens (not literal white/gray)
-            so this stays correct in both themes, not just light mode. */}
-        <Card {...openProps} className="cursor-pointer gap-0 overflow-hidden rounded-3xl border border-border bg-card p-0 shadow-[0_10px_30px_rgba(0,0,0,0.10)] transition-colors dark:shadow-[0_14px_36px_rgba(0,0,0,0.45)]">
-          <div className="relative flex h-[148px]">
-            {/* The portrait itself — bleeds flush to the card's own left
-                and top edges (rounded-tl-3xl matches the card's own
-                corner exactly) and to the divider below (square, no
-                radius — that edge isn't a card corner). No photo set?
-                Same tint/initials/emoji precedence as everywhere else,
-                just filling this box instead of a circle. */}
-            <div className={`relative h-full w-[34%] shrink-0 overflow-hidden rounded-tl-3xl ${a.has_avatar_photo ? "" : `flex items-center justify-center ${tintFor(a.name || "?")}`}`}>
-              {a.has_avatar_photo ? (
-                <img src={avatarPhotoUrl(a.id)} alt="" className="size-full object-cover" />
-              ) : a.avatar_emoji ? (
-                <Emoji3D emoji={a.avatar_emoji} size={56} />
+      <motion.div whileTap={{ scale: 0.96 }}>
+        <Card
+          {...openProps}
+          className="relative aspect-[4/5] cursor-pointer gap-0 overflow-hidden rounded-2xl border-none bg-card p-0 shadow-[0_8px_22px_rgba(0,0,0,0.14)] transition-shadow hover:shadow-[0_12px_30px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_28px_rgba(0,0,0,0.55)] dark:hover:shadow-[0_14px_34px_rgba(0,0,0,0.65)]"
+        >
+          {a.has_avatar_photo ? (
+            <img src={avatarPhotoUrl(a.id)} alt={a.name} className="size-full object-cover" />
+          ) : (
+            <div className={`flex size-full items-center justify-center ${tintFor(a.name || "?")}`}>
+              {a.avatar_emoji ? (
+                <Emoji3D emoji={a.avatar_emoji} size={72} />
               ) : (
-                <span className="font-mono text-2xl font-bold">{initialsOf(a.name)}</span>
-              )}
-              {a.has_account && a.is_available && (
-                <span
-                  aria-label="Available now"
-                  className="absolute top-2 left-2 size-2.5 rounded-full border-2 border-card bg-[var(--success,#22c55e)]"
-                />
+                <span className="font-mono text-4xl font-bold">{initialsOf(a.name)}</span>
               )}
             </div>
+          )}
 
-            {/* text-xl/2xl (the original spec's size) only had room to
-                breathe on a wide single-column card — at this app's
-                2-up mobile grid width that truncated names to three
-                characters. Scaled down and wrapping onto 2 lines instead
-                of a single truncated one is the actual fix for a card
-                this narrow, not a smaller version of the same problem. */}
-            <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-2 pr-8 pl-2.5">
-              <p className="m-0 line-clamp-2 text-[15px] leading-tight font-bold break-words text-foreground">{a.name}</p>
-              {/* Trade, not years-experience, under the name — the years
-                  figure earns its own stat column below instead, and
-                  which trade this is matters more at a glance in a mixed
-                  "All trades" grid than how long they've done it. */}
-              <p className="m-0 truncate text-[12px] font-bold text-primary">{a.trade}</p>
+          {/* White ring, not a theme token — this sits on top of
+              unpredictable photo content, not the app's own chrome, so it
+              needs contrast against whatever image is underneath rather
+              than against the surrounding light/dark background. */}
+          {a.has_account && a.is_available && (
+            <span
+              aria-label="Available now"
+              className="absolute top-3 left-3 size-3 rounded-full border-2 border-white/95 bg-[var(--success,#22c55e)] shadow-[0_1px_4px_rgba(0,0,0,0.4)]"
+            />
+          )}
+
+          {onToggleFavorite && (
+            <button
+              type="button"
+              aria-label={isFavorite ? "Remove from favorites" : "Save to favorites"}
+              aria-pressed={!!isFavorite}
+              onClick={(e) => { e.stopPropagation(); onToggleFavorite(a.id); }}
+              className="absolute top-2.5 right-2.5 flex size-8 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-colors hover:bg-black/55"
+            >
+              <Heart className={`size-4 ${isFavorite ? "fill-white" : ""}`} />
+            </button>
+          )}
+
+          {isMine && (
+            <div className="absolute bottom-2.5 left-2.5 flex gap-1.5 rounded-full bg-black/40 p-1 backdrop-blur-sm">
+              <EditDeleteButtons a={a} onEdit={onEdit} onDelete={onDelete} confirmOpen={confirmOpen} setConfirmOpen={setConfirmOpen} />
             </div>
-
-            {onToggleFavorite && (
-              <button
-                type="button"
-                aria-label={isFavorite ? "Remove from favorites" : "Save to favorites"}
-                aria-pressed={!!isFavorite}
-                onClick={(e) => { e.stopPropagation(); onToggleFavorite(a.id); }}
-                className="absolute top-2.5 right-2.5 flex size-8 items-center justify-center rounded-full border border-border bg-card/90 text-muted-foreground backdrop-blur-sm"
-              >
-                <Heart className={`size-4 ${isFavorite ? "fill-primary text-primary" : ""}`} />
-              </button>
-            )}
-
-            {isMine && (
-              <div className="absolute bottom-2.5 left-[calc(38%+10px)] flex gap-1.5">
-                <EditDeleteButtons a={a} onEdit={onEdit} onDelete={onDelete} confirmOpen={confirmOpen} setConfirmOpen={setConfirmOpen} />
-              </div>
-            )}
-          </div>
-
-          <div className="h-px w-full bg-border" />
-
-          {/* Two stats, not the DollarSign/rate pairing a fixed-price
-              catalog would show — this marketplace has no per-artisan
-              rate field (price is set per job request, not per listing),
-              so a dollar figure here would just be invented. Years of
-              experience is the real number that plays the same role. */}
-          <div className="grid grid-cols-2 divide-x divide-border">
-            <div className="flex flex-col items-center gap-1 py-3">
-              <Briefcase className="size-4 text-muted-foreground" />
-              <span className="text-2xl font-bold text-foreground">{a.years_experience ?? "—"}</span>
-              <span className="text-[11px] text-muted-foreground">Years exp.</span>
-            </div>
-            <div className="flex flex-col items-center gap-1 py-3">
-              <Star className={`size-4 ${hasRating ? "fill-primary text-primary" : "text-muted-foreground"}`} />
-              <span className="text-2xl font-bold text-foreground">{hasRating ? a.rating_avg.toFixed(1) : "New"}</span>
-              <span className="text-[11px] text-muted-foreground">
-                {hasRating ? `${a.rating_count} review${a.rating_count === 1 ? "" : "s"}` : "No reviews yet"}
-              </span>
-            </div>
-          </div>
+          )}
         </Card>
       </motion.div>
     );
