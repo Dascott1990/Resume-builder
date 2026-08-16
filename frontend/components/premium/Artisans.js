@@ -253,59 +253,81 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete, variant = "list", is
   };
 
   if (variant === "grid") {
-    // Pure visual grid — no name, no trade, no stats on the tile itself.
-    // The photo (or its tint/emoji/initials fallback) fills the entire
-    // card; identity is one tap away on the profile, not crammed into a
-    // card too narrow to hold it legibly. This is the same move
-    // Instagram/Pinterest/Airbnb host grids make: let the image carry
-    // the card, disclose everything else on open rather than on the tile.
+    // The Airbnb-listing-card shape, not its literal styling: a photo on
+    // its own (nothing overlaid except favorite/availability, both
+    // non-textual) with a couple of short, well-chosen lines BELOW it —
+    // not beside it. That's what the previous two attempts got wrong in
+    // opposite directions: cramming name+trade+stats into a strip next
+    // to a small photo truncated everything, and then going fully
+    // photo-only left nothing to decide "tap this one" from. Stacking
+    // instead of cramming gives the text the card's full width to
+    // breathe, so it never needs to compete with the photo for space.
+    const hasRating = a.rating_count > 0;
     return (
-      <motion.div whileTap={{ scale: 0.96 }}>
-        <Card
-          {...openProps}
-          className="relative aspect-[4/5] cursor-pointer gap-0 overflow-hidden rounded-2xl border-none bg-card p-0 shadow-[0_8px_22px_rgba(0,0,0,0.14)] transition-shadow hover:shadow-[0_12px_30px_rgba(0,0,0,0.2)] dark:shadow-[0_10px_28px_rgba(0,0,0,0.55)] dark:hover:shadow-[0_14px_34px_rgba(0,0,0,0.65)]"
-        >
-          {a.has_avatar_photo ? (
-            <img src={avatarPhotoUrl(a.id)} alt={a.name} className="size-full object-cover" />
-          ) : (
-            <div className={`flex size-full items-center justify-center ${tintFor(a.name || "?")}`}>
-              {a.avatar_emoji ? (
-                <Emoji3D emoji={a.avatar_emoji} size={72} />
-              ) : (
-                <span className="font-mono text-4xl font-bold">{initialsOf(a.name)}</span>
-              )}
-            </div>
-          )}
+      <motion.div whileTap={{ scale: 0.97 }}>
+        <div {...openProps} className="cursor-pointer">
+          <div className="relative aspect-square overflow-hidden rounded-2xl shadow-[0_6px_18px_rgba(0,0,0,0.16)] dark:shadow-[0_8px_22px_rgba(0,0,0,0.55)]">
+            {a.has_avatar_photo ? (
+              <img src={avatarPhotoUrl(a.id)} alt="" className="size-full object-cover" />
+            ) : (
+              <div className={`flex size-full items-center justify-center ${tintFor(a.name || "?")}`}>
+                {a.avatar_emoji ? (
+                  <Emoji3D emoji={a.avatar_emoji} size={60} />
+                ) : (
+                  <span className="font-mono text-3xl font-bold">{initialsOf(a.name)}</span>
+                )}
+              </div>
+            )}
 
-          {/* White ring, not a theme token — this sits on top of
-              unpredictable photo content, not the app's own chrome, so it
-              needs contrast against whatever image is underneath rather
-              than against the surrounding light/dark background. */}
-          {a.has_account && a.is_available && (
-            <span
-              aria-label="Available now"
-              className="absolute top-3 left-3 size-3 rounded-full border-2 border-white/95 bg-[var(--success,#22c55e)] shadow-[0_1px_4px_rgba(0,0,0,0.4)]"
-            />
-          )}
+            {/* White ring, not a theme token — this sits on top of
+                unpredictable photo content, not the app's own chrome, so
+                it needs contrast against whatever image is underneath
+                rather than against the surrounding light/dark background. */}
+            {a.has_account && a.is_available && (
+              <span
+                aria-label="Available now"
+                className="absolute top-2.5 left-2.5 size-3 rounded-full border-2 border-white/95 bg-[var(--success,#22c55e)] shadow-[0_1px_4px_rgba(0,0,0,0.4)]"
+              />
+            )}
 
-          {onToggleFavorite && (
-            <button
-              type="button"
-              aria-label={isFavorite ? "Remove from favorites" : "Save to favorites"}
-              aria-pressed={!!isFavorite}
-              onClick={(e) => { e.stopPropagation(); onToggleFavorite(a.id); }}
-              className="absolute top-2.5 right-2.5 flex size-8 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-colors hover:bg-black/55"
-            >
-              <Heart className={`size-4 ${isFavorite ? "fill-white" : ""}`} />
-            </button>
-          )}
+            {onToggleFavorite && (
+              <button
+                type="button"
+                aria-label={isFavorite ? "Remove from favorites" : "Save to favorites"}
+                aria-pressed={!!isFavorite}
+                onClick={(e) => { e.stopPropagation(); onToggleFavorite(a.id); }}
+                className="absolute top-2 right-2 flex size-8 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-colors hover:bg-black/55"
+              >
+                <Heart className={`size-4 ${isFavorite ? "fill-white" : ""}`} />
+              </button>
+            )}
 
-          {isMine && (
-            <div className="absolute bottom-2.5 left-2.5 flex gap-1.5 rounded-full bg-black/40 p-1 backdrop-blur-sm">
-              <EditDeleteButtons a={a} onEdit={onEdit} onDelete={onDelete} confirmOpen={confirmOpen} setConfirmOpen={setConfirmOpen} />
-            </div>
-          )}
-        </Card>
+            {isMine && (
+              <div className="absolute bottom-2 left-2 flex gap-1.5 rounded-full bg-black/40 p-1 backdrop-blur-sm">
+                <EditDeleteButtons a={a} onEdit={onEdit} onDelete={onDelete} confirmOpen={confirmOpen} setConfirmOpen={setConfirmOpen} />
+              </div>
+            )}
+          </div>
+
+          {/* Below the photo, full card width — the actual "why tap
+              this one" signal: who, how good, what they do and where.
+              Same title/rating-on-one-line shape a listing card uses,
+              just swapped for a person instead of a place. */}
+          <div className="mt-2 flex items-start justify-between gap-2">
+            <p className="m-0 min-w-0 flex-1 truncate text-[14px] font-bold text-foreground">{a.name}</p>
+            {hasRating ? (
+              <span className="flex shrink-0 items-center gap-0.5 text-[13px] font-semibold text-foreground">
+                <Star className="size-3 fill-foreground text-foreground" /> {a.rating_avg.toFixed(1)}
+              </span>
+            ) : (
+              <span className="shrink-0 text-[12px] font-bold text-primary">New</span>
+            )}
+          </div>
+          <p className="m-0 truncate text-[12.5px] text-muted-foreground">
+            <span className="font-semibold text-primary">{a.trade}</span>
+            {a.city && ` · ${a.city}`}
+          </p>
+        </div>
       </motion.div>
     );
   }
