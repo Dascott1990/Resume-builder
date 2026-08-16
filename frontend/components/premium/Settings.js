@@ -224,9 +224,31 @@ function EmojiPicker({ value, onChange }) {
 const SETTINGS_PROFILE_DRAFT_KEY = "resumeBuilder:settingsProfileDraft:v1";
 const SETTINGS_ARTISAN_DRAFT_KEY = "resumeBuilder:settingsArtisanDraft:v1";
 
+// Drafts here only exist to survive an accidental refresh mid-edit, not to
+// stand in for the server forever — the plain loadFormDraft/saveFormDraft
+// pair has no expiry, so ONE abandoned edit (typed something, never hit
+// Save, wandered off) would silently outrank fresh server data on every
+// future visit to Settings, indefinitely. That's what "my changes always
+// revert to the old one" actually was: not reverting, but permanently
+// stuck showing whatever a much older session last typed and never saved
+// — and hitting Save from there would even push those stale values back
+// to the server, clobbering whatever was actually current. Timestamping
+// the draft and refusing anything older than this bounds the damage to
+// "the last half hour," long enough to survive a real accidental reload,
+// short enough that a forgotten edit stops haunting every later visit.
+const DRAFT_MAX_AGE_MS = 30 * 60 * 1000;
+function loadRecentDraft(key) {
+  const raw = loadFormDraft(key);
+  if (!raw || typeof raw.savedAt !== "number" || Date.now() - raw.savedAt > DRAFT_MAX_AGE_MS) return null;
+  return raw.data;
+}
+function saveDraftNow(key, data) {
+  saveFormDraft(key, { savedAt: Date.now(), data });
+}
+
 export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
   const { user, loading: authLoading, updateProfile, changePassword, logout } = useAuth();
-  const profileDraftAtMount = useRef(loadFormDraft(SETTINGS_PROFILE_DRAFT_KEY)).current;
+  const profileDraftAtMount = useRef(loadRecentDraft(SETTINGS_PROFILE_DRAFT_KEY)).current;
   const [name, setName] = useState(() => profileDraftAtMount?.name ?? "");
   const [avatarEmoji, setAvatarEmoji] = useState(() => profileDraftAtMount?.avatarEmoji ?? null);
   const [statusLine, setStatusLine] = useState(() => profileDraftAtMount?.statusLine ?? "");
@@ -255,14 +277,14 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
   useEffect(() => {
     clearTimeout(profileDraftSaveTimer.current);
     profileDraftSaveTimer.current = setTimeout(() => {
-      saveFormDraft(SETTINGS_PROFILE_DRAFT_KEY, { name, avatarEmoji, statusLine });
+      saveDraftNow(SETTINGS_PROFILE_DRAFT_KEY, { name, avatarEmoji, statusLine });
     }, 300);
     return () => clearTimeout(profileDraftSaveTimer.current);
   }, [name, avatarEmoji, statusLine]);
 
   const [artisan, setArtisan] = useState(null);
   const [artisanLoading, setArtisanLoading] = useState(true);
-  const artisanDraftAtMount = useRef(loadFormDraft(SETTINGS_ARTISAN_DRAFT_KEY)).current;
+  const artisanDraftAtMount = useRef(loadRecentDraft(SETTINGS_ARTISAN_DRAFT_KEY)).current;
   const [artisanForm, setArtisanForm] = useState(artisanDraftAtMount || null);
   const [savingArtisan, setSavingArtisan] = useState(false);
   const [avatarPhotoUploading, setAvatarPhotoUploading] = useState(false);
@@ -286,7 +308,7 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
   const artisanDraftSaveTimer = useRef(null);
   useEffect(() => {
     clearTimeout(artisanDraftSaveTimer.current);
-    artisanDraftSaveTimer.current = setTimeout(() => saveFormDraft(SETTINGS_ARTISAN_DRAFT_KEY, artisanForm), 300);
+    artisanDraftSaveTimer.current = setTimeout(() => saveDraftNow(SETTINGS_ARTISAN_DRAFT_KEY, artisanForm), 300);
     return () => clearTimeout(artisanDraftSaveTimer.current);
   }, [artisanForm]);
 
@@ -492,7 +514,7 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
               <div className="flex items-center gap-3">
                 <div className={`flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisan.has_avatar_photo || artisanForm.avatar_emoji ? "" : "font-mono text-sm font-bold"} ${tintFor(artisan.name)}`}>
                   {artisan.has_avatar_photo ? (
-                    <img src={avatarPhotoUrl(artisan.id)} alt="" className="size-full object-cover" />
+                    <img src={avatarPhotoUrl(artisan.id, artisan.avatar_photo_version)} alt="" className="size-full object-cover" />
                   ) : artisanForm.avatar_emoji ? (
                     <Emoji3D emoji={artisanForm.avatar_emoji} size={44} />
                   ) : (

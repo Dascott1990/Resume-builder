@@ -10,8 +10,20 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 // worth calling when an artisan's has_avatar_photo is true; pointing an
 // <img> at this for every artisan regardless would mean a 404 network
 // request for everyone who's never set one.
-export function avatarPhotoUrl(artisanId) {
-  return `${API_BASE}/api/v1/artisans/${artisanId}/avatar-photo`;
+//
+// `version` (Artisan.avatar_photo_version, bumped server-side on every
+// upload/delete) MUST be passed whenever the caller has it — the backend
+// serves this route with a long max_age, which is only safe because this
+// query param changes whenever the photo does. Without it, replacing a
+// photo left browsers serving the old cached bytes forever: same URL in,
+// same cached response out, no new request ever made to notice anything
+// changed. Omitting `version` (some older/lighter call sites don't have
+// it in scope) degrades to the old un-cache-busted behavior — don't do
+// that anywhere the photo can actually change during the page's own
+// lifetime, i.e. Settings' own preview.
+export function avatarPhotoUrl(artisanId, version) {
+  const v = version ? `?v=${version}` : "";
+  return `${API_BASE}/api/v1/artisans/${artisanId}/avatar-photo${v}`;
 }
 
 // Kept off amber on purpose — amber is the app's one primary/brand accent,

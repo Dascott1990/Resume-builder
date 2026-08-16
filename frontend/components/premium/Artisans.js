@@ -195,7 +195,7 @@ function ArtisanAvatar({ a, size, className }) {
   return (
     <div className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border ${a.has_avatar_photo || a.avatar_emoji ? "" : "font-mono font-bold"} ${tintFor(a.name || "?")} ${className || ""}`}>
       {a.has_avatar_photo ? (
-        <img src={avatarPhotoUrl(a.id)} alt="" className="size-full object-cover" />
+        <img src={avatarPhotoUrl(a.id, a.avatar_photo_version)} alt="" className="size-full object-cover" />
       ) : a.avatar_emoji ? (
         <Emoji3D emoji={a.avatar_emoji} size={size} />
       ) : (
@@ -268,7 +268,7 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete, variant = "list", is
         <div {...openProps} className="cursor-pointer">
           <div className="relative aspect-square overflow-hidden rounded-2xl shadow-[0_6px_18px_rgba(0,0,0,0.16)] dark:shadow-[0_8px_22px_rgba(0,0,0,0.55)]">
             {a.has_avatar_photo ? (
-              <img src={avatarPhotoUrl(a.id)} alt="" className="size-full object-cover" />
+              <img src={avatarPhotoUrl(a.id, a.avatar_photo_version)} alt="" className="size-full object-cover" />
             ) : (
               <div className={`flex size-full items-center justify-center ${tintFor(a.name || "?")}`}>
                 {a.avatar_emoji ? (

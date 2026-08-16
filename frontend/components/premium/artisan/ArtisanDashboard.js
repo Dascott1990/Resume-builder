@@ -420,7 +420,7 @@ export default function ArtisanDashboard({ onClose }) {
                 } : undefined}
               >
                 {artisan?.has_avatar_photo ? (
-                  <img src={avatarPhotoUrl(artisan.id)} alt="" className="size-full object-cover" />
+                  <img src={avatarPhotoUrl(artisan.id, artisan.avatar_photo_version)} alt="" className="size-full object-cover" />
                 ) : artisan?.avatar_emoji ? (
                   <Emoji3D emoji={artisan.avatar_emoji} size={44} />
                 ) : (

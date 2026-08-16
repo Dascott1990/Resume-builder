@@ -27,7 +27,7 @@ function pinIcon(a) {
   const name = a?.name || "?";
   const textless = a?.has_avatar_photo || a?.avatar_emoji;
   const inner = a?.has_avatar_photo
-    ? `<img src="${avatarPhotoUrl(a.id)}" alt="" style="width:100%;height:100%;object-fit:cover;" />`
+    ? `<img src="${avatarPhotoUrl(a.id, a.avatar_photo_version)}" alt="" style="width:100%;height:100%;object-fit:cover;" />`
     : a?.avatar_emoji
       ? `<span style="font-size:16px;line-height:1;">${a.avatar_emoji}</span>`
       : initialsOf(name);

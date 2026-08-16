@@ -380,6 +380,7 @@ def artisan_upload_avatar_photo():
 
     a.avatar_photo_data = data
     a.avatar_photo_mime_type = file.mimetype
+    a.avatar_photo_version = (a.avatar_photo_version or 0) + 1
     db.session.commit()
     return jsonify({"success": True, "data": a.to_dict()}), 200
 
@@ -392,6 +393,7 @@ def artisan_delete_avatar_photo():
         raise APIError("Artisan account not found", 404)
     a.avatar_photo_data = None
     a.avatar_photo_mime_type = None
+    a.avatar_photo_version = (a.avatar_photo_version or 0) + 1
     db.session.commit()
     return jsonify({"success": True, "data": a.to_dict()}), 200
 

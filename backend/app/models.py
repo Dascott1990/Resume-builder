@@ -137,6 +137,15 @@ class Artisan(db.Model):
     # artisan starts with; see shared/artisanDisplay.js on the frontend.
     avatar_photo_data = db.Column(db.LargeBinary, nullable=True)
     avatar_photo_mime_type = db.Column(db.String(100), nullable=True)
+    # Bumped on every upload/removal — GET /<id>/avatar-photo is served
+    # with a long max_age (see api/artisans.py's get_avatar_photo), which
+    # is only safe because the frontend appends this as a ?v= query param
+    # (see shared/artisanDisplay.js's avatarPhotoUrl). Without it, replacing
+    # a photo left the browser serving the OLD bytes forever from its own
+    # cache — the URL never changed, so it never asked again. NULL on
+    # rows from before this existed, same as every other _sync_missing_
+    # columns addition; treated as 0 in to_dict below.
+    avatar_photo_version = db.Column(db.Integer, nullable=True)
 
     def to_dict(self):
         return {
@@ -148,6 +157,7 @@ class Artisan(db.Model):
             "is_available": bool(self.is_available),
             "lat": self.lat, "lng": self.lng, "avatar_emoji": self.avatar_emoji,
             "has_avatar_photo": self.avatar_photo_data is not None,
+            "avatar_photo_version": self.avatar_photo_version or 0,
             "notify_new_request": self.notify_new_request is not False,
             "notify_new_message": self.notify_new_message is not False,
             "stripe_payouts_enabled": bool(self.stripe_payouts_enabled),

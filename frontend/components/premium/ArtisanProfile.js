@@ -143,7 +143,7 @@ export default function ArtisanProfile({
       >
         <div className={`flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisan.has_avatar_photo || artisan.avatar_emoji ? "" : "font-mono text-xl font-bold"} ${tint}`}>
           {artisan.has_avatar_photo ? (
-            <img src={avatarPhotoUrl(artisan.id)} alt="" className="size-full object-cover" />
+            <img src={avatarPhotoUrl(artisan.id, artisan.avatar_photo_version)} alt="" className="size-full object-cover" />
           ) : artisan.avatar_emoji ? (
             <Emoji3D emoji={artisan.avatar_emoji} size={64} />
           ) : (
