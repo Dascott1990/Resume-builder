@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon } from "lucide-react";
+import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon, Heart, Briefcase } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tintFor, initialsOf, formatPhone, truncateBio, formatDistance, avatarPhotoUrl } from "./shared/artisanDisplay";
@@ -63,6 +63,7 @@ const MY_IDS_KEY = "noviq_my_artisan_ids";
 const MY_TOKENS_KEY = "noviq_my_artisan_tokens";
 const RATED_IDS_KEY = "noviq_rated_artisan_ids";
 const ARTISAN_VIEW_KEY = "noviq_artisan_browse_view";
+const FAVORITE_IDS_KEY = "noviq_favorite_artisan_ids";
 
 const TRADES = TRADES_WITH_ALL;
 
@@ -112,6 +113,21 @@ export const getRatedIds = () => {
 export const addRatedId = (id, stars) => {
   const map = getRatedIds();
   localStorage.setItem(RATED_IDS_KEY, JSON.stringify({ ...map, [id]: { stars } }));
+};
+
+// The grid card's save/favorite toggle — purely local, like the ids
+// above, not a backend feature (there's no account-independent way to
+// scope this server-side for an anonymous browser anyway, same reasoning
+// MY_IDS_KEY already uses).
+const getFavoriteIds = () => {
+  try { return JSON.parse(localStorage.getItem(FAVORITE_IDS_KEY) || "[]"); }
+  catch { return []; }
+};
+const toggleFavoriteId = (id) => {
+  const ids = getFavoriteIds();
+  const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
+  localStorage.setItem(FAVORITE_IDS_KEY, JSON.stringify(next));
+  return next;
 };
 
 function SearchBar({ value, onChange }) {
@@ -224,12 +240,12 @@ function EditDeleteButtons({ a, onEdit, onDelete, confirmOpen, setConfirmOpen })
 const CARD_SURFACE = "cursor-pointer gap-0 overflow-hidden rounded-2xl border border-foreground/10 bg-card/95 py-0 ring-0 shadow-[0_8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl transition-colors duration-200 supports-backdrop-filter:bg-card/75 hover:border-foreground/20 dark:shadow-[0_10px_36px_rgba(0,0,0,0.4),0_1px_0_rgba(255,255,255,0.06)_inset] dark:hover:border-white/25";
 
 // variant "list" — the original horizontal row, full details, one per
-// line. variant "grid" — a compact vertical tile for a multi-column grid;
-// same underlying data (avatar precedence, badges, edit/delete), just no
-// bio and no full-width call button, since neither fits a tile this
-// narrow without either truncating illegibly or forcing the grid to a
-// single column, which would defeat the point of a grid view at all.
-function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete, variant = "list" }) {
+// line. variant "grid" — a photo-forward portfolio-style tile: a wide
+// portrait bleeding to the card's own edge rather than a small circular
+// avatar, name + trade beside it, then two stat columns below a divider.
+// Same underlying data (avatar precedence, edit/delete) as the list card,
+// laid out for a visual multi-column grid instead of a scanning list.
+function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete, variant = "list", isFavorite, onToggleFavorite }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const openProps = {
     role: "button", tabIndex: 0, onClick: () => onOpen(a),
@@ -237,32 +253,92 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete, variant = "list" }) 
   };
 
   if (variant === "grid") {
+    const hasRating = a.rating_count > 0;
     return (
       <motion.div whileTap={{ scale: 0.97 }}>
-        <Card {...openProps} className={`${CARD_SURFACE} p-3.5`}>
-          {isMine && (
-            <div className="mb-2 flex justify-end gap-1.5">
-              <EditDeleteButtons a={a} onEdit={onEdit} onDelete={onDelete} confirmOpen={confirmOpen} setConfirmOpen={setConfirmOpen} />
+        {/* A solid card, not the glass surface the list variant uses —
+            this is meant to read as a portfolio/profile tile, closer to
+            the photo itself than to a data row. bg-card/border/shadow
+            still come from the app's own tokens (not literal white/gray)
+            so this stays correct in both themes, not just light mode. */}
+        <Card {...openProps} className="cursor-pointer gap-0 overflow-hidden rounded-3xl border border-border bg-card p-0 shadow-[0_10px_30px_rgba(0,0,0,0.10)] transition-colors dark:shadow-[0_14px_36px_rgba(0,0,0,0.45)]">
+          <div className="relative flex h-[148px]">
+            {/* The portrait itself — bleeds flush to the card's own left
+                and top edges (rounded-tl-3xl matches the card's own
+                corner exactly) and to the divider below (square, no
+                radius — that edge isn't a card corner). No photo set?
+                Same tint/initials/emoji precedence as everywhere else,
+                just filling this box instead of a circle. */}
+            <div className={`relative h-full w-[34%] shrink-0 overflow-hidden rounded-tl-3xl ${a.has_avatar_photo ? "" : `flex items-center justify-center ${tintFor(a.name || "?")}`}`}>
+              {a.has_avatar_photo ? (
+                <img src={avatarPhotoUrl(a.id)} alt="" className="size-full object-cover" />
+              ) : a.avatar_emoji ? (
+                <Emoji3D emoji={a.avatar_emoji} size={56} />
+              ) : (
+                <span className="font-mono text-2xl font-bold">{initialsOf(a.name)}</span>
+              )}
+              {a.has_account && a.is_available && (
+                <span
+                  aria-label="Available now"
+                  className="absolute top-2 left-2 size-2.5 rounded-full border-2 border-card bg-[var(--success,#22c55e)]"
+                />
+              )}
             </div>
-          )}
-          <div className="flex flex-col items-center gap-1.5 text-center">
-            <ArtisanAvatar a={a} size={52} className="size-[52px] text-base" />
-            <div className="min-w-0 w-full">
-              <div className="truncate text-[13.5px] font-bold text-foreground">{a.name}</div>
-              <div className="truncate text-[11.5px] font-bold text-primary">{a.trade}</div>
+
+            {/* text-xl/2xl (the original spec's size) only had room to
+                breathe on a wide single-column card — at this app's
+                2-up mobile grid width that truncated names to three
+                characters. Scaled down and wrapping onto 2 lines instead
+                of a single truncated one is the actual fix for a card
+                this narrow, not a smaller version of the same problem. */}
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-2 pr-8 pl-2.5">
+              <p className="m-0 line-clamp-2 text-[15px] leading-tight font-bold break-words text-foreground">{a.name}</p>
+              {/* Trade, not years-experience, under the name — the years
+                  figure earns its own stat column below instead, and
+                  which trade this is matters more at a glance in a mixed
+                  "All trades" grid than how long they've done it. */}
+              <p className="m-0 truncate text-[12px] font-bold text-primary">{a.trade}</p>
             </div>
-            {a.has_account && a.is_available && <AvailableBadge small />}
-            {a.city && (
-              <div className="flex min-w-0 items-center gap-1">
-                <MapPin className="size-[10px] shrink-0 text-muted-foreground" />
-                <span className="truncate text-[11px] text-muted-foreground">{a.city}</span>
+
+            {onToggleFavorite && (
+              <button
+                type="button"
+                aria-label={isFavorite ? "Remove from favorites" : "Save to favorites"}
+                aria-pressed={!!isFavorite}
+                onClick={(e) => { e.stopPropagation(); onToggleFavorite(a.id); }}
+                className="absolute top-2.5 right-2.5 flex size-8 items-center justify-center rounded-full border border-border bg-card/90 text-muted-foreground backdrop-blur-sm"
+              >
+                <Heart className={`size-4 ${isFavorite ? "fill-primary text-primary" : ""}`} />
+              </button>
+            )}
+
+            {isMine && (
+              <div className="absolute bottom-2.5 left-[calc(38%+10px)] flex gap-1.5">
+                <EditDeleteButtons a={a} onEdit={onEdit} onDelete={onDelete} confirmOpen={confirmOpen} setConfirmOpen={setConfirmOpen} />
               </div>
             )}
-            {a.rating_count > 0 && (
-              <span className="flex items-center gap-1 font-mono text-[10.5px] text-muted-foreground">
-                <Star className="size-3 fill-primary text-primary" /> {a.rating_avg.toFixed(1)} · {a.rating_count}
+          </div>
+
+          <div className="h-px w-full bg-border" />
+
+          {/* Two stats, not the DollarSign/rate pairing a fixed-price
+              catalog would show — this marketplace has no per-artisan
+              rate field (price is set per job request, not per listing),
+              so a dollar figure here would just be invented. Years of
+              experience is the real number that plays the same role. */}
+          <div className="grid grid-cols-2 divide-x divide-border">
+            <div className="flex flex-col items-center gap-1 py-3">
+              <Briefcase className="size-4 text-muted-foreground" />
+              <span className="text-2xl font-bold text-foreground">{a.years_experience ?? "—"}</span>
+              <span className="text-[11px] text-muted-foreground">Years exp.</span>
+            </div>
+            <div className="flex flex-col items-center gap-1 py-3">
+              <Star className={`size-4 ${hasRating ? "fill-primary text-primary" : "text-muted-foreground"}`} />
+              <span className="text-2xl font-bold text-foreground">{hasRating ? a.rating_avg.toFixed(1) : "New"}</span>
+              <span className="text-[11px] text-muted-foreground">
+                {hasRating ? `${a.rating_count} review${a.rating_count === 1 ? "" : "s"}` : "No reviews yet"}
               </span>
-            )}
+            </div>
           </div>
         </Card>
       </motion.div>
@@ -428,6 +504,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
   const [polishing, setPolishing] = useState(false);
   const [viewingArtisan, setViewingArtisan] = useState(null); // an artisan object, or null
   const [ratedIds, setRatedIds] = useState({});
+  const [favIds, setFavIds] = useState([]);
 
   const [query, setQuery] = useState("");
   const [trade, setTrade] = useState("All");
@@ -449,7 +526,9 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
   const [nearMe, setNearMe] = useState(null); // { lat, lng } | null
   const [unread, setUnread] = useState(0);
 
-  useEffect(() => { setMyIds(getMyIds()); setRatedIds(getRatedIds()); }, []);
+  useEffect(() => { setMyIds(getMyIds()); setRatedIds(getRatedIds()); setFavIds(getFavoriteIds()); }, []);
+
+  const toggleFavorite = (id) => setFavIds(toggleFavoriteId(id));
 
   // Debounced, same 300ms shape as myResumeDraft.js/useGuestDraft.js — an
   // empty/reset form still gets saved (harmless, just overwrites the old
@@ -709,7 +788,8 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
           )}
           {!loading && visibleList.map((a) => (
             <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id)} variant={view === "grid" ? "grid" : "list"}
-              onOpen={setViewingArtisan} onEdit={startEdit} onDelete={remove} />
+              onOpen={setViewingArtisan} onEdit={startEdit} onDelete={remove}
+              isFavorite={favIds.includes(a.id)} onToggleFavorite={view === "grid" ? toggleFavorite : undefined} />
           ))}
           {/* Only offered once the current filter/search is otherwise exhausted —
               "Load more" fetches the next page from the backend; it's deliberately
