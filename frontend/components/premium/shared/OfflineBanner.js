@@ -23,13 +23,30 @@ export default function OfflineBanner() {
   // "Back online" toast on first mount for someone who was never offline.
   const wasOffline = useRef(false);
 
+  // A flaky connection doesn't drop once and cleanly return — a weak
+  // signal, an elevator, a WiFi↔cellular handoff can flip the browser's
+  // online/offline signal several times in a few seconds while it's
+  // actually settling. Each flip is a real transition, so firing the
+  // toast on every single one stacked a burst of "Back online" toasts
+  // right when the connection was at its LEAST stable — exactly the
+  // "so many toasts" pile-up this fixes. Waiting for online to hold for
+  // a beat before celebrating collapses a whole flapping run into at
+  // most one toast: the effect's own cleanup cancels the pending timer
+  // the instant it flips offline again, before it ever fires.
   useEffect(() => {
     if (!online) {
       wasOffline.current = true;
-    } else if (wasOffline.current) {
-      wasOffline.current = false;
-      toast.success("Back online");
+      return;
     }
+    if (!wasOffline.current) return;
+    const timer = setTimeout(() => {
+      wasOffline.current = false;
+      // A stable id, not a fresh toast per call, as defense in depth —
+      // if this still somehow fires more than once, sonner replaces the
+      // existing toast instead of stacking a new one on top of it.
+      toast.success("Back online", { id: "connectivity" });
+    }, 1500);
+    return () => clearTimeout(timer);
   }, [online]);
 
   return (
