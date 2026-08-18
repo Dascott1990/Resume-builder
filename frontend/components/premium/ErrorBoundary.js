@@ -23,6 +23,7 @@
  */
 
 import React from "react";
+import * as Sentry from "@sentry/nextjs";
 import ErrorScreen from "./shared/ErrorScreen";
 
 class ErrorBoundary extends React.Component {
@@ -39,8 +40,14 @@ class ErrorBoundary extends React.Component {
     this.setState({ componentStack: info?.componentStack || null });
     // Always visible in dev tools without leaking a stack trace to the user...
     console.error("Resume Builder crashed:", error, info?.componentStack);
-    // ...and pluggable into real logging (Sentry, etc.) via a prop, so this
-    // component doesn't need to know which logging service the app uses.
+    // ...and reported for real (Sentry.init is a no-op until
+    // NEXT_PUBLIC_SENTRY_DSN is set, so this is safe to fire unconditionally
+    // even before that's configured — it just goes nowhere until it is).
+    // React render crashes are exactly what Sentry's own global handlers
+    // CAN'T see on their own; this is what actually surfaces them.
+    Sentry.captureException(error, { contexts: { react: { componentStack: info?.componentStack } } });
+    // Still pluggable via a prop for any call site that wants MORE than
+    // the default reporting above, not instead of it.
     this.props.onError?.(error, info);
   }
 

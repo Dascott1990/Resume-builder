@@ -10,9 +10,19 @@
  * assumed to be working, so it's plain inline-styled markup and the flat
  * SVG mark (LogoMark) rather than anything that could itself fail.
  */
+import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 import { LogoMark } from "@/components/premium/Logo";
 
-export default function GlobalError() {
+export default function GlobalError({ error }) {
+  // A side-effect only — nothing rendered below changes. The root layout
+  // itself just crashed, which is exactly why this file stays this
+  // minimal in the first place (see the file-level comment); reporting it
+  // is the one thing worth doing before this screen is all that's left.
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
+
   return (
     <html lang="en">
       <body

@@ -8,6 +8,30 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Error tracking — a no-op until SENTRY_DSN is actually set (local dev
+# never needs it, and a missing/unset DSN must never be the thing that
+# breaks boot). LoggingIntegration is what makes this actually cheap to
+# maintain: error_handlers.py's existing logger.error(..., exc_info=True)
+# calls (the catch-all 500 handler, the generic Exception handler) already
+# capture every unhandled backend exception with a full traceback — this
+# just also ships each one to Sentry, with zero changes needed at any of
+# those call sites, now or for any future one that follows the same
+# logger.error() pattern.
+_sentry_dsn = os.environ.get("SENTRY_DSN")
+if _sentry_dsn:
+    import sentry_sdk
+    from sentry_sdk.integrations.flask import FlaskIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        integrations=[FlaskIntegration(), LoggingIntegration(level=None, event_level="ERROR")],
+        # Light performance tracing, not 100% — this is a free-tier quota,
+        # not something to burn through on a small app's normal traffic.
+        traces_sample_rate=0.1,
+        environment=os.environ.get("SENTRY_ENVIRONMENT", "production"),
+    )
+
 db = SQLAlchemy()
 # Keyed by IP — every rate-limited route here (auth, AI generation) is
 # reachable with no login at all by design (see get_scope's docstring), so

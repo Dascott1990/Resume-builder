@@ -10,11 +10,13 @@
  * the contract Next.js calls this with.
  */
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 import ErrorScreen from "@/components/premium/shared/ErrorScreen";
 
 export default function Error({ error, reset }) {
   useEffect(() => {
     console.error("Noviq crashed (segment boundary):", error);
+    Sentry.captureException(error);
   }, [error]);
 
   const variant = error?.code === "NETWORK_ERROR" ? "offline" : "crash";
