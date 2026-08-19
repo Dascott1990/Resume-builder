@@ -9,7 +9,9 @@ DELETE /api/v1/resume/<resume_id>
 
 import os
 import io
+import re
 import json
+import time
 import uuid
 import anthropic
 import requests
@@ -26,6 +28,19 @@ resume_bp = Blueprint("resume", __name__)
 CLAUDE_MODEL = "claude-opus-5"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "openai/gpt-oss-120b"
+
+# Groq's free/on-demand tier caps tokens-per-minute fairly low (8000 TPM at
+# time of writing) — easy to hit with a handful of resume generations back
+# to back, and near-certain to succeed a few seconds later once the window
+# rolls over. Without a retry here, a transient 429 fails the request
+# outright (worse: it also burns the Claude-then-Groq fallback's LAST
+# chance, since this only runs after Claude already failed). Same pattern
+# as agent/loop.py's _with_rate_limit_retry, sized for a synchronous HTTP
+# request a user is actively waiting on rather than a long-running agent.
+MAX_RATE_LIMIT_RETRIES = 2
+DEFAULT_RATE_LIMIT_BACKOFF = 3
+MAX_RATE_LIMIT_BACKOFF = 10
+_RETRY_AFTER_RE = re.compile(r"try again in ([\d.]+)s", re.IGNORECASE)
 
 def _claude(messages: list, system: str, effort: str = "medium", max_tokens: int = 2000) -> str:
     api_key = os.environ.get("CLAUDE_API_KEY", "")
@@ -68,40 +83,58 @@ def _groq(messages: list, temperature: float = 0.4, max_tokens: int = 2000) -> s
     if not api_key:
         raise APIError("GROQ_API_KEY not configured", 500)
 
-    try:
-        res = requests.post(
-            GROQ_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": GROQ_MODEL,
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "reasoning_effort": "low",
-                "stream": False,
-            },
-            timeout=60,
-        )
+    attempt = 0
+    while True:
+        try:
+            res = requests.post(
+                GROQ_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": GROQ_MODEL,
+                    "messages": messages,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                    "reasoning_effort": "low",
+                    "stream": False,
+                },
+                timeout=60,
+            )
 
-        if not res.ok:
-            error_msg = f"Groq API error: HTTP {res.status_code}"
-            try:
-                error_data = res.json()
-                if "error" in error_data:
-                    error_msg = error_data["error"].get("message", error_msg)
-            except Exception:
-                pass
-            raise APIError(error_msg, 502)
+            if res.status_code == 429 and attempt < MAX_RATE_LIMIT_RETRIES:
+                attempt += 1
+                retry_after = None
+                header_val = res.headers.get("retry-after")
+                if header_val:
+                    try:
+                        retry_after = float(header_val)
+                    except ValueError:
+                        pass
+                if retry_after is None:
+                    match = _RETRY_AFTER_RE.search(res.text)
+                    if match:
+                        retry_after = float(match.group(1))
+                time.sleep(min(retry_after or DEFAULT_RATE_LIMIT_BACKOFF, MAX_RATE_LIMIT_BACKOFF))
+                continue
 
-        return res.json()["choices"][0]["message"]["content"].strip()
+            if not res.ok:
+                error_msg = f"Groq API error: HTTP {res.status_code}"
+                try:
+                    error_data = res.json()
+                    if "error" in error_data:
+                        error_msg = error_data["error"].get("message", error_msg)
+                except Exception:
+                    pass
+                raise APIError(error_msg, 502)
 
-    except requests.exceptions.Timeout:
-        raise APIError("AI generation timed out. Please try again.", 504)
-    except requests.exceptions.RequestException as e:
-        raise APIError(f"Network error while calling AI: {str(e)}", 502)
+            return res.json()["choices"][0]["message"]["content"].strip()
+
+        except requests.exceptions.Timeout:
+            raise APIError("AI generation timed out. Please try again.", 504)
+        except requests.exceptions.RequestException as e:
+            raise APIError(f"Network error while calling AI: {str(e)}", 502)
 
 def _ai_complete(system: str, prompt: str, effort: str = "medium", max_tokens: int = 2000, groq_temperature: float = 0.4) -> str:
     """Generate text via Claude, falling back to Groq if Claude fails for any reason."""
@@ -182,6 +215,63 @@ SCAN_TITLE_EXTRACTION_RULE = """TITLE EXTRACTION (do this first, before anything
 - Only fall back to the candidate's own current/most recent job title (as found in the raw resume
   text below) if the job description genuinely contains no discernible title anywhere in the text."""
 
+# A real, common gap the fixed 4-section schema below doesn't have room for
+# on its own: licensed/regulated roles (nursing, commercial driving, real
+# estate, teaching, project management, trades, etc.) live or die on the
+# candidate visibly holding the right credential — burying "RN license" or
+# "CDL Class A" inside a generic Skills bullet list is exactly what a
+# recruiter or ATS keyword scan for "certifications" would miss. Kept
+# conditional (not always injected) so a barista or cashier resume doesn't
+# get a padded, empty-feeling section it has no business having.
+CERTIFICATIONS_RULE = """CERTIFICATIONS & LICENSES (include only when relevant — do not force this):
+- Scan both the job posting and the candidate's own background/skills/experience for any
+  professional certification, license, clearance, or credential (examples: RN/LPN license, CDL,
+  PMP, CPA, Series 7/63, OSHA 10/30, teaching certification, real estate license, security
+  clearance, food handler's card, CPR/first aid, AWS/technical certifications).
+- If the candidate genuinely holds one or more of these, add them as their own section — id
+  "certifications", label "Certifications & Licenses", type "bullets" — with each credential as
+  its own bullet. Do this whether or not the job posting explicitly asks for it, as long as the
+  candidate's own background actually supports it. Do NOT fold these into the Skills section.
+- If nothing like this genuinely applies to the candidate, omit the section entirely — never
+  invent a credential the candidate didn't provide, and never add an empty or padded section."""
+
+# The current schema/tone below defaults to American resume conventions
+# unconditionally, regardless of where the job actually is — a UK posting
+# still gets "resume" instead of "CV", US spelling, etc. This is the one
+# rule block that makes the output actually depend on the detected job
+# location rather than just displaying it in the location field.
+LOCATION_CONVENTIONS_RULE = """REGIONAL CONVENTIONS (apply based on the job's actual location, not the candidate's):
+- Determine the target country from the job posting's location. If the posting states no
+  location at all, use the candidate's own stated location ({location}) instead. If neither
+  gives a usable signal, default to standard American resume conventions unchanged.
+- United States / Canada: call it a "resume", American English spelling (color, optimize,
+  organize), dates as "Month YYYY" (e.g. "March 2021").
+- United Kingdom / Ireland / Nigeria / Ghana / other Commonwealth-convention countries: call it a
+  "CV", British English spelling (colour, optimise, organise, programme), dates as "Month YYYY".
+- Germany / France / other continental European countries: call it a "CV", British/international
+  English spelling (the app's output stays in English), dates as "Month YYYY", and a slightly more
+  formal, measured tone than the punchier American default.
+- This affects word choice (resume/CV), spelling, and date formatting throughout the output —
+  including the cover letter and section labels where natural — not just the contact block."""
+
+# Same as LOCATION_CONVENTIONS_RULE, for the scan-and-tailor flow — which has
+# no separate candidate-location form field to fall back to (the candidate's
+# location, if stated, is inside the raw resume text itself, not a kwarg),
+# so the fallback line reads differently.
+SCAN_LOCATION_CONVENTIONS_RULE = """REGIONAL CONVENTIONS (apply based on the job's actual location, not the candidate's):
+- Determine the target country from the job posting's location. If the posting states no
+  location at all, use whatever location appears in the candidate's own raw resume text instead.
+  If neither gives a usable signal, default to standard American resume conventions unchanged.
+- United States / Canada: call it a "resume", American English spelling (color, optimize,
+  organize), dates as "Month YYYY" (e.g. "March 2021").
+- United Kingdom / Ireland / Nigeria / Ghana / other Commonwealth-convention countries: call it a
+  "CV", British English spelling (colour, optimise, organise, programme), dates as "Month YYYY".
+- Germany / France / other continental European countries: call it a "CV", British/international
+  English spelling (the app's output stays in English), dates as "Month YYYY", and a slightly more
+  formal, measured tone than the punchier American default.
+- This affects word choice (resume/CV), spelling, and date formatting throughout the output —
+  including the cover letter and section labels where natural — not just the contact block."""
+
 # Prompt templates
 PROMPT_TEMPLATE = """USER INFO:
 Name: {name}
@@ -198,6 +288,10 @@ JOB DESCRIPTION:
 {job_description}
 
 """ + TITLE_EXTRACTION_RULE + """
+
+""" + CERTIFICATIONS_RULE + """
+
+""" + LOCATION_CONVENTIONS_RULE + """
 
 TASK:
 1. Extract the 8-12 most important ATS keywords from the job description.
@@ -228,6 +322,12 @@ Return this exact JSON structure (no other text):
       "label": "Core Competencies",
       "type": "bullets",
       "items": ["skill matching JD keyword", "..."]
+    }},
+    {{
+      "id": "certifications",
+      "label": "Certifications & Licenses",
+      "type": "bullets",
+      "items": ["only include this whole section when it genuinely applies — see CERTIFICATIONS rule above"]
     }},
     {{
       "id": "experience",
@@ -281,6 +381,10 @@ JOB DESCRIPTION:
 
 """ + TITLE_EXTRACTION_RULE + """
 
+""" + CERTIFICATIONS_RULE + """
+
+""" + LOCATION_CONVENTIONS_RULE + """
+
 COMPANY EXTRACTION:
 - Also find the employer/company name from the posting if it's stated anywhere. If genuinely absent,
   use null — never invent one.
@@ -333,6 +437,7 @@ Return this exact JSON structure (no other text, no markdown fences):
   "sections": [
     {{ "id": "summary", "label": "Professional Summary", "type": "text", "content": "..." }},
     {{ "id": "skills", "label": "Core Competencies", "type": "bullets", "items": ["..."] }},
+    {{ "id": "certifications", "label": "Certifications & Licenses", "type": "bullets", "items": ["only include this whole section when it genuinely applies — see CERTIFICATIONS rule above"] }},
     {{ "id": "experience", "label": "Experience", "type": "jobs", "jobs": [
         {{ "role": "...", "company": "...", "period": "...", "location": "...", "bullets": ["..."] }}
     ] }},
@@ -356,6 +461,30 @@ Rules:
 - The cover letter must sound like a real person wrote it, follow the shape specified above, and
   avoid every banned phrase listed above.
 - Return ONLY the JSON object."""
+
+def _strip_empty_sections(parsed: dict) -> dict:
+    """Defends against the AI including a section with a label but no real
+    content underneath it — e.g. an empty "certifications" items list when
+    the prompt's own "omit if not applicable" instruction wasn't followed.
+    That's technically valid JSON, so it sails through json.loads(), but it
+    renders as an empty section heading with nothing under it. Checked here
+    once, applied to every generation path, rather than trusting the model
+    to always honor the omit-if-empty instructions in each prompt."""
+    def has_content(sec):
+        t = sec.get("type")
+        if t == "text":
+            return bool((sec.get("content") or "").strip())
+        if t == "bullets":
+            return bool([i for i in (sec.get("items") or []) if str(i).strip()])
+        if t == "jobs":
+            return bool(sec.get("jobs"))
+        if t == "education":
+            return bool(sec.get("degrees"))
+        return True  # unrecognized type — leave it alone rather than guess
+    if isinstance(parsed.get("sections"), list):
+        parsed["sections"] = [s for s in parsed["sections"] if has_content(s)]
+    return parsed
+
 
 def _extract_text_from_pdf(file_bytes: bytes) -> str:
     try:
@@ -388,6 +517,12 @@ reorganizing what's actually there. Do NOT invent, embellish, or add anything th
 genuinely present in the source text. If a field truly isn't findable, use an empty string
 ("") for text fields or an empty array ([]) for lists — never fabricate a placeholder.
 
+CERTIFICATIONS & LICENSES: if the source text lists any certification, license, clearance, or
+credential (RN license, CDL, PMP, CPA, OSHA cards, teaching certification, etc.), extract them
+into their OWN section — id "certifications", label "Certifications & Licenses", type "bullets" —
+rather than mixing them into the Skills list. Omit this section entirely if the source text has
+nothing like this.
+
 Return this exact JSON structure (no other text, no markdown fences):
 {{
   "contact": {{
@@ -400,6 +535,7 @@ Return this exact JSON structure (no other text, no markdown fences):
   "sections": [
     {{ "id": "summary", "label": "Professional Summary", "type": "text", "content": "the resume's own summary/objective text, reworded only for clarity, or empty string if none exists" }},
     {{ "id": "skills", "label": "Skills", "type": "bullets", "items": ["each distinct skill found, one per item"] }},
+    {{ "id": "certifications", "label": "Certifications & Licenses", "type": "bullets", "items": ["only include this whole section if the source text has any — see rule above"] }},
     {{ "id": "experience", "label": "Experience", "type": "jobs", "jobs": [
         {{ "role": "job title", "company": "employer name", "period": "date range as written", "bullets": ["each responsibility/achievement bullet found under this job"] }}
     ] }},
@@ -428,6 +564,10 @@ JOB DESCRIPTION:
 {job_description}
 
 """ + SCAN_TITLE_EXTRACTION_RULE + """
+
+""" + CERTIFICATIONS_RULE + """
+
+""" + SCAN_LOCATION_CONVENTIONS_RULE + """
 
 COMPANY EXTRACTION:
 - Also find the employer/company name from the posting if it's stated anywhere. If genuinely absent,
@@ -486,6 +626,7 @@ Return this exact JSON structure (no other text, no markdown fences):
   "sections": [
     {{ "id": "summary", "label": "Professional Summary", "type": "text", "content": "..." }},
     {{ "id": "skills", "label": "Core Competencies", "type": "bullets", "items": ["..."] }},
+    {{ "id": "certifications", "label": "Certifications & Licenses", "type": "bullets", "items": ["only include this whole section when it genuinely applies — see CERTIFICATIONS rule above"] }},
     {{ "id": "experience", "label": "Experience", "type": "jobs", "jobs": [
         {{ "role": "...", "company": "...", "period": "...", "location": "...", "bullets": ["..."] }}
     ] }},
@@ -548,7 +689,7 @@ def scan_resume():
     clean = raw.replace("```json", "").replace("```", "").strip()
 
     try:
-        parsed = json.loads(clean)
+        parsed = _strip_empty_sections(json.loads(clean))
     except json.JSONDecodeError as e:
         raise APIError(f"AI returned invalid JSON: {str(e)}", 502)
 
@@ -643,7 +784,7 @@ def generate_resume():
     clean = raw.replace("```json", "").replace("```", "").strip()
 
     try:
-        parsed = json.loads(clean)
+        parsed = _strip_empty_sections(json.loads(clean))
     except json.JSONDecodeError as e:
         print(f"❌ JSON parse error: {e}")
         print(f"Raw response: {raw[:500]}")
@@ -727,7 +868,7 @@ def optimize_resume():
     clean = raw.replace("```json", "").replace("```", "").strip()
 
     try:
-        parsed = json.loads(clean)
+        parsed = _strip_empty_sections(json.loads(clean))
     except json.JSONDecodeError as e:
         print(f"❌ JSON parse error: {e}")
         print(f"Raw response: {raw[:500]}")
@@ -898,7 +1039,7 @@ def _score_resume(resume: dict, job_context: str) -> dict:
     clean = raw.replace("```json", "").replace("```", "").strip()
 
     try:
-        parsed = json.loads(clean)
+        parsed = _strip_empty_sections(json.loads(clean))
     except json.JSONDecodeError as e:
         raise APIError(f"AI returned invalid JSON: {str(e)}", 502)
 

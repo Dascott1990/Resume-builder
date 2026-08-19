@@ -2,6 +2,7 @@
 import os
 import re
 import io
+import time
 import secrets
 import anthropic
 import requests
@@ -52,6 +53,12 @@ def _apply_geocode(a, city):
 CLAUDE_MODEL = "claude-opus-5"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "openai/gpt-oss-120b"
+
+# See resume.py's identical constants for why: Groq's free-tier TPM limit is
+# easy to hit and near-certain to clear within a few seconds.
+MAX_RATE_LIMIT_RETRIES = 2
+DEFAULT_RATE_LIMIT_BACKOFF = 3
+MAX_RATE_LIMIT_BACKOFF = 10
 
 
 def _clean_years_experience(raw):
@@ -164,26 +171,32 @@ def _groq_bio(trade, years_experience, notes):
         raise APIError("GROQ_API_KEY not configured", 500)
 
     prompt = _bio_prompt(trade, years_experience, notes)
-    try:
-        res = requests.post(
-            GROQ_URL,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": GROQ_MODEL, "max_tokens": 200, "temperature": 0.5, "reasoning_effort": "low",
-                "messages": [
-                    {"role": "system", "content": BIO_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-            },
-            timeout=30,
-        )
-        if not res.ok:
-            raise APIError("AI bio generation failed", 502)
-        return res.json()["choices"][0]["message"]["content"].strip()
-    except requests.exceptions.Timeout:
-        raise APIError("AI bio generation timed out", 504)
-    except requests.exceptions.RequestException as e:
-        raise APIError(f"Network error while calling AI: {e}", 502)
+    attempt = 0
+    while True:
+        try:
+            res = requests.post(
+                GROQ_URL,
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": GROQ_MODEL, "max_tokens": 200, "temperature": 0.5, "reasoning_effort": "low",
+                    "messages": [
+                        {"role": "system", "content": BIO_SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
+                },
+                timeout=30,
+            )
+            if res.status_code == 429 and attempt < MAX_RATE_LIMIT_RETRIES:
+                attempt += 1
+                time.sleep(DEFAULT_RATE_LIMIT_BACKOFF)
+                continue
+            if not res.ok:
+                raise APIError("AI bio generation failed", 502)
+            return res.json()["choices"][0]["message"]["content"].strip()
+        except requests.exceptions.Timeout:
+            raise APIError("AI bio generation timed out", 504)
+        except requests.exceptions.RequestException as e:
+            raise APIError(f"Network error while calling AI: {e}", 502)
 
 
 def _polish_bio(trade, years_experience, notes):
