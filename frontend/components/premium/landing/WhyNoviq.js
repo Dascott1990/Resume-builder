@@ -35,7 +35,7 @@ const FEATURES = [
 // Subtle pointer-tracked tilt on desktop only (a mouse is required for the
 // illusion to read correctly) — a light, GPU-cheap rotateX/rotateY spring,
 // not a full parallax scene, so it stays smooth on modest hardware.
-function TiltCard({ children, delay }) {
+function TiltCard({ children, delay, className }) {
   const ref = useRef(null);
   const mx = useMotionValue(0.5);
   const my = useMotionValue(0.5);
@@ -51,7 +51,7 @@ function TiltCard({ children, delay }) {
   const onMouseLeave = () => { mx.set(0.5); my.set(0.5); };
 
   return (
-    <Reveal delay={delay} className="[perspective:1000px]">
+    <Reveal delay={delay} className={`[perspective:1000px] ${className || ""}`}>
       <motion.div
         ref={ref}
         onMouseMove={onMouseMove}
@@ -76,14 +76,25 @@ export function WhyNoviq() {
           </h2>
         </Reveal>
 
+        {/* 5 cards in a 2-column grid — an odd count would otherwise leave
+            the last card alone in a mostly-empty row on every width from
+            sm up (this is what iPad landing/dashboard were both actually
+            hitting). The last card spans both columns and self-centers
+            instead, reading as a deliberate closing card, not a leftover. */}
         <div className="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2">
           {FEATURES.map((f, i) => (
-            <TiltCard key={f.title} delay={i * 0.08}>
-              <div className="flex size-11 items-center justify-center rounded-xl border border-primary/25 bg-primary/10">
-                <f.Icon className="size-5 text-primary" />
+            <TiltCard
+              key={f.title}
+              delay={i * 0.08}
+              className={i === FEATURES.length - 1 ? "sm:col-span-2" : ""}
+            >
+              <div className={i === FEATURES.length - 1 ? "sm:mx-auto sm:max-w-md" : ""}>
+                <div className="flex size-11 items-center justify-center rounded-xl border border-primary/25 bg-primary/10">
+                  <f.Icon className="size-5 text-primary" />
+                </div>
+                <h3 className="m-0 mt-4 text-[16.5px] font-bold text-foreground">{f.title}</h3>
+                <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-muted-foreground">{f.body}</p>
               </div>
-              <h3 className="m-0 mt-4 text-[16.5px] font-bold text-foreground">{f.title}</h3>
-              <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-muted-foreground">{f.body}</p>
             </TiltCard>
           ))}
         </div>

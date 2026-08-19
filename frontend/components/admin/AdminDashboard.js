@@ -158,7 +158,10 @@ function OverviewTab() {
       {loading && !stats ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="size-5 animate-spin" /></div>
       ) : stats ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {/* No sm:grid-cols-3 — with exactly 8 cards, 3 columns leaves an
+            orphaned card alone in the last row on tablet-width screens.
+            2 and 4 both divide 8 evenly. */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard icon={Users} label="Total users" value={stats.users} />
           <StatCard icon={ShieldCheck} label="Admins" value={stats.admins} />
           <StatCard icon={Users} label="New users (7d)" value={stats.new_users_7d} />

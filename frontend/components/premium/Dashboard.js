@@ -213,7 +213,12 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go }
 
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }} className="mb-6">
         <SectionHeader>Quick actions</SectionHeader>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {/* A flat 2-column grid at every width, deliberately not 3 at sm —
+            with exactly 4 tiles, 3 columns leaves the last tile orphaned
+            alone in an otherwise-empty row (confirmed on iPad-width
+            screens: 768-1023px hits sm but not lg, so it never gets to a
+            clean 4-per-row either). 2 columns divides 4 evenly everywhere. */}
+        <div className="grid grid-cols-2 gap-3">
           <ActionTile Icon={Sparkles} label="Apply with AI" sub="Fill out a real application" onClick={() => go("apply")} />
           <ActionTile Icon={ScanLine} label="CV Scan" sub="Import an existing resume" onClick={() => go("scan")} />
           <ActionTile Icon={ClipboardList} label="Job Tracker" sub="Track your applications" onClick={() => go("jobtracker")} />
