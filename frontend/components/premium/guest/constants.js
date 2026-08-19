@@ -16,7 +16,7 @@ export const FONTS = [
   { id: "helvetica", label: "Helvetica",        css: "Helvetica, Arial, sans-serif" },
 ];
 
-export const DEFAULT_STYLE = { accent: "navy", fontSize: 11, lineHeight: 1.4, font: "calibri" };
+export const DEFAULT_STYLE = { accent: "navy", fontSize: 11, lineHeight: 1.4, font: "calibri", layout: "classic" };
 
 export const EMPTY_INFO = {
   name: "", title: "", location: "", email: "", phone: "",

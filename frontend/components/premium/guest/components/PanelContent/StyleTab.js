@@ -1,12 +1,28 @@
 "use client";
 import { Check } from "lucide-react";
 import { FONTS, ACCENTS } from "../../constants";
+import { LAYOUTS } from "../../../shared/resumeLayouts/registry";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Btn } from "../primitives";
 
 export function StyleTab({ docStyle, setDocStyle, isDesktop, onPreview }) {
   return (
     <div className="p-4">
+      {/* Layout */}
+      <p className="m-0 mb-1.5 text-xs text-muted-foreground">Layout</p>
+      <div className="mb-[18px] flex flex-col gap-1.5">
+        {LAYOUTS.map(l => (
+          <button key={l.id} onClick={() => setDocStyle(s => ({ ...s, layout: l.id }))}
+            aria-pressed={(docStyle.layout || "classic") === l.id}
+            className={`min-h-[52px] rounded-md border px-3 py-2 text-left ${
+              (docStyle.layout || "classic") === l.id ? "border-primary/30 bg-primary/10" : "border-border bg-card"
+            }`}>
+            <p className={`m-0 text-sm ${(docStyle.layout || "classic") === l.id ? "font-bold text-foreground" : "font-normal text-muted-foreground"}`}>{l.label}</p>
+            <p className="m-0 mt-0.5 text-[11px] text-muted-foreground/70">{l.description}</p>
+          </button>
+        ))}
+      </div>
+
       {/* Font family */}
       <p className="m-0 mb-1.5 text-xs text-muted-foreground">Font family</p>
       <ToggleGroup

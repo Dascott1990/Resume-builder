@@ -101,3 +101,29 @@ export function usePaginatedBlocks(blocks, { pageContentWidth, pageContentHeight
 
   return { pages, measureLayer };
 }
+
+// A single node's real rendered height at a given width — same measure-
+// off-screen-then-read-offsetHeight technique as usePaginatedBlocks above,
+// but for one fixed block whose height needs to be known (not split), e.g.
+// a sidebar's contact header that repeats on every page and needs its
+// height subtracted from how much room is left for paginated content.
+export function useMeasuredHeight(node, width, deps) {
+  const ref = useRef(null);
+  const [height, setHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    setHeight(ref.current?.offsetHeight || 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [width, ...deps]);
+
+  const measureLayer = (
+    <div
+      aria-hidden="true"
+      style={{ position: "absolute", top: 0, left: -99999, width, visibility: "hidden", pointerEvents: "none" }}
+    >
+      <div ref={ref} style={{ display: "flow-root" }}>{node}</div>
+    </div>
+  );
+
+  return { height, measureLayer };
+}

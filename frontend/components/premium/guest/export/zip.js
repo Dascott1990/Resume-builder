@@ -39,7 +39,7 @@ export async function zipDocx(xml) {
     const crc   = crc32(data);
     const local = new Uint8Array(30 + nameB.length);
     const dv    = new DataView(local.buffer);
-    dv.setUint32(0,  0x04034B50, false); // signature
+    dv.setUint32(0,  0x04034B50, true);  // signature — little-endian, like every field below it (this was previously `false`/big-endian, which put the four signature bytes on disk in reverse order: 04 03 4B 50 instead of the real "PK\x03\x04" — 50 4B 03 04 — silently producing a file no zip reader, and so no copy of Word, could ever open)
     dv.setUint16(4,  20, true);          // version needed
     dv.setUint16(6,  0,  true);          // flags
     dv.setUint16(8,  0,  true);          // method: store
@@ -59,7 +59,7 @@ export async function zipDocx(xml) {
   const centralParts = entries.map(e => {
     const c = new Uint8Array(46 + e.nameB.length);
     const dv = new DataView(c.buffer);
-    dv.setUint32(0,  0x02014B50, false);
+    dv.setUint32(0,  0x02014B50, true); // signature — see local file header's own comment above on why this must be little-endian
     dv.setUint16(4,  20, true);
     dv.setUint16(6,  20, true);
     dv.setUint16(8,  0,  true);
@@ -83,7 +83,7 @@ export async function zipDocx(xml) {
   const centralSize   = centralParts.reduce((s, c) => s + c.length, 0);
   const eocd          = new Uint8Array(22);
   const eocdDv        = new DataView(eocd.buffer);
-  eocdDv.setUint32(0, 0x06054B50, false);
+  eocdDv.setUint32(0, 0x06054B50, true); // signature — see local file header's own comment above on why this must be little-endian
   eocdDv.setUint16(4, 0, true);
   eocdDv.setUint16(6, 0, true);
   eocdDv.setUint16(8,  entries.length, true);

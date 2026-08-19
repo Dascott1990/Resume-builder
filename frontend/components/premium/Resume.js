@@ -17,9 +17,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Layers, Palette, Check, PanelLeft, FileText, Sparkle, Download, X } from "lucide-react";
 import ResumeGuestMode from "./guest";
-import { usePaginatedBlocks } from "./shared/paginateBlocks";
-import { ResumePageSheet } from "./shared/ResumePageSheet";
 import { printPdf } from "./shared/printPdf";
+import { ResumeDocument } from "./shared/ResumeDocument";
+import { LAYOUTS } from "./shared/resumeLayouts/registry";
+import { FONTS, ACCENTS } from "./guest/constants";
+import { downloadDocx } from "./guest/export/docx";
 import Logo from "./Logo";
 import Flag3D from "./flag/Flag3D";
 import { useCountryDetect } from "@/lib/useCountryDetect";
@@ -577,164 +579,10 @@ const REGION_GROUPS = [
   { label: "INTERNATIONAL FORMATS", keys: ["usa", "uk", "germany", "france", "africa"] },
 ];
 
-// ── Style presets ──────────────────────────────────────────────────────────────
-const FONTS = [
-  { id: "calibri",   label: "Calibri",         css: "Calibri, 'Gill Sans', sans-serif" },
-  { id: "times",     label: "Times New Roman",  css: "'Times New Roman', Times, serif" },
-  { id: "arial",     label: "Arial",            css: "Arial, Helvetica, sans-serif" },
-  { id: "garamond",  label: "Garamond",         css: "Garamond, 'EB Garamond', Georgia, serif" },
-  { id: "georgia",   label: "Georgia",          css: "Georgia, 'Times New Roman', serif" },
-  { id: "helvetica", label: "Helvetica",        css: "Helvetica, Arial, sans-serif" },
-];
-
 const MODE_TABS = [
   { id: "mine", label: "My Resumes", Icon: FileText },
   { id: "guest", label: "Guest Mode · AI", Icon: Sparkle },
 ];
-
-const ACCENTS = [
-  { id: "navy",   label: "Navy",    hex: "#1F3864" },
-  { id: "black",  label: "Classic", hex: "#1A1A1A" },
-  { id: "teal",   label: "Teal",    hex: "#0D5C6B" },
-  { id: "forest", label: "Forest",  hex: "#1E4D2B" },
-  { id: "wine",   label: "Wine",    hex: "#6B1A3A" },
-  { id: "steel",  label: "Steel",   hex: "#2C4A6B" },
-];
-
-// ── DOCX / ZIP generation (unchanged from original) ───────────────────────────
-function generateDocx(resume, style) {
-  const { contact, sections } = resume;
-  const font = FONTS.find(f => f.id === style.font)?.label || "Calibri";
-  const accent = ACCENTS.find(a => a.id === style.accent)?.hex || "#1F3864";
-  const accentHex = accent.replace("#", "");
-  const sz = Math.round(style.fontSize * 2);
-  const szSm = Math.round((style.fontSize - 1) * 2);
-
-  const escXml = (s) => String(s || "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
-
-  const para = (runs, opts = {}) => {
-    const spacing = opts.spacingAfter ?? 120;
-    const spacingBefore = opts.spacingBefore ?? 0;
-    const align = opts.align ?? "left";
-    const border = opts.border ?? "";
-    const indent = opts.indent ?? "";
-    const numXml = opts.bullet ? `<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>` : "";
-    return `<w:p><w:pPr>${numXml}<w:spacing w:before="${spacingBefore}" w:after="${spacing}"/><w:jc w:val="${align}"/>${border}${indent}</w:pPr>${runs}</w:p>`;
-  };
-
-  const run = (text, opts = {}) => {
-    const bold   = opts.bold ? "<w:b/>" : "";
-    const italic = opts.italic ? "<w:i/>" : "";
-    const size   = opts.size ?? sz;
-    const color  = opts.color ?? "auto";
-    const colorXml = color !== "auto" ? `<w:color w:val="${color.replace("#","")}"/>` : "";
-    const spacing = opts.charSpacing ? `<w:spacing w:val="${opts.charSpacing}"/>` : "";
-    return `<w:r><w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}"/>${bold}${italic}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/>${colorXml}${spacing}</w:rPr><w:t xml:space="preserve">${escXml(text)}</w:t></w:r>`;
-  };
-
-  let body = "";
-  body += para(run(contact.name, { bold: true, size: Math.round(style.fontSize * 2 + 8), color: accentHex, charSpacing: 20 }), { align: "center", spacingAfter: 40 });
-  body += para(run(contact.title, { size: sz + 2, italic: true, color: "595959" }), { align: "center", spacingAfter: 60 });
-  const contactLine = [contact.location, contact.phone, contact.email].filter(Boolean).join("  |  ");
-  body += para(run(contactLine, { size: szSm, color: "595959" }), {
-    align: "center", spacingAfter: 200,
-    border: `<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="${accentHex}"/></w:pBdr>`,
-  });
-
-  for (const section of sections) {
-    body += para(run(section.label.toUpperCase(), { bold: true, size: sz + 2, color: accentHex, charSpacing: 40 }), {
-      spacingBefore: 180, spacingAfter: 80,
-      border: `<w:pBdr><w:bottom w:val="single" w:sz="4" w:space="1" w:color="${accentHex}"/></w:pBdr>`,
-    });
-    if (section.type === "text") {
-      body += para(run(section.content, { size: sz }), { spacingAfter: 100 });
-    } else if (section.type === "bullets") {
-      for (const item of (section.items || [])) {
-        body += para(run(item, { size: sz }), { bullet: true, spacingAfter: 60 });
-      }
-    } else if (section.type === "jobs") {
-      for (const job of (section.jobs || [])) {
-        body += para(
-          run(job.role, { bold: true, size: sz }) + run(`  ${job.company}`, { size: sz }) +
-          `<w:r><w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}"/><w:sz w:val="${sz}"/></w:rPr><w:tab/></w:r>` +
-          run(job.period, { size: szSm, color: "595959" }),
-          { spacingAfter: 60, spacingBefore: 100 }
-        );
-        for (const b of (job.bullets || [])) {
-          body += para(run(b, { size: sz }), { bullet: true, spacingAfter: 40 });
-        }
-      }
-    } else if (section.type === "education") {
-      for (const deg of (section.degrees || [])) {
-        body += para(
-          run(deg.degree, { bold: true, size: sz }) + run(`  •  ${deg.school}`, { size: sz }) + run(`  •  ${deg.location}`, { size: szSm, color: "595959" }),
-          { spacingAfter: 40, spacingBefore: 80 }
-        );
-        body += para(run(deg.period, { size: szSm, italic: true, color: "595959" }), { spacingAfter: 80 });
-      }
-    }
-  }
-
-  const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080"/></w:sectPr></w:body></w:document>`;
-  const numXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="&#x2022;"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="360" w:hanging="360"/></w:pPr><w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol"/></w:rPr></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`;
-  const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/></Relationships>`;
-  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:lang w:val="en-CA"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>`;
-  const appXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Microsoft Office Word</Application></Properties>`;
-  const coreXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:creator>${escXml(contact.name)}</dc:creator><dc:title>${escXml(contact.title)}</dc:title></cp:coreProperties>`;
-  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`;
-  const pkgRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`;
-  return { docXml, numXml, relsXml, stylesXml, appXml, coreXml, contentTypes, pkgRels };
-}
-
-async function buildZip(files) {
-  const enc = new TextEncoder();
-  function crc32(bytes) {
-    const table = [];
-    for (let i = 0; i < 256; i++) { let c = i; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); table[i] = c; }
-    let crc = 0xFFFFFFFF;
-    for (const b of bytes) crc = table[(crc ^ b) & 0xFF] ^ (crc >>> 8);
-    return (crc ^ 0xFFFFFFFF) >>> 0;
-  }
-  function u32le(n) { const b = new Uint8Array(4); b[0]=n&0xFF; b[1]=(n>>8)&0xFF; b[2]=(n>>16)&0xFF; b[3]=(n>>24)&0xFF; return b; }
-  function u16le(n) { const b = new Uint8Array(2); b[0]=n&0xFF; b[1]=(n>>8)&0xFF; return b; }
-  const entries = []; let offset = 0; const parts = [];
-  for (const [name, content] of files) {
-    const nameBytes = enc.encode(name); const data = enc.encode(content); const crc = crc32(data);
-    const local = new Uint8Array([0x50,0x4B,0x03,0x04,0x14,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,...u32le(crc),...u32le(data.length),...u32le(data.length),...u16le(nameBytes.length),0x00,0x00,...nameBytes]);
-    parts.push(local, data); entries.push({ name: nameBytes, crc, size: data.length, offset }); offset += local.length + data.length;
-  }
-  const central = [];
-  for (const e of entries) { const c = new Uint8Array([0x50,0x4B,0x01,0x02,0x14,0x00,0x14,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,...u32le(e.crc),...u32le(e.size),...u32le(e.size),...u16le(e.name.length),0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,...u32le(e.offset),...e.name]); central.push(c); }
-  const centralSize = central.reduce((s, c) => s + c.length, 0);
-  const eocd = new Uint8Array([0x50,0x4B,0x05,0x06,0x00,0x00,0x00,0x00,...u16le(entries.length),...u16le(entries.length),...u32le(centralSize),...u32le(offset),0x00,0x00]);
-  const allParts = [...parts, ...central, eocd];
-  const totalLen = allParts.reduce((s, p) => s + p.length, 0);
-  const result = new Uint8Array(totalLen); let pos = 0;
-  for (const p of allParts) { result.set(p, pos); pos += p.length; }
-  return result;
-}
-
-async function downloadDocx(resume, style) {
-  const xmls = generateDocx(resume, style);
-  const files = [
-    ["[Content_Types].xml", xmls.contentTypes],
-    ["_rels/.rels", xmls.pkgRels],
-    ["word/document.xml", xmls.docXml],
-    ["word/styles.xml", xmls.stylesXml],
-    ["word/numbering.xml", xmls.numXml],
-    ["word/_rels/document.xml.rels", xmls.relsXml],
-    ["docProps/app.xml", xmls.appXml],
-    ["docProps/core.xml", xmls.coreXml],
-  ];
-  const zip = await buildZip(files);
-  const blob = new Blob([zip], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href = url;
-  a.download = `${resume.contact.name.replace(/\s+/g, "_")}_Resume.docx`;
-  a.click(); URL.revokeObjectURL(url);
-}
 
 // PDF export now goes through the same shared printPdf() Guest Mode AI
 // uses (components/premium/shared/printPdf.js) — this used to be its own
@@ -750,217 +598,28 @@ function downloadPdf(previewRef) {
   printPdf(previewRef.current);
 }
 
-// ── Live preview (unchanged) ──────────────────────────────────────────────────
+// ── Live preview ─────────────────────────────────────────────────────────────
 const LETTER_WIDTH_PX = 816;
 const LETTER_HEIGHT_PX = 1056;
 const PREVIEW_PAD_Y_MM = 22;
 const PREVIEW_PAD_X_MM = 20;
-const PREVIEW_MM_TO_PX = 96 / 25.4; // CSS's own mm↔px ratio (a "reference pixel" is always 96/in).
-const PREVIEW_CONTENT_WIDTH = LETTER_WIDTH_PX - PREVIEW_PAD_X_MM * 2 * PREVIEW_MM_TO_PX;
-const PREVIEW_CONTENT_HEIGHT = LETTER_HEIGHT_PX - PREVIEW_PAD_Y_MM * 2 * PREVIEW_MM_TO_PX;
 
-// Real multi-page pagination — see components/premium/shared/paginateBlocks.js
-// for the measure-then-split mechanics, and LivePreview.js (Guest Mode AI's
-// equivalent of this component) for the identical technique and the same
-// block-granularity rules (a job's header glued to its first bullet, every
-// other bullet its own block, so a long job's later bullets can move to the
-// next page independently). Previously this rendered as one continuous div
-// sized to exactly one page — content past that just silently overflowed.
-const Preview = React.forwardRef(({ resume, style, scale = 1, onEditContact, onEditText, onEditBullet, onEditJob, onEditDegree }, ref) => {
-  const font = FONTS.find(f => f.id === style.font)?.css || FONTS[0].css;
-  const accent = ACCENTS.find(a => a.id === style.accent)?.hex || "#1F3864";
-  const fs = style.fontSize;
-  const lh = style.lineHeight;
-
-  const contentStyle = {
-    padding: `${PREVIEW_PAD_Y_MM}mm ${PREVIEW_PAD_X_MM}mm`,
-    fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh, color: "#1A1A1A",
-  };
-
-  const EditableText = ({ value, onChange, style: extraStyle = {}, multiline }) => {
-    const [editing, setEditing] = useState(false);
-    const [val, setVal] = useState(value);
-    const inputRef = useRef(null);
-    useEffect(() => { setVal(value); }, [value]);
-    useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
-    if (editing) {
-      // iOS Safari auto-zooms the whole page on focus if the focused
-      // field's real font-size is under 16px. The resume's own type scale
-      // (9–13pt ≈ 12–17px) sits right in that trap, so the moment someone
-      // tapped a bullet on their phone the screen would zoom in and never
-      // zoom back out on blur. Bumping the *editing* size to 16px (view
-      // mode still renders at the true pt size) fixes it without touching
-      // the printed/exported output at all.
-      const editFontSize = fs * 1.333 < 16 ? "16px" : `${fs}pt`;
-      const sharedStyle = { fontFamily: font, fontSize: editFontSize, lineHeight: lh, border: `2px solid ${accent}`, borderRadius: 3, background: `${accent}10`, outline: "none", padding: "1px 3px", width: "100%", boxSizing: "border-box", ...extraStyle };
-      if (multiline) return <textarea ref={inputRef} value={val} onChange={e => setVal(e.target.value)} onBlur={() => { onChange(val); setEditing(false); }} rows={Math.max(2, val.split("\n").length)} style={{ ...sharedStyle, resize: "vertical" }} />;
-      return <input ref={inputRef} value={val} type="text" onChange={e => setVal(e.target.value)} onBlur={() => { onChange(val); setEditing(false); }} onKeyDown={e => e.key === "Enter" && (onChange(val), setEditing(false))} style={sharedStyle} />;
-    }
-    return <span onClick={() => setEditing(true)} title="Click to edit" style={{ cursor: "text", borderBottom: "1.5px dashed transparent", WebkitTapHighlightColor: "transparent", touchAction: "manipulation", ...extraStyle, transition: "border-color 0.15s" }} onMouseEnter={e => e.currentTarget.style.borderBottomColor = accent + "60"} onMouseLeave={e => e.currentTarget.style.borderBottomColor = "transparent"}>{val}</span>;
-  };
-
-  const SectionHeading = ({ label }) => (
-    <div style={{ marginTop: 14, marginBottom: 5 }}>
-      <div style={{ fontFamily: font, fontSize: `${fs + 0.5}pt`, fontWeight: "bold", color: accent, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: `1.5px solid ${accent}`, paddingBottom: 2 }}>{label}</div>
-    </div>
-  );
-
-  // ── Flat block list — same granularity rules as LivePreview.js ──────────
-  const blocks = [];
-
-  blocks.push({
-    id: "header",
-    node: (
-      <div style={{ textAlign: "center", marginBottom: 12 }}>
-        <div style={{ fontSize: `${fs + 6}pt`, fontWeight: "bold", color: accent, letterSpacing: "0.04em", marginBottom: 3, fontFamily: font }}>
-          <EditableText value={resume.contact.name} onChange={v => onEditContact("name", v)} style={{ fontSize: `${fs + 6}pt`, fontWeight: "bold", color: accent }} />
-        </div>
-        <div style={{ fontSize: `${fs + 1}pt`, fontStyle: "italic", color: "#595959", marginBottom: 5, fontFamily: font }}>
-          <EditableText value={resume.contact.title} onChange={v => onEditContact("title", v)} />
-        </div>
-        <div style={{ fontSize: `${fs - 1}pt`, color: "#595959", fontFamily: font, borderBottom: `1.5px solid ${accent}`, paddingBottom: 6 }}>
-          <EditableText value={resume.contact.location} onChange={v => onEditContact("location", v)} />{"  |  "}
-          <EditableText value={resume.contact.phone} onChange={v => onEditContact("phone", v)} />{"  |  "}
-          <EditableText value={resume.contact.email} onChange={v => onEditContact("email", v)} />
-        </div>
-      </div>
-    ),
-  });
-
-  resume.sections.forEach((section) => {
-    if (section.type === "text") {
-      blocks.push({
-        id: `sec-${section.id}`,
-        node: (
-          <div>
-            <SectionHeading label={section.label} />
-            <div style={{ fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh, color: "#2C2C2C" }}>
-              <EditableText value={section.content} onChange={v => onEditText(section.id, v)} multiline style={{ display: "block", width: "100%" }} />
-            </div>
-          </div>
-        ),
-      });
-    }
-
-    if (section.type === "bullets") {
-      blocks.push({
-        id: `sec-${section.id}`,
-        node: (
-          <div>
-            <SectionHeading label={section.label} />
-            <ul style={{ margin: "2px 0 6px", paddingLeft: 20 }}>
-              {(section.items || []).map((item, i) => (
-                <li key={i} style={{ fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh, color: "#2C2C2C", marginBottom: 2 }}>
-                  <EditableText value={item} onChange={v => onEditBullet(section.id, i, v)} />
-                </li>
-              ))}
-            </ul>
-          </div>
-        ),
-      });
-    }
-
-    if (section.type === "jobs") {
-      (section.jobs || []).forEach((job, ji) => {
-        const bullets = job.bullets || [];
-        blocks.push({
-          id: `sec-${section.id}-job-${ji}-head`,
-          node: (
-            <div>
-              {ji === 0 && <SectionHeading label={section.label} />}
-              <div style={{ marginBottom: bullets.length > 1 ? 0 : 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <div style={{ fontFamily: font, fontWeight: "bold", fontSize: `${fs}pt` }}>
-                    <EditableText value={job.role} onChange={v => onEditJob(section.id, ji, "role", v)} />
-                    <span style={{ fontWeight: "normal", marginLeft: 6, color: "#595959" }}>
-                      <EditableText value={job.company} onChange={v => onEditJob(section.id, ji, "company", v)} />
-                    </span>
-                  </div>
-                  <div style={{ fontFamily: font, fontSize: `${fs - 1}pt`, color: "#595959", whiteSpace: "nowrap" }}>
-                    <EditableText value={job.period} onChange={v => onEditJob(section.id, ji, "period", v)} />
-                  </div>
-                </div>
-                {bullets.length > 0 && (
-                  <ul style={{ margin: "2px 0 4px", paddingLeft: 20 }}>
-                    <li style={{ fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh, color: "#2C2C2C", marginBottom: 2 }}>
-                      <EditableText value={bullets[0]} onChange={v => onEditBullet(section.id + "_" + ji, 0, v, section.id, ji)} />
-                    </li>
-                  </ul>
-                )}
-              </div>
-            </div>
-          ),
-        });
-
-        bullets.slice(1).forEach((b, idx) => {
-          const bi = idx + 1;
-          const isLast = bi === bullets.length - 1;
-          blocks.push({
-            id: `sec-${section.id}-job-${ji}-bullet-${bi}`,
-            node: (
-              <ul style={{ margin: "0 0 4px", paddingLeft: 20, marginBottom: isLast ? 8 : 2 }}>
-                <li style={{ fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh, color: "#2C2C2C", marginBottom: 2 }}>
-                  <EditableText value={b} onChange={v => onEditBullet(section.id + "_" + ji, bi, v, section.id, ji)} />
-                </li>
-              </ul>
-            ),
-          });
-        });
-      });
-    }
-
-    if (section.type === "education") {
-      (section.degrees || []).forEach((deg, di) => {
-        blocks.push({
-          id: `sec-${section.id}-deg-${di}`,
-          node: (
-            <div>
-              {di === 0 && <SectionHeading label={section.label} />}
-              <div style={{ marginBottom: 6 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <div style={{ fontFamily: font, fontSize: `${fs}pt` }}>
-                    <strong><EditableText value={deg.degree} onChange={v => onEditDegree(section.id, di, "degree", v)} /></strong>
-                    <span style={{ color: "#595959", margin: "0 4px" }}>•</span>
-                    <EditableText value={deg.school} onChange={v => onEditDegree(section.id, di, "school", v)} />
-                    <span style={{ color: "#595959", margin: "0 4px" }}>•</span>
-                    <span style={{ color: "#595959" }}><EditableText value={deg.location} onChange={v => onEditDegree(section.id, di, "location", v)} /></span>
-                  </div>
-                  <div style={{ fontFamily: font, fontSize: `${fs - 1}pt`, color: "#595959", fontStyle: "italic", whiteSpace: "nowrap" }}>
-                    <EditableText value={deg.period} onChange={v => onEditDegree(section.id, di, "period", v)} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ),
-        });
-      });
-    }
-  });
-
-  const { pages, measureLayer } = usePaginatedBlocks(
-    blocks,
-    { pageContentWidth: PREVIEW_CONTENT_WIDTH, pageContentHeight: PREVIEW_CONTENT_HEIGHT },
-    [resume, fs, lh, font]
-  );
-
-  return (
-    <>
-      {measureLayer}
-      <div ref={ref} className="flex flex-col items-center gap-6">
-        {pages.map((pageBlocks, pi) => (
-          <ResumePageSheet
-            key={pi} width={LETTER_WIDTH_PX} height={LETTER_HEIGHT_PX} scale={scale}
-            shadowClassName="shadow-[0_8px_40px_rgba(0,0,0,0.18)]"
-            className="rounded-[2px]"
-            contentStyle={contentStyle}
-          >
-            {pageBlocks}
-          </ResumePageSheet>
-        ))}
-      </div>
-    </>
-  );
-});
+// A thin wrapper around the shared renderer now (see shared/ResumeDocument.js
+// and shared/resumeLayouts/ for why: this and Guest Mode's own LivePreview.js
+// used to each hand-build the exact same layout independently, which is
+// exactly the kind of triple-maintenance that's caused repeat bugs this
+// session). Letter-sized pages and this component's own page-sheet chrome
+// (heavier shadow, sharp corners) are the two things that intentionally stay
+// different from Guest Mode's A4 pages — passed in, not hardcoded upstream.
+const Preview = React.forwardRef(({ resume, style, scale = 1, onEdit }, ref) => (
+  <ResumeDocument
+    ref={ref} resume={resume} style={style} onEdit={onEdit} scale={scale}
+    pageWidth={LETTER_WIDTH_PX} pageHeight={LETTER_HEIGHT_PX}
+    paddingXMm={PREVIEW_PAD_X_MM} paddingYMm={PREVIEW_PAD_Y_MM}
+    shadowClassName="shadow-[0_8px_40px_rgba(0,0,0,0.18)]"
+    className="rounded-[2px]"
+  />
+));
 Preview.displayName = "Preview";
 
 // ── Window width hook ──────────────────────────────────────────────────────────
@@ -1007,7 +666,7 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
   const [flipDir,      setFlipDir]      = useState(1); // 1 = flipping forward (mine→guest), -1 = flipping back
   const [activeResume, setActiveResume] = useState(() => draftAtMount?.activeResume || "it");
   const [resumeData,   setResumeData]   = useState(() => draftAtMount?.resumeData || JSON.parse(JSON.stringify(RESUMES["it"])));
-  const [style,        setStyle]        = useState(() => draftAtMount?.style || { font: "calibri", fontSize: 11, lineHeight: 1.4, accent: "navy" });
+  const [style,        setStyle]        = useState(() => draftAtMount?.style || { font: "calibri", fontSize: 11, lineHeight: 1.4, accent: "navy", layout: "classic" });
   const [panel,        setPanel]        = useState("style");
   const [downloading,  setDownloading]  = useState(null);
   // Lazy-initialized from the real viewport width (this component is
@@ -1086,15 +745,37 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
     setMode(next);
   };
 
-  const onEditContact  = useCallback((f, v) => setResumeData(r => ({ ...r, contact: { ...r.contact, [f]: v } })), []);
-  const onEditText     = useCallback((sid, v) => setResumeData(r => ({ ...r, sections: r.sections.map(s => s.id === sid ? { ...s, content: v } : s) })), []);
-  const onEditBullet   = useCallback((key, idx, v, sectionId, jobIdx) => setResumeData(r => ({ ...r, sections: r.sections.map(s => { if (sectionId && s.id === sectionId) { const jobs = s.jobs.map((j, ji) => ji === jobIdx ? { ...j, bullets: j.bullets.map((b, bi) => bi === idx ? v : b) } : j); return { ...s, jobs }; } if (s.id === key && s.items) return { ...s, items: s.items.map((it, i) => i === idx ? v : it) }; return s; }) })), []);
-  const onEditJob      = useCallback((sid, ji, f, v) => setResumeData(r => ({ ...r, sections: r.sections.map(s => s.id === sid ? { ...s, jobs: s.jobs.map((j, jj) => jj === ji ? { ...j, [f]: v } : j) } : s) })), []);
-  const onEditDegree   = useCallback((sid, di, f, v) => setResumeData(r => ({ ...r, sections: r.sections.map(s => s.id === sid ? { ...s, degrees: s.degrees.map((d, dd) => dd === di ? { ...d, [f]: v } : d) } : s) })), []);
+  // One unified onEdit(kind, ...args, value), same interface Guest Mode's
+  // own onEditHandler (guest/guestReducer.js) already used — replaces the
+  // five separate handlers this used to carry, which is what let
+  // Preview/LivePreview.js's rendering logic unify into shared/
+  // ResumeDocument.js in the first place (see that file's own comment).
+  const onEdit = useCallback((kind, ...args) => {
+    const val = args[args.length - 1];
+    setResumeData((r) => {
+      const s = JSON.parse(JSON.stringify(r));
+      switch (kind) {
+        case "contact": { const [key] = args; s.contact[key] = val; break; }
+        case "section-text": { const [si] = args; s.sections[si].content = val; break; }
+        case "bullet": { const [si, ii] = args; s.sections[si].items[ii] = val; break; }
+        case "job-role": { const [si, ji] = args; s.sections[si].jobs[ji].role = val; break; }
+        case "job-company": { const [si, ji] = args; s.sections[si].jobs[ji].company = val; break; }
+        case "job-location": { const [si, ji] = args; s.sections[si].jobs[ji].location = val; break; }
+        case "job-period": { const [si, ji] = args; s.sections[si].jobs[ji].period = val; break; }
+        case "job-bullet": { const [si, ji, bi] = args; s.sections[si].jobs[ji].bullets[bi] = val; break; }
+        case "deg-degree": { const [si, di] = args; s.sections[si].degrees[di].degree = val; break; }
+        case "deg-school": { const [si, di] = args; s.sections[si].degrees[di].school = val; break; }
+        case "deg-location": { const [si, di] = args; s.sections[si].degrees[di].location = val; break; }
+        case "deg-period": { const [si, di] = args; s.sections[si].degrees[di].period = val; break; }
+        default: break;
+      }
+      return s;
+    });
+  }, []);
 
   const handleDownloadDocx = async () => {
     setDownloading("docx");
-    try { await downloadDocx(resumeData, style); } finally { setDownloading(null); }
+    try { await downloadDocx(resumeData, style, `${resumeData.contact.name.replace(/\s+/g, "_")}_Resume.docx`); } finally { setDownloading(null); }
   };
   const handleDownloadPdf = () => {
     setDownloading("pdf");
@@ -1177,6 +858,21 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
         )}
         {panel === "style" && (
           <div className="flex flex-col gap-3.5">
+            <div>
+              <Label>LAYOUT</Label>
+              <div className="flex flex-col gap-1.5">
+                {LAYOUTS.map(l => (
+                  <button key={l.id} onClick={() => setStyle(s => ({ ...s, layout: l.id }))}
+                    aria-pressed={(style.layout || "classic") === l.id}
+                    className={`min-h-[52px] rounded-lg border px-2.5 py-2 text-left ${
+                      (style.layout || "classic") === l.id ? "border-primary/30 bg-primary/10" : "border-border bg-card"
+                    }`}>
+                    <p className={`m-0 text-xs font-bold ${(style.layout || "classic") === l.id ? "text-primary" : "text-foreground"}`}>{l.label}</p>
+                    <p className="m-0 mt-0.5 text-[10.5px] text-muted-foreground">{l.description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div>
               <Label>FONT FAMILY</Label>
               <div className="flex flex-col gap-1">
@@ -1351,9 +1047,7 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
                 {/* Preview now owns its own page sizing/scaling and can
                     render more than one sheet — see its own comment for
                     why that responsibility moved in from out here. */}
-                <Preview ref={previewRef} resume={resumeData} style={style} scale={scale}
-                  onEditContact={onEditContact} onEditText={onEditText}
-                  onEditBullet={onEditBullet} onEditJob={onEditJob} onEditDegree={onEditDegree} />
+                <Preview ref={previewRef} resume={resumeData} style={style} scale={scale} onEdit={onEdit} />
               </div>
             </div>
           </motion.div>
