@@ -3,7 +3,7 @@ import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { ShieldCheck, Zap, FileCheck2 } from "lucide-react";
 import { Reveal, SECTION_WRAP, EYEBROW } from "./shared";
-import PaperTransformScene3D from "../PaperTransformScene3D";
+import HeroScene3D from "../HeroScene3D";
 
 const TRUST = [
   { Icon: ShieldCheck, label: "Anonymous by default, account optional" },
@@ -12,10 +12,11 @@ const TRUST = [
 ];
 
 // ── The "watch it happen" section — right after the Hero, the literal
-// next thing you scroll to. The 3D canvas only mounts once this section is
-// actually in view (see `inView` below), so the writing animation starts
-// fresh from the first stroke the moment someone scrolls to it, instead of
-// running on a loop somewhere off-screen and being caught mid-cycle.
+// next thing you scroll to. Shows the constellation mark (moved down from
+// the Hero, which now leads with PaperTransformScene's handwriting-to-
+// resume animation instead — the two no longer show the same thing back to
+// back). The 3D canvas only mounts once this section is actually in view
+// (see `inView` below), rather than running on a loop somewhere off-screen.
 export function PaperTransformSection() {
   const containerRef = useRef(null);
   const inView = useInView(containerRef, { once: true, margin: "-15% 0px -15% 0px" });
@@ -59,7 +60,7 @@ export function PaperTransformSection() {
                 boxShadow: "inset 0 0 70px rgba(0,0,0,0.45), 0 24px 70px rgba(0,0,0,0.4)",
               }}
             >
-              {inView && <PaperTransformScene3D style={{ width: "100%", height: "100%" }} />}
+              {inView && <HeroScene3D style={{ width: "100%", height: "100%" }} />}
             </div>
           </Reveal>
         </div>
