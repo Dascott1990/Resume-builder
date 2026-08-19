@@ -4,7 +4,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, Check, ChevronDown, Download } from "lucide-react";
 import { useViewport } from "@/lib/useViewport";
 import { useInstallPrompt } from "@/lib/useInstallPrompt";
-import HeroScene3D from "../HeroScene3D";
+import PaperTransformScene3D from "../PaperTransformScene3D";
 import Logo from "../Logo";
 import { InstallInstructionsModal } from "./InstallInstructionsModal";
 
@@ -79,7 +79,7 @@ export function Hero({ onOpenDashboard, intensity }) {
           className="pointer-events-none absolute inset-0 z-0"
         >
           <div className="absolute inset-0" style={{ opacity: intensity * 0.4, transition: "opacity 0.25s ease" }}>
-            <HeroScene3D style={{ width: "100%", height: "100%" }} />
+            <PaperTransformScene3D style={{ width: "100%", height: "100%" }} />
           </div>
           <div
             className="absolute inset-0"
@@ -193,7 +193,7 @@ export function Hero({ onOpenDashboard, intensity }) {
               }}
             >
               <div className="absolute inset-0" style={{ opacity: intensity, transition: "opacity 0.25s ease" }}>
-                <HeroScene3D style={{ width: "100%", height: "100%" }} />
+                <PaperTransformScene3D style={{ width: "100%", height: "100%" }} />
               </div>
             </div>
           </motion.div>

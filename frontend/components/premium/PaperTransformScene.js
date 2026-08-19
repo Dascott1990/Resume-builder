@@ -18,6 +18,10 @@
  * timed to the pen's position, so it reads as the pen actually writing the
  * words rather than a line simply fading or growing in.
  *
+ * Also the Hero's own 3D showcase (see landing/Hero.js) — both mount this
+ * same scene independently rather than sharing one instance, so each gets
+ * its own write→transform→hold cycle timed to when IT scrolled into view.
+ *
  * Never import this file statically; it's only ever reached through
  * PaperTransformScene3D.js's next/dynamic(ssr:false) call, same isolation
  * pattern every other 3D scene in this app uses.
