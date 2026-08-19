@@ -1,9 +1,9 @@
 "use client";
 /**
- * markGeometry.js — the Noviq brand mark's 3D geometry, extracted so both
- * the small standalone mark (Logo3DScene.js) and the larger hero
- * constellation (HeroConstellationScene.js) build the identical shape from
- * one source instead of two copies drifting apart.
+ * markGeometry.js — the Noviq brand mark's 3D geometry, extracted out of
+ * Logo3DScene.js (its one current consumer) rather than inlined, so a
+ * second place that needs the identical mark shape later has one source to
+ * import instead of a hand-copied duplicate that could drift out of sync.
  *
  * Built as always-valid primitives (a rectangular beam per segment + a
  * circular filler at each joint), not a hand-derived offset polygon of the

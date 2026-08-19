@@ -1,10 +1,10 @@
 "use client";
 /**
  * Flag3D.js — lightweight wrapper around the heavy FlagScene.js, same
- * three-layer safety pattern as Logo3D.js and HeroScene3D.js: a WebGL
- * preflight check, an error boundary, and a context-loss listener, all
- * falling back to the same flag drawn flat on a plain <canvas> instead of
- * ever showing a broken badge.
+ * three-layer safety pattern as Logo3D.js and PaperTransformScene3D.js: a
+ * WebGL preflight check, an error boundary, and a context-loss listener,
+ * all falling back to the same flag drawn flat on a plain <canvas> instead
+ * of ever showing a broken badge.
  */
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";

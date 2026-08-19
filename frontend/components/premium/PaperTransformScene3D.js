@@ -2,9 +2,9 @@
 /**
  * PaperTransformScene3D.js — lightweight wrapper around the heavy
  * PaperTransformScene.js, same safety pattern as every other 3D piece in
- * this app (Logo3D.js, HeroScene3D.js, Flag3D.js): a WebGL preflight
- * check, an error boundary, and a context-loss listener, all falling back
- * to a flat 2D placeholder rather than ever showing a broken section.
+ * this app (Logo3D.js, Flag3D.js): a WebGL preflight check, an error
+ * boundary, and a context-loss listener, all falling back to a flat 2D
+ * placeholder rather than ever showing a broken section.
  */
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
