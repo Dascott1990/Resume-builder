@@ -59,6 +59,17 @@ export function useInstallPrompt() {
     writeInstalledFlag();
   }, []);
 
+  // iOS has no "appinstalled" event and no way to ask "is this already on
+  // the home screen" from an ordinary Safari tab — Apple exposes neither.
+  // So once someone has been SHOWN the "Add to Home Screen" steps, keep
+  // nagging them with the same Download button on every later visit is
+  // worse than the alternative: take the good-faith read that they either
+  // did it or chose not to, and don't ask again. Call this when the iOS
+  // instructions modal closes.
+  const dismissAfterIOSInstructions = useCallback(() => {
+    markInstalled(false);
+  }, [markInstalled]);
+
   useEffect(() => {
     // Standalone display-mode (Android/desktop) or navigator.standalone
     // (iOS's own, non-standard flag) both mean "already running as the
@@ -117,5 +128,5 @@ export function useInstallPrompt() {
   // "Installed" confirmation window above).
   const canShow = !installed && (!!deferredPrompt || isIOS);
 
-  return { canShow, isIOS, installed, showInstalledBadge, isPrompting, promptInstall };
+  return { canShow, isIOS, installed, showInstalledBadge, isPrompting, promptInstall, dismissAfterIOSInstructions };
 }

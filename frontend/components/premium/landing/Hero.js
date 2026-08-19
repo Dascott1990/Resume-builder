@@ -24,7 +24,7 @@ export function Hero({ onOpenDashboard, intensity }) {
   const heroRef = useRef(null);
   const reducedMotion = usePrefersReducedMotion();
   const { isDesktop } = useViewport();
-  const { canShow: canInstall, isIOS, showInstalledBadge, isPrompting, promptInstall } = useInstallPrompt();
+  const { canShow: canInstall, isIOS, showInstalledBadge, isPrompting, promptInstall, dismissAfterIOSInstructions } = useInstallPrompt();
   const [iosInstructionsOpen, setIosInstructionsOpen] = useState(false);
   const handleDownloadClick = () => {
     if (isPrompting) return; // a prompt is already in flight — ignore rapid re-clicks
@@ -113,17 +113,29 @@ export function Hero({ onOpenDashboard, intensity }) {
               Artisan don't need their own line here; both are one tap away
               once inside the Dashboard, and still linked from the nav/
               footer/final CTA further down the page. */}
+          {/* flex-row (and the buttons' own shrink-to-content width) only
+              kicks in at lg, the SAME breakpoint where the column above
+              switches from centered/text-center to text-left/items-start.
+              This used to switch to a row at sm (640px) while the column
+              stayed centered until lg (1024px) — on every iPad width in
+              between, that left a full-width row with no justify-content
+              set, so it defaulted to packing left inside an otherwise
+              perfectly centered hero: buttons visibly "fell" left instead
+              of stacking centered under the headline like everything else
+              on the page at that width. Now both switch together, so
+              there's never a width where the buttons disagree with the
+              text above them. */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="flex w-full max-w-sm flex-col items-center gap-3 sm:max-w-none sm:flex-row lg:justify-start"
+            className="flex w-full max-w-sm flex-col items-center gap-3 lg:max-w-none lg:flex-row lg:justify-start"
           >
             <motion.button
               onClick={onOpenDashboard}
               whileTap={{ scale: 0.96 }}
               transition={{ type: "spring", damping: 22, stiffness: 400 }}
-              className="flex min-h-[54px] w-full select-none items-center justify-center gap-2 rounded-2xl border-none bg-primary px-7 text-[15.5px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:w-auto"
+              className="flex min-h-[54px] w-full select-none items-center justify-center gap-2 rounded-2xl border-none bg-primary px-7 text-[15.5px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] lg:w-auto"
             >
               Dashboard
               <ArrowRight className="size-4" />
@@ -134,7 +146,7 @@ export function Hero({ onOpenDashboard, intensity }) {
                 disabled={showInstalledBadge || isPrompting}
                 whileTap={showInstalledBadge || isPrompting ? undefined : { scale: 0.96 }}
                 transition={{ type: "spring", damping: 22, stiffness: 400 }}
-                className={`flex min-h-[54px] w-full select-none items-center justify-center gap-2 rounded-2xl border border-border bg-transparent px-7 text-[15.5px] font-bold [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:w-auto ${
+                className={`flex min-h-[54px] w-full select-none items-center justify-center gap-2 rounded-2xl border border-border bg-transparent px-7 text-[15.5px] font-bold [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] lg:w-auto ${
                   showInstalledBadge || isPrompting ? "cursor-default text-muted-foreground" : "text-foreground"
                 }`}
               >
@@ -153,7 +165,13 @@ export function Hero({ onOpenDashboard, intensity }) {
             )}
           </motion.div>
 
-          <InstallInstructionsModal open={iosInstructionsOpen} onClose={() => setIosInstructionsOpen(false)} />
+          <InstallInstructionsModal
+            open={iosInstructionsOpen}
+            onClose={() => {
+              setIosInstructionsOpen(false);
+              dismissAfterIOSInstructions();
+            }}
+          />
         </div>
 
         {/* ── Desktop only: the boxed 3D showcase, the resume, the people,
