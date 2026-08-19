@@ -37,7 +37,7 @@ from app.agent.tools import TOOL_IMPLS, TOOL_SCHEMAS, ToolContext
 
 CLAUDE_MODEL = "claude-opus-5"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"
 
 MAX_RATE_LIMIT_RETRIES = 3
 DEFAULT_RATE_LIMIT_BACKOFF = 5
@@ -218,7 +218,7 @@ def _call_groq(history, system):
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json={
             "model": GROQ_MODEL, "messages": messages, "tools": TOOL_SCHEMAS_OPENAI,
-            "max_tokens": MAX_TOKENS_PER_TURN, "temperature": 0.2, "stream": False,
+            "max_tokens": MAX_TOKENS_PER_TURN, "temperature": 0.2, "reasoning_effort": "low", "stream": False,
         },
         timeout=60,
     )

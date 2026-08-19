@@ -25,7 +25,7 @@ resume_bp = Blueprint("resume", __name__)
 
 CLAUDE_MODEL = "claude-opus-5"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"
 
 def _claude(messages: list, system: str, effort: str = "medium", max_tokens: int = 2000) -> str:
     api_key = os.environ.get("CLAUDE_API_KEY", "")
@@ -80,6 +80,7 @@ def _groq(messages: list, temperature: float = 0.4, max_tokens: int = 2000) -> s
                 "messages": messages,
                 "max_tokens": max_tokens,
                 "temperature": temperature,
+                "reasoning_effort": "low",
                 "stream": False,
             },
             timeout=60,

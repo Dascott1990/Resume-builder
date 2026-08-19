@@ -51,7 +51,7 @@ def _apply_geocode(a, city):
 
 CLAUDE_MODEL = "claude-opus-5"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"
 
 
 def _clean_years_experience(raw):
@@ -169,7 +169,7 @@ def _groq_bio(trade, years_experience, notes):
             GROQ_URL,
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={
-                "model": GROQ_MODEL, "max_tokens": 200, "temperature": 0.5,
+                "model": GROQ_MODEL, "max_tokens": 200, "temperature": 0.5, "reasoning_effort": "low",
                 "messages": [
                     {"role": "system", "content": BIO_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
