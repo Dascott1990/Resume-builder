@@ -40,10 +40,21 @@ import { useSignupNudge } from "@/lib/useSignupNudge";
 import { SignupNudgeModal } from "../shared/SignupNudgeModal";
 
 export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDesc }) {
-  const { isPhone, isDesktop } = useViewport();
+  const { isPhone, isTablet, isDesktop } = useViewport();
   const signupNudge = useSignupNudge();
 
-  // Mobile/tablet: which screen is showing — "panel" (form/list) or "preview"
+  // Tablet used to be lumped in with phone — a single full-screen view at a
+  // time, switching between the style/form panel and the resume preview.
+  // On an iPad that's needless: there's plenty of width for both side by
+  // side, same as desktop, so a style change shows up immediately instead
+  // of "tweak → leave the panel → look → go back → tweak again." Only true
+  // phones still need the one-screen-at-a-time flow.
+  const showSplit = isDesktop || isTablet;
+
+  // Phone only: which screen is showing — "panel" (form/list) or "preview".
+  // Meaningless once showSplit is true (both are always visible), but kept
+  // as one flag rather than two so existing call sites below don't need a
+  // parallel isDesktop/isTablet branch of their own.
   const [mobileView, setMobileView] = useState("panel");
 
   // One localStorage read on mount, reused below to seed every persisted field.
@@ -172,8 +183,8 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
 
   // Auto-switch to preview screen on phone once resume is ready
   useEffect(() => {
-    if (!isDesktop && resume && step === 3) setMobileView("preview");
-  }, [resume, step, isDesktop]);
+    if (!showSplit && resume && step === 3) setMobileView("preview");
+  }, [resume, step, showSplit]);
 
   // Mirror the in-progress build to localStorage (debounced) so a refresh
   // restores it instead of wiping it. Best-effort only — a write failure
@@ -345,7 +356,7 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
   const loadSaved = async (id) => {
     setLoadingResumeId(id);
     setError("");
-    if (!isDesktop) setMobileView("preview");
+    if (!showSplit) setMobileView("preview");
     try {
       const data = await apiGetSaved(id);
       dispatch({ type: "SET", resume: { contact: data.contact || {}, sections: data.sections || [], keywords: data.keywords || [], saved_id: id } });
@@ -377,7 +388,7 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
   // Fires once the preview screen has actually mounted after handlePdf
   // switched to it — printing immediately would still see the old (form) DOM.
   useEffect(() => {
-    if (!pendingPrint || (!isDesktop && mobileView !== "preview")) return;
+    if (!pendingPrint || (!showSplit && mobileView !== "preview")) return;
     const raf = requestAnimationFrame(() => {
       if (previewRef.current) {
         printPdf(previewRef.current);
@@ -388,15 +399,17 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
       setTimeout(() => setDownloading(null), 1500);
     });
     return () => cancelAnimationFrame(raf);
-  }, [pendingPrint, mobileView, isDesktop]);
+  }, [pendingPrint, mobileView, showSplit]);
 
   const handlePdf = () => {
     if (!resume) { setError("Nothing to export yet — generate a resume first."); return; }
     setDownloading("pdf");
-    // On phone/tablet the preview isn't rendered while the form panel is
-    // showing, so previewRef.current would be null here — switch screens
-    // and let the effect above print once it's actually mounted.
-    if (!isDesktop && mobileView !== "preview") {
+    // On phone the preview isn't rendered while the form panel is showing,
+    // so previewRef.current would be null here — switch screens and let
+    // the effect above print once it's actually mounted. Tablet/desktop
+    // (showSplit) always have the preview mounted, so this branch never
+    // triggers for them.
+    if (!showSplit && mobileView !== "preview") {
       setPendingPrint(true);
       setMobileView("preview");
       return;
@@ -419,7 +432,7 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
     setCoverLetter(""); setInterviewTips([]);
     setApplication(null); setPackageOpen(false);
     dispatch({ type: "SET", resume: null }); // was never cleared before — stale resume could linger
-    if (!isDesktop) setMobileView("panel");
+    if (!showSplit) setMobileView("panel");
     clearDraft();
   };
 
@@ -436,15 +449,18 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
   const scaledW = Math.round(A4w * scale);
   const scaledH = Math.round(A4h * scale);
 
-  // The bottom nav is `position: fixed` so every mobile scroll container
+  // The bottom nav is `position: fixed` so every phone scroll container
   // reserves this much space at its bottom so the last item is never hidden
   // underneath the bar. Deliberately generous — a bit of extra blank space
-  // at the end of a scroll is harmless, a covered button is not.
-  const mobileNavClearance = !isDesktop ? "calc(116px + env(safe-area-inset-bottom, 0px))" : undefined;
+  // at the end of a scroll is harmless, a covered button is not. Only
+  // rendered at all on phone (see MobileNav below) — tablet/desktop have
+  // no bottom bar to clear.
+  const mobileNavClearance = !showSplit ? "calc(116px + env(safe-area-inset-bottom, 0px))" : undefined;
 
-  // ── Reusable preview canvas (used in both desktop pane and mobile screen) ──
+  // ── Reusable preview canvas (used in both the split-view pane and the
+  // phone's own full-screen preview mode) ──
   const PreviewCanvas = () => (
-    <div ref={canvasRef} onScroll={!isDesktop ? handlePanelScroll : undefined}
+    <div ref={canvasRef} onScroll={!showSplit ? handlePanelScroll : undefined}
       className="flex flex-1 flex-col items-center overflow-y-auto overscroll-contain bg-[#C8C8C8] [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]"
       style={{
         paddingTop: isPhone ? 14 : 24,
@@ -453,8 +469,8 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
         // Longhand throughout (not the `padding` shorthand) — React warns when
         // the same inline style flips between shorthand and a longhand override
         // for the same side across renders (mobileNavClearance is only defined
-        // on phone/tablet), and the mixed form is genuinely fragile: browsers
-        // aren't all consistent about which value wins once both are present.
+        // on phone), and the mixed form is genuinely fragile: browsers aren't
+        // all consistent about which value wins once both are present.
         paddingBottom: mobileNavClearance ?? (isPhone ? 24 : 48),
       }}>
       <p className="m-0 mb-2.5 px-3 text-center font-mono text-[9px] tracking-[0.08em] text-[#666] select-none">
@@ -483,7 +499,7 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
     <>
       {/* BUILD */}
       {tab === "new" && (
-        <div onScroll={!isDesktop ? handlePanelScroll : undefined}
+        <div onScroll={!showSplit ? handlePanelScroll : undefined}
           className="flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none]"
           style={{ paddingBottom: mobileNavClearance }}>
           {draftRestored && (
@@ -531,7 +547,7 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
               application={application}
               coverLetter={coverLetter}
               isPhone={isPhone}
-              isDesktop={isDesktop}
+              isDesktop={showSplit}
               downloading={downloading}
               resume={resume}
               jobDescription={jobDesc}
@@ -595,16 +611,16 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
 
       {/* STYLE */}
       {tab === "style" && (
-        <div onScroll={!isDesktop ? handlePanelScroll : undefined}
+        <div onScroll={!showSplit ? handlePanelScroll : undefined}
           className="flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none]"
           style={{ paddingBottom: mobileNavClearance }}>
-          <StyleTab docStyle={docStyle} setDocStyle={setDocStyle} isDesktop={isDesktop} onPreview={() => setMobileView("preview")} />
+          <StyleTab docStyle={docStyle} setDocStyle={setDocStyle} isDesktop={showSplit} onPreview={() => setMobileView("preview")} />
         </div>
       )}
 
       {/* SAVED */}
       {tab === "templates" && (
-        <div onScroll={!isDesktop ? handlePanelScroll : undefined}
+        <div onScroll={!showSplit ? handlePanelScroll : undefined}
           className="flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none]"
           style={{ paddingBottom: mobileNavClearance }}>
           <SavedTab
@@ -620,7 +636,7 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
 
       {/* SETTINGS */}
       {tab === "settings" && (
-        <div onScroll={!isDesktop ? handlePanelScroll : undefined}
+        <div onScroll={!showSplit ? handlePanelScroll : undefined}
           className="flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none]"
           style={{ paddingBottom: mobileNavClearance }}>
           <SettingsTab
@@ -704,13 +720,17 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
         </div>
       </header>
 
-      {isDesktop && <DesktopTabNav tab={tab} onChange={setTab} />}
+      {showSplit && <DesktopTabNav tab={tab} onChange={setTab} />}
 
-      {/* ── Body ── */}
+      {/* ── Body — split (sidebar + always-visible preview) on tablet and
+          desktop, one full-screen view at a time on phone. Tablet's sidebar
+          is narrower than desktop's (300px vs 380px) — the same 380px on a
+          768px-wide iPad would leave the preview too cramped to actually
+          read while styling it, defeating the point of showing it at all. ── */}
       <div className="flex flex-1 overflow-hidden">
-        {isDesktop ? (
+        {showSplit ? (
           <>
-            <div className="flex w-[380px] shrink-0 flex-col border-r border-border bg-card">
+            <div className={`flex ${isDesktop ? "w-[380px]" : "w-[300px]"} shrink-0 flex-col border-r border-border bg-card`}>
               {PanelContent()}
             </div>
             {PreviewCanvas()}
@@ -722,7 +742,7 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
         )}
       </div>
 
-      {!isDesktop && (
+      {!showSplit && (
         <MobileNav
           tab={tab}
           mobileView={mobileView}
