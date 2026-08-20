@@ -144,19 +144,26 @@ function SearchBar({ value, onChange }) {
   );
 }
 
+// Airbnb's own filter pills under its search bar: solid background (not
+// transparent), a real border, a soft shadow that visibly lifts on hover,
+// and a filled state when selected — not a faint tinted outline. The
+// previous version was shadcn's default h-8 toggle with a transparent
+// background and a near-invisible border, which is exactly why it read as
+// flat text with a line around it rather than something you'd expect to
+// press.
 function TradeChips({ active, onSelect }) {
   return (
     <ToggleGroup
       type="single"
       value={active}
       onValueChange={(v) => v && onSelect(v)}
-      className="w-full justify-start gap-1.5 overflow-x-auto [scrollbar-width:none]"
+      className="w-full justify-start gap-2 overflow-x-auto px-0.5 py-1 [scrollbar-width:none]"
     >
       {TRADES.map((t) => (
         <ToggleGroupItem
           key={t}
           value={t}
-          className="shrink-0 rounded-full border border-border bg-transparent px-3 text-[12.5px] font-semibold text-muted-foreground data-[state=on]:border-primary/30 data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
+          className="h-10 shrink-0 rounded-full border border-border bg-card px-4 text-[13px] font-bold text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.1)] transition-all duration-150 [-webkit-tap-highlight-color:transparent] hover:border-foreground/35 hover:shadow-[0_3px_10px_rgba(0,0,0,0.14)] active:scale-[0.96] data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-[0_3px_14px_color-mix(in_oklch,var(--primary)_40%,transparent)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_3px_10px_rgba(0,0,0,0.5)]"
         >
           {t}
         </ToggleGroupItem>
