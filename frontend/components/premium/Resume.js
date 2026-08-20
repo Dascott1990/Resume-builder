@@ -977,7 +977,7 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
                   </motion.button>
                   <motion.button whileTap={!downloading ? { scale: 0.94 } : undefined} onClick={handleDownloadPdf} disabled={!!downloading}
                     aria-label="Download as PDF" title="Download as PDF"
-                    className={`flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-xl border border-destructive/25 bg-destructive/10 px-3.5 py-2.5 max-[430px]:gap-0 max-[430px]:px-2.5 text-[12.5px] font-bold text-destructive ${
+                    className={`flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-xl border border-border bg-muted px-3.5 py-2.5 max-[430px]:gap-0 max-[430px]:px-2.5 text-[12.5px] font-bold text-foreground ${
                       downloading ? "cursor-not-allowed" : "cursor-pointer"
                     } ${downloading && downloading !== "pdf" ? "opacity-45" : ""}`}>
                     <Download size={14} strokeWidth={ICON_STROKE} />
