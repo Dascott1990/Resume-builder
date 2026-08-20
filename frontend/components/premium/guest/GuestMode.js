@@ -22,6 +22,7 @@ import { ResumeSkeleton } from "./components/ResumeSkeleton";
 import { PackagePreviewModal } from "./components/PackagePreviewModal";
 import { DesktopTabNav } from "./components/DesktopTabNav";
 import { MobileNav } from "./components/MobileNav";
+import { StyleBottomSheet } from "./components/StyleBottomSheet";
 import { InfoStep } from "./components/PanelContent/InfoStep";
 import { JobDescStep } from "./components/PanelContent/JobDescStep";
 import { ResultStep } from "./components/PanelContent/ResultStep";
@@ -56,6 +57,13 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
   // as one flag rather than two so existing call sites below don't need a
   // parallel isDesktop/isTablet branch of their own.
   const [mobileView, setMobileView] = useState("panel");
+
+  // Phone only, Style tab specifically: same "edit here, see it there"
+  // problem showSplit solves for tablet/desktop, solved differently since
+  // a phone is too narrow to fit a sidebar AND a legible preview at once.
+  // The preview stays the full-screen base the whole time; this just
+  // tracks whether the style controls are showing as a sheet over it.
+  const [styleSheetOpen, setStyleSheetOpen] = useState(false);
 
   // One localStorage read on mount, reused below to seed every persisted field.
   const [draftAtMount]   = useState(loadDraft);
@@ -736,23 +744,39 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
             {PreviewCanvas()}
           </>
         ) : (
+          // Style is a special case on phone: the preview is ALWAYS the
+          // base view here (never the form panel), with StyleBottomSheet
+          // floating over it — same "see it change immediately" outcome
+          // showSplit gives tablet/desktop, just via a sheet instead of a
+          // side-by-side column, since a phone has no room for both.
           <div className="flex flex-1 flex-col overflow-hidden">
-            {mobileView === "panel" ? PanelContent() : PreviewCanvas()}
+            {tab === "style" ? PreviewCanvas() : (mobileView === "panel" ? PanelContent() : PreviewCanvas())}
           </div>
         )}
       </div>
 
       {!showSplit && (
-        <MobileNav
-          tab={tab}
-          mobileView={mobileView}
-          navHidden={navHidden}
-          onNavigate={(id) => {
-            if (id === "preview") { setMobileView("preview"); return; }
-            setTab(id);
-            setMobileView("panel");
-          }}
-        />
+        <>
+          <MobileNav
+            tab={tab}
+            mobileView={mobileView}
+            styleSheetOpen={styleSheetOpen}
+            navHidden={navHidden}
+            onNavigate={(id) => {
+              if (id === "preview") { setStyleSheetOpen(false); setMobileView("preview"); return; }
+              if (id === "style") { setTab("style"); setMobileView("preview"); setStyleSheetOpen(true); return; }
+              setStyleSheetOpen(false);
+              setTab(id);
+              setMobileView("panel");
+            }}
+          />
+          <StyleBottomSheet
+            open={tab === "style" && styleSheetOpen}
+            onClose={() => setStyleSheetOpen(false)}
+            docStyle={docStyle}
+            setDocStyle={setDocStyle}
+          />
+        </>
       )}
 
       <PackagePreviewModal

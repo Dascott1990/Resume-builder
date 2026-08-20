@@ -35,9 +35,19 @@ const VIEWS = [
 // freezes at whatever value it was mid-transition, i.e. a blank screen that
 // never recovers. Plain index-driven `left`/`width` has no cross-component
 // state to leave dangling, so it can't wedge anything on unmount.
-export function MobileNav({ tab, mobileView, navHidden, onNavigate }) {
-  const activeIndex = VIEWS.findIndex((v) =>
-    v.id === "preview" ? mobileView === "preview" : (mobileView === "panel" && tab === v.id));
+// Style is a special case (see StyleBottomSheet.js): tapping it never
+// switches mobileView to "panel" like the other tabs — it opens a sheet
+// over the always-visible preview instead, so mobileView stays "preview"
+// the whole time it's open. Highlighting has to check styleSheetOpen
+// directly rather than the panel/preview split every other tab uses.
+function isActive(v, tab, mobileView, styleSheetOpen) {
+  if (v.id === "style") return tab === "style" && styleSheetOpen;
+  if (v.id === "preview") return mobileView === "preview" && !(tab === "style" && styleSheetOpen);
+  return mobileView === "panel" && tab === v.id;
+}
+
+export function MobileNav({ tab, mobileView, styleSheetOpen, navHidden, onNavigate }) {
+  const activeIndex = VIEWS.findIndex((v) => isActive(v, tab, mobileView, styleSheetOpen));
   const slot = 100 / VIEWS.length;
 
   return (
@@ -59,7 +69,7 @@ export function MobileNav({ tab, mobileView, navHidden, onNavigate }) {
         />
       )}
       {VIEWS.map(v => {
-        const active = v.id === "preview" ? mobileView === "preview" : (mobileView === "panel" && tab === v.id);
+        const active = isActive(v, tab, mobileView, styleSheetOpen);
         return (
           <motion.button key={v.id} role="tab" aria-selected={active} onClick={() => onNavigate(v.id)}
             whileTap={{ scale: 0.9 }}
