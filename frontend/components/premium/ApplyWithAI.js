@@ -395,7 +395,9 @@ function ReviewScreen({ run, onSubmitted, onCancelled }) {
 
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Btn variant="gold" className="w-full">Confirm & Submit</Btn>
+          <Btn variant="gold" disabled={submitting} loading={submitting} className="w-full">
+            {submitting ? "Submitting…" : "Confirm & Submit"}
+          </Btn>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
