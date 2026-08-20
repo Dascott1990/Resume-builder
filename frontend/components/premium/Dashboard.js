@@ -18,7 +18,7 @@ import { motion } from "framer-motion";
 import {
   Home, FileText, ScanLine, ClipboardList, Hammer, Settings as SettingsIcon,
   ArrowRight, ChevronRight, CalendarCheck, X, Clock, Sparkles, Bell,
-  MessageCircle, Wrench, Inbox,
+  MessageCircle, Wrench, Inbox, User,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/useAuth";
@@ -204,11 +204,35 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go }
         </div>
       </motion.button>
 
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}
-        className="mb-6 grid grid-cols-3 gap-3">
-        <StatCard label="Saved resumes" value={savedResumes.length} Icon={FileText} loading={statsLoading} />
-        <StatCard label="Applications" value={applications.length} Icon={ClipboardList} loading={statsLoading} />
-        <StatCard label="Interviews" value={interviews} Icon={CalendarCheck} loading={statsLoading} />
+      {/* A brand-new visitor has nothing to show here yet — three "0" cards
+          in a row right under "Let's get you hired" reads like a scoreboard
+          stuck at zero, not an invitation. Once there's genuinely nothing
+          tracked anywhere, swap the grid for one warmer line instead; the
+          moment there's real data (even just one saved resume), the normal
+          stat row comes back. */}
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }} className="mb-6">
+        {statsLoading ? (
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard label="Saved resumes" Icon={FileText} loading />
+            <StatCard label="Applications" Icon={ClipboardList} loading />
+            <StatCard label="Interviews" Icon={CalendarCheck} loading />
+          </div>
+        ) : savedResumes.length === 0 && applications.length === 0 ? (
+          <div className="flex items-center gap-3 rounded-2xl border border-dashed border-border p-4">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10">
+              <Sparkles className="size-4 text-primary" />
+            </div>
+            <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
+              Your saved resumes, applications, and interviews will show up here once you get started.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard label="Saved resumes" value={savedResumes.length} Icon={FileText} />
+            <StatCard label="Applications" value={applications.length} Icon={ClipboardList} />
+            <StatCard label="Interviews" value={interviews} Icon={CalendarCheck} />
+          </div>
+        )}
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }} className="mb-6">
@@ -344,7 +368,7 @@ export default function Dashboard({ onClose, onNavigate }) {
       >
         <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-card">
           <div className="p-5" style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}><Logo size={22} /></div>
-          <nav className="flex flex-1 flex-col gap-1 px-3" aria-label="Dashboard">
+          <nav className="flex flex-col gap-1 px-3" aria-label="Dashboard">
             {NAV_ITEMS.map((item) => {
               const active = item.id === "home";
               return (
@@ -361,6 +385,36 @@ export default function Dashboard({ onClose, onNavigate }) {
               );
             })}
           </nav>
+
+          {/* Fills what used to be dead space below a five-item nav on any
+              screen taller than ~600px — real content instead of blank
+              rail, and a genuine value-prop nudge (this app is anonymous by
+              default; syncing across devices is the one real reason to
+              create an account) rather than decoration for its own sake. */}
+          <div className="flex-1 px-3 pt-2">
+            {user ? (
+              <div className="flex items-center gap-2.5 rounded-xl border border-border bg-muted/40 p-3">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
+                  <User className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="m-0 truncate text-[12.5px] font-bold text-foreground">{user.name || user.email}</p>
+                  <p className="m-0 text-[11px] text-muted-foreground">Signed in</p>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => go("settings")}
+                className="w-full rounded-xl border border-primary/25 bg-primary/10 p-3 text-left [-webkit-tap-highlight-color:transparent]"
+              >
+                <p className="m-0 text-[12.5px] font-bold text-primary">Sign in</p>
+                <p className="m-0 mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                  Sync resumes and applications across devices
+                </p>
+              </button>
+            )}
+          </div>
+
           <div className="flex items-center justify-between border-t border-border p-3">
             <ThemeToggle compact />
             <div className="flex items-center gap-1.5">
