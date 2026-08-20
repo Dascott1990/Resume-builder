@@ -1,5 +1,5 @@
 "use client";
-import { forwardRef, useState } from "react";
+import { forwardRef, useId, useState } from "react";
 import { Loader2, ChevronRight, Eye, FileDown, Plus, RefreshCw, Sparkles, Trash2, Check, Clipboard, Pencil, MessageCircle, Gauge, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,19 +73,27 @@ export function TextLink({ children, onClick, disabled, small }) {
 // a static example — a running character count, a status that changes with
 // other state — those should stay visible regardless of focus.
 export function Field({ label, required, hint, hintOnFocus = false, value, onChange, placeholder, type = "text", multiline, rows = 3, mono }) {
+  // A stable, unique id per rendered instance (not derived from `label`,
+  // which isn't guaranteed unique across a form and can repeat verbatim
+  // across different Field instances) — what actually associates the
+  // visible label below with its input for assistive tech. Before this,
+  // the label was a plain <span>: visually present but not semantically
+  // connected, so a screen reader focusing the input announced nothing.
+  const id = useId();
   const [focused, setFocused] = useState(false);
   const showHint = hint && (!hintOnFocus || (focused && !String(value ?? "").trim()));
   const focusHandlers = hintOnFocus ? { onFocus: () => setFocused(true), onBlur: () => setFocused(false) } : {};
   return (
     <div className="mb-3.5">
       <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-[13.5px] font-bold tracking-wide text-foreground">
+        <label htmlFor={id} className="text-[13.5px] font-bold tracking-wide text-foreground">
           {label}{required && <span className="text-primary"> *</span>}
-        </span>
+        </label>
         {showHint && <span className="text-xs text-muted-foreground/60">{hint}</span>}
       </div>
       {multiline ? (
         <Textarea
+          id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
@@ -95,6 +103,7 @@ export function Field({ label, required, hint, hintOnFocus = false, value, onCha
         />
       ) : (
         <Input
+          id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
