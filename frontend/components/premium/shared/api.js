@@ -66,7 +66,12 @@ export async function apiRequest(path, options = {}) {
     if (json.code) err.code = json.code;
     throw err;
   }
-  return json.data ?? json;
+  // Checked by key presence, not `json.data ?? json` — a `??` fallback
+  // would also trigger when `data` is explicitly `null` (a legitimate
+  // "nothing found yet" result, e.g. GET /apply/profile before one
+  // exists), silently handing callers the whole {success, data} envelope
+  // instead of the null they asked for.
+  return "data" in json ? json.data : json;
 }
 
 export default apiRequest;
