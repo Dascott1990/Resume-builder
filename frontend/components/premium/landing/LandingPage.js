@@ -11,7 +11,7 @@
 import { use3DIntensity } from "@/lib/use3DIntensity";
 import { Navbar } from "./Navbar";
 import { Hero } from "./Hero";
-import { PaperTransformSection } from "./PaperTransformSection";
+import { SeeItHappenSection } from "./SeeItHappenSection";
 import { WhyNoviq } from "./WhyNoviq";
 import { HowItWorks } from "./HowItWorks";
 import { CareerSection } from "./CareerSection";
@@ -29,7 +29,7 @@ export default function LandingPage({ onOpen, onOpenArtisans, onOpenDashboard })
       <Navbar onOpenDashboard={onOpenDashboard} />
       <main>
         <Hero onOpenDashboard={onOpenDashboard} intensity={intensity} />
-        <PaperTransformSection />
+        <SeeItHappenSection />
         <WhyNoviq />
         <HowItWorks />
         <CareerSection />

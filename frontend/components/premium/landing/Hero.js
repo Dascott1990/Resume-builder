@@ -186,6 +186,7 @@ export function Hero({ onOpenDashboard, intensity }) {
             className="order-2 lg:order-none"
           >
             <div
+              aria-hidden="true"
               className="relative h-[380px] w-full overflow-hidden rounded-[28px] border border-white/[0.1] sm:h-[460px] lg:h-[560px]"
               style={{
                 background: "radial-gradient(circle at 50% 42%, color-mix(in oklch, var(--primary) 13%, transparent) 0%, transparent 65%), color-mix(in oklch, var(--card) 55%, transparent)",

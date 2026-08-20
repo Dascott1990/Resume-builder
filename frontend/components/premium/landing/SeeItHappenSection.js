@@ -11,14 +11,15 @@ const TRUST = [
 ];
 
 // ── The "watch it happen" section — right after the Hero, the literal
-// next thing you scroll to. Deliberately text-only now: it used to carry
-// its own boxed 3D showcase, but stacking a second 3D piece directly under
-// the Hero's own (now much richer, real-handwriting) scene read as a step
-// down in fidelity rather than a reinforcement — a plainer abstract mark
-// right after the most polished moment on the page undercut it instead of
-// building on it. A clean, centered trust bar carries the same three
-// proof points without competing with what the Hero just showed.
-export function PaperTransformSection() {
+// next thing you scroll to. Deliberately text-only: it used to carry its
+// own boxed 3D showcase (hence this file's old name, PaperTransformSection),
+// but stacking a second 3D piece directly under the Hero's own (now much
+// richer, real-handwriting) scene read as a step down in fidelity rather
+// than a reinforcement — a plainer abstract mark right after the most
+// polished moment on the page undercut it instead of building on it. A
+// clean, centered trust bar carries the same three proof points without
+// competing with what the Hero just showed.
+export function SeeItHappenSection() {
   const containerRef = useRef(null);
   const inView = useInView(containerRef, { once: true, margin: "-15% 0px -15% 0px" });
 

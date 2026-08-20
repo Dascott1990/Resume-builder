@@ -39,7 +39,7 @@ export function ThreeDIntensityControl({ intensity, setIntensity }) {
               className="w-full accent-primary"
             />
             <p className="m-0 mt-2 text-[11px] leading-relaxed text-muted-foreground/70">
-              Adjust how visible the 3D mark is behind the headline.
+              Adjust how visible the hero's 3D scene is.
             </p>
           </motion.div>
         )}

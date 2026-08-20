@@ -6,10 +6,12 @@
  * — an actual pen tracing real, readable handwriting onto aged parchment —
  * versus the "after" — a clean, typeset card with real printed text —
  * makes the pitch in a few silent seconds instead of a paragraph of copy:
- * rough draft in, polished resume out. Lives in its own section below the
- * Hero (see PaperTransformSection.js), not the Hero itself — the Hero
- * stays on the original constellation mark and its own two buttons,
- * deliberately uncluttered.
+ * rough draft in, polished resume out. This IS the Hero's own 3D showcase
+ * (see landing/Hero.js, both the mobile wallpaper and desktop boxed
+ * treatments) — it used to also live in its own section below the Hero,
+ * but showing the same animation twice in a row read as repetitive rather
+ * than reinforcing, so that section (now landing/SeeItHappenSection.js)
+ * dropped its 3D piece and this scene is Hero-only.
  *
  * Both the "before" and "after" text are real canvas-rendered words (a
  * cursive Google Font for the handwriting, a plain system sans for the
@@ -17,10 +19,6 @@
  * below. Each handwritten line reveals left-to-right via a shader wipe
  * timed to the pen's position, so it reads as the pen actually writing the
  * words rather than a line simply fading or growing in.
- *
- * Also the Hero's own 3D showcase (see landing/Hero.js) — both mount this
- * same scene independently rather than sharing one instance, so each gets
- * its own write→transform→hold cycle timed to when IT scrolled into view.
  *
  * Never import this file statically; it's only ever reached through
  * PaperTransformScene3D.js's next/dynamic(ssr:false) call, same isolation

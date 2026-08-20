@@ -9,7 +9,6 @@ const KEY = "noviq_3d_intensity";
 // so it only recedes once someone deliberately says they'd rather not.
 export function use3DIntensity() {
   const [intensity, setIntensityState] = useState(1);
-  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     try {
@@ -19,7 +18,6 @@ export function use3DIntensity() {
         if (!Number.isNaN(n)) setIntensityState(Math.min(1, Math.max(0, n)));
       }
     } catch { /* best-effort */ }
-    setHydrated(true);
   }, []);
 
   const setIntensity = (v) => {
@@ -28,5 +26,5 @@ export function use3DIntensity() {
     try { window.localStorage.setItem(KEY, String(clamped)); } catch { /* best-effort */ }
   };
 
-  return { intensity, setIntensity, hydrated };
+  return { intensity, setIntensity };
 }
