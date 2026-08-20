@@ -1092,6 +1092,12 @@ Rewrite this resume to fix the issues above, following these rules exactly:
   Instead add one entry to "unresolved" naming the real, specific thing the candidate could go get
   (e.g. "Food Handler Certification" or "a WHMIS course") — a suggestion for them to actually pursue,
   never something written into the resume as if it already happened.
+- A flagged "incomplete date" is the same rule, not an exception: if a degree/job period is just a
+  single year ("2018") and the real start date isn't in the resume anywhere, do NOT invent a range
+  by pairing that year with itself ("2018-2018") or guessing a start year — a duplicated-year range
+  reads as a typo on an actual resume, which is worse than leaving it alone. Leave the single year
+  exactly as it is instead, and if it's worth flagging, add it to "unresolved" as something the
+  candidate could fill in themselves (e.g. "Add the start month/year for the BA Marketing degree").
 - You may add, rename, split, or reorder SECTIONS (e.g. break out a dedicated "Certifications" section
   from something buried in Skills) if that better organizes content already present — never populate a
   new section with invented content.
@@ -1170,7 +1176,15 @@ def ats_improve():
     history.append({"pass": 0, "score": check["score"]})
 
     passes_run = 0
-    while check["score"] < TARGET_SCORE and check["issues"] and passes_run < MAX_PASSES:
+    # Gate on issues existing, NOT on score — a resume can score >= TARGET_SCORE
+    # while still carrying real (even high-severity) issues the checker just
+    # listed. Gating the very first pass on score < TARGET_SCORE meant a resume
+    # that opened at 85+ got zero rewrite attempts no matter how many issues
+    # were flagged: "Fix these issues" → "Applied to your resume" → the
+    # resume handed back byte-identical to what went in. TARGET_SCORE still
+    # matters — it's what stops iterating once a pass is actually good enough
+    # (see the break below) — it just can't also gate whether to try at all.
+    while check["issues"] and passes_run < MAX_PASSES:
         issues_text = "\n".join(f"- ({iss.get('severity', 'medium')}) {iss.get('message', '')}" for iss in check["issues"])
         prompt = ATS_IMPROVE_PROMPT.format(
             resume_json=json.dumps(current)[:6000],
@@ -1197,6 +1211,8 @@ def ats_improve():
         unresolved = revised.get("unresolved") or []
         check = _score_resume(current, job_context)
         history.append({"pass": passes_run, "score": check["score"]})
+        if check["score"] >= TARGET_SCORE:
+            break  # good enough — no need to spend a 2nd pass chasing a perfect score
 
     return jsonify({"success": True, "data": {
         "resume": current,
