@@ -30,7 +30,7 @@ const COPY = {
     retryLabel: "Try Again",
   },
   offline: {
-    title: "Can't reach Noviq",
+    title: "Can't reach Noqeev",
     message: "Check your connection and try again — nothing here was lost.",
     retryLabel: "Try Again",
   },
@@ -45,17 +45,17 @@ function WobblingMark({ size }) {
   const reducedMotion = usePrefersReducedMotion();
   return (
     <div
-      className={reducedMotion ? undefined : "noviq-error-wobble"}
+      className={reducedMotion ? undefined : "noqeev-error-wobble"}
       style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center" }}
     >
       <Logo3D style={{ width: size, height: size, display: "block" }} />
       {!reducedMotion && (
         <style jsx>{`
-          .noviq-error-wobble {
-            animation: noviq-error-wobble 2.6s ease-in-out infinite;
+          .noqeev-error-wobble {
+            animation: noqeev-error-wobble 2.6s ease-in-out infinite;
             transform-origin: 50% 65%;
           }
-          @keyframes noviq-error-wobble {
+          @keyframes noqeev-error-wobble {
             0%, 100% { transform: rotate(0deg); }
             20% { transform: rotate(-4deg); }
             50% { transform: rotate(3deg); }
@@ -112,7 +112,7 @@ export default function ErrorScreen({
 
   const handleCopy = async () => {
     const report = [
-      `Noviq error — ${variant}`,
+      `Noqeev error — ${variant}`,
       error?.name && error?.message ? `${error.name}: ${error.message}` : (error?.message || ""),
       error?.detail ? `\nDetail: ${error.detail}` : "",
       error?.stack ? `\nStack:\n${error.stack}` : "",

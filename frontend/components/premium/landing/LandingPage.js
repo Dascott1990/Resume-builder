@@ -5,14 +5,14 @@
  * Unlike every other screen in the app (fixed-position, self-contained app
  * shells with their own internal scroll), this one is a real scrolling
  * document — globals.css scopes `scroll-behavior: smooth` and unlocks
- * html/body height specifically off the presence of #noviq-landing below,
+ * html/body height specifically off the presence of #noqeev-landing below,
  * so nothing here leaks into the Resume Studio / Artisans shells.
  */
 import { use3DIntensity } from "@/lib/use3DIntensity";
 import { Navbar } from "./Navbar";
 import { Hero } from "./Hero";
 import { SeeItHappenSection } from "./SeeItHappenSection";
-import { WhyNoviq } from "./WhyNoviq";
+import { WhyNoqeev } from "./WhyNoqeev";
 import { HowItWorks } from "./HowItWorks";
 import { CareerSection } from "./CareerSection";
 import { ArtisanTeaser } from "./ArtisanTeaser";
@@ -25,12 +25,12 @@ export default function LandingPage({ onOpen, onOpenArtisans, onOpenDashboard })
   const { intensity, setIntensity } = use3DIntensity();
 
   return (
-    <div id="noviq-landing" className="relative w-full bg-background text-foreground">
+    <div id="noqeev-landing" className="relative w-full bg-background text-foreground">
       <Navbar onOpenDashboard={onOpenDashboard} />
       <main>
         <Hero onOpenDashboard={onOpenDashboard} intensity={intensity} />
         <SeeItHappenSection />
-        <WhyNoviq />
+        <WhyNoqeev />
         <HowItWorks />
         <CareerSection />
         <ArtisanTeaser onOpenArtisans={onOpenArtisans} />

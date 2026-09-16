@@ -25,7 +25,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 
-const INSTALLED_KEY = "noviq_pwa_installed";
+const INSTALLED_KEY = "noqeev_pwa_installed";
 
 function readInstalledFlag() {
   try {

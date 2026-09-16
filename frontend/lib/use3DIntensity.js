@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-const KEY = "noviq_3d_intensity";
+const KEY = "noqeev_3d_intensity";
 
 // A person's chosen level for the hero's 3D mark (0 = off, 1 = full) —
 // persisted so it sticks across visits instead of resetting every load.

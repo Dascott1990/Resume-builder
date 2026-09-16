@@ -15,7 +15,7 @@ import ErrorScreen from "@/components/premium/shared/ErrorScreen";
 
 export default function Error({ error, reset }) {
   useEffect(() => {
-    console.error("Noviq crashed (segment boundary):", error);
+    console.error("Noqeev crashed (segment boundary):", error);
     Sentry.captureException(error);
   }, [error]);
 

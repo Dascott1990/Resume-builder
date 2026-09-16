@@ -8,13 +8,13 @@ import { ServiceWorkerRegister } from "./ServiceWorkerRegister";
 import { KeepAlive } from "./KeepAlive";
 
 export const metadata = {
-  title: "Noviq — AI Resume Builder",
+  title: "Noqeev — AI Resume Builder",
   description: "Tailored, ATS-ready resumes in minutes. Anonymous by default, account optional.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Noviq",
+    title: "Noqeev",
   },
   icons: {
     icon: [
@@ -62,10 +62,19 @@ export default function RootLayout({ children }) {
             scene's canvas textures (PaperTransformScene.js). Loaded as a
             real stylesheet, not next/font, since it needs to be resolvable
             by name from a plain 2D canvas context inside a dynamically
-            imported, ssr:false Three.js module. */}
+            imported, ssr:false Three.js module.
+            Unbounded — the wordmark face (--font-wordmark in globals.css).
+            Poppins + Bebas Neue — the two extra text-layer fonts in
+            /brand's post composer (see FONT_STACKS in postTemplates.js):
+            Poppins is the geometric sans most social-template tools
+            (Canva chief among them) default to for clean body/headline
+            text; Bebas Neue is the standard bold condensed face for
+            punchy statement graphics. Picked for being genuinely common
+            in the category, not house taste. Same plain-stylesheet
+            loading as Caveat/Unbounded, one request for all four. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Caveat:wght@600;700&family=Poppins:wght@400;600;700;800&family=Unbounded:wght@700;800&display=swap" rel="stylesheet" />
       </head>
       <body className="m-0 overscroll-none bg-background">
         {children}

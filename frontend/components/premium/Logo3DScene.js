@@ -5,14 +5,14 @@
  * call, so three/@react-three/fiber/@react-three/drei stay isolated to a lazy
  * chunk that only downloads on the launcher screen.
  *
- * Renders the Noviq brand mark (Logo.js's MARK_PATH — a stroked 3-segment
- * polyline: short pillar → diagonal bridge → tall pillar) as a real extruded
- * 3D solid, not a generic shape. The path is a *stroke*, not a closed
- * outline ExtrudeGeometry could use directly — rather than hand-deriving an
- * offset polygon (self-intersection risk at the joints breaks
- * triangulation), it's built as always-valid primitives instead: one
- * rectangular beam per segment plus a circular filler at each joint,
- * merged into a single geometry.
+ * Renders the Noqeev brand mark (Logo.js's MARK_PATH / MARK_POINTS — a
+ * stroked polyline: three sides of a bowl, then a tail breaking free and up)
+ * as a real extruded 3D solid, not a generic shape. The path is a *stroke*,
+ * not a closed outline ExtrudeGeometry could use directly — rather than
+ * hand-deriving an offset polygon (self-intersection risk at the joints
+ * breaks triangulation), it's built as always-valid primitives instead: one
+ * rectangular beam per segment plus a circular filler at each interior
+ * joint, merged into a single geometry.
  */
 import { useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";

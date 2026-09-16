@@ -59,11 +59,11 @@ const HIRE_TABS = [
   { id: "requests", Icon: ClipboardList, label: "My requests" },
 ];
 
-const MY_IDS_KEY = "noviq_my_artisan_ids";
-const MY_TOKENS_KEY = "noviq_my_artisan_tokens";
-const RATED_IDS_KEY = "noviq_rated_artisan_ids";
-const ARTISAN_VIEW_KEY = "noviq_artisan_browse_view";
-const FAVORITE_IDS_KEY = "noviq_favorite_artisan_ids";
+const MY_IDS_KEY = "noqeev_my_artisan_ids";
+const MY_TOKENS_KEY = "noqeev_my_artisan_tokens";
+const RATED_IDS_KEY = "noqeev_rated_artisan_ids";
+const ARTISAN_VIEW_KEY = "noqeev_artisan_browse_view";
+const FAVORITE_IDS_KEY = "noqeev_favorite_artisan_ids";
 
 const TRADES = TRADES_WITH_ALL;
 

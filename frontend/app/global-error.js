@@ -44,7 +44,7 @@ export default function GlobalError({ error }) {
         <LogoMark size={40} />
         <div style={{ fontSize: 18, fontWeight: 700 }}>Something went wrong</div>
         <div style={{ fontSize: 14.5, color: "#a8a29e", maxWidth: 380, lineHeight: 1.5 }}>
-          Noviq hit a problem it couldn&apos;t recover from on its own. Reloading usually fixes it.
+          Noqeev hit a problem it couldn&apos;t recover from on its own. Reloading usually fixes it.
         </div>
         <button
           onClick={() => window.location.reload()}

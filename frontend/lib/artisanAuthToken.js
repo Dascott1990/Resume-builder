@@ -5,7 +5,7 @@
 // artisan at once, so this gets its own localStorage key and its own
 // header (X-Artisan-Token, not Authorization: Bearer — see the backend's
 // get_artisan_scope) rather than sharing either with the customer session.
-const KEY = "noviq_artisan_token";
+const KEY = "noqeev_artisan_token";
 
 export function getArtisanToken() {
   try { return localStorage.getItem(KEY); } catch { return null; }

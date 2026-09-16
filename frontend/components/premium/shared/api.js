@@ -42,7 +42,7 @@ export async function apiRequest(path, options = {}) {
     // DNS failure, backend down. Tagged so the UI can show a calm "check
     // your connection" screen instead of the raw dev-facing message below,
     // which is still attached (as .detail) for the technical-details panel.
-    const err = new Error("Can't reach Noviq's servers right now.");
+    const err = new Error("Can't reach Noqeev's servers right now.");
     err.code = "NETWORK_ERROR";
     err.detail = `Could not reach the server at ${BASE}. Is the backend running and is NEXT_PUBLIC_API_URL set correctly?`;
     throw err;

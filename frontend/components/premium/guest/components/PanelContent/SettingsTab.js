@@ -49,7 +49,7 @@ export function SettingsTab({ saved, onResetStyle, onClearAll }) {
       </div>
 
       <p className="m-0 text-[11.5px] text-muted-foreground/60">
-        Noviq · Guest Mode<br />
+        Noqeev · Guest Mode<br />
         Nothing is stored beyond what you see in "Saved."
       </p>
     </div>

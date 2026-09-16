@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/useAuth";
 import { Field, Btn } from "@/components/premium/guest/components/primitives";
 import Logo from "@/components/premium/Logo";
 
-const ENTERED_KEY = "noviq_entered_app";
+const ENTERED_KEY = "noqeev_entered_app";
 
 function ResetPasswordContent() {
   const router = useRouter();
@@ -53,7 +53,7 @@ function ResetPasswordContent() {
             This reset link is missing its token.
           </p>
         </div>
-        <Btn variant="gold" small onClick={() => router.replace("/")}>Back to Noviq</Btn>
+        <Btn variant="gold" small onClick={() => router.replace("/")}>Back to Noqeev</Btn>
       </div>
     );
   }

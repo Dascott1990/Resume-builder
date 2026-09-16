@@ -689,7 +689,7 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
               <ChevronLeft className="size-3.5" />
             </button>
           )}
-          <button onClick={requestClose} aria-label="Close Noviq"
+          <button onClick={requestClose} aria-label="Close Noqeev"
             className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <X className="size-[17px]" />
           </button>
@@ -704,13 +704,18 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
               Wordmark text stays icon-only on mobile/tablet for the same
               space reason as before — back button + close button + the two
               download buttons already crowd this 64px bar tightly enough
-              that the full "NOVIQ" text had nowhere to go (it was getting
+              that the full "NOQEEV" text had nowhere to go (it was getting
               hard-clipped mid-letter by this row's own overflow-hidden). */}
           <div style={{ width: 26, height: 26 }} className="shrink-0">
             <Logo3D style={{ width: "100%", height: "100%", display: "block" }} />
           </div>
           {isDesktop && (
-            <span className="text-[17px] font-bold tracking-[0.14em] text-foreground">NOVIQ</span>
+            // Same Unbounded treatment as Logo.js's own wordmark span (see
+            // --font-wordmark in globals.css) — this one's hand-duplicated
+            // rather than going through <Logo>, since this header only
+            // wants the 3D mark (Logo3D) paired with plain text, not the
+            // full flat-mark-plus-wordmark lockup <Logo> renders.
+            <span className="[font-family:var(--font-wordmark)] text-[17px] font-extrabold tracking-[0.02em] text-foreground">NOQEEV</span>
           )}
         </div>
 

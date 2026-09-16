@@ -50,7 +50,7 @@ function ScreenLoading() {
 // flow you'd only want for a brand-new visitor. This is the one thing
 // that decides "have they entered the app before," so a plain refresh
 // lands back on the dashboard instead.
-const ENTERED_KEY = "noviq_entered_app";
+const ENTERED_KEY = "noqeev_entered_app";
 
 // Which screen a refresh should land back on — the last one actually
 // worth returning to. Deliberately excludes "launcher" (governed by
@@ -58,7 +58,7 @@ const ENTERED_KEY = "noviq_entered_app";
 // mid-signup and finding the same empty form again isn't "picking up
 // where you left off," it's just confusing — dashboard is the more
 // sensible landing spot for those two).
-const VIEW_KEY = "noviq_last_view";
+const VIEW_KEY = "noqeev_last_view";
 const RESTORABLE_VIEWS = new Set([
   "dashboard", "resume", "cvscan", "jobtracker", "apply", "settings", "artisans", "artisan-dashboard",
 ]);

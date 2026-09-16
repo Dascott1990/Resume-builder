@@ -19,7 +19,7 @@ import requests
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 # Required by Nominatim's usage policy — identifies the app, not a bare
 # "python-requests/x.y" default that their servers are known to block.
-USER_AGENT = "Noviq-ArtisanMarketplace/1.0 (contact: support@noviq.app)"
+USER_AGENT = "Noqeev-ArtisanMarketplace/1.0 (contact: support@noqeev.app)"
 
 _last_call_lock = threading.Lock()
 _last_call_at = 0.0

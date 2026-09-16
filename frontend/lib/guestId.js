@@ -1,4 +1,4 @@
-const KEY = "noviq_guest_id";
+const KEY = "noqeev_guest_id";
 
 function newId() {
   return window.crypto?.randomUUID?.() || `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;

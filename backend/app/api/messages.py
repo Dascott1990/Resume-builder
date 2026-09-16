@@ -98,7 +98,7 @@ def _notify_new_message(job, msg):
             f"New message about your {job.trade} request",
             f"""
             <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
-              <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOVIQ</p>
+              <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
               <h2 style="color:#111;margin:0 0 12px;">New message</h2>
               <p style="color:#444;line-height:1.6;margin:0 0 16px;">{msg.body}</p>
               <p style="color:#888;font-size:12.5px;line-height:1.5;">Sign in to reply.</p>

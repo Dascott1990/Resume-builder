@@ -10,8 +10,8 @@
 import { useCallback, useState } from "react";
 import { getToken } from "./authToken";
 
-const COUNT_KEY = "noviq_resume_action_count";
-const SEEN_KEY = "noviq_signup_nudge_seen";
+const COUNT_KEY = "noqeev_resume_action_count";
+const SEEN_KEY = "noqeev_signup_nudge_seen";
 const THRESHOLD = 2;
 
 export function useSignupNudge() {

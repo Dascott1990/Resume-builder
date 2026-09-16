@@ -4,11 +4,11 @@ bookmarklet (see frontend/lib/bookmarklet.js for the JS that runs on the
 job board page itself).
 
 POST /api/v1/capture/jd       — bookmarklet calls this with the page's text
-GET  /api/v1/capture/jd/<id>  — the new Noviq tab calls this once, then the
+GET  /api/v1/capture/jd/<id>  — the new Noqeev tab calls this once, then the
                                  row is gone
 
 No auth, no guest_id scoping: the bookmarklet executes in the job board's
-own page context, which has no access to Noviq's origin (different site,
+own page context, which has no access to Noqeev's origin (different site,
 no shared localStorage/cookies) — the random id in the URL the bookmarklet
 opens IS the only handshake between the two tabs. Capacity for abuse is
 bounded by TEXT_LIMIT and the fact that a row is either claimed within the

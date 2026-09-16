@@ -2,33 +2,34 @@
 /**
  * Logo.js — app/components/premium/Logo.js
  *
- * The Noviq mark: two pillars, bridged.
+ * The Noqeev mark: Ascending Q.
  *
- * This isn't a decorative gesture — the geometry and the color are both
- * doing literal work:
+ * Same working principle as the mark it replaced — the geometry and the
+ * color are both doing literal work, not decoration:
  *
- *   · A SHORT pillar on the left — where you're standing now. Potential,
- *     unproven, still finding its footing.
- *   · A TALL pillar on the right — where you land. Real, higher ground.
- *   · A rising diagonal SPANS the two — the actual bridge between potential
- *     and opportunity the brand is built on, not a metaphor bolted onto an
- *     arrow. Read the whole silhouette together and it also traces an N —
- *     Noviq's own initial, which is why the shape is ownable in a way a
- *     generic swoosh or checkmark never could be.
- *   · ONE gradient carries the emotional arc: deep, grounded bronze at the
- *     base (both pillars start in the same uncertainty) rising to bright
- *     warm gold at the top. Because the right pillar is taller, it
- *     physically reaches further into the light than the left one — the
- *     metaphor and the geometry are the same fact, not two separate ideas.
- *   · No dot, no full stop. A period says the story ends; this one
- *     doesn't — "every career deserves a second chance" isn't a closed
- *     sentence.
+ *   · A squared bowl — three sides of a bracket, deliberately NOT a circle.
+ *     This is a page, a block, something built from the same straight
+ *     edges as a resume's own layout, not a generic O.
+ *   · The fourth side never closes. Instead the line keeps going: it dips
+ *     out past the bowl's own corner, then breaks straight up and to the
+ *     right, past the bowl's own top edge — the tail a real Q settles back
+ *     down with, refusing to settle. Read together it's still legible as
+ *     Noqeev's own initial, the same ownable-shape logic the previous mark
+ *     used for its N.
+ *   · ONE gradient carries the same emotional arc as before: deep, grounded
+ *     bronze at the base, rising to bright warm gold at the top. The tail's
+ *     own tip is the highest point in the whole mark — it physically
+ *     reaches further into the light than the bowl it broke out of.
+ *   · No dot, no full stop, same as before — the story isn't closed.
  *
- * Deliberately one shape, no crest, no extra ornament — flat (not rounded)
- * base edges so it reads as something BUILT, not a soft gesture. Still a
- * single confident silhouette that holds up at 16px in a browser tab, not
- * just at hero size — flatten the gradient to one solid color and the
- * pillars-and-bridge shape still reads immediately.
+ * One continuous stroked path — six points, five straight segments, flat
+ * (butt) caps at the two ends, round joins at every bend so nothing spikes
+ * at small sizes. Still one confident silhouette: flatten the gradient to a
+ * single solid color and the bowl-and-tail shape still reads immediately,
+ * and it still holds at 16px in a browser tab.
+ *
+ * The exact same point list drives the 3D extrusion in markGeometry.js —
+ * see MARK_POINTS below; nothing there is hand-duplicated.
  *
  * Usage:
  *   import Logo, { LogoMark } from "./Logo";
@@ -38,33 +39,47 @@
  *   <Logo iconOnly />                         // just the mark — mobile top bar, loading state
  *   <Logo tile />                             // mark in a rounded app-icon tile
  *   <Logo theme="light" />                    // for placement on a light/paper surface
- *   <Logo name="NOVIQ" onClick={goHome} />    // clickable brand mark, name stays editable
+ *   <Logo name="NOQEEV" onClick={goHome} />    // clickable brand mark, name stays editable
  *   <LogoMark size={20} />                    // bare icon only, e.g. favicon preview, spinner
  */
 
 import React from "react";
 
-// The gesture: short pillar (potential) → rising span (the bridge) → tall
-// pillar (opportunity). One continuous stroked path, drawn as if it were a
-// single structural beam bent at two joints — flat caps so the base reads
-// as "resting on ground," not trailing off softly.
-// Exported as constants so the exact geometry is easy to reuse elsewhere:
-// a favicon.svg, an app-icon export, a loading spinner.
+// The gesture: three sides of a bowl (bracket, open on the fourth) → the
+// line keeps going instead of closing → a tail that kicks out, then breaks
+// upward past the bowl's own height. One continuous stroked path, six
+// points, drawn as if it were a single structural beam bent at five
+// straight joints — flat caps so the two ends read as "resting on ground"
+// and "reaching into the air," not trailing off softly.
+// MARK_POINTS is the single source of truth: MARK_PATH (this file's flat
+// SVG) and markGeometry.js's 3D extrusion both derive from it, so the two
+// can never drift out of sync with each other.
 export const MARK_VIEWBOX   = "0 0 100 100";
-export const MARK_PATH      = "M 22 90 L 22 52 L 78 10 L 78 90";
-export const MARK_STROKE    = 16;
+export const MARK_POINTS    = [
+  [22, 68],  // base of the bowl's left side — grounded, same role the old mark's short-pillar base played
+  [22, 16],  // top-left corner
+  [74, 16],  // top-right corner
+  [74, 68],  // bottom-right corner — the bowl would close here; instead the line keeps going
+  [88, 86],  // the tail kicks out, down and to the right
+  [97, 8],   // then breaks straight up, past the bowl's own top edge — the highest point in the mark
+];
+export const MARK_PATH      = MARK_POINTS.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ");
+export const MARK_STROKE    = 14;
 
 /**
  * LogoMark — the icon alone, nothing else. Use this directly when you only
  * need the glyph: favicon preview, browser-tab-sized contexts, a subtle
  * watermark, a loading/processing indicator.
  *
- * Renders the pillars-and-bridge silhouette filled with a single vertical
+ * Renders the bowl-and-tail silhouette filled with a single vertical
  * gradient (bright gold at the top, deep bronze at the base) so the color
- * itself encodes "rising into clarity" — plus a restrained glass sheen
- * along the span, and a thin blended rim to keep edges crisp at small
- * sizes. The clipPath reuses the exact stroke geometry, so a flattened,
- * single-color version of this mark has the identical silhouette.
+ * itself encodes "rising into clarity." Deliberately just the one gradient
+ * and nothing else layered on top — no separate sheen highlight, no
+ * blended rim light. The previous mark carried both; dropped here on
+ * purpose, since a squared, geometric shape reads as more precise with
+ * fewer things drawn on top of it, not more polished. The clipPath still
+ * reuses the exact stroke geometry, so a flattened, single-color version
+ * of this mark has the identical silhouette.
  *
  * Uses React.useId() to scope its gradient/clip ids, so multiple <LogoMark />
  * or <Logo /> instances can sit on the same page without one's <defs>
@@ -75,13 +90,11 @@ export function LogoMark({
   color = "var(--primary)",
   style,
   className,
-  title = "Noviq",
+  title = "Noqeev",
   ...rest
 }) {
   const uid = React.useId().replace(/[:]/g, "");
-  const idBody  = `noviq-body-${uid}`;
-  const idSheen = `noviq-sheen-${uid}`;
-  const idClip  = `noviq-clip-${uid}`;
+  const idBody = `noqeev-body-${uid}`;
 
   return (
     <svg
@@ -95,58 +108,31 @@ export function LogoMark({
       {...rest}
     >
       <defs>
-        {/* Top of the canvas = brightest, base = deepest bronze. Because
-            the right (tall) pillar's peak sits near the top of the
-            gradient and the short pillar's peak only reaches the middle,
-            this single gradient is what makes "the right pillar reaches
-            further into the light" a literal, not just implied, fact. */}
+        {/* Top of the mark = brightest, base = deepest bronze. The tail's
+            own tip is the highest point (y=8, above the bowl's own top
+            edge at y=16) — this single gradient is what makes "it reaches
+            further into the light than the bowl it broke out of" a
+            literal, not just implied, fact. */}
         <linearGradient id={idBody} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%"   stopColor="#F6E6B3" />
           <stop offset="38%"  stopColor={color} />
           <stop offset="100%" stopColor="#5C4419" />
         </linearGradient>
-        {/* A single restrained highlight along the span — the moment the
-            bridge catches the light, not a decorative glare. */}
-        <linearGradient id={idSheen} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%"  stopColor="#FFFFFF" stopOpacity="0.55" />
-          <stop offset="70%" stopColor="#FFFFFF" stopOpacity="0" />
-        </linearGradient>
-        {/* Reuses the exact stroke geometry of the mark as a clip, so the
-            silhouette here is pixel-identical to a flat single-color
-            version — the glass treatment is additive, never a departure
-            from the underlying shape. */}
-        <clipPath id={idClip}>
-          <path
-            d={MARK_PATH}
-            fill="none"
-            stroke="#000"
-            strokeWidth={MARK_STROKE}
-            strokeLinecap="butt"
-            strokeLinejoin="round"
-          />
-        </clipPath>
       </defs>
 
-      <g clipPath={`url(#${idClip})`}>
-        <rect x="0" y="0" width="100" height="100" fill={`url(#${idBody})`} />
-        <ellipse
-          cx="52" cy="26" rx="46" ry="11"
-          transform="rotate(-37 52 26)"
-          fill={`url(#${idSheen})`}
-        />
-      </g>
-
-      {/* Thin rim on the same path, blended so it lightens the top edge and
-          darkens the bottom edge slightly — reads as a bevel catching
-          light, and keeps the silhouette crisp once this shrinks to 16px. */}
+      {/* Stroked directly with the gradient — no clipPath/rect indirection.
+          MARK_PATH is open (no closing Z), which matters here: a clipPath
+          built from this same path would implicitly close it back to its
+          start point and fill THAT polygon instead of the stroke outline,
+          silently drawing a different silhouette than intended. Painting
+          the stroke directly has no such trap. */}
       <path
         d={MARK_PATH}
         fill="none"
-        stroke="rgba(255,255,255,0.18)"
+        stroke={`url(#${idBody})`}
         strokeWidth={MARK_STROKE}
         strokeLinecap="butt"
         strokeLinejoin="round"
-        style={{ mixBlendMode: "overlay" }}
       />
     </svg>
   );
@@ -158,7 +144,7 @@ export function LogoMark({
  *
  * Props:
  *   size       icon size in px; wordmark type scale follows it. Default 28.
- *   name       the brand name to set as the wordmark. Default "NOVIQ" — pass
+ *   name       the brand name to set as the wordmark. Default "NOQEEV" — pass
  *              a different string if the name changes again before it's final.
  *   iconOnly   true = render just the mark, no wordmark. Good for tight mobile
  *              headers or anywhere the full lockup won't fit.
@@ -174,7 +160,7 @@ export function LogoMark({
  */
 export default function Logo({
   size = 28,
-  name = "NOVIQ",
+  name = "NOQEEV",
   iconOnly = false,
   tile = false,
   theme = "dark",
@@ -234,9 +220,19 @@ export default function Logo({
       {!iconOnly && (
         <span
           style={{
-            fontSize: Math.round(size * 0.86),
-            fontWeight: 700,
-            letterSpacing: "0.14em",
+            // Unbounded — see --font-wordmark in globals.css for why this
+            // face specifically (its squared letterforms deliberately
+            // rhyme with the mark's own squared bowl). It runs visually
+            // wider and heavier than the old Helvetica Neue treatment at
+            // the same point size, so the scale and tracking below are
+            // tuned down from the previous 0.86/700/0.14em to match —
+            // Unbounded's own letterforms already carry enough width and
+            // weight that copying those old numbers over would have made
+            // the wordmark overpower the icon next to it.
+            fontFamily: "var(--font-wordmark)",
+            fontSize: Math.round(size * 0.72),
+            fontWeight: 800,
+            letterSpacing: "0.02em",
             color: wordColor,
             lineHeight: 1,
             whiteSpace: "nowrap",

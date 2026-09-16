@@ -17,7 +17,7 @@ export function BookmarkletModal({ open, onClose }) {
           </p>
           <p className="m-0 mb-5 text-[12.5px] leading-relaxed text-muted-foreground">
             Drag the button below to your bookmarks bar. Next time you're looking at a job
-            posting anywhere — LinkedIn, Indeed, a company's own site — click it, and Noviq
+            posting anywhere — LinkedIn, Indeed, a company's own site — click it, and Noqeev
             opens with that posting already in place.
           </p>
 

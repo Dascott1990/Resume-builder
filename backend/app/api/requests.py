@@ -44,7 +44,7 @@ def _notify_target_artisan(job, artisan):
             f"New {job.trade} request from a customer",
             f"""
             <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
-              <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOVIQ</p>
+              <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
               <h2 style="color:#111;margin:0 0 12px;">New job request</h2>
               <p style="color:#444;line-height:1.6;margin:0 0 4px;"><b>Location:</b> {job.city or 'Not specified'}</p>
               <p style="color:#444;line-height:1.6;margin:0 0 16px;">{job.description}</p>

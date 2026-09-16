@@ -16,6 +16,15 @@
 :root {
   --taskbar-height: 0px;
   --font-sans: "Helvetica Neue", Arial, system-ui, sans-serif;
+  /* The wordmark only — "NOQEEV" in the header/lockup, nowhere else.
+     Unbounded's squared, geometric letterforms are the deliberate pairing
+     with the Ascending Q mark's own squared bowl (see Logo.js): both are
+     built from the same blocky, flat-edged vocabulary, so the icon and the
+     type read as one designed object instead of an icon bolted onto
+     whatever the UI's body font happened to be. Loaded via the same
+     Google Fonts <link> as Caveat in layout.js — falls back to
+     --font-sans if the request is ever blocked. */
+  --font-wordmark: "Unbounded", "Helvetica Neue", Arial, system-ui, sans-serif;
   --background: oklch(0.99 0.003 80);
   --foreground: oklch(0.16 0.01 60);
   --card: oklch(1 0 0);
@@ -77,11 +86,11 @@ body {
 
 /* Landing page only — every other screen is a fixed-position app shell that
    manages its own internal scroll containers, so this can't leak into them. */
-html:has(#noviq-landing) {
+html:has(#noqeev-landing) {
   scroll-behavior: smooth;
   height: auto;
 }
-html:has(#noviq-landing) body {
+html:has(#noqeev-landing) body {
   height: auto;
   overscroll-behavior: auto;
 }
@@ -127,7 +136,7 @@ select {
 /* Shared breathing keyframes for logo / brand marks used as a background
    presence (e.g. the "Open Resume Studio" launcher). Kept here so any
    component can reuse the same rhythm without redefining it. */
-@keyframes noviq-breathe {
+@keyframes noqeev-breathe {
   0%, 100% { transform: scale(1); opacity: 0.85; }
   50%      { transform: scale(1.05); opacity: 1; }
 }
@@ -138,7 +147,7 @@ select {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
-  html:has(#noviq-landing) {
+  html:has(#noqeev-landing) {
     scroll-behavior: auto;
   }
 }

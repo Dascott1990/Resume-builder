@@ -1,6 +1,6 @@
 "use client";
 /**
- * Resume.js — Noviq Studio + Guest Mode
+ * Resume.js — Noqeev Studio + Guest Mode
  *
  * Two modes:
  *  1. "My Resumes"  — the four pre-built resumes (original behaviour, untouched)
@@ -726,10 +726,10 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
   useEffect(() => {
     if (!countryResolved || !detectedTemplateKey || !countryCode) return;
     let alreadyShown = false;
-    try { alreadyShown = localStorage.getItem("noviq_auto_template_shown") === "1"; } catch { /* best-effort */ }
+    try { alreadyShown = localStorage.getItem("noqeev_auto_template_shown") === "1"; } catch { /* best-effort */ }
     if (alreadyShown) return;
     switchResume(detectedTemplateKey);
-    try { localStorage.setItem("noviq_auto_template_shown", "1"); } catch { /* best-effort */ }
+    try { localStorage.setItem("noqeev_auto_template_shown", "1"); } catch { /* best-effort */ }
     const countryName = COUNTRY_NAMES[countryCode] || "your region";
     toast(`Looks like you're in ${countryName} — this is the resume format you'll be seeing.`, {
       description: "Browse Templates any time for Canada, USA, UK, Germany, France, or Nigeria & Ghana instead.",
@@ -983,7 +983,7 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
                     <Download size={14} strokeWidth={ICON_STROKE} />
                     <span className="max-[430px]:hidden">{downloading === "pdf" ? "Preparing…" : "PDF"}</span>
                   </motion.button>
-                  <motion.button whileTap={{ scale: 0.88 }} onClick={onClose} aria-label="Close Noviq" title="Close"
+                  <motion.button whileTap={{ scale: 0.88 }} onClick={onClose} aria-label="Close Noqeev" title="Close"
                     className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
                     <X size={16} strokeWidth={ICON_STROKE} />
                   </motion.button>

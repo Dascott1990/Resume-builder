@@ -540,7 +540,7 @@ class JdCapture(db.Model):
     A single job-description text, captured by the bookmarklet from
     whatever job board page it was clicked on and picked up moments later
     by the app in a new tab. Deliberately NOT scoped by guest_id/user_id —
-    the bookmarklet runs on a third-party page with no access to Noviq's
+    the bookmarklet runs on a third-party page with no access to Noqeev's
     own localStorage (cross-origin), so there's no identity to attach here;
     the random id in the URL is the only handshake between the two tabs.
     Rows are single-use (deleted on read) and swept of anything left

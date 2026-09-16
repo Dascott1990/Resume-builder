@@ -18,7 +18,7 @@
  * display preference, not account data, and available to signed-out
  * guests without a backend field for it.
  */
-export const BRIGHTNESS_KEY = "noviq_brightness";
+export const BRIGHTNESS_KEY = "noqeev_brightness";
 export const DEFAULT_BRIGHTNESS = 100; // 0-200, 100 = neutral (no overlay at all)
 export const MIN_BRIGHTNESS = 0;
 export const MAX_BRIGHTNESS = 200;

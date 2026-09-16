@@ -3,10 +3,10 @@
  *
  * Runs entirely inside whatever job board page it's clicked on (LinkedIn,
  * Indeed, a company's own careers page — anywhere), which is a different
- * origin than Noviq with no access to its localStorage or cookies. So the
- * only way to hand the page's text back to Noviq is: POST it to a public
+ * origin than Noqeev with no access to its localStorage or cookies. So the
+ * only way to hand the page's text back to Noqeev is: POST it to a public
  * capture endpoint (see backend/app/api/capture.py — no auth, single-use,
- * swept after an hour), then open a new Noviq tab with the resulting id in
+ * swept after an hour), then open a new Noqeev tab with the resulting id in
  * the URL. app/page.js picks that id up on load and fetches the text.
  *
  * Deliberately generic (document.body.innerText, not per-site selectors):
@@ -21,7 +21,7 @@ const SOURCE = `(function(){
   var API='${API_URL}';
   var APP='${APP_URL}';
   var text=(document.body.innerText||'').trim();
-  if(!text){alert('Noviq: could not read any text on this page.');return;}
+  if(!text){alert('Noqeev: could not read any text on this page.');return;}
   text=text.slice(0,8000);
   fetch(API+'/api/v1/capture/jd',{
     method:'POST',
@@ -31,9 +31,9 @@ const SOURCE = `(function(){
     if(j&&j.success&&j.data&&j.data.id){
       window.open(APP+'/?jd='+j.data.id,'_blank');
     }else{
-      alert('Noviq: could not capture this page. Try again.');
+      alert('Noqeev: could not capture this page. Try again.');
     }
-  }).catch(function(){alert('Noviq: could not reach Noviq. Try again.');});
+  }).catch(function(){alert('Noqeev: could not reach Noqeev. Try again.');});
 })();`;
 
 // Collapse to one line — a multi-line javascript: URI is technically valid

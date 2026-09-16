@@ -8,7 +8,7 @@ export function ArtisanTeaser({ onOpenArtisans }) {
       <div className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal>
-            <span className={EYEBROW}>Also on Noviq</span>
+            <span className={EYEBROW}>Also on Noqeev</span>
             <h2 className="m-0 text-[clamp(1.6rem,4vw,2.2rem)] leading-tight font-bold text-foreground">
               Not every next chance is behind a desk.
             </h2>

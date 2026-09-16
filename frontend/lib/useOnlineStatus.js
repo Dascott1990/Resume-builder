@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 
 // ── Connectivity hook — tracks the browser's own online/offline signal ────
-// navigator.onLine is a network-interface check, not a "can I reach Noviq's
+// navigator.onLine is a network-interface check, not a "can I reach Noqeev's
 // servers" check (a captive portal or dead backend still reads "online"),
 // but it's exactly right for the one thing this hook exists to catch: the
 // device itself has no connection at all, so there's no point even trying

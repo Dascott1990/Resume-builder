@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/useAuth";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import Logo from "@/components/premium/Logo";
 
-const ENTERED_KEY = "noviq_entered_app";
+const ENTERED_KEY = "noqeev_entered_app";
 
 function VerifyEmailContent() {
   const router = useRouter();
@@ -70,7 +70,7 @@ function VerifyEmailContent() {
             <p className="m-0 mt-1.5 max-w-xs text-[13.5px] leading-relaxed text-muted-foreground">{message}</p>
           </div>
           <Btn variant="gold" small onClick={() => router.replace("/")}>
-            Back to Noviq
+            Back to Noqeev
           </Btn>
         </motion.div>
       )}

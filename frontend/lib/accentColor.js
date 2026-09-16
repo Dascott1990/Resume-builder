@@ -16,7 +16,7 @@
  * overrides the stylesheet in both light and dark mode at once, since
  * both themes already use the identical amber value there.
  */
-export const ACCENT_KEY = "noviq_accent_color";
+export const ACCENT_KEY = "noqeev_accent_color";
 
 export const ACCENT_COLORS = [
   { id: "amber", label: "Amber", primary: "#f59e0b", foreground: "#1c1206" },

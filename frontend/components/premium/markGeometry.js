@@ -1,6 +1,6 @@
 "use client";
 /**
- * markGeometry.js — the Noviq brand mark's 3D geometry, extracted out of
+ * markGeometry.js — the Noqeev brand mark's 3D geometry, extracted out of
  * Logo3DScene.js (its one current consumer) rather than inlined, so a
  * second place that needs the identical mark shape later has one source to
  * import instead of a hand-copied duplicate that could drift out of sync.
@@ -12,16 +12,16 @@
 import { useMemo } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { MARK_STROKE } from "./Logo";
+import { MARK_STROKE, MARK_POINTS } from "./Logo";
 
 // SVG viewBox is 0 0 100 100, Y-down; three.js is Y-up — center on the
 // viewBox and flip Y once here so every downstream number is in "model
-// space" already.
+// space" already. Reads MARK_POINTS directly rather than a hand-duplicated
+// set of coordinates — Logo.js's flat 2D mark and this 3D one always trace
+// the identical path, whatever it happens to be, with no second place that
+// could drift out of sync when the shape changes.
 const toModelSpace = (svgX, svgY) => [svgX - 50, 50 - svgY];
-const [AX, AY] = toModelSpace(22, 90); // base of the short pillar
-const [BX, BY] = toModelSpace(22, 52); // top of the short pillar / bridge start
-const [CX, CY] = toModelSpace(78, 10); // bridge end / top of the tall pillar
-const [DX, DY] = toModelSpace(78, 90); // base of the tall pillar
+const MODEL_POINTS = MARK_POINTS.map(([x, y]) => toModelSpace(x, y));
 
 export const DEPTH = 16; // roughly square cross-section with the stroke width — reads as a solid beam, not a flat plaque
 const EXTRUDE_SETTINGS = { depth: DEPTH, bevelEnabled: true, bevelThickness: 1, bevelSize: 1, bevelSegments: 1 };
@@ -72,13 +72,21 @@ function buildJointGeometry(cx, cy) {
 
 export function useMarkGeometry() {
   return useMemo(() => {
-    const pieces = [
-      buildBeamGeometry(AX, AY, BX, BY), // short pillar
-      buildBeamGeometry(BX, BY, CX, CY), // diagonal bridge
-      buildBeamGeometry(CX, CY, DX, DY), // tall pillar
-      buildJointGeometry(BX, BY),        // round joint filler
-      buildJointGeometry(CX, CY),        // round joint filler
-    ];
+    // One beam per segment between consecutive points, plus a round joint
+    // filler at every INTERIOR point (not the two open ends) — generalized
+    // over however many points MARK_POINTS actually has, rather than a
+    // fixed count baked in here. The previous mark had exactly 4 points/2
+    // interior joints; this one has 6/4; neither number is special-cased.
+    const pieces = [];
+    for (let i = 0; i < MODEL_POINTS.length - 1; i++) {
+      const [x0, y0] = MODEL_POINTS[i];
+      const [x1, y1] = MODEL_POINTS[i + 1];
+      pieces.push(buildBeamGeometry(x0, y0, x1, y1));
+    }
+    for (let i = 1; i < MODEL_POINTS.length - 1; i++) {
+      const [cx, cy] = MODEL_POINTS[i];
+      pieces.push(buildJointGeometry(cx, cy));
+    }
     const merged = mergeGeometries(pieces);
     merged.computeVertexNormals();
     merged.computeBoundingBox();

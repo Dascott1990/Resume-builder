@@ -6,7 +6,7 @@ import { Reveal, SECTION_WRAP, EYEBROW } from "./shared";
 
 const FAQS = [
   {
-    q: "Is Noviq really free?",
+    q: "Is Noqeev really free?",
     a: "Yes. Building, editing, and downloading a resume costs nothing — no credit card, no trial period, no subscription to cancel later.",
   },
   {
@@ -49,7 +49,7 @@ export function FAQ() {
         <Reveal className="mx-auto max-w-xl text-center">
           <span className={EYEBROW}>Questions</span>
           <h2 className="m-0 text-[clamp(1.6rem,4vw,2.4rem)] leading-tight font-bold text-foreground">
-            How Noviq actually works.
+            How Noqeev actually works.
           </h2>
         </Reveal>
 

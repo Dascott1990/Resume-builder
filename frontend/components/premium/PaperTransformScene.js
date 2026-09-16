@@ -2,7 +2,7 @@
 /**
  * PaperTransformScene.js — a pen visibly writing an old, handwritten
  * resume line by line, then a sweep of light transforms the whole page
- * into the clean, structured resume Noviq actually produces. The "before"
+ * into the clean, structured resume Noqeev actually produces. The "before"
  * — an actual pen tracing real, readable handwriting onto aged parchment —
  * versus the "after" — a clean, typeset card with real printed text —
  * makes the pitch in a few silent seconds instead of a paragraph of copy:

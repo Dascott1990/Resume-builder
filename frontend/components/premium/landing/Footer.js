@@ -52,7 +52,7 @@ export function Footer({ onOpen, onOpenDashboard }) {
 
         <div className="flex flex-col-reverse items-start justify-between gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
           <p className="m-0 text-[11.5px] text-muted-foreground/60">
-            © {new Date().getFullYear()} Noviq. Built for people rebuilding their careers.
+            © {new Date().getFullYear()} Noqeev. Built for people rebuilding their careers.
           </p>
           <p className="m-0 text-[11.5px] text-muted-foreground/60">
             Anonymous by design.

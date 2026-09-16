@@ -39,7 +39,7 @@ export function Navbar({ onOpenDashboard }) {
           borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
         }}
       >
-        <a href="#top" aria-label="Noviq — back to top" className="shrink-0">
+        <a href="#top" aria-label="Noqeev — back to top" className="shrink-0">
           <Logo size={20} />
         </a>
 

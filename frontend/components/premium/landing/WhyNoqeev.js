@@ -13,7 +13,7 @@ const FEATURES = [
   {
     Icon: Sparkles,
     title: "AI that reads the job, not just your title",
-    body: "Paste any posting and Noviq matches your background to its exact keywords and phrasing — the kind of tailoring that used to take an hour, done in seconds.",
+    body: "Paste any posting and Noqeev matches your background to its exact keywords and phrasing — the kind of tailoring that used to take an hour, done in seconds.",
   },
   {
     Icon: ShieldOff,
@@ -65,12 +65,12 @@ function TiltCard({ children, delay, className }) {
   );
 }
 
-export function WhyNoviq() {
+export function WhyNoqeev() {
   return (
     <section id="features" className="relative py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
       <div className={SECTION_WRAP}>
         <Reveal className="mx-auto max-w-xl text-center">
-          <span className={EYEBROW}>Why Noviq</span>
+          <span className={EYEBROW}>Why Noqeev</span>
           <h2 className="m-0 text-[clamp(1.6rem,4vw,2.4rem)] leading-tight font-bold text-foreground">
             Built to get you hired, not to collect your data.
           </h2>

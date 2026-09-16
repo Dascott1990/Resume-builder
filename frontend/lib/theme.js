@@ -4,7 +4,7 @@
  * run both from the blocking <script> in layout.js (before hydration, to
  * avoid a flash of the wrong theme) and from useTheme.js afterward.
  */
-export const THEME_KEY = "noviq_theme";
+export const THEME_KEY = "noqeev_theme";
 
 // Dark is the brand's actual default — not a neutral "respect the OS"
 // choice. The whole visual identity (every screenshot, every design

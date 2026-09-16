@@ -234,9 +234,9 @@ function UrlForm({ onStarted }) {
     <form onSubmit={submit} className="mx-auto w-full max-w-md">
       <div className="mb-5 flex flex-col items-center gap-2 text-center">
         <IconTile icon={Sparkles} size="md" />
-        <h1 className="m-0 text-xl font-bold text-foreground">What do you want Noviq to do?</h1>
+        <h1 className="m-0 text-xl font-bold text-foreground">What do you want Noqeev to do?</h1>
         <p className="m-0 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
-          Paste the link to a real job application. Noviq fills it out, then stops for you to review before anything is submitted.
+          Paste the link to a real job application. Noqeev fills it out, then stops for you to review before anything is submitted.
         </p>
       </div>
       <Input
@@ -292,7 +292,7 @@ function ProgressChecklist({ run, onAnswered, onCancelled }) {
     <div className="mx-auto w-full max-w-md">
       <div className="mb-5 flex flex-col items-center gap-2 text-center">
         <IconTile icon={Sparkles} size="md" />
-        <h1 className="m-0 text-lg font-bold text-foreground">Noviq is working…</h1>
+        <h1 className="m-0 text-lg font-bold text-foreground">Noqeev is working…</h1>
       </div>
 
       <Progress value={(doneCount / CHECKLIST.length) * 100} className="mb-5" />
@@ -314,7 +314,7 @@ function ProgressChecklist({ run, onAnswered, onCancelled }) {
       {pendingQuestion && (
         <form onSubmit={submitAnswer} className="mt-5 rounded-2xl border border-primary/30 bg-primary/5 p-4">
           <p className="m-0 mb-2 flex items-center gap-1.5 text-[12.5px] font-bold text-primary">
-            <AlertTriangle className="size-3.5" /> Noviq needs your input
+            <AlertTriangle className="size-3.5" /> Noqeev needs your input
           </p>
           <p className="m-0 mb-2.5 text-[13.5px] text-foreground">{pendingQuestion.question}</p>
           <Input value={answer} onChange={(e) => setAnswer(e.target.value)} className="h-11" autoFocus />
@@ -421,7 +421,7 @@ function ReviewScreen({ run, onSubmitted, onCancelled }) {
 // ── Phase 5: terminal states ─────────────────────────────────────────────
 function TerminalScreen({ run, onRestart }) {
   const map = {
-    submitted: { icon: Check, title: "Application submitted", tone: "text-primary", body: "Noviq submitted the application and added it to your Job Tracker." },
+    submitted: { icon: Check, title: "Application submitted", tone: "text-primary", body: "Noqeev submitted the application and added it to your Job Tracker." },
     failed: { icon: AlertTriangle, title: "Couldn't finish this one", tone: "text-destructive", body: run.error_message || "Something went wrong." },
     cancelled: { icon: X, title: "Cancelled", tone: "text-muted-foreground", body: "This run was cancelled." },
     expired: { icon: AlertTriangle, title: "Review window expired", tone: "text-muted-foreground", body: "Nobody confirmed in time, so the session was closed. Nothing was submitted." },
