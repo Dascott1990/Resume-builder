@@ -9,7 +9,7 @@
  * page instead of the browser's own ugly offline error when there's truly
  * no connection for a page navigation.
  */
-const OFFLINE_CACHE = "noviq-offline-v1";
+const OFFLINE_CACHE = "noqeev-offline-v1";
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {
@@ -20,7 +20,15 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys()
+      // Drop any cache from a previous OFFLINE_CACHE name (e.g. a brand
+      // rename that changed this constant) — otherwise it just sits
+      // there forever, unreferenced, the first time that name ever
+      // changes. Never deletes OFFLINE_CACHE itself, only stragglers.
+      .then((keys) => Promise.all(keys.filter((k) => k !== OFFLINE_CACHE && k.startsWith("noqeev-offline")).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener("fetch", (event) => {
