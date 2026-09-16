@@ -152,15 +152,27 @@ def create_app():
     # runs, its table simply won't exist and every query against it will
     # 500 — log what we actually created so that's visible in deploy logs
     # instead of assumed.
+    #
+    # Wrapped: a DB that's unreachable at boot (wrong credentials, network
+    # partition, a provider-side outage/quota like Neon's data-transfer
+    # cap) must not stop create_app() from returning. Before this try/except
+    # existed, that failure raised straight out of create_app(), so gunicorn
+    # never got an app object at all — not just DB-backed routes but
+    # /api/v1/health too, meaning the entire process was unreachable
+    # instead of degrading to "the DB-dependent routes 500, everything else
+    # still works."
     with app.app_context():
-        db.create_all()
-        _sync_missing_columns(app)
-        _bootstrap_admin(app)
-        _backfill_artisan_tokens(app)
-        from app.api.apply import sweep_stuck_runs
-        sweep_stuck_runs(app)
-        table_names = sorted(db.metadata.tables.keys())
-        print(f"✅ Database tables created/verified: {table_names}")
+        try:
+            db.create_all()
+            _sync_missing_columns(app)
+            _bootstrap_admin(app)
+            _backfill_artisan_tokens(app)
+            from app.api.apply import sweep_stuck_runs
+            sweep_stuck_runs(app)
+            table_names = sorted(db.metadata.tables.keys())
+            print(f"✅ Database tables created/verified: {table_names}")
+        except Exception as exc:
+            print(f"❌ Database setup failed at boot — app is starting anyway, but every DB-backed route will 500 until this is fixed: {exc}")
 
     return app
 
