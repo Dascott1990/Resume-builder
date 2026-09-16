@@ -137,6 +137,9 @@ def create_app():
     from app.api.payments import payments_bp
     app.register_blueprint(payments_bp, url_prefix="/api/v1/payments")
 
+    from app.api.brand import brand_bp
+    app.register_blueprint(brand_bp, url_prefix="/api/v1/brand")
+
     # Pinged by the frontend's keep-alive (see frontend/app/KeepAlive.js) to
     # stop Render's free-tier instance from spinning down after 15 minutes
     # of inactivity. Deliberately does nothing but respond — no DB hit, no

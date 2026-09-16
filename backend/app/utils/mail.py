@@ -1,7 +1,9 @@
 """
 app/utils/mail.py
-Plain smtplib sender for account emails (verification, password reset).
-No Flask-Mail dependency — one function, used from two places.
+Plain smtplib sender for account emails (verification, password reset) and,
+since api/brand.py, an optional single image attachment for "email this
+post" — same function either way, not a second sender.
+No Flask-Mail dependency — one function, used from several places.
 """
 import os
 import socket
@@ -9,6 +11,7 @@ import smtplib
 import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 
 import certifi
 
@@ -38,15 +41,34 @@ def _ipv4_only_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     return _real_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
 
 
-def send_email(to, subject, html_body):
+def send_email(to, subject, html_body, attachment=None):
+    """attachment, if given, is (filename, bytes, mime_subtype) e.g.
+    ("post.png", b"...", "png") — kept optional and additive: every
+    existing call site (auth verification/reset, job-request/message
+    notifications) passes nothing here and gets the exact same single-part
+    "alternative" message as before. Only when an attachment IS given does
+    this wrap that same html part inside an outer "mixed" container
+    alongside it — the standard nested-multipart shape for "one text body
+    plus a real attachment," not a change to how the plain-text case works."""
     if not MAIL_USERNAME or not MAIL_PASSWORD:
         raise RuntimeError("MAIL_USERNAME/MAIL_PASSWORD are not configured")
 
-    msg = MIMEMultipart("alternative")
+    body_part = MIMEMultipart("alternative")
+    body_part.attach(MIMEText(html_body, "html"))
+
+    if attachment:
+        filename, file_bytes, mime_subtype = attachment
+        msg = MIMEMultipart("mixed")
+        msg.attach(body_part)
+        image = MIMEImage(file_bytes, _subtype=mime_subtype)
+        image.add_header("Content-Disposition", "attachment", filename=filename)
+        msg.attach(image)
+    else:
+        msg = body_part
+
     msg["Subject"] = subject
     msg["From"] = MAIL_DEFAULT_SENDER
     msg["To"] = to
-    msg.attach(MIMEText(html_body, "html"))
 
     # Some Python installs (notably python.org's macOS build without
     # "Install Certificates.command" run) ship without a usable system
