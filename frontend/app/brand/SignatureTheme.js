@@ -59,7 +59,7 @@ export function SignatureTheme({ onLockIn }) {
     setStored({ ...proposal, monthKey: undefined });
     setProposal(null);
     onLockIn(deriveAccent(colorFor(proposal.accentId).primary));
-    toast.success(`"${proposal.themeName}" is this month's signature.`);
+    toast.success(proposal.themeName);
   };
 
   const active = stored || proposal;
@@ -70,7 +70,7 @@ export function SignatureTheme({ onLockIn }) {
       <div className="mb-1 flex items-center gap-1.5">
         <Sparkles className="size-3.5 text-primary" />
         <p className="m-0 font-mono text-[10.5px] font-bold tracking-[0.14em] text-muted-foreground/60 uppercase">
-          This month's signature
+          Signature
         </p>
       </div>
 
@@ -81,22 +81,22 @@ export function SignatureTheme({ onLockIn }) {
             <p className="m-0 text-[14px] font-bold text-foreground">{active.themeName}</p>
             {stored && !proposal && (
               <p className="m-0 mt-2 flex items-center gap-1 text-[11px] font-bold text-primary">
-                <Check className="size-3" /> Locked in for {new Date().toLocaleDateString(undefined, { month: "long" })}
+                <Check className="size-3" /> {new Date().toLocaleDateString(undefined, { month: "long" })}
               </p>
             )}
           </div>
           <div className="flex shrink-0 flex-col gap-1.5">
             {proposal && (
-              <Btn small variant="gold" onClick={lockIn}>Lock it in</Btn>
+              <Btn small variant="gold" onClick={lockIn}>Lock in</Btn>
             )}
             <Btn small variant="ghost" onClick={generate} disabled={loading} loading={loading}>
-              <RotateCcw className="size-3.5" /> {stored && !proposal ? "Regenerate" : "Try again"}
+              <RotateCcw className="size-3.5" /> Redo
             </Btn>
           </div>
         </div>
       ) : (
         <Btn variant="gold" onClick={generate} disabled={loading} loading={loading} className="sm:w-auto">
-          <Sparkles className="size-4" /> {loading ? "Thinking…" : "Generate theme"}
+          <Sparkles className="size-4" /> {loading ? "…" : "Generate"}
         </Btn>
       )}
     </div>

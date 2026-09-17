@@ -103,7 +103,7 @@ export function ScreenshotStudio() {
 
   const capture = async () => {
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      toast.error("Screen capture isn't available in this browser — try Upload instead.");
+      toast.error("Not supported here — try Upload.");
       return;
     }
     setCapturing(true);
@@ -125,7 +125,7 @@ export function ScreenshotStudio() {
       const blob = await canvasToPngBlob(canvas);
       setSource(await loadImageFromBlob(blob));
     } catch (e) {
-      if (e?.name !== "NotAllowedError") toast.error("Could not capture the screen.");
+      if (e?.name !== "NotAllowedError") toast.error("Capture failed.");
     } finally {
       stream?.getTracks().forEach((t) => t.stop());
       setCapturing(false);
@@ -133,11 +133,11 @@ export function ScreenshotStudio() {
   };
 
   const handleUpload = async (file) => {
-    if (!file || !file.type.startsWith("image/")) { toast.error("Pick an image file."); return; }
+    if (!file || !file.type.startsWith("image/")) { toast.error("Not an image."); return; }
     try {
       setSource(await loadImageFromBlob(file));
     } catch {
-      toast.error("Could not read that image.");
+      toast.error("Couldn't read that file.");
     }
   };
 
@@ -247,7 +247,7 @@ export function ScreenshotStudio() {
     m.getContext("2d").clearRect(0, 0, m.width, m.height);
     maskEverPaintedRef.current = false;
     redraw();
-    toast.success("Blur cleared.");
+    toast.success("Cleared.");
   };
 
   // ── Final export: recomposite the (sharp+blur-masked) source, crop it,
@@ -332,7 +332,7 @@ export function ScreenshotStudio() {
     try {
       downloadBlob(await exportBlob(), exportFilename());
     } catch {
-      toast.error("Could not export this image.");
+      toast.error("Try again.");
     } finally {
       setDownloading(false);
     }
@@ -443,7 +443,7 @@ export function ScreenshotStudio() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[11.5px] font-bold tracking-wide text-foreground">Your handle (optional watermark)</label>
+          <label className="mb-1.5 block text-[11.5px] font-bold tracking-wide text-foreground">Handle</label>
           <Input value={handle} onChange={(e) => updateHandle(e.target.value)} className="h-10 rounded-[10px] text-[13.5px]" />
         </div>
 

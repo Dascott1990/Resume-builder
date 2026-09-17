@@ -43,7 +43,7 @@ function SizeProof({ path, stroke }) {
   const sizes = [
     { px: 28, cap: "28px" },
     { px: 20, cap: "20px" },
-    { px: 16, cap: "16px — tab" },
+    { px: 16, cap: "16px" },
   ];
   return (
     <div className="flex items-end gap-6">
@@ -100,23 +100,14 @@ function TurningPointPreview() {
   );
 }
 
-// Always-visible, non-interactive — instant orientation on the mark,
-// colors, and wordmark without opening anything (the Canva-brand-kit
-// reference point: the summary sits up front, the deeper docs are below).
+// Colors only — the mark + wordmark already show in the header just
+// above, so repeating them here would just be the same thing twice.
 function AtAGlanceStrip() {
   return (
-    <div className="mt-8 flex flex-wrap items-center gap-4 rounded-xl border border-border bg-card/60 px-5 py-3.5 sm:gap-5">
-      <LogoMark size={22} />
-      <div className="flex items-center gap-1.5">
-        {["#F6E6B3", "#f59e0b", "#5C4419"].map((hex) => (
-          <span key={hex} className="size-3.5 rounded-full border border-border" style={{ background: hex }} />
-        ))}
-      </div>
-      <span className="h-4 w-px bg-border" />
-      <span style={{ fontFamily: "var(--font-wordmark)" }} className="text-[13px] font-extrabold tracking-[0.02em] text-foreground">
-        NOQEEV
-      </span>
-      <span className="ml-auto text-[10.5px] text-muted-foreground/60">Brand kit at a glance</span>
+    <div className="mt-5 flex items-center gap-1.5">
+      {["#F6E6B3", "#f59e0b", "#5C4419"].map((hex) => (
+        <span key={hex} className="size-3.5 rounded-full border border-border" style={{ background: hex }} />
+      ))}
     </div>
   );
 }
@@ -156,10 +147,7 @@ export default function BrandPage() {
   return (
     <div className="min-h-[100dvh] w-full bg-background font-sans text-foreground">
       <div className="mx-auto w-full max-w-4xl px-6 py-14 sm:px-10 sm:py-20">
-        <div className="mb-3 flex items-center gap-2.5">
-          <Logo size={26} />
-          <span className="text-[15px] font-bold text-foreground">Brand kit</span>
-        </div>
+        <Logo size={26} />
 
         <AtAGlanceStrip />
 
@@ -180,7 +168,7 @@ export default function BrandPage() {
             {/* ── Download & share ── */}
             <Section
               icon={Download}
-              eyebrow="Download & share"
+              eyebrow="Download"
               open={isOpen("tools", "download")}
               onOpenChange={() => toggleSection("tools", "download")}
             >
@@ -190,7 +178,7 @@ export default function BrandPage() {
             {/* ── Create a post ── */}
             <Section
               icon={PenSquare}
-              eyebrow="Create a post"
+              eyebrow="Post"
               open={isOpen("tools", "post")}
               onOpenChange={() => toggleSection("tools", "post")}
             >
@@ -200,7 +188,7 @@ export default function BrandPage() {
             {/* ── Screenshot studio ── */}
             <Section
               icon={Camera}
-              eyebrow="Screenshot studio"
+              eyebrow="Screenshot"
               open={isOpen("tools", "screenshot")}
               onOpenChange={() => toggleSection("tools", "screenshot")}
             >
@@ -224,17 +212,11 @@ export default function BrandPage() {
                   <LogoMark size={92} />
                 </div>
                 <div className="grid gap-4">
-                  <div>
-                    <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">In the header lockup</p>
-                    <div className="flex items-center gap-3 rounded-xl border border-border bg-[#0a0a0a] px-5 py-4">
-                      <Logo size={26} />
-                    </div>
+                  <div className="flex items-center gap-3 rounded-xl border border-border bg-[#0a0a0a] px-5 py-4">
+                    <Logo size={26} />
                   </div>
 
-                  <div>
-                    <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Holds at real UI sizes</p>
-                    <SizeProof path={MARK_PATH} stroke={MARK_STROKE} />
-                  </div>
+                  <SizeProof path={MARK_PATH} stroke={MARK_STROKE} />
 
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border pt-4">
                     <Swatch hex="#F6E6B3" />
@@ -266,7 +248,7 @@ export default function BrandPage() {
             {/* ── Explored, set aside ── */}
             <Section
               icon={Archive}
-              eyebrow="Explored, set aside"
+              eyebrow="Rejected"
               open={isOpen("reference", "explored")}
               onOpenChange={() => toggleSection("reference", "explored")}
             >
@@ -290,10 +272,6 @@ export default function BrandPage() {
             </Section>
           </div>
         )}
-
-        <p className="m-0 mt-14 border-t border-border pt-5 font-mono text-[10.5px] tracking-[0.06em] text-muted-foreground/50">
-          /brand — internal only
-        </p>
       </div>
     </div>
   );

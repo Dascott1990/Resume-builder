@@ -142,7 +142,7 @@ function AssetRow({ asset }) {
       const blob = await getBlob();
       downloadBlob(blob, asset.filename);
     } catch {
-      toast.error("Could not generate this file — try again.");
+      toast.error("Try again.");
     } finally {
       setBusy(null);
     }
@@ -153,9 +153,9 @@ function AssetRow({ asset }) {
     try {
       const blob = await getBlob();
       const result = await shareOrDownloadBlob(blob, asset.filename, "Noqeev");
-      if (result === "downloaded") toast.info("Sharing isn't available here — downloaded instead.");
+      if (result === "downloaded") toast.info("Downloaded.");
     } catch {
-      toast.error("Could not generate this file — try again.");
+      toast.error("Try again.");
     } finally {
       setBusy(null);
     }

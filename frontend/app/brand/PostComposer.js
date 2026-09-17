@@ -74,9 +74,8 @@ function AiSuggestPanel({ onSuggestion }) {
         body: JSON.stringify({ mood: mood.toLowerCase(), ...context }),
       });
       onSuggestion(data);
-      toast.success("Drafted — drag anything, restyle anything, before you export.");
     } catch (e) {
-      toast.error(e.message || "Could not generate a suggestion right now.");
+      toast.error(e.message || "Try again.");
     } finally {
       setLoading(false);
     }
@@ -87,7 +86,6 @@ function AiSuggestPanel({ onSuggestion }) {
       <div className="mb-2.5 flex items-center gap-1.5">
         <Sparkles className="size-3.5 text-primary" />
         <span className="font-mono text-[10.5px] font-bold tracking-[0.1em] text-primary uppercase">AI draft</span>
-        {context && <span className="ml-auto text-[11px] text-muted-foreground/70">{context.day_of_week} · {context.time_of_day}</span>}
       </div>
       <div className="mb-3 flex flex-wrap gap-1.5">
         {MOODS.map((m) => (
@@ -98,7 +96,7 @@ function AiSuggestPanel({ onSuggestion }) {
         ))}
       </div>
       <Btn small variant="gold" onClick={suggest} disabled={loading || !context} loading={loading}>
-        {loading ? "Drafting…" : "Suggest a post"}
+        {loading ? "…" : "Suggest"}
       </Btn>
     </div>
   );
@@ -237,8 +235,8 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
       setSelectedId(layer.id);
       setGifUrl("");
       setGifUrlOpen(false);
-    } catch (e) {
-      toast.error(e.message || "Could not load that image/GIF — paste a direct link (ending in .gif, .png, .jpg).");
+    } catch {
+      toast.error("Couldn't load that link.");
     } finally {
       setGifLoading(false);
     }
@@ -299,7 +297,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const handleDownload = async () => {
     setDownloading(true);
     try { downloadBlob(await exportBlob(), exportFilename()); }
-    catch { toast.error("Could not export this post — try again."); }
+    catch { toast.error("Try again."); }
     finally { setDownloading(false); }
   };
 
@@ -330,7 +328,6 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
             />
           )}
         </div>
-        <p className="m-0 text-[10.5px] text-muted-foreground/60">Drag to move</p>
         <div className="flex flex-wrap items-center justify-center gap-1.5">
           {Object.entries(PLATFORMS).map(([id, r]) => (
             <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={r.sub}
@@ -339,7 +336,6 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
             </button>
           ))}
         </div>
-        <p className="m-0 text-center text-[10.5px] text-muted-foreground/60">{platform.sub} · {platform.w}×{platform.h}</p>
       </div>
 
       <div className="grid gap-4">
@@ -373,7 +369,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
           )}
           {gifUrlOpen && (
             <div className="mt-2 flex gap-1.5">
-              <Input value={gifUrl} onChange={(e) => setGifUrl(e.target.value)} placeholder="Paste a direct GIF/image link" className="h-9 rounded-[8px] text-[12.5px]" onKeyDown={(e) => { if (e.key === "Enter") addGif(); }} />
+              <Input value={gifUrl} onChange={(e) => setGifUrl(e.target.value)} placeholder="Image/GIF link" className="h-9 rounded-[8px] text-[12.5px]" onKeyDown={(e) => { if (e.key === "Enter") addGif(); }} />
               <Btn small variant="gold" onClick={addGif} disabled={gifLoading} loading={gifLoading}>Add</Btn>
             </div>
           )}
@@ -388,7 +384,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
         )}
 
         <div>
-          <label className="mb-1.5 block text-[11.5px] font-bold tracking-wide text-foreground">Your handle (optional watermark)</label>
+          <label className="mb-1.5 block text-[11.5px] font-bold tracking-wide text-foreground">Handle</label>
           <Input value={handle} onChange={(e) => updateHandle(e.target.value)} className="h-10 rounded-[10px] text-[13.5px]" />
         </div>
 

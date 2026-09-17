@@ -31,7 +31,7 @@ export function EmailAssetButton({ getBlob, filename, label }) {
 
   const send = async () => {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
-      toast.error("Enter a valid email address.");
+      toast.error("Invalid email.");
       return;
     }
     setSending(true);
@@ -52,7 +52,7 @@ export function EmailAssetButton({ getBlob, filename, label }) {
       toast.success(`Sent to ${email.trim()}`);
       setOpen(false);
     } catch (e) {
-      toast.error(e.message || "Could not send this email.");
+      toast.error(e.message || "Send failed.");
     } finally {
       setSending(false);
     }
@@ -66,11 +66,8 @@ export function EmailAssetButton({ getBlob, filename, label }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent showCloseButton className="w-full max-w-[380px] gap-0 p-0 sm:max-w-[380px]">
           <div className="p-5">
-            <p className="m-0 mb-1 flex items-center gap-2 font-serif text-lg italic text-foreground">
-              <Mail className="size-[15px] text-primary" /> Email this
-            </p>
-            <p className="m-0 mb-4 text-[12.5px] text-muted-foreground">
-              Sends the exported image as a real attachment — ready to forward straight to whoever's posting it.
+            <p className="m-0 mb-3 flex items-center gap-2 text-[14px] font-bold text-foreground">
+              <Mail className="size-4 text-primary" /> Email
             </p>
             <Input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)}
