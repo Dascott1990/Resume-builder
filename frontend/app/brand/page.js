@@ -23,9 +23,10 @@
  * page can never drift out of sync with what the app actually ships.
  */
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Logo, { LogoMark, MARK_PATH, MARK_STROKE } from "@/components/premium/Logo";
 import { BottomNav } from "@/components/premium/shared/BottomNav";
-import { Sparkles, Type, Clapperboard, Camera, Archive } from "lucide-react";
+import { Sparkles, Type, Clapperboard, Camera, Archive, ArrowLeft } from "lucide-react";
 import { Section } from "./BrandSection";
 import { LogoDownloads } from "./LogoDownloads";
 import { PostComposer } from "./PostComposer";
@@ -165,7 +166,19 @@ export default function BrandPage() {
         style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}
       >
         <div className="flex items-center justify-between">
-          <Logo size={26} />
+          <div className="flex items-center gap-4">
+            {/* Back out to wherever "/" would already send someone —
+                Dashboard for a returning visitor, the landing page for a
+                first-time one (see app/page.js's own ENTERED_KEY switch)
+                — so this never has to guess which one applies. */}
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 text-[12.5px] font-semibold text-muted-foreground no-underline hover:text-foreground"
+            >
+              <ArrowLeft className="size-3.5" /> Back
+            </Link>
+            <Logo size={26} />
+          </div>
           <NotificationBell />
         </div>
 
