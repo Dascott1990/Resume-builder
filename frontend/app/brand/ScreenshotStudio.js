@@ -28,7 +28,7 @@ import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
 import {
   loadMarkImage, ensureFontsReady, canvasToPngBlob, downloadBlob,
-  loadHandle, saveHandle,
+  loadHandle, saveHandle, markShipped,
 } from "./assetKit";
 import { paintBrandStamp, PLATFORMS } from "./postTemplates";
 import { EmailAssetButton } from "./EmailAssetButton";
@@ -52,6 +52,9 @@ export function ScreenshotStudio() {
   const [handle, setHandle] = useState("");
   const [maskVersion, setMaskVersion] = useState(0); // bump to force a recomposite after a blur stroke
   const [downloading, setDownloading] = useState(false);
+  // Mirrors maskEverPaintedRef for rendering — a ref alone can't drive
+  // whether "Clear blur" shows up, since refs don't trigger a re-render.
+  const [hasBlur, setHasBlur] = useState(false);
 
   const displayCanvasRef = useRef(null); // what's actually shown
   const sharpCanvasRef = useRef(null);
@@ -86,6 +89,8 @@ export function ScreenshotStudio() {
     bctx.drawImage(img, 0, 0);
 
     maskCanvasRef.current = Object.assign(document.createElement("canvas"), { width: sw, height: sh });
+    maskEverPaintedRef.current = false; // a fresh image starts with a blank mask, not whatever the last one had painted
+    setHasBlur(false);
 
     setSourceImg(img);
     setCrop({ x: 0, y: 0, w: sw, h: sh });
@@ -144,6 +149,8 @@ export function ScreenshotStudio() {
   const reset = () => {
     setSourceImg(null);
     setCrop(null);
+    setHasBlur(false);
+    maskEverPaintedRef.current = false;
     sharpCanvasRef.current = null;
     blurredCanvasRef.current = null;
     maskCanvasRef.current = null;
@@ -190,6 +197,17 @@ export function ScreenshotStudio() {
     return { x: (e.clientX - rect.left) * scale, y: (e.clientY - rect.top) * scale };
   };
 
+  // Keeps a blur stroke from ever landing outside the current crop — paint
+  // there and it would vanish silently once cropped away at export, which
+  // reads as "the blur didn't apply" even though it technically did.
+  const clampToCrop = (x, y) => {
+    if (!crop || crop.w <= 0 || crop.h <= 0) return { x, y };
+    return {
+      x: Math.min(Math.max(x, crop.x), crop.x + crop.w),
+      y: Math.min(Math.max(y, crop.y), crop.y + crop.h),
+    };
+  };
+
   const paintBlurAt = (x, y) => {
     const maskCtx = maskCanvasRef.current.getContext("2d");
     const scale = displayCanvasRef.current.width / displayCanvasRef.current.getBoundingClientRect().width;
@@ -202,6 +220,7 @@ export function ScreenshotStudio() {
     maskCtx.arc(x, y, r, 0, Math.PI * 2);
     maskCtx.fill();
     maskEverPaintedRef.current = true;
+    setHasBlur(true);
   };
 
   const onPointerDown = (e) => {
@@ -213,7 +232,8 @@ export function ScreenshotStudio() {
       dragRef.current = p;
       setCrop({ x: p.x, y: p.y, w: 0, h: 0 });
     } else {
-      paintBlurAt(p.x, p.y);
+      const c = clampToCrop(p.x, p.y);
+      paintBlurAt(c.x, c.y);
       redraw();
     }
   };
@@ -229,7 +249,8 @@ export function ScreenshotStudio() {
       const y1 = Math.min(sh, Math.max(start.y, p.y));
       setCrop({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
     } else if (tool === "blur") {
-      paintBlurAt(p.x, p.y);
+      const c = clampToCrop(p.x, p.y);
+      paintBlurAt(c.x, c.y);
       redraw();
     }
   };
@@ -246,6 +267,7 @@ export function ScreenshotStudio() {
     const m = maskCanvasRef.current;
     m.getContext("2d").clearRect(0, 0, m.width, m.height);
     maskEverPaintedRef.current = false;
+    setHasBlur(false);
     redraw();
     toast.success("Cleared.");
   };
@@ -331,6 +353,7 @@ export function ScreenshotStudio() {
     setDownloading(true);
     try {
       downloadBlob(await exportBlob(), exportFilename());
+      markShipped();
     } catch {
       toast.error("Try again.");
     } finally {
@@ -386,10 +409,10 @@ export function ScreenshotStudio() {
             className="block h-auto w-full rounded-lg"
             style={{ cursor: tool === "crop" ? "crosshair" : "cell" }}
           />
-          {tool === "crop" && boxStyle && (
+          {boxStyle && (
             <div
               className="pointer-events-none absolute border-2 border-primary"
-              style={{ ...boxStyle, boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)" }}
+              style={{ ...boxStyle, boxShadow: tool === "crop" ? "0 0 0 9999px rgba(0,0,0,0.55)" : "none" }}
             />
           )}
         </div>
@@ -403,12 +426,12 @@ export function ScreenshotStudio() {
             <Paintbrush className="size-3.5" /> Blur
           </button>
           {tool === "blur" && (
-            <>
-              <input type="range" min="14" max="90" value={brushSize} onChange={(e) => setBrushSize(Number(e.target.value))} className="w-24 accent-primary" />
-              <button type="button" onClick={clearBlur} title="Clear blur" className="flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground">
-                <Eraser className="size-3.5" />
-              </button>
-            </>
+            <input type="range" min="14" max="90" value={brushSize} onChange={(e) => setBrushSize(Number(e.target.value))} className="w-24 accent-primary" />
+          )}
+          {hasBlur && (
+            <button type="button" onClick={clearBlur} title="Clear blur" className="flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground">
+              <Eraser className="size-3.5" />
+            </button>
           )}
           <button type="button" onClick={reset} title="Start over" className="ml-1 flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground">
             <RotateCcw className="size-3.5" />

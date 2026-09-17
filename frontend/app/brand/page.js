@@ -5,14 +5,14 @@
  * the code it describes and stays reviewable in git history the same way
  * everything else here does.
  *
- * Split into two zones so a visit only surfaces what it came for: Tools
- * (download/share, the monthly theme picker, the post composer, the
- * screenshot studio — working utilities) and Reference (the mark's own
- * rationale, the wordmark, the rejected-concept archive — read-only).
- * Both zones are made of collapsible sections rather than one continuous
- * scroll, and which zone/sections were left open is remembered per device
- * (see assetKit.js's loadBrandUiState/saveBrandUiState) so returning here
- * picks up exactly where someone left off.
+ * Four flat destinations, not a scrolling stack — Assets (logo exports +
+ * this month's signature color), Create (the post composer), Capture (the
+ * screenshot studio), and Reference (the mark's own rationale, read-only).
+ * Each opens to exactly the one thing it's for; nothing to scroll past to
+ * reach another tool. Which destination — and which Reference sections —
+ * were left open is remembered per device (assetKit.js's
+ * loadBrandUiState/saveBrandUiState) so returning here picks up exactly
+ * where someone left off.
  *
  * The shipped mark's preview below renders through the real
  * <LogoMark>/<Logo> components, not a hand-copied SVG duplicate — this
@@ -20,13 +20,14 @@
  */
 import { useEffect, useState } from "react";
 import Logo, { LogoMark, MARK_PATH, MARK_STROKE } from "@/components/premium/Logo";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Sparkles, Download, PenSquare, Camera, Type, Archive } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sparkles, Type, Archive } from "lucide-react";
 import { Section } from "./BrandSection";
 import { LogoDownloads } from "./LogoDownloads";
 import { PostComposer } from "./PostComposer";
 import { SignatureTheme } from "./SignatureTheme";
 import { ScreenshotStudio } from "./ScreenshotStudio";
+import { NotificationBell } from "./NotificationBell";
 import { DEFAULT_ACCENT } from "./postTemplates";
 import { loadBrandUiState, saveBrandUiState } from "./assetKit";
 
@@ -114,8 +115,8 @@ function AtAGlanceStrip() {
 
 export default function BrandPage() {
   const [accent, setAccent] = useState(DEFAULT_ACCENT);
-  const [zone, setZone] = useState("tools");
-  const [openSections, setOpenSections] = useState({ tools: ["download"], reference: ["mark"] });
+  const [zone, setZone] = useState("assets");
+  const [openSections, setOpenSections] = useState({ reference: ["mark"] });
   const [uiLoaded, setUiLoaded] = useState(false);
 
   // Loaded after mount, never in a useState initializer — this file is
@@ -135,65 +136,52 @@ export default function BrandPage() {
     saveBrandUiState({ zone, openSections });
   }, [zone, openSections, uiLoaded]);
 
-  const isOpen = (zoneKey, id) => (openSections[zoneKey] || []).includes(id);
-  const toggleSection = (zoneKey, id) => {
+  const isOpen = (id) => (openSections.reference || []).includes(id);
+  const toggleSection = (id) => {
     setOpenSections((prev) => {
-      const current = prev[zoneKey] || [];
+      const current = prev.reference || [];
       const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
-      return { ...prev, [zoneKey]: next };
+      return { ...prev, reference: next };
     });
   };
 
   return (
     <div className="min-h-[100dvh] w-full bg-background font-sans text-foreground">
       <div className="mx-auto w-full max-w-4xl px-6 py-14 sm:px-10 sm:py-20">
-        <Logo size={26} />
+        <div className="flex items-center justify-between">
+          <Logo size={26} />
+          <NotificationBell onGoToAssets={() => setZone("assets")} onGoToCreate={() => setZone("create")} />
+        </div>
 
         <AtAGlanceStrip />
 
-        <div className="sticky top-0 z-10 -mx-6 mt-8 bg-background/95 px-6 py-3 backdrop-blur sm:-mx-10 sm:px-10">
+        <div className="sticky top-0 z-10 -mx-6 mt-8 overflow-x-auto bg-background/95 px-6 py-3 backdrop-blur sm:-mx-10 sm:px-10">
           <Tabs value={zone} onValueChange={setZone}>
             <TabsList>
-              <TabsTrigger value="tools">Tools</TabsTrigger>
+              <TabsTrigger value="assets">Assets</TabsTrigger>
+              <TabsTrigger value="create">Create</TabsTrigger>
+              <TabsTrigger value="capture">Capture</TabsTrigger>
               <TabsTrigger value="reference">Reference</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
 
-        {zone === "tools" && (
+        {zone === "assets" && (
           <div className="mt-6 grid gap-6">
-            {/* ── This month's signature theme — docked, not a section to scroll past ── */}
             <SignatureTheme onLockIn={setAccent} />
+            <LogoDownloads />
+          </div>
+        )}
 
-            {/* ── Download & share ── */}
-            <Section
-              icon={Download}
-              eyebrow="Download"
-              open={isOpen("tools", "download")}
-              onOpenChange={() => toggleSection("tools", "download")}
-            >
-              <LogoDownloads />
-            </Section>
+        {zone === "create" && (
+          <div className="mt-6">
+            <PostComposer accent={accent} />
+          </div>
+        )}
 
-            {/* ── Create a post ── */}
-            <Section
-              icon={PenSquare}
-              eyebrow="Post"
-              open={isOpen("tools", "post")}
-              onOpenChange={() => toggleSection("tools", "post")}
-            >
-              <PostComposer accent={accent} />
-            </Section>
-
-            {/* ── Screenshot studio ── */}
-            <Section
-              icon={Camera}
-              eyebrow="Screenshot"
-              open={isOpen("tools", "screenshot")}
-              onOpenChange={() => toggleSection("tools", "screenshot")}
-            >
-              <ScreenshotStudio />
-            </Section>
+        {zone === "capture" && (
+          <div className="mt-6">
+            <ScreenshotStudio />
           </div>
         )}
 
@@ -204,8 +192,8 @@ export default function BrandPage() {
               icon={Sparkles}
               eyebrow="Shipped"
               title="Ascending Q"
-              open={isOpen("reference", "mark")}
-              onOpenChange={() => toggleSection("reference", "mark")}
+              open={isOpen("mark")}
+              onOpenChange={() => toggleSection("mark")}
             >
               <div className="grid grid-cols-1 gap-8 sm:grid-cols-[auto_1fr] sm:items-start">
                 <div className="flex size-32 shrink-0 items-center justify-center rounded-2xl border border-border bg-background">
@@ -231,8 +219,8 @@ export default function BrandPage() {
             <Section
               icon={Type}
               eyebrow="Wordmark"
-              open={isOpen("reference", "wordmark")}
-              onOpenChange={() => toggleSection("reference", "wordmark")}
+              open={isOpen("wordmark")}
+              onOpenChange={() => toggleSection("wordmark")}
             >
               <div className="flex flex-wrap items-baseline justify-between gap-3">
                 <span
@@ -249,8 +237,8 @@ export default function BrandPage() {
             <Section
               icon={Archive}
               eyebrow="Rejected"
-              open={isOpen("reference", "explored")}
-              onOpenChange={() => toggleSection("reference", "explored")}
+              open={isOpen("explored")}
+              onOpenChange={() => toggleSection("explored")}
             >
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-2xl border border-border bg-background p-6">

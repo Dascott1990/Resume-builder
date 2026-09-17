@@ -10,11 +10,12 @@
  * resolution and scaled down only via CSS, so what downloads is
  * pixel-identical to what's on screen.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Download, Loader2, Sparkles, Type, Smile, ImagePlus, Trash2,
-  AlignLeft, AlignCenter, AlignRight, Waves,
+  AlignLeft, AlignCenter, AlignRight, Waves, Undo2, Redo2,
+  BringToFront, SendToBack, Copy,
 } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/components/premium/shared/api";
 import {
   loadMarkImage, ensureFontsReady, canvasToPngBlob, downloadBlob,
-  loadHandle, saveHandle,
+  loadHandle, saveHandle, markShipped,
 } from "./assetKit";
 import {
   renderPost, PLATFORMS, DEFAULT_ACCENT, SHAPES, INITIAL_LAYOUTS,
@@ -102,7 +103,20 @@ function AiSuggestPanel({ onSuggestion }) {
   );
 }
 
-function LayerPanel({ layer, onChange, onDelete }) {
+function LayerOrderRow({ onDuplicate, onFront, onBack, onDelete }) {
+  return (
+    <div className="mb-3 flex items-center justify-between">
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={onBack} title="Send to back" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><SendToBack className="size-3.5" /></button>
+        <button type="button" onClick={onFront} title="Bring to front" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><BringToFront className="size-3.5" /></button>
+        <button type="button" onClick={onDuplicate} title="Duplicate" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><Copy className="size-3.5" /></button>
+      </div>
+      <button type="button" onClick={onDelete} aria-label="Delete" className="text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
+    </div>
+  );
+}
+
+function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, onBack }) {
   if (!layer) return null;
   const set = (patch) => onChange({ ...layer, ...patch });
 
@@ -111,8 +125,8 @@ function LayerPanel({ layer, onChange, onDelete }) {
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between">
           <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Sticker</span>
-          <button type="button" onClick={onDelete} aria-label="Delete" className="text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
         </div>
+        <LayerOrderRow onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
         <label className="mb-1.5 block text-[11.5px] font-bold text-foreground">Size</label>
         <input type="range" min="0.05" max="0.35" step="0.01" value={layer.sizeFrac} onChange={(e) => set({ sizeFrac: Number(e.target.value) })} className="w-full accent-primary" />
       </div>
@@ -123,8 +137,8 @@ function LayerPanel({ layer, onChange, onDelete }) {
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between">
         <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Text</span>
-        <button type="button" onClick={onDelete} aria-label="Delete" className="text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
       </div>
+      <LayerOrderRow onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
       <Textarea value={layer.text} onChange={(e) => set({ text: e.target.value })} rows={2} className="mb-3 resize-none rounded-[10px] text-[13px]" />
 
       <label className="mb-1.5 block text-[11px] font-bold text-foreground">Font</label>
@@ -169,7 +183,7 @@ function LayerPanel({ layer, onChange, onDelete }) {
 export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const [shapeId, setShapeId] = useState("tip");
   const [platformId, setPlatformId] = useState("square");
-  const [layers, setLayers] = useState(() => INITIAL_LAYOUTS.tip(SHAPE_DEFAULTS.tip));
+  const [layers, setLayersRaw] = useState(() => INITIAL_LAYOUTS.tip(SHAPE_DEFAULTS.tip));
   const [selectedId, setSelectedId] = useState(null);
   const [handle, setHandle] = useState("");
   const [ready, setReady] = useState(false);
@@ -178,12 +192,71 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const [gifUrlOpen, setGifUrlOpen] = useState(false);
   const [gifUrl, setGifUrl] = useState("");
   const [gifLoading, setGifLoading] = useState(false);
+  const [historyTick, setHistoryTick] = useState(0); // bumped on every undo/redo/commit so the buttons' disabled state re-renders
 
   const canvasRef = useRef(null);
   const markImgRef = useRef(null);
   const stickerImagesRef = useRef({});
   const boxesRef = useRef(new Map());
   const dragRef = useRef(null);
+  const dragMovedRef = useRef(false); // a plain click (no movement) shouldn't push a no-op history step
+  // Undo history — snapshots of the whole layers array, not per-field
+  // diffs; a post has at most a handful of layers, so this stays cheap
+  // and sidesteps ever having to reconcile a diff/patch format.
+  const historyRef = useRef([layers]);
+  const historyIndexRef = useRef(0);
+
+  // One committed step per discrete action (add/delete/style change/drag
+  // finished) — NOT per pointermove or per input tick, so undo reverses
+  // "that drag" or "that edit" in one press, the way a real design tool's
+  // undo behaves, not fifty tiny steps for one gesture.
+  const commitLayers = (updater) => {
+    setLayersRaw((current) => {
+      const next = typeof updater === "function" ? updater(current) : updater;
+      historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
+      historyRef.current.push(next);
+      if (historyRef.current.length > 50) historyRef.current.shift();
+      historyIndexRef.current = historyRef.current.length - 1;
+      setHistoryTick((t) => t + 1);
+      return next;
+    });
+  };
+  // Live position during an active drag — updates what's on screen without
+  // spamming the history stack; the drag's actual history entry is
+  // committed once, at pointer-up, with wherever it ended.
+  const setLayersLive = (updater) => setLayersRaw(updater);
+  const setLayers = commitLayers;
+
+  const undo = useCallback(() => {
+    if (historyIndexRef.current <= 0) return;
+    historyIndexRef.current -= 1;
+    setLayersRaw(historyRef.current[historyIndexRef.current]);
+    setSelectedId(null);
+    setHistoryTick((t) => t + 1);
+  }, []);
+  const redo = useCallback(() => {
+    if (historyIndexRef.current >= historyRef.current.length - 1) return;
+    historyIndexRef.current += 1;
+    setLayersRaw(historyRef.current[historyIndexRef.current]);
+    setSelectedId(null);
+    setHistoryTick((t) => t + 1);
+  }, []);
+  const canUndo = historyIndexRef.current > 0;
+  const canRedo = historyIndexRef.current < historyRef.current.length - 1;
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      // Skip while typing anywhere (a text field, the handle input, the AI
+      // prompt) — Cmd+Z there should undo the text, not a layer edit.
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.isContentEditable) return;
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [undo, redo]);
 
   useEffect(() => {
     setHandle(loadHandle());
@@ -247,6 +320,30 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     setLayers((ls) => ls.filter((l) => l.id !== selectedId));
     setSelectedId(null);
   };
+  const duplicateSelected = () => {
+    const src = layers.find((l) => l.id === selectedId);
+    if (!src) return;
+    const copy = { ...src, id: `${src.id}-copy-${Date.now()}`, x: clamp01(src.x + 0.03), y: clamp01(src.y + 0.03) };
+    setLayers((ls) => [...ls, copy]);
+    setSelectedId(copy.id);
+  };
+  // z-order is just array order — later elements draw on top (see
+  // postTemplates.js's renderPost, and hitTest above walking the array
+  // backwards so the topmost layer wins a click too).
+  const sendSelectedToBack = () => {
+    setLayers((ls) => {
+      const layer = ls.find((l) => l.id === selectedId);
+      if (!layer) return ls;
+      return [layer, ...ls.filter((l) => l.id !== selectedId)];
+    });
+  };
+  const bringSelectedToFront = () => {
+    setLayers((ls) => {
+      const layer = ls.find((l) => l.id === selectedId);
+      if (!layer) return ls;
+      return [...ls.filter((l) => l.id !== selectedId), layer];
+    });
+  };
 
   const draw = () => {
     const canvas = canvasRef.current;
@@ -281,6 +378,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     e.currentTarget.setPointerCapture(e.pointerId);
     const { w, h } = PLATFORMS[platformId];
     dragRef.current = { id: hit.id, dx: p.x / w - hit.x, dy: p.y / h - hit.y };
+    dragMovedRef.current = false;
   };
   const onPointerMove = (e) => {
     if (!dragRef.current) return;
@@ -288,15 +386,22 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     const { w, h } = PLATFORMS[platformId];
     const { id, dx, dy } = dragRef.current;
     const nx = clamp01(p.x / w - dx), ny = clamp01(p.y / h - dy);
-    setLayers((ls) => ls.map((l) => (l.id === id ? { ...l, x: nx, y: ny } : l)));
+    dragMovedRef.current = true;
+    setLayersLive((ls) => ls.map((l) => (l.id === id ? { ...l, x: nx, y: ny } : l)));
   };
-  const onPointerUp = () => { dragRef.current = null; };
+  const onPointerUp = () => {
+    // Bake the whole drag into ONE history step, taken here at drag-end —
+    // committing per pointermove would make undo reverse a drag one pixel
+    // at a time instead of putting the layer back where it started.
+    if (dragRef.current && dragMovedRef.current) commitLayers(layers);
+    dragRef.current = null;
+  };
 
   const exportBlob = () => canvasToPngBlob(canvasRef.current);
   const exportFilename = () => `noqeev-${shapeId}-${platformId}.png`;
   const handleDownload = async () => {
     setDownloading(true);
-    try { downloadBlob(await exportBlob(), exportFilename()); }
+    try { downloadBlob(await exportBlob(), exportFilename()); markShipped(); }
     catch { toast.error("Try again."); }
     finally { setDownloading(false); }
   };
@@ -307,12 +412,25 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   return (
     <div className="grid gap-5 sm:grid-cols-[1fr_300px]">
       <div className="flex min-w-0 w-full flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5">
+        <div className="flex w-full max-w-[560px] items-center justify-end gap-1">
+          <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
+            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+            <Undo2 className="size-4" />
+          </button>
+          <button type="button" onClick={redo} disabled={!canRedo} title="Redo"
+            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+            <Redo2 className="size-4" />
+          </button>
+        </div>
         {/* Sized with CSS aspect-ratio, not a JS-computed pixel width — the
             box just fills its container (capped by max-w) and the browser
             works out the height, so a wide shape like Landscape can never
-            blow past a narrow screen the way a fixed px width did. */}
+            blow past a narrow screen the way a fixed px width did. Wider
+            cap than before (560px, matching the resume preview's own
+            "as large as the layout can spare" treatment) — easier to see
+            exactly where a drag lands at real editing precision. */}
         <div
-          className="relative mx-auto flex w-full max-w-[380px] items-center justify-center overflow-hidden rounded-xl bg-[#0a0a0a] shadow-[0_8px_28px_rgba(0,0,0,0.25)]"
+          className="relative mx-auto flex w-full max-w-[560px] items-center justify-center overflow-hidden rounded-xl bg-[#0a0a0a] shadow-[0_8px_28px_rgba(0,0,0,0.25)]"
           style={{ aspectRatio: `${platform.w} / ${platform.h}` }}
         >
           {!ready ? (
@@ -376,7 +494,10 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
         </div>
 
         {selectedLayer ? (
-          <LayerPanel layer={selectedLayer} onChange={updateLayer} onDelete={deleteSelected} />
+          <LayerPanel
+            layer={selectedLayer} onChange={updateLayer} onDelete={deleteSelected}
+            onDuplicate={duplicateSelected} onFront={bringSelectedToFront} onBack={sendSelectedToBack}
+          />
         ) : (
           <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
             Tap to style

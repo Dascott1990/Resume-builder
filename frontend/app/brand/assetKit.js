@@ -168,6 +168,22 @@ export function saveHandle(handle) {
   try { localStorage.setItem(HANDLE_KEY, handle); } catch { /* best-effort */ }
 }
 
+// Stamped whenever a post or screenshot actually leaves this page
+// (download or email) — the one real signal the notification bell's
+// "haven't shipped in a while" reminder is computed from.
+const LAST_SHIPPED_KEY = "noqeev_brand_last_shipped";
+export function markShipped() {
+  try { localStorage.setItem(LAST_SHIPPED_KEY, String(Date.now())); } catch { /* best-effort */ }
+}
+export function loadLastShipped() {
+  try {
+    const raw = localStorage.getItem(LAST_SHIPPED_KEY);
+    return raw ? Number(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 // The signature theme is deliberately keyed by calendar month ("2026-03")
 // rather than stored bare — reopening this page in a new month should
 // surface the "generate this month's theme" prompt again instead of
@@ -189,19 +205,24 @@ export function saveSignatureTheme(theme) {
   try { localStorage.setItem(THEME_KEY, JSON.stringify({ ...theme, monthKey: currentMonthKey() })); } catch { /* best-effort */ }
 }
 
-// Which zone (Reference/Tools) and which collapsible sections were left
-// open — restored on the next visit so returning to this page picks up
-// exactly where someone left off (mid-draft in the post composer, or
-// always-here-for-the-colors) instead of a fresh scroll from the top.
+// Which destination (Assets/Create/Capture/Reference) and which Reference
+// sections were left open — restored on the next visit so returning here
+// picks up exactly where someone left off instead of a fresh scroll from
+// the top. Assets is the default landing spot — grabbing a logo file is
+// the single most common reason to open this page.
 const UI_STATE_KEY = "noqeev_brand_ui_state";
+const ZONES = ["assets", "create", "capture", "reference"];
 const DEFAULT_UI_STATE = {
-  zone: "tools",
-  openSections: { tools: ["download"], reference: ["mark"] },
+  zone: "assets",
+  openSections: { reference: ["mark"] },
 };
 export function loadBrandUiState() {
   try {
     const raw = JSON.parse(localStorage.getItem(UI_STATE_KEY) || "null");
-    if (raw && raw.zone && raw.openSections) return raw;
+    // Guards against a stale shape from before the Tools zone split into
+    // Assets/Create/Capture (e.g. zone: "tools") — fall back rather than
+    // land on a destination that no longer exists.
+    if (raw && ZONES.includes(raw.zone) && raw.openSections) return raw;
     return DEFAULT_UI_STATE;
   } catch {
     return DEFAULT_UI_STATE;
