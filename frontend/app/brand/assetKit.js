@@ -195,7 +195,7 @@ export function saveSignatureTheme(theme) {
 // the top. Assets is the default landing spot — grabbing a logo file is
 // the single most common reason to open this page.
 const UI_STATE_KEY = "noqeev_brand_ui_state";
-const ZONES = ["assets", "create", "capture", "reference"];
+const ZONES = ["assets", "create", "story", "capture", "reference"];
 const DEFAULT_UI_STATE = {
   zone: "assets",
   openSections: { reference: ["mark"] },

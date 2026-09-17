@@ -1,0 +1,90 @@
+"use client";
+/**
+ * LayerPanel.js — the font/size/spacing/align/bounce controls for a
+ * selected layer, plus its order/duplicate/delete row. Extracted out of
+ * PostComposer.js so the story-assembly tool can reuse it verbatim for
+ * per-clip caption editing (captions are just text layers, same shape
+ * PostComposer already edits) — see frontend/app/brand/story/StoryComposer.js.
+ */
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Trash2, SendToBack, BringToFront, Copy, AlignLeft, AlignCenter, AlignRight, Waves,
+} from "lucide-react";
+import { FONT_OPTIONS } from "./postTemplates";
+
+function LayerOrderRow({ onDuplicate, onFront, onBack, onDelete }) {
+  return (
+    <div className="mb-3 flex items-center justify-between">
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={onBack} title="Send to back" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><SendToBack className="size-3.5" /></button>
+        <button type="button" onClick={onFront} title="Bring to front" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><BringToFront className="size-3.5" /></button>
+        <button type="button" onClick={onDuplicate} title="Duplicate" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><Copy className="size-3.5" /></button>
+      </div>
+      <button type="button" onClick={onDelete} aria-label="Delete" className="text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
+    </div>
+  );
+}
+
+export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, onBack }) {
+  if (!layer) return null;
+  const set = (patch) => onChange({ ...layer, ...patch });
+
+  if (layer.type === "sticker") {
+    return (
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Sticker</span>
+        </div>
+        <LayerOrderRow onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
+        <label className="mb-1.5 block text-[11.5px] font-bold text-foreground">Size</label>
+        <input type="range" min="0.05" max="0.35" step="0.01" value={layer.sizeFrac} onChange={(e) => set({ sizeFrac: Number(e.target.value) })} className="w-full accent-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Text</span>
+      </div>
+      <LayerOrderRow onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
+      <Textarea value={layer.text} onChange={(e) => set({ text: e.target.value })} rows={2} className="mb-3 resize-none rounded-[10px] text-[13px]" />
+
+      <label className="mb-1.5 block text-[11px] font-bold text-foreground">Font</label>
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {FONT_OPTIONS.map((f) => (
+          <button key={f.id} type="button" onClick={() => set({ font: f.id })} aria-pressed={layer.font === f.id}
+            className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${layer.font === f.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-3 grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1.5 block text-[11px] font-bold text-foreground">Size</label>
+          <input type="range" min="0.015" max="0.2" step="0.005" value={layer.sizeFrac} onChange={(e) => set({ sizeFrac: Number(e.target.value) })} className="w-full accent-primary" />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-[11px] font-bold text-foreground">Spacing</label>
+          <input type="range" min="0" max="0.012" step="0.0005" value={layer.spacingFrac} onChange={(e) => set({ spacingFrac: Number(e.target.value) })} className="w-full accent-primary" />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          {[["left", AlignLeft], ["center", AlignCenter], ["right", AlignRight]].map(([id, Icon]) => (
+            <button key={id} type="button" onClick={() => set({ align: id })} aria-pressed={layer.align === id}
+              className={`flex size-8 items-center justify-center rounded-lg border ${layer.align === id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+              <Icon className="size-3.5" />
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={() => set({ bounce: !layer.bounce })} aria-pressed={layer.bounce}
+          className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${layer.bounce ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+          <Waves className="size-3.5" /> Bounce
+        </button>
+      </div>
+    </div>
+  );
+}

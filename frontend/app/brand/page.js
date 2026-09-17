@@ -25,6 +25,7 @@ import { Sparkles, Type, Archive } from "lucide-react";
 import { Section } from "./BrandSection";
 import { LogoDownloads } from "./LogoDownloads";
 import { PostComposer } from "./PostComposer";
+import { StoryComposer } from "./story/StoryComposer";
 import { SignatureTheme } from "./SignatureTheme";
 import { ScreenshotStudio } from "./ScreenshotStudio";
 import { NotificationBell } from "./NotificationBell";
@@ -160,6 +161,7 @@ export default function BrandPage() {
             <TabsList>
               <TabsTrigger value="assets">Assets</TabsTrigger>
               <TabsTrigger value="create">Create</TabsTrigger>
+              <TabsTrigger value="story">Story</TabsTrigger>
               <TabsTrigger value="capture">Capture</TabsTrigger>
               <TabsTrigger value="reference">Reference</TabsTrigger>
             </TabsList>
@@ -176,6 +178,12 @@ export default function BrandPage() {
         {zone === "create" && (
           <div className="mt-6">
             <PostComposer accent={accent} />
+          </div>
+        )}
+
+        {zone === "story" && (
+          <div className="mt-6">
+            <StoryComposer accent={accent} />
           </div>
         )}
 

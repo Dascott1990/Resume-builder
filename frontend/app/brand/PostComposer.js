@@ -13,25 +13,22 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
-  Download, Loader2, Sparkles, Type, Smile, ImagePlus, Trash2,
-  AlignLeft, AlignCenter, AlignRight, Waves, Undo2, Redo2,
-  BringToFront, SendToBack, Copy,
+  Download, Loader2, Type, Smile, ImagePlus, Undo2, Redo2,
 } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { apiRequest } from "@/components/premium/shared/api";
 import {
   loadMarkImage, ensureFontsReady, canvasToPngBlob, downloadBlob,
   loadHandle, saveHandle,
 } from "./assetKit";
 import {
   renderPost, PLATFORMS, DEFAULT_ACCENT, SHAPES, INITIAL_LAYOUTS,
-  FONT_OPTIONS, makeTextLayer, makeStickerLayer,
+  makeTextLayer, makeStickerLayer,
 } from "./postTemplates";
 import { EmailAssetButton } from "./EmailAssetButton";
+import { LayerPanel } from "./LayerPanel";
+import { AiSuggestPanel } from "./AiSuggestPanel";
 
-const MOODS = ["Motivational", "Practical", "Celebratory", "Urgent", "Playful"];
 const STICKER_EMOJI = ["✨", "🔥", "🎉", "💪", "🙌", "👀", "✅", "📈", "💼", "🎯", "☕", "⚡", "🚀", "💡", "🏆", "⏳"];
 
 // Sample copy for manually picking a shape (distinct from the AI draft
@@ -43,142 +40,7 @@ const SHAPE_DEFAULTS = {
   stat: { eyebrow: "Noqeev · By the numbers", headline: "3 minutes", subtext: "The average time it takes to tailor a resume with Noqeev." },
 };
 
-function timeOfDay(hour) {
-  if (hour < 5) return "late night";
-  if (hour < 12) return "morning";
-  if (hour < 17) return "afternoon";
-  if (hour < 21) return "evening";
-  return "night";
-}
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
-
-function AiSuggestPanel({ onSuggestion }) {
-  const [mood, setMood] = useState("Motivational");
-  const [loading, setLoading] = useState(false);
-  const [context, setContext] = useState(null);
-
-  useEffect(() => {
-    const now = new Date();
-    setContext({
-      time_of_day: timeOfDay(now.getHours()),
-      day_of_week: now.toLocaleDateString(undefined, { weekday: "long" }),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    });
-  }, []);
-
-  const suggest = async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest("/api/v1/brand/suggest-post", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mood: mood.toLowerCase(), ...context }),
-      });
-      onSuggestion(data);
-    } catch (e) {
-      toast.error(e.message || "Try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="rounded-xl border border-primary/25 bg-primary/[0.04] p-4">
-      <div className="mb-2.5 flex items-center gap-1.5">
-        <Sparkles className="size-3.5 text-primary" />
-        <span className="font-mono text-[10.5px] font-bold tracking-[0.1em] text-primary uppercase">AI draft</span>
-      </div>
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        {MOODS.map((m) => (
-          <button key={m} type="button" onClick={() => setMood(m)} aria-pressed={mood === m}
-            className={`rounded-full border px-3 py-1 text-[11.5px] font-semibold ${mood === m ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-            {m}
-          </button>
-        ))}
-      </div>
-      <Btn small variant="gold" onClick={suggest} disabled={loading || !context} loading={loading}>
-        {loading ? "…" : "Suggest"}
-      </Btn>
-    </div>
-  );
-}
-
-function LayerOrderRow({ onDuplicate, onFront, onBack, onDelete }) {
-  return (
-    <div className="mb-3 flex items-center justify-between">
-      <div className="flex items-center gap-1">
-        <button type="button" onClick={onBack} title="Send to back" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><SendToBack className="size-3.5" /></button>
-        <button type="button" onClick={onFront} title="Bring to front" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><BringToFront className="size-3.5" /></button>
-        <button type="button" onClick={onDuplicate} title="Duplicate" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><Copy className="size-3.5" /></button>
-      </div>
-      <button type="button" onClick={onDelete} aria-label="Delete" className="text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
-    </div>
-  );
-}
-
-function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, onBack }) {
-  if (!layer) return null;
-  const set = (patch) => onChange({ ...layer, ...patch });
-
-  if (layer.type === "sticker") {
-    return (
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Sticker</span>
-        </div>
-        <LayerOrderRow onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
-        <label className="mb-1.5 block text-[11.5px] font-bold text-foreground">Size</label>
-        <input type="range" min="0.05" max="0.35" step="0.01" value={layer.sizeFrac} onChange={(e) => set({ sizeFrac: Number(e.target.value) })} className="w-full accent-primary" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Text</span>
-      </div>
-      <LayerOrderRow onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
-      <Textarea value={layer.text} onChange={(e) => set({ text: e.target.value })} rows={2} className="mb-3 resize-none rounded-[10px] text-[13px]" />
-
-      <label className="mb-1.5 block text-[11px] font-bold text-foreground">Font</label>
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        {FONT_OPTIONS.map((f) => (
-          <button key={f.id} type="button" onClick={() => set({ font: f.id })} aria-pressed={layer.font === f.id}
-            className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${layer.font === f.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="mb-3 grid grid-cols-2 gap-3">
-        <div>
-          <label className="mb-1.5 block text-[11px] font-bold text-foreground">Size</label>
-          <input type="range" min="0.015" max="0.2" step="0.005" value={layer.sizeFrac} onChange={(e) => set({ sizeFrac: Number(e.target.value) })} className="w-full accent-primary" />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-[11px] font-bold text-foreground">Spacing</label>
-          <input type="range" min="0" max="0.012" step="0.0005" value={layer.spacingFrac} onChange={(e) => set({ spacingFrac: Number(e.target.value) })} className="w-full accent-primary" />
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1">
-          {[["left", AlignLeft], ["center", AlignCenter], ["right", AlignRight]].map(([id, Icon]) => (
-            <button key={id} type="button" onClick={() => set({ align: id })} aria-pressed={layer.align === id}
-              className={`flex size-8 items-center justify-center rounded-lg border ${layer.align === id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-              <Icon className="size-3.5" />
-            </button>
-          ))}
-        </div>
-        <button type="button" onClick={() => set({ bounce: !layer.bounce })} aria-pressed={layer.bounce}
-          className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${layer.bounce ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-          <Waves className="size-3.5" /> Bounce
-        </button>
-      </div>
-    </div>
-  );
-}
 
 export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const [shapeId, setShapeId] = useState("tip");

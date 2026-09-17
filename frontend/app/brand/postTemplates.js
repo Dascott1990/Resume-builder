@@ -86,7 +86,7 @@ export function deriveAccent(primaryHex) {
 }
 export const DEFAULT_ACCENT = deriveAccent("#f59e0b");
 
-const newId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `l${Date.now()}${Math.random().toString(36).slice(2)}`);
+export const newId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `l${Date.now()}${Math.random().toString(36).slice(2)}`);
 
 // ── Layer factories ──────────────────────────────────────────────────────
 export function makeTextLayer(overrides = {}) {
@@ -243,9 +243,20 @@ function drawStickerLayer(ctx, w, h, images, layer) {
 /** Renders the full post (background, ambient glow, every layer in order,
  * brand stamp) and returns a Map<layerId, bbox> in pixel space so the
  * composer can hit-test drags without re-measuring anything itself. */
-export function renderPost(ctx, w, h, layers, markImg, accent, handle, stickerImages) {
-  paintBase(ctx, w, h);
-  paintGlow(ctx, w, h, w * 0.82, h * 0.14, w * 0.6, accent);
+export function renderPost(ctx, w, h, layers, markImg, accent, handle, stickerImages, opts = {}) {
+  // opts lets a caller composite ONLY the layers — no background/glow, no
+  // brand stamp — onto an already-transparent (or already-painted-with-
+  // something-else) canvas. Used by the story-assembly tool's live
+  // preview (layers drawn on top of a video/image frame already on the
+  // canvas) and its caption-PNG export (layers drawn on a blank
+  // transparent canvas, so the result composites correctly via ffmpeg's
+  // overlay filter). Every existing call site passes no 9th argument, so
+  // both default to false and this is a no-op change for them.
+  const { skipBackground = false, skipStamp = false } = opts;
+  if (!skipBackground) {
+    paintBase(ctx, w, h);
+    paintGlow(ctx, w, h, w * 0.82, h * 0.14, w * 0.6, accent);
+  }
 
   const boxes = new Map();
   for (const layer of layers) {
@@ -253,7 +264,7 @@ export function renderPost(ctx, w, h, layers, markImg, accent, handle, stickerIm
     else boxes.set(layer.id, drawStickerLayer(ctx, w, h, stickerImages, layer));
   }
 
-  if (markImg) {
+  if (markImg && !skipStamp) {
     const markSize = w * 0.09;
     const pad = w * 0.06;
     paintBrandStamp(ctx, markImg, w - pad - markSize, h - pad - markSize - (handle ? markSize * 0.34 : 0), markSize, handle);
