@@ -141,6 +141,9 @@ def create_app():
     from app.api.brand import brand_bp
     app.register_blueprint(brand_bp, url_prefix="/api/v1/brand")
 
+    from app.api.story import story_bp
+    app.register_blueprint(story_bp, url_prefix="/api/v1/brand/story")
+
     # Pinged by the frontend's keep-alive (see frontend/app/KeepAlive.js) to
     # stop Render's free-tier instance from spinning down after 15 minutes
     # of inactivity. Deliberately does nothing but respond — no DB hit, no
@@ -174,6 +177,8 @@ def create_app():
             sync_vendor_catalog_at_boot(app)
             from app.api.apply import sweep_stuck_runs
             sweep_stuck_runs(app)
+            from app.api.story import sweep_stuck_story_runs
+            sweep_stuck_story_runs(app)
             table_names = sorted(db.metadata.tables.keys())
             print(f"✅ Database tables created/verified: {table_names}")
         except Exception as exc:

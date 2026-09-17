@@ -700,6 +700,48 @@ class BrandTask(db.Model):
         }
 
 
+class StoryRun(db.Model):
+    """
+    One story-assembly render — /brand's "Story" tool's async ffmpeg job,
+    modeled directly on ApplicationRun (see api/apply.py's module
+    docstring for why threading.Thread, not Celery/RQ, is right on this
+    single-worker Render dyno). Unauthenticated like the rest of
+    api/brand.py — no guest_id/user_id scoping, this is a team tool.
+
+    Clip files themselves are NEVER persisted here or anywhere in
+    Postgres — the request that starts a render carries them directly
+    (multipart/form-data) and they live only in a tempfile.mkdtemp()
+    working directory for the lifetime of one render (see
+    api/story.py's _execute_story_run), deleted the moment it finishes.
+    Only the FINAL rendered output becomes a Media row, same "ephemeral
+    unless it's the actual end product" rule ApplicationRun's screenshot/
+    tailored-resume outputs already follow. This table just tracks status
+    for polling and points at that one Media row once done.
+    """
+    __tablename__ = "story_runs"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    status = db.Column(db.String(20), nullable=False, default="queued", index=True)  # queued -> rendering -> done | failed
+    output_format = db.Column(db.String(10), nullable=False, default="mp4")  # "mp4" | "gif"
+    platform_id = db.Column(db.String(20), nullable=False)  # one of postTemplates.js's PLATFORMS keys
+    # Frozen copy of the submitted clip-sequence spec (durations, trim
+    # in/out, which clips carry a caption) — audit trail, same reasoning
+    # as ApplicationRun.profile_snapshot.
+    sequence_spec = db.Column(db.JSON)
+    output_media_id = db.Column(db.String(32), db.ForeignKey("media.id"), index=True, nullable=True)
+    error_message = db.Column(db.String(1000), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "status": self.status, "output_format": self.output_format,
+            "platform_id": self.platform_id, "output_media_id": self.output_media_id,
+            "error_message": self.error_message,
+            "created_at": _iso_utc(self.created_at),
+            "completed_at": _iso_utc(self.completed_at),
+        }
+
+
 class Vendor(db.Model):
     """
     A third-party service this app actually depends on — hosting,
