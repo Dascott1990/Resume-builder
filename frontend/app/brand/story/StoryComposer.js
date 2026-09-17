@@ -278,7 +278,16 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
 
   return (
     <div className="grid gap-5 sm:grid-cols-[1fr_320px]">
-      <PreviewAndTimeline />
+      {/* Sticky + self-start, same reasoning as PostComposer.js's own
+          left column: without it, scrolling down through the controls
+          sidebar carries the preview out of view with it, so a caption/
+          voice-over/export change has nothing on screen to show its
+          result until scrolling back up. Desktop/tablet only (this
+          branch never renders on phone — see the isPhone return above,
+          where the preview is already the permanent base view instead). */}
+      <div className="sticky top-4 self-start">
+        <PreviewAndTimeline />
+      </div>
       <ControlsPanel />
     </div>
   );

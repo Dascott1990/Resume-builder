@@ -273,7 +273,16 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
 
   return (
     <div className="grid gap-5 sm:grid-cols-[1fr_300px]">
-      <div className="flex min-w-0 w-full flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5">
+      {/* Sticky, not a plain grid item — without this, scrolling down
+          into a long controls column (the sidebar on desktop, or simply
+          "further down the page" on a single-column phone stack) carries
+          the canvas out of view along with it, so a style change made
+          down there has nothing on screen to actually show its result
+          until scrolling back up. self-start is required alongside
+          sticky: a grid item stretches to its row's full height by
+          default, which would make this element as tall as its sibling
+          and leave no room to visibly "stick" as the page scrolls past it. */}
+      <div className="sticky top-4 flex min-w-0 w-full flex-col items-center gap-3 self-start rounded-2xl border border-border bg-card p-5">
         <div className="flex w-full max-w-[560px] items-center justify-end gap-1">
           <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
             className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
