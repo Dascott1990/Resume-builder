@@ -30,14 +30,6 @@ import { ScreenshotStudio } from "./ScreenshotStudio";
 import { DEFAULT_ACCENT } from "./postTemplates";
 import { loadBrandUiState, saveBrandUiState } from "./assetKit";
 
-function Eyebrow({ children }) {
-  return (
-    <p className="m-0 font-mono text-[10.5px] font-bold tracking-[0.14em] text-muted-foreground/60 uppercase">
-      {children}
-    </p>
-  );
-}
-
 function Swatch({ hex, label }) {
   return (
     <div className="flex items-center gap-2">
@@ -164,18 +156,10 @@ export default function BrandPage() {
   return (
     <div className="min-h-[100dvh] w-full bg-background font-sans text-foreground">
       <div className="mx-auto w-full max-w-4xl px-6 py-14 sm:px-10 sm:py-20">
-        <div className="mb-3">
+        <div className="mb-3 flex items-center gap-2.5">
           <Logo size={26} />
+          <span className="text-[15px] font-bold text-foreground">Brand kit</span>
         </div>
-        <Eyebrow>Brand mark — design record</Eyebrow>
-        <h1 className="m-0 mt-3 max-w-xl text-balance font-serif text-[30px] italic leading-tight text-foreground sm:text-[38px]">
-          How the mark became Ascending Q.
-        </h1>
-        <p className="m-0 mt-4 max-w-xl text-[14.5px] leading-relaxed text-muted-foreground">
-          Three directions went into review for the Noqeev icon. One shipped. This page keeps
-          the other two on record along with the reasoning, rather than letting a rejected
-          direction just disappear once a decision's made.
-        </p>
 
         <AtAGlanceStrip />
 
@@ -197,7 +181,6 @@ export default function BrandPage() {
             <Section
               icon={Download}
               eyebrow="Download & share"
-              description="Real files, generated on the spot from the same mark shipped in the app — never a stale export someone made once and forgot to update. Pick whichever fits: a profile photo, an icon on its own background, a banner, or the raw vector."
               open={isOpen("tools", "download")}
               onOpenChange={() => toggleSection("tools", "download")}
             >
@@ -208,7 +191,6 @@ export default function BrandPage() {
             <Section
               icon={PenSquare}
               eyebrow="Create a post"
-              description="Whoever's on posting duty today doesn't need a separate design tool — pick a shape, write the words (or let AI draft them), download it sized for wherever it's going. Colors, gradient, and type are already the brand's own; nothing to match by eye."
               open={isOpen("tools", "post")}
               onOpenChange={() => toggleSection("tools", "post")}
             >
@@ -218,8 +200,7 @@ export default function BrandPage() {
             {/* ── Screenshot studio ── */}
             <Section
               icon={Camera}
-              eyebrow="Turn a real screen into a post"
-              description="Capture an actual screen (or upload one), crop it, blur anything that shouldn't be public, drop it in a frame, sign it, ship it."
+              eyebrow="Screenshot studio"
               open={isOpen("tools", "screenshot")}
               onOpenChange={() => toggleSection("tools", "screenshot")}
             >
@@ -243,14 +224,6 @@ export default function BrandPage() {
                   <LogoMark size={92} />
                 </div>
                 <div className="grid gap-4">
-                  <p className="m-0 max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
-                    A squared bowl — a page, not a circle — with its tail broken loose: instead
-                    of settling back down the way a real Q's tail does, it kicks up and out into
-                    a flat-cut point. Legible as Noqeev's own initial at any size, which neither
-                    of the other two directions could claim. One continuous stroked path, six
-                    points, five straight segments — see the full rationale in Logo.js.
-                  </p>
-
                   <div>
                     <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">In the header lockup</p>
                     <div className="flex items-center gap-3 rounded-xl border border-border bg-[#0a0a0a] px-5 py-4">
@@ -288,14 +261,6 @@ export default function BrandPage() {
                 </span>
                 <span className="font-mono text-[11.5px] text-muted-foreground">Unbounded · 800</span>
               </div>
-              <p className="m-0 mt-3 max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
-                Unbounded's squared, geometric letterforms are the deliberate pairing with the
-                mark's own squared bowl — icon and wordmark built from the same blocky, flat-edged
-                vocabulary instead of an icon dropped in front of an unrelated UI font. Replaces
-                the previous Helvetica Neue treatment; the app's body text stays on{" "}
-                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[12px]">--font-sans</code>{" "}
-                unchanged — only the wordmark moved.
-              </p>
             </Section>
 
             {/* ── Explored, set aside ── */}
@@ -311,12 +276,7 @@ export default function BrandPage() {
                     <RisingLinesPreview />
                   </div>
                   <h3 className="m-0 text-[15px] font-bold text-foreground">Rising Lines</h3>
-                  <p className="m-0 mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                    Four bars shaped like a resume's own header block, tilted nine degrees so the
-                    stack itself reads as ascending. Closest in spirit to the app's own loading-
-                    skeleton bars — familiar fast, but the most literal of the three, and the
-                    easiest for a competitor to redraw without much effort.
-                  </p>
+                  <p className="m-0 mt-1 text-[12px] text-muted-foreground">Too easy to copy</p>
                 </div>
 
                 <div className="rounded-2xl border border-border bg-background p-6">
@@ -324,11 +284,7 @@ export default function BrandPage() {
                     <TurningPointPreview />
                   </div>
                   <h3 className="m-0 text-[15px] font-bold text-foreground">Turning Point</h3>
-                  <p className="m-0 mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                    A page whose top-right corner opens straight into an arrowhead — document and
-                    trajectory as one continuous outline. The fastest "resume → growth" read of
-                    the three, but also the closest to the category's common shorthand.
-                  </p>
+                  <p className="m-0 mt-1 text-[12px] text-muted-foreground">Too generic a shape</p>
                 </div>
               </div>
             </Section>
@@ -336,7 +292,7 @@ export default function BrandPage() {
         )}
 
         <p className="m-0 mt-14 border-t border-border pt-5 font-mono text-[10.5px] tracking-[0.06em] text-muted-foreground/50">
-          /brand — internal design reference, not linked from product navigation.
+          /brand — internal only
         </p>
       </div>
     </div>

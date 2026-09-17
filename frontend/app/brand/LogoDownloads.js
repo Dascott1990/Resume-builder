@@ -66,7 +66,6 @@ const ASSETS = [
     id: "icon",
     label: "App icon",
     spec: "PNG · 1024×1024 · transparent",
-    hint: "Anywhere a square icon is needed on its own background.",
     build: buildIconPng,
     filename: "noqeev-icon.png",
     preview: "transparent",
@@ -75,7 +74,6 @@ const ASSETS = [
     id: "avatar",
     label: "Social avatar",
     spec: "PNG · 1000×1000 · filled",
-    hint: "Ready to upload as-is — a profile photo, no transparency surprises.",
     build: buildAvatarPng,
     filename: "noqeev-avatar.png",
     preview: "filled",
@@ -85,7 +83,6 @@ const ASSETS = [
     id: "lockup",
     label: "Full lockup",
     spec: "PNG · 1600×500 · filled",
-    hint: "Mark + wordmark together — a banner, a signature, a post's letterhead.",
     build: buildLockupPng,
     filename: "noqeev-lockup.png",
     preview: "lockup",
@@ -94,7 +91,6 @@ const ASSETS = [
     id: "vector",
     label: "Vector mark",
     spec: "SVG · transparent",
-    hint: "For anyone doing real design work with it — infinitely scalable.",
     build: null,
     filename: "noqeev-mark.svg",
     preview: "transparent",
@@ -171,7 +167,6 @@ function AssetRow({ asset }) {
       <div className="min-w-0 flex-1">
         <p className="m-0 text-[13.5px] font-bold text-foreground">{asset.label}</p>
         <p className="m-0 font-mono text-[10.5px] text-muted-foreground/70">{asset.spec}</p>
-        <p className="m-0 mt-1 text-[12px] leading-snug text-muted-foreground">{asset.hint}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         {asset.shareable && (

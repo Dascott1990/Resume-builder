@@ -34,9 +34,9 @@ import { paintBrandStamp, PLATFORMS } from "./postTemplates";
 import { EmailAssetButton } from "./EmailAssetButton";
 
 const FRAMES = {
-  none: { label: "None", description: "Just the cropped shot, full-bleed." },
-  card: { label: "Clean card", description: "Rounded corners, soft shadow, brand background." },
-  browser: { label: "Browser bar", description: "A fake traffic-light bar on top — reads as a real page." },
+  none: { label: "None", description: "Full-bleed" },
+  card: { label: "Clean card", description: "Rounded + shadow" },
+  browser: { label: "Browser bar", description: "Traffic-light bar" },
 };
 
 const BLUR_RADIUS_PX = 28; // strength of the blur itself, not the brush size
@@ -341,9 +341,6 @@ export function ScreenshotStudio() {
   if (!sourceImg) {
     return (
       <div className="grid gap-3 rounded-2xl border border-dashed border-border bg-card p-8 text-center">
-        <p className="m-0 text-[13.5px] text-muted-foreground">
-          Capture a real screen (a browser tab, a window) or upload one you already took.
-        </p>
         <div className="flex flex-wrap items-center justify-center gap-2">
           <Btn variant="gold" onClick={capture} disabled={capturing} loading={capturing}>
             <Camera className="size-4" /> {capturing ? "Waiting for permission…" : "Capture screen"}

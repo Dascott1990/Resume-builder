@@ -73,17 +73,12 @@ export function SignatureTheme({ onLockIn }) {
           This month's signature
         </p>
       </div>
-      <p className="m-0 mt-2 mb-5 max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
-        One accent, picked from the app's own palette, for every post this month — so a week's
-        worth of posts reads as one campaign instead of whatever color happened to be default that day.
-      </p>
 
       {active ? (
-        <div className="flex items-start gap-4 rounded-xl border border-primary/25 bg-primary/[0.04] p-4">
+        <div className="mt-3 flex items-center gap-4 rounded-xl border border-primary/25 bg-primary/[0.04] p-4">
           <span className="size-10 shrink-0 rounded-full border border-border" style={{ background: activeColor.primary }} />
           <div className="min-w-0 flex-1">
             <p className="m-0 text-[14px] font-bold text-foreground">{active.themeName}</p>
-            <p className="m-0 mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{active.rationale}</p>
             {stored && !proposal && (
               <p className="m-0 mt-2 flex items-center gap-1 text-[11px] font-bold text-primary">
                 <Check className="size-3" /> Locked in for {new Date().toLocaleDateString(undefined, { month: "long" })}

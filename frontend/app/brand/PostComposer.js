@@ -330,7 +330,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
             />
           )}
         </div>
-        <p className="m-0 text-[10.5px] text-muted-foreground/60">Drag anything on the canvas to reposition it.</p>
+        <p className="m-0 text-[10.5px] text-muted-foreground/60">Drag to move</p>
         <div className="flex flex-wrap items-center justify-center gap-1.5">
           {Object.entries(PLATFORMS).map(([id, r]) => (
             <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={r.sub}
@@ -383,7 +383,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
           <LayerPanel layer={selectedLayer} onChange={updateLayer} onDelete={deleteSelected} />
         ) : (
           <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
-            Tap anything on the canvas to style it.
+            Tap to style
           </p>
         )}
 
