@@ -411,9 +411,15 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
           <CanvasBlock />
         </div>
         <DownloadRow />
-        <Btn variant="ghost" onClick={() => setSheetOpen(true)}>
-          <SlidersHorizontal className="size-4" /> Edit content & style
-        </Btn>
+        {/* Hidden while the sheet itself is open — its own "Done" button
+            (BottomSheet.js) is the way back, so having this trigger still
+            sitting there too is a redundant second way to do the same
+            thing while the sheet already covers it. */}
+        {!sheetOpen && (
+          <Btn variant="ghost" onClick={() => setSheetOpen(true)}>
+            <SlidersHorizontal className="size-4" /> Edit content & style
+          </Btn>
+        )}
         <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit">
           <div className="p-4">
             <EditControls />
