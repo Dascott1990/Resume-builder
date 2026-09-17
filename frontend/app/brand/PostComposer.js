@@ -304,16 +304,18 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   };
 
   const platform = PLATFORMS[platformId];
-  const displayHeight = 380;
-  const displayWidth = Math.round((platform.w / platform.h) * displayHeight);
   const selectedLayer = layers.find((l) => l.id === selectedId) || null;
 
   return (
     <div className="grid gap-5 sm:grid-cols-[1fr_300px]">
-      <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5">
+      <div className="flex min-w-0 w-full flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5">
+        {/* Sized with CSS aspect-ratio, not a JS-computed pixel width — the
+            box just fills its container (capped by max-w) and the browser
+            works out the height, so a wide shape like Landscape can never
+            blow past a narrow screen the way a fixed px width did. */}
         <div
-          className="relative flex items-center justify-center overflow-hidden rounded-xl bg-[#0a0a0a] shadow-[0_8px_28px_rgba(0,0,0,0.25)]"
-          style={{ width: displayWidth, height: displayHeight }}
+          className="relative mx-auto flex w-full max-w-[380px] items-center justify-center overflow-hidden rounded-xl bg-[#0a0a0a] shadow-[0_8px_28px_rgba(0,0,0,0.25)]"
+          style={{ aspectRatio: `${platform.w} / ${platform.h}` }}
         >
           {!ready ? (
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -323,7 +325,8 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
-              style={{ width: displayWidth, height: displayHeight, display: "block", cursor: dragRef.current ? "grabbing" : "grab", touchAction: "none" }}
+              className="block h-full w-full"
+              style={{ cursor: dragRef.current ? "grabbing" : "grab", touchAction: "none" }}
             />
           )}
         </div>

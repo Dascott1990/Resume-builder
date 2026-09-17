@@ -13,7 +13,7 @@ import { IconTile } from "@/components/premium/shared/IconTile";
 
 export function Section({ icon, eyebrow, title, description, open, onOpenChange, children }) {
   return (
-    <Collapsible open={open} onOpenChange={onOpenChange} className="rounded-2xl border border-border bg-card">
+    <Collapsible open={open} onOpenChange={onOpenChange} className="min-w-0 w-full rounded-2xl border border-border bg-card">
       <CollapsibleTrigger className="flex w-full items-center gap-3 border-none bg-transparent p-6 text-left sm:p-8 [-webkit-tap-highlight-color:transparent]">
         <IconTile icon={icon} size="sm" />
         <div className="min-w-0 flex-1">

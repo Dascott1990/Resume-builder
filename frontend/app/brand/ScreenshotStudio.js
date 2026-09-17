@@ -40,13 +40,6 @@ const FRAMES = {
 };
 
 const BLUR_RADIUS_PX = 28; // strength of the blur itself, not the brush size
-const DISPLAY_MAX_W = 640;
-const DISPLAY_MAX_H = 420;
-
-function fitWithin(w, h, maxW, maxH) {
-  const scale = Math.min(maxW / w, maxH / h, 1);
-  return { width: Math.round(w * scale), height: Math.round(h * scale), scale };
-}
 
 export function ScreenshotStudio() {
   const [sourceImg, setSourceImg] = useState(null); // HTMLImageElement | null
@@ -163,11 +156,7 @@ export function ScreenshotStudio() {
     const sharp = sharpCanvasRef.current;
     if (!canvas || !sharp) return;
     const sw = sharp.width, sh = sharp.height;
-    const { width, height, scale } = fitWithin(sw, sh, DISPLAY_MAX_W, DISPLAY_MAX_H);
-    canvas.width = sw; canvas.height = sh; // full source resolution — CSS below scales it down for display only
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    canvas.dataset.scale = String(scale);
+    canvas.width = sw; canvas.height = sh; // full source resolution — CSS (w-full h-auto) scales it down for display only
 
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, sw, sh);
@@ -368,11 +357,16 @@ export function ScreenshotStudio() {
     );
   }
 
+  // Read the scale live from however the browser actually rendered the
+  // canvas (CSS w-full/h-auto + its own intrinsic width/height attributes)
+  // rather than a value computed ahead of time from a fixed pixel cap —
+  // stays correct at any container width, mobile included.
   const boxStyle = crop && sharpCanvasRef.current
     ? (() => {
         const canvas = displayCanvasRef.current;
         if (!canvas) return null;
-        const displayScale = parseFloat(canvas.dataset.scale || "1");
+        const rect = canvas.getBoundingClientRect();
+        const displayScale = rect.width ? canvas.width / rect.width : 1;
         return {
           left: crop.x / displayScale, top: crop.y / displayScale,
           width: crop.w / displayScale, height: crop.h / displayScale,
@@ -382,14 +376,17 @@ export function ScreenshotStudio() {
 
   return (
     <div className="grid gap-5 sm:grid-cols-[1fr_280px]">
-      <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5">
-        <div className="relative" style={{ touchAction: "none" }}>
+      <div className="flex min-w-0 w-full flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5">
+        {/* max-w caps it on desktop; w-full + the canvas's own h-auto keep
+            it inside its box on any narrower screen instead of the fixed
+            640px display width this used to render at. */}
+        <div className="relative mx-auto w-full max-w-[480px]" style={{ touchAction: "none" }}>
           <canvas
             ref={displayCanvasRef}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
-            className="block rounded-lg"
+            className="block h-auto w-full rounded-lg"
             style={{ cursor: tool === "crop" ? "crosshair" : "cell" }}
           />
           {tool === "crop" && boxStyle && (
