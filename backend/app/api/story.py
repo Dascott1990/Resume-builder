@@ -49,7 +49,9 @@ MAX_CLIPS = 20
 MAX_CLIP_BYTES = 60 * 1024 * 1024
 MAX_TOTAL_UPLOAD_BYTES = 250 * 1024 * 1024
 MAX_GIF_DURATION_SEC = 10  # GIF is for short single-scene loops only, not full stories
+MAX_NARRATION_CHARS = 400  # ~30-40s of speech at espeak's default rate — bounds render time
 FFMPEG_TIMEOUT_SEC = 120
+TTS_TIMEOUT_SEC = 30
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -66,6 +68,32 @@ def _run_ffmpeg(args, cwd):
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.decode(errors="replace")[-800:])
+
+
+def _tts_wav(workdir, text, index):
+    """espeak-ng, not a paid neural TTS API — free, offline, zero new
+    credentials (explicit tradeoff the user chose: synthetic-sounding
+    over natural-sounding, to avoid provisioning a new vendor). Installed
+    via apt in render.yaml's buildCommand, same mechanism as ffmpeg."""
+    wav_path = os.path.join(workdir, f"narration_{index}.wav")
+    result = subprocess.run(
+        ["espeak-ng", "-s", "165", "-w", wav_path, text],
+        cwd=workdir, timeout=TTS_TIMEOUT_SEC, capture_output=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.decode(errors="replace")[-500:])
+    return wav_path
+
+
+def _probe_duration(path):
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path],
+        capture_output=True, timeout=15,
+    )
+    try:
+        return float(result.stdout.decode().strip())
+    except ValueError:
+        return 0.0
 
 
 @story_bp.route("/render", methods=["POST"])
@@ -115,6 +143,10 @@ def render_story():
             trim_in, trim_out = clip_spec.get("trim_in"), clip_spec.get("trim_out")
             if not isinstance(trim_in, (int, float)) or not isinstance(trim_out, (int, float)) or trim_out <= trim_in:
                 raise APIError(f"clips[{i}].trim_out must be greater than trim_in", 400)
+        narration_text = clip_spec.get("narration_text")
+        if narration_text is not None:
+            if not isinstance(narration_text, str) or len(narration_text) > MAX_NARRATION_CHARS:
+                raise APIError(f"clips[{i}].narration_text must be a string under {MAX_NARRATION_CHARS} characters", 400)
 
         data = file.read()
         if len(data) > MAX_CLIP_BYTES:
@@ -177,6 +209,13 @@ def render_story():
 
 def _render_story(workdir, clip_bytes, caption_bytes, platform_id, output_format):
     w, h = PLATFORMS[platform_id]
+    # Once ANY clip carries narration, every segment needs the same
+    # stream layout (video+audio) or the concat demuxer's stream-copy in
+    # the next step breaks — clips with no narration_text get a silent
+    # track exactly matching their own duration instead of staying
+    # video-only. If nothing in the sequence has narration, the pipeline
+    # stays exactly as before (fully silent, no audio stream anywhere).
+    has_narration = any((c["spec"].get("narration_text") or "").strip() for c in clip_bytes)
     seg_paths = []
 
     for i, clip in enumerate(clip_bytes):
@@ -191,31 +230,55 @@ def _render_story(workdir, clip_bytes, caption_bytes, platform_id, output_format
             with open(caption_path, "wb") as f:
                 f.write(caption_bytes[i])
 
+        narration_text = (clip["spec"].get("narration_text") or "").strip()
+        narration_wav, narration_duration = None, 0.0
+        if narration_text:
+            narration_wav = _tts_wav(workdir, narration_text, i)
+            narration_duration = _probe_duration(narration_wav)
+
         seg_path = os.path.join(workdir, f"seg_{i}.mp4")
         scale_pad = f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1"
 
         if clip["kind"] == "image":
-            duration = float(clip["spec"]["duration_sec"])
-            inputs = ["-loop", "1", "-i", src_path]
-            if caption_path:
-                inputs += ["-i", caption_path]
-                filter_complex = f"[0:v]{scale_pad}[bg];[bg][1:v]overlay=0:0:format=auto[outv]"
-            else:
-                filter_complex = f"[0:v]{scale_pad}[outv]"
-            args = [*inputs, "-filter_complex", filter_complex, "-map", "[outv]",
-                    "-t", str(duration), "-r", "30", "-pix_fmt", "yuv420p", seg_path]
+            # Hold the frame at least as long as the narration takes to
+            # read — never shorter, so speech is never cut off.
+            duration = max(float(clip["spec"]["duration_sec"]), narration_duration)
+            video_inputs = ["-loop", "1", "-i", src_path]
+            video_chain = f"[0:v]{scale_pad}"
         else:
             trim_in = float(clip["spec"]["trim_in"])
             trim_out = float(clip["spec"]["trim_out"])
-            inputs = ["-i", src_path]
-            trim = f"trim=start={trim_in}:end={trim_out},setpts=PTS-STARTPTS,{scale_pad}"
-            if caption_path:
-                inputs += ["-i", caption_path]
-                filter_complex = f"[0:v]{trim}[bg];[bg][1:v]overlay=0:0:format=auto[outv]"
+            # Same idea for video — grow the trim window (never shrink
+            # it) to cover the narration. ffmpeg's trim filter clamps
+            # `end` at whatever the source actually has, so this is safe
+            # even on a short source clip; -shortest below then makes the
+            # audio match whatever video actually came out either way.
+            trim_out = trim_out + max(0.0, narration_duration - (trim_out - trim_in))
+            duration = trim_out - trim_in
+            video_inputs = ["-i", src_path]
+            video_chain = f"[0:v]trim=start={trim_in}:end={trim_out},setpts=PTS-STARTPTS,{scale_pad}"
+
+        next_idx = 1
+        filter_parts = []
+        if caption_path:
+            video_inputs += ["-i", caption_path]
+            filter_parts.append(f"{video_chain}[bg];[bg][{next_idx}:v]overlay=0:0:format=auto[outv]")
+            next_idx += 1
+        else:
+            filter_parts.append(f"{video_chain}[outv]")
+
+        if has_narration:
+            if narration_wav:
+                video_inputs += ["-i", narration_wav]
+                filter_parts.append(f"[{next_idx}:a]apad[a]")
             else:
-                filter_complex = f"[0:v]{trim}[outv]"
-            args = [*inputs, "-filter_complex", filter_complex, "-map", "[outv]",
-                    "-an", "-r", "30", "-pix_fmt", "yuv420p", seg_path]
+                video_inputs += ["-f", "lavfi", "-t", str(duration), "-i", "anullsrc=r=44100:cl=stereo"]
+                filter_parts.append(f"[{next_idx}:a]anull[a]")
+            args = [*video_inputs, "-filter_complex", ";".join(filter_parts), "-map", "[outv]", "-map", "[a]",
+                    "-t", str(duration), "-r", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", seg_path]
+        else:
+            args = [*video_inputs, "-filter_complex", ";".join(filter_parts), "-map", "[outv]",
+                    "-an", "-t", str(duration), "-r", "30", "-pix_fmt", "yuv420p", seg_path]
 
         _run_ffmpeg(args, workdir)
         seg_paths.append(seg_path)

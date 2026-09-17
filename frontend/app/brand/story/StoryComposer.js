@@ -23,7 +23,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2, SlidersHorizontal } from "lucide-react";
+import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { BottomSheet } from "@/components/premium/shared/BottomSheet";
 import { useViewport } from "@/lib/useViewport";
@@ -34,6 +35,35 @@ import { ClipTimeline } from "./ClipTimeline";
 import { PreviewPlayer } from "./PreviewPlayer";
 import { ExportPanel } from "./ExportPanel";
 import { releaseClip } from "./clipModel";
+
+const MAX_NARRATION_CHARS = 400; // mirrors backend/app/api/story.py's cap
+
+function VoiceOverField({ clip, onChange }) {
+  const captionText = clip.captionLayers?.[0]?.text || "";
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="mb-2.5 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">
+          <Volume2 className="size-3.5" /> Voice-over
+        </span>
+        {captionText && (
+          <button type="button" onClick={() => onChange(captionText)} className="text-[11px] font-semibold text-primary">
+            Use caption text
+          </button>
+        )}
+      </div>
+      <Textarea
+        value={clip.narrationText || ""}
+        onChange={(e) => onChange(e.target.value.slice(0, MAX_NARRATION_CHARS))}
+        rows={2} placeholder="What should be read aloud for this clip — leave blank for silence"
+        className="resize-none rounded-[10px] text-[13px]"
+      />
+      <p className="m-0 mt-1 text-right text-[10.5px] text-muted-foreground/60">
+        {(clip.narrationText || "").length}/{MAX_NARRATION_CHARS}
+      </p>
+    </div>
+  );
+}
 
 export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   const { isPhone } = useViewport();
@@ -146,22 +176,29 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     const layer = makeTextLayer({ text });
     setClips((cs) => cs.map((c, i) => (i === selectedIndex ? { ...c, captionLayers: [layer] } : c)));
   };
+  const updateNarration = (text) => {
+    if (selectedIndex == null) return;
+    handleUpdateClip(selectedIndex, { narrationText: text });
+  };
 
   const ControlsPanel = () => (
     <div className="grid gap-4">
       <AiSuggestPanel onSuggestion={applyCaptionSuggestion} />
 
       {selectedClip ? (
-        selectedCaption ? (
-          <LayerPanel
-            layer={selectedCaption} onChange={updateCaption} onDelete={removeCaption}
-            onDuplicate={() => {}} onFront={() => {}} onBack={() => {}}
-          />
-        ) : (
-          <Btn variant="ghost" onClick={addCaption}>
-            <Plus className="size-4" /> Add a caption to this clip
-          </Btn>
-        )
+        <>
+          {selectedCaption ? (
+            <LayerPanel
+              layer={selectedCaption} onChange={updateCaption} onDelete={removeCaption}
+              onDuplicate={() => {}} onFront={() => {}} onBack={() => {}}
+            />
+          ) : (
+            <Btn variant="ghost" onClick={addCaption}>
+              <Plus className="size-4" /> Add a caption to this clip
+            </Btn>
+          )}
+          <VoiceOverField clip={selectedClip} onChange={updateNarration} />
+        </>
       ) : (
         <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
           Select a clip to caption it

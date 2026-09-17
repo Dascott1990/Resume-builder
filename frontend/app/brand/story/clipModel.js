@@ -58,6 +58,12 @@ export function makeClip(loaded) {
     trimOut: loaded.kind === "video" ? loaded.naturalDurationSec : undefined,
     naturalDurationSec: loaded.naturalDurationSec,
     captionLayers: [],
+    // Read aloud via server-side TTS at render time (see backend/app/api/
+    // story.py) — empty by default (opt-in per clip), never auto-filled
+    // from the caption text on its own; the UI offers a one-tap "Use
+    // caption text" action for that instead, so a clip can be captioned,
+    // narrated, or both without one silently overwriting the other.
+    narrationText: "",
   };
 }
 

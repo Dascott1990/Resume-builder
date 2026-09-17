@@ -15,11 +15,14 @@ services:
     # PLAYWRIGHT_BROWSERS_PATH at a path inside the project directory (which
     # Render DOES carry over) makes the build and the running app agree on
     # where the browser actually lives.
-    # ffmpeg (for /brand's story-assembly render job, see api/story.py) is
-    # installed the same way Chromium's system deps above already are —
-    # apt-get during this build step, proven to work on Render's native
-    # Python runtime by the Playwright line above it.
-    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium && apt-get update && apt-get install -y ffmpeg
+    # ffmpeg and espeak-ng (for /brand's story-assembly render job — video
+    # encoding and voice-over narration, see api/story.py) are installed
+    # the same way Chromium's system deps above already are — apt-get
+    # during this build step, proven to work on Render's native Python
+    # runtime by the Playwright line above it. espeak-ng specifically:
+    # free/offline TTS, chosen over a paid neural voice API to avoid a
+    # new vendor credential — synthetic-sounding is the accepted tradeoff.
+    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium && apt-get update && apt-get install -y ffmpeg espeak-ng
     # --timeout 120: POST /api/v1/brand/story/render (api/story.py) does its
     # ffmpeg encoding synchronously inside the request — deliberately, so it
     # never depends on the database (see that file's module docstring) —

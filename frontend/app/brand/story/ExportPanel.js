@@ -49,10 +49,11 @@ async function buildFormData(clips, platformId, outputFormat, accent) {
     const clip = clips[i];
     formData.append("clips", clip.file, clip.file.name);
     const hasCaption = clip.captionLayers?.length > 0;
+    const narrationText = (clip.narrationText || "").trim() || undefined;
     clipSpecs.push(
       clip.kind === "image"
-        ? { kind: "image", duration_sec: clip.durationSec, has_caption: hasCaption }
-        : { kind: "video", trim_in: clip.trimIn, trim_out: clip.trimOut, has_caption: hasCaption },
+        ? { kind: "image", duration_sec: clip.durationSec, has_caption: hasCaption, narration_text: narrationText }
+        : { kind: "video", trim_in: clip.trimIn, trim_out: clip.trimOut, has_caption: hasCaption, narration_text: narrationText },
     );
     if (hasCaption) {
       const blob = await buildCaptionPng(clip, w, h, accent);
