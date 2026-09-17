@@ -282,17 +282,14 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   if (isPhone) {
     return (
       <div className="grid gap-4">
-        {/* Sticky here too, not just on desktop/tablet below — without
-            it, scrolling down past a long clip list to reach the "Edit
-            content & style" button already carries the preview off
-            screen before the sheet even opens. The sheet itself only
-            covers the bottom ~64% of the viewport with no scrim (see
-            BottomSheet.js) specifically so a still-visible preview
-            up top stays legible while it's open — that only holds if
-            the preview is actually still up there to see. */}
-        <div className="sticky top-4 z-10 self-start bg-background pb-1">
-          <Preview />
-        </div>
+        {/* NOT sticky on phone — same reason Create's CanvasBlock isn't
+            sticky in its own phone branch (PostComposer.js): a portrait
+            preset (Story/Reel, 9:16) makes this box nearly the full
+            viewport height on its own, and pinning something that tall
+            is exactly what made Download/Email/Edit unreachable below
+            it. Flowing normally lets the page scroll past it like any
+            other block. */}
+        <Preview />
         {/* Directly under the preview's play/pause row — same position
             Create's canvas → Download/Email → Edit sequence uses
             (PostComposer.js) — not further down the page past the clip
