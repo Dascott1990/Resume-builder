@@ -20,17 +20,6 @@
  * one tab's content is on screen at a time now, each short enough to
  * fit without scrolling on its own.
  *
- * Back/Next underneath walks through those three tabs in order — the
- * defining piece of YouTube Studio's own upload flow (Details -> Video
- * elements -> Checks -> Visibility): a docked, always-visible preview
- * next to a GUIDED sequence of short steps, not just a pile of tabs
- * someone has to already know to click through. Clicking a tab directly
- * still jumps straight there, same as Studio's own step list does —
- * Back/Next is the suggested path, not the only one. Clip sequencing
- * stays outside this stepper on purpose: unlike Studio's one-file-then-
- * lock upload step, Story is inherently multi-clip, something worth
- * revisiting at any point, not a step you finish once and move past.
- *
  * Layout mirrors GuestMode.js's own showSplit split: tablet/desktop has
  * real room for preview + controls side by side (unchanged grid below).
  * A phone doesn't, so the preview + clip timeline stay the permanent
@@ -38,10 +27,16 @@
  * same "edit here, see it there, never scroll away from the preview to
  * change something" outcome GuestMode's StyleBottomSheet already gives
  * the resume editor, not a second design.
+ *
+ * The preview player itself (not the whole preview+timeline block) is
+ * the sticky element, on both the phone and desktop/tablet layouts —
+ * ClipTimeline can grow tall enough on its own (up to MAX_CLIPS=20
+ * clips) that stickying the combined block would still let the actual
+ * player scroll out of view underneath a long clip list.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -56,7 +51,6 @@ import { ExportPanel } from "./ExportPanel";
 import { releaseClip } from "./clipModel";
 
 const MAX_NARRATION_CHARS = 400; // mirrors backend/app/api/story.py's cap
-const CONTROL_TAB_ORDER = ["caption", "voice", "export"]; // the Back/Next sequence
 
 function VoiceOverField({ clip, onChange }) {
   const captionText = clip.captionLayers?.[0]?.text || "";
@@ -202,10 +196,6 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     handleUpdateClip(selectedIndex, { narrationText: text });
   };
 
-  const tabIndex = CONTROL_TAB_ORDER.indexOf(controlTab);
-  const goToPrevTab = () => setControlTab(CONTROL_TAB_ORDER[Math.max(0, tabIndex - 1)]);
-  const goToNextTab = () => setControlTab(CONTROL_TAB_ORDER[Math.min(CONTROL_TAB_ORDER.length - 1, tabIndex + 1)]);
-
   const ControlsPanel = () => (
     <Tabs value={controlTab} onValueChange={setControlTab} className="gap-3">
       <TabsList className="w-full">
@@ -247,45 +237,36 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
           outputFormat={outputFormat} setOutputFormat={setOutputFormat} accent={accent}
         />
       </TabsContent>
-
-      {/* The guided path through the three tabs above — clicking a tab
-          directly still works, this is just the suggested route for
-          someone who hasn't already decided which one they want. No
-          "Next" on the last tab — Export already ends in a real
-          terminal action (Download/Email), not another step to advance
-          through. */}
-      <div className="flex items-center justify-between pt-1">
-        <Btn small variant="ghost" onClick={goToPrevTab} disabled={tabIndex === 0}>
-          <ChevronLeft className="size-3.5" /> Back
-        </Btn>
-        {tabIndex < CONTROL_TAB_ORDER.length - 1 && (
-          <Btn small variant="gold" onClick={goToNextTab}>
-            Next <ChevronRight className="size-3.5" />
-          </Btn>
-        )}
-      </div>
     </Tabs>
   );
 
   const PreviewAndTimeline = () => (
     <div className="grid gap-4">
-      <div className="flex items-center justify-between">
-        <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Preview</p>
-        <div className="flex items-center gap-1">
-          <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
-            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
-            <Undo2 className="size-4" />
-          </button>
-          <button type="button" onClick={redo} disabled={!canRedo} title="Redo"
-            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
-            <Redo2 className="size-4" />
-          </button>
+      {/* The player itself is the sticky element, not this whole block —
+          ClipTimeline below can grow tall (up to MAX_CLIPS=20 clips), and
+          stickying the combined block would still let the actual player
+          scroll out of view underneath a long clip list. top-4 + bg so it
+          reads as staying in place, not floating transparently over
+          whatever timeline row scrolls past underneath it. */}
+      <div className="sticky top-4 z-10 grid gap-4 bg-background pb-1">
+        <div className="flex items-center justify-between">
+          <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Preview</p>
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
+              className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+              <Undo2 className="size-4" />
+            </button>
+            <button type="button" onClick={redo} disabled={!canRedo} title="Redo"
+              className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+              <Redo2 className="size-4" />
+            </button>
+          </div>
         </div>
+        <PreviewPlayer
+          clips={clips} platform={PLATFORMS[platformId]} accent={accent} selectedIndex={selectedIndex}
+          onCaptionLive={updateCaptionLive} onCaptionCommit={updateCaption}
+        />
       </div>
-      <PreviewPlayer
-        clips={clips} platform={PLATFORMS[platformId]} accent={accent} selectedIndex={selectedIndex}
-        onCaptionLive={updateCaptionLive} onCaptionCommit={updateCaption}
-      />
       <ClipTimeline
         clips={clips} selectedIndex={selectedIndex} onSelect={setSelectedIndex}
         onAdd={handleAdd} onRemove={handleRemove} onReorder={handleReorder} onUpdateClip={handleUpdateClip}
@@ -311,16 +292,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
 
   return (
     <div className="grid gap-5 sm:grid-cols-[1fr_320px]">
-      {/* Sticky + self-start, same reasoning as PostComposer.js's own
-          left column: without it, scrolling down through the controls
-          sidebar carries the preview out of view with it, so a caption/
-          voice-over/export change has nothing on screen to show its
-          result until scrolling back up. Desktop/tablet only (this
-          branch never renders on phone — see the isPhone return above,
-          where the preview is already the permanent base view instead). */}
-      <div className="sticky top-4 self-start">
-        <PreviewAndTimeline />
-      </div>
+      <PreviewAndTimeline />
       <ControlsPanel />
     </div>
   );
