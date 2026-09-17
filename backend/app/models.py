@@ -550,3 +550,48 @@ class JdCapture(db.Model):
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
     text = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class PushSubscription(db.Model):
+    """
+    One browser's Web Push subscription (endpoint + the two keys the
+    browser's push service needs to decrypt what we send it) — behind
+    /brand's notification bell, so scoped to the admin who enabled it
+    rather than guest_id like the rest of the app. `endpoint` itself is
+    already unique per browser+origin (the push service assigns it), so
+    it's the natural dedupe key — re-subscribing from the same browser
+    updates the row in place instead of piling up duplicates.
+    """
+    __tablename__ = "push_subscriptions"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    user_id = db.Column(db.String(32), db.ForeignKey("users.id"), nullable=False, index=True)
+    endpoint = db.Column(db.Text, nullable=False, unique=True)
+    p256dh = db.Column(db.String(255), nullable=False)
+    auth = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_webpush_subscription(self):
+        return {"endpoint": self.endpoint, "keys": {"p256dh": self.p256dh, "auth": self.auth}}
+
+
+class BrandNews(db.Model):
+    """
+    A short admin-authored update shown in /brand's notification bell —
+    "we shipped X," "reminder: Y," a link worth everyone seeing. Real
+    content an admin actually wrote, not a fabricated external feed;
+    posting one also fires a real push (see utils/push.py) to everyone
+    who's subscribed, so it reaches people even with the tab closed.
+    """
+    __tablename__ = "brand_news"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    title = db.Column(db.String(140), nullable=False)
+    body = db.Column(db.String(500), nullable=True)
+    link = db.Column(db.String(500), nullable=True)
+    created_by = db.Column(db.String(32), db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id": self.id, "title": self.title, "body": self.body, "link": self.link,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }

@@ -37,3 +37,35 @@ self.addEventListener("fetch", (event) => {
     fetch(event.request).catch(() => caches.match(OFFLINE_URL))
   );
 });
+
+// ── Web Push — behind /brand's notification bell only (see
+// app/brand/NotificationBell.js for where a subscription gets created,
+// backend/app/api/brand.py's /news route for the one thing that actually
+// sends one). The payload is plain JSON, not the Push API's binary
+// default, since the backend already sends it that way (see
+// utils/push.py) — no encryption-format negotiation needed here. ────────
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { /* a non-JSON push is just shown with defaults below */ }
+  const title = data.title || "Noqeev";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      data: { link: data.link || "/brand" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const link = event.notification.data?.link || "/brand";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      const existing = clients.find((c) => new URL(c.url).pathname === link);
+      if (existing) return existing.focus();
+      return self.clients.openWindow(link);
+    })
+  );
+});

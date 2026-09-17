@@ -1,17 +1,29 @@
 """
 app/api/brand.py — internal marketing tooling behind the /brand page:
 
-POST /api/v1/brand/suggest-post   — AI drafts one post (shape + copy),
-                                     grounded in what Noqeev actually does
-POST /api/v1/brand/suggest-theme  — AI proposes this month's signature accent
-POST /api/v1/brand/email-asset    — emails a generated image to whoever's
-                                     shipping it to a given platform
+POST /api/v1/brand/suggest-post     — AI drafts one post (shape + copy),
+                                       grounded in what Noqeev actually does
+POST /api/v1/brand/suggest-theme    — AI proposes this month's signature accent
+POST /api/v1/brand/email-asset      — emails a generated image to whoever's
+                                       shipping it to a given platform
+GET  /api/v1/brand/news             — recent admin-posted updates
+POST /api/v1/brand/news             — post one (admin only) + push it to
+                                       everyone subscribed
+DELETE /api/v1/brand/news/<id>      — remove one (admin only)
+GET  /api/v1/brand/push/vapid-public-key — the public half of the app's
+                                       VAPID key pair (safe to expose; the
+                                       browser needs it to open a subscription)
+POST /api/v1/brand/push/subscribe   — save this browser's push subscription
+                                       (admin only)
+POST /api/v1/brand/push/unsubscribe — remove it
 
-Not part of the core product surface — no auth, no guest_id scoping, since
-this is a tool for whoever's running the brand, not a customer-facing
-feature (same "no identity to scope by" reasoning as api/capture.py's
-bookmarklet endpoint). Still rate-limited like every other AI-calling route
-in this app, since these hit the same paid Claude/Groq calls.
+Most of this file is unauthenticated on purpose — no auth, no guest_id
+scoping, since it's a tool for whoever's running the brand, not a
+customer-facing feature (same "no identity to scope by" reasoning as
+api/capture.py's bookmarklet endpoint). The news/push write paths are the
+one exception: they broadcast to real subscribers, so posting or
+subscribing requires an actual signed-in admin (require_admin) — reading
+the news list stays open, same as everything else here.
 """
 import base64
 import json
@@ -20,10 +32,13 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify
 
-from app import limiter
+from app import db, limiter
 from app.middleware.error_handlers import APIError
+from app.models import BrandNews, PushSubscription
 from app.utils.ai_client import ai_complete
+from app.utils.auth import require_admin
 from app.utils.mail import send_email
+from app.utils.push import VAPID_PUBLIC_KEY, push_configured, send_push_to_all
 
 brand_bp = Blueprint("brand", __name__)
 
@@ -226,3 +241,106 @@ def email_asset():
         raise APIError("Could not send this email — check the mail server configuration", 502)
 
     return jsonify({"success": True, "data": {"message": f"Sent to {to_email}"}}), 200
+
+
+# ── News feed — real, admin-authored updates, not a fabricated external
+# feed. Posting one fans out a real push to everyone subscribed. ──────────
+@brand_bp.route("/news", methods=["GET"])
+@limiter.limit("60 per hour")
+def list_news():
+    items = BrandNews.query.order_by(BrandNews.created_at.desc()).limit(20).all()
+    return jsonify({"success": True, "data": [n.to_dict() for n in items]}), 200
+
+
+@brand_bp.route("/news", methods=["POST"])
+@limiter.limit("30 per hour")
+def post_news():
+    admin = require_admin(request)
+    body = request.get_json(force=True) or {}
+    title = _clean_str(body.get("title"), 140)
+    news_body = _clean_str(body.get("body"), 500)
+    link = _clean_str(body.get("link"), 500)
+    if not title:
+        raise APIError("Title is required", 400)
+    if link and not re.match(r"^https?://", link):
+        raise APIError("Link must start with http:// or https://", 400)
+
+    item = BrandNews(title=title, body=news_body or None, link=link or None, created_by=admin.id)
+    db.session.add(item)
+    db.session.commit()
+
+    # Best-effort — a subscriber's push failing (or push not being
+    # configured on this server at all) shouldn't fail the actual post.
+    if push_configured():
+        subs = PushSubscription.query.all()
+        payload = json.dumps({"title": title, "body": news_body or "", "link": link or "/brand"})
+        try:
+            dead_ids = send_push_to_all(subs, payload)
+            if dead_ids:
+                PushSubscription.query.filter(PushSubscription.id.in_(dead_ids)).delete(synchronize_session=False)
+                db.session.commit()
+        except Exception as exc:
+            print(f"❌ Push fan-out failed for news item {item.id}: {exc}")
+
+    return jsonify({"success": True, "data": item.to_dict()}), 201
+
+
+@brand_bp.route("/news/<news_id>", methods=["DELETE"])
+@limiter.limit("30 per hour")
+def delete_news(news_id):
+    require_admin(request)
+    item = db.session.get(BrandNews, news_id)
+    if not item:
+        raise APIError("Not found", 404)
+    db.session.delete(item)
+    db.session.commit()
+    return jsonify({"success": True, "data": {"deleted": True}}), 200
+
+
+# ── Web Push — VAPID, real OS-level notifications even with the tab
+# closed. See utils/push.py for the send path and how to generate a key
+# pair; both VAPID_PRIVATE_KEY and VAPID_PUBLIC_KEY must be set as env
+# vars for any of this to actually deliver. ────────────────────────────
+@brand_bp.route("/push/vapid-public-key", methods=["GET"])
+def vapid_public_key():
+    if not push_configured():
+        raise APIError("Push notifications aren't configured on this server", 503)
+    return jsonify({"success": True, "data": {"key": VAPID_PUBLIC_KEY}}), 200
+
+
+@brand_bp.route("/push/subscribe", methods=["POST"])
+@limiter.limit("30 per hour")
+def push_subscribe():
+    admin = require_admin(request)
+    body = request.get_json(force=True) or {}
+    endpoint = (body.get("endpoint") or "").strip()
+    keys = body.get("keys") or {}
+    p256dh = (keys.get("p256dh") or "").strip()
+    auth = (keys.get("auth") or "").strip()
+    if not endpoint or not p256dh or not auth:
+        raise APIError("Malformed subscription", 400)
+
+    # Re-subscribing from the same browser updates the row rather than
+    # piling up a duplicate — endpoint is the push service's own stable
+    # id for this browser+origin.
+    existing = PushSubscription.query.filter_by(endpoint=endpoint).first()
+    if existing:
+        existing.user_id = admin.id
+        existing.p256dh = p256dh
+        existing.auth = auth
+    else:
+        db.session.add(PushSubscription(user_id=admin.id, endpoint=endpoint, p256dh=p256dh, auth=auth))
+    db.session.commit()
+    return jsonify({"success": True, "data": {"subscribed": True}}), 200
+
+
+@brand_bp.route("/push/unsubscribe", methods=["POST"])
+@limiter.limit("30 per hour")
+def push_unsubscribe():
+    require_admin(request)
+    body = request.get_json(force=True) or {}
+    endpoint = (body.get("endpoint") or "").strip()
+    if endpoint:
+        PushSubscription.query.filter_by(endpoint=endpoint).delete()
+        db.session.commit()
+    return jsonify({"success": True, "data": {"subscribed": False}}), 200
