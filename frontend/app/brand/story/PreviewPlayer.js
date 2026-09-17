@@ -34,14 +34,19 @@ function clipStarts(clips) {
   return clips.map((c) => { const start = t; t += clipLengthSec(c); return start; });
 }
 
-export function PreviewPlayer({ clips, platform, accent, selectedIndex }) {
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptionLive, onCaptionCommit }) {
   const canvasRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [globalTime, setGlobalTime] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const fontsReadyRef = useRef(false);
   const rafRef = useRef(null);
   const lastFrameAtRef = useRef(0);
   const activeVideoRef = useRef(null); // the clip.el currently playing, if any
+  const captionBoxRef = useRef(null); // last-drawn caption bbox, for drag hit-testing
+  const dragRef = useRef(null);
 
   const starts = clipStarts(clips);
   const totalDuration = starts.length ? starts[starts.length - 1] + clipLengthSec(clips[clips.length - 1]) : 0;
@@ -80,7 +85,10 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex }) {
     }
     drawContain(ctx, clip.el, clip.naturalW, clip.naturalH, w, h);
     if (clip.captionLayers?.length) {
-      renderPost(ctx, w, h, clip.captionLayers, null, accent, "", {}, { skipBackground: true, skipStamp: true });
+      const boxes = renderPost(ctx, w, h, clip.captionLayers, null, accent, "", {}, { skipBackground: true, skipStamp: true });
+      captionBoxRef.current = boxes.get(clip.captionLayers[0].id) || null;
+    } else {
+      captionBoxRef.current = null;
     }
   };
 
@@ -120,6 +128,50 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing]);
 
+  // ── Drag-to-reposition the caption, directly on the preview canvas —
+  // same hit-test-the-last-drawn-box-then-track-pointer-offset pattern
+  // PostComposer.js uses for its layers. Only active while paused and
+  // showing the SELECTED clip (the one LayerPanel is currently editing),
+  // so what's draggable always matches what the style controls affect. ──
+  const pointFromEvent = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    return { x: (e.clientX - rect.left) * (canvas.width / rect.width), y: (e.clientY - rect.top) * (canvas.height / rect.height) };
+  };
+
+  const onPointerDown = (e) => {
+    if (playing) return;
+    const { index } = locate(globalTime);
+    if (index !== selectedIndex) return;
+    const box = captionBoxRef.current;
+    const layer = clips[index]?.captionLayers?.[0];
+    if (!box || !layer || !platform) return;
+    const p = pointFromEvent(e);
+    if (p.x < box.x || p.x > box.x + box.w || p.y < box.y || p.y > box.y + box.h) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = { dx: p.x / platform.w - layer.x, dy: p.y / platform.h - layer.y };
+    setDragging(true);
+  };
+  const onPointerMove = (e) => {
+    if (!dragRef.current || !platform) return;
+    const { index } = locate(globalTime);
+    const layer = clips[index]?.captionLayers?.[0];
+    if (!layer) return;
+    const p = pointFromEvent(e);
+    const nx = clamp01(p.x / platform.w - dragRef.current.dx);
+    const ny = clamp01(p.y / platform.h - dragRef.current.dy);
+    onCaptionLive?.({ ...layer, x: nx, y: ny });
+  };
+  const onPointerUp = () => {
+    if (dragRef.current) {
+      const { index } = locate(globalTime);
+      const layer = clips[index]?.captionLayers?.[0];
+      if (layer) onCaptionCommit?.(layer);
+    }
+    dragRef.current = null;
+    setDragging(false);
+  };
+
   const togglePlay = () => {
     if (!clips.length) return;
     if (!playing && globalTime >= totalDuration) setGlobalTime(0);
@@ -138,7 +190,17 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex }) {
         className="relative mx-auto flex w-full max-w-[420px] items-center justify-center overflow-hidden rounded-xl bg-[#0a0a0a]"
         style={{ aspectRatio: platform ? `${platform.w} / ${platform.h}` : "1 / 1" }}
       >
-        <canvas ref={canvasRef} className="block h-full w-full" />
+        <canvas
+          ref={canvasRef}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          className="block h-full w-full"
+          style={{
+            cursor: dragging ? "grabbing" : (!playing && locate(globalTime).index === selectedIndex && captionBoxRef.current) ? "grab" : "default",
+            touchAction: "none",
+          }}
+        />
       </div>
       <div className="flex items-center gap-2.5">
         <button type="button" onClick={togglePlay} disabled={!clips.length}

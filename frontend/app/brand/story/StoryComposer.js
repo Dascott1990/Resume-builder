@@ -114,6 +114,15 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     if (selectedIndex == null) return;
     setClips((cs) => cs.map((c, i) => (i === selectedIndex ? { ...c, captionLayers: [nextLayer] } : c)));
   };
+  // Live position updates during an active canvas drag — updates what's
+  // on screen without pushing a new undo entry per pointermove; the
+  // drag's one history entry is committed at pointer-up via updateCaption
+  // (see PreviewPlayer.js's onPointerUp), same split PostComposer.js's
+  // own setLayersLive/commitLayers already uses for its layer drags.
+  const updateCaptionLive = (nextLayer) => {
+    if (selectedIndex == null) return;
+    setClipsRaw((cs) => cs.map((c, i) => (i === selectedIndex ? { ...c, captionLayers: [nextLayer] } : c)));
+  };
   const removeCaption = () => {
     if (selectedIndex == null) return;
     setClips((cs) => cs.map((c, i) => (i === selectedIndex ? { ...c, captionLayers: [] } : c)));
@@ -142,7 +151,10 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
             </button>
           </div>
         </div>
-        <PreviewPlayer clips={clips} platform={PLATFORMS[platformId]} accent={accent} selectedIndex={selectedIndex} />
+        <PreviewPlayer
+          clips={clips} platform={PLATFORMS[platformId]} accent={accent} selectedIndex={selectedIndex}
+          onCaptionLive={updateCaptionLive} onCaptionCommit={updateCaption}
+        />
         <ClipTimeline
           clips={clips} selectedIndex={selectedIndex} onSelect={setSelectedIndex}
           onAdd={handleAdd} onRemove={handleRemove} onReorder={handleReorder} onUpdateClip={handleUpdateClip}
