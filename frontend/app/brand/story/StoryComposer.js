@@ -267,7 +267,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
       </div>
       <PreviewPlayer
         clips={clips} platform={PLATFORMS[platformId]} accent={accent} selectedIndex={selectedIndex}
-        onCaptionLive={updateCaptionLive} onCaptionCommit={updateCaption}
+        onCaptionLive={updateCaptionLive} onCaptionCommit={updateCaption} compact={isPhone}
       />
     </div>
   );

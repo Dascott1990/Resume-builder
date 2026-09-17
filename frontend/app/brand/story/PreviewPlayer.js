@@ -36,7 +36,7 @@ function clipStarts(clips) {
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
-export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptionLive, onCaptionCommit }) {
+export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptionLive, onCaptionCommit, compact }) {
   const canvasRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [globalTime, setGlobalTime] = useState(0);
@@ -184,11 +184,22 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
     setGlobalTime(Math.max(0, Math.min(totalDuration, t)));
   };
 
+  // compact (phone): height-driven instead of width-driven, so a 9:16
+  // preset can't grow past ~40% of the viewport and push everything
+  // below it off screen. calc(40vh * aspect) is the width that produces
+  // exactly a 40vh-tall box at this platform's aspect ratio; min() with
+  // 100% falls back to the normal width-driven sizing (height naturally
+  // under 40vh) for a wide preset like Landscape, so nothing distorts
+  // or overflows the screen either way.
+  const aspect = platform ? platform.w / platform.h : 1;
   return (
     <div className="grid gap-2">
       <div
-        className="relative mx-auto flex w-full max-w-[420px] items-center justify-center overflow-hidden rounded-xl bg-[#0a0a0a]"
-        style={{ aspectRatio: platform ? `${platform.w} / ${platform.h}` : "1 / 1" }}
+        className={`relative mx-auto flex items-center justify-center overflow-hidden rounded-xl bg-[#0a0a0a] ${compact ? "" : "w-full max-w-[420px]"}`}
+        style={{
+          aspectRatio: platform ? `${platform.w} / ${platform.h}` : "1 / 1",
+          ...(compact ? { maxHeight: "40vh", width: `min(100%, calc(40vh * ${aspect}))` } : {}),
+        }}
       >
         <canvas
           ref={canvasRef}
