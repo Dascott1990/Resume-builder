@@ -278,7 +278,17 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   if (isPhone) {
     return (
       <div className="grid gap-4">
-        <Preview />
+        {/* Sticky here too, not just on desktop/tablet below — without
+            it, scrolling down past a long clip list to reach the "Edit
+            caption & export" button already carries the preview off
+            screen before the sheet even opens. The sheet itself only
+            covers the bottom ~64% of the viewport with no scrim (see
+            BottomSheet.js) specifically so a still-visible preview
+            up top stays legible while it's open — that only holds if
+            the preview is actually still up there to see. */}
+        <div className="sticky top-4 z-10 self-start bg-background pb-1">
+          <Preview />
+        </div>
         {clipTimeline}
         <Btn variant="gold" onClick={() => setSheetOpen(true)}>
           <SlidersHorizontal className="size-4" /> Edit caption & export
