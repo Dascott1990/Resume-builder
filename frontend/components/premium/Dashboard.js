@@ -76,7 +76,7 @@ function ActionTile({ Icon, label, sub, onClick }) {
       <IconTile icon={Icon} size="sm" />
       <div>
         <p className="m-0 text-[13.5px] font-bold text-foreground">{label}</p>
-        <p className="m-0 mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{sub}</p>
+        {sub && <p className="m-0 mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{sub}</p>}
       </div>
     </motion.button>
   );
@@ -100,10 +100,7 @@ function NotificationsDialog({ open, onClose, items, onOpenItem }) {
               <div className="flex size-11 items-center justify-center rounded-full border border-border bg-card">
                 <Inbox className="size-[18px] text-muted-foreground" />
               </div>
-              <p className="m-0 text-sm font-bold text-foreground">You're all caught up</p>
-              <p className="m-0 max-w-[240px] text-[12.5px] leading-relaxed text-muted-foreground">
-                Unread messages on your requests or jobs show up here.
-              </p>
+              <p className="m-0 text-sm font-bold text-foreground">All caught up</p>
             </div>
           ) : (
             items.map((it) => (
@@ -195,9 +192,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go }
         className="mb-5 flex w-full items-center justify-between gap-4 rounded-3xl border-none bg-primary p-6 text-left [-webkit-tap-highlight-color:transparent]"
       >
         <div className="min-w-0">
-          <p className="m-0 text-[11px] font-bold tracking-[0.1em] text-primary-foreground/70 uppercase">Main product</p>
-          <p className="m-0 mt-1 text-xl font-bold text-primary-foreground">Build a resume</p>
-          <p className="m-0 mt-1 text-[13px] text-primary-foreground/80">Tailored to any job posting in under 2 minutes</p>
+          <p className="m-0 text-xl font-bold text-primary-foreground">Build a resume</p>
         </div>
         <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
           <ArrowRight className="size-5 text-primary-foreground" />
@@ -222,9 +217,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go }
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10">
               <Sparkles className="size-4 text-primary" />
             </div>
-            <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
-              Your saved resumes, applications, and interviews will show up here once you get started.
-            </p>
+            <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">Nothing yet</p>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-3">
@@ -243,10 +236,10 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go }
             screens: 768-1023px hits sm but not lg, so it never gets to a
             clean 4-per-row either). 2 columns divides 4 evenly everywhere. */}
         <div className="grid grid-cols-2 gap-3">
-          <ActionTile Icon={Sparkles} label="Apply with AI" sub="Fill out a real application" onClick={() => go("apply")} />
-          <ActionTile Icon={ScanLine} label="CV Scan" sub="Import an existing resume" onClick={() => go("scan")} />
-          <ActionTile Icon={ClipboardList} label="Job Tracker" sub="Track your applications" onClick={() => go("jobtracker")} />
-          <ActionTile Icon={Hammer} label="Find an Artisan" sub="Browse local tradespeople" onClick={() => go("artisans")} />
+          <ActionTile Icon={Sparkles} label="Apply with AI" onClick={() => go("apply")} />
+          <ActionTile Icon={ScanLine} label="CV Scan" onClick={() => go("scan")} />
+          <ActionTile Icon={ClipboardList} label="Job Tracker" onClick={() => go("jobtracker")} />
+          <ActionTile Icon={Hammer} label="Find an Artisan" onClick={() => go("artisans")} />
         </div>
       </motion.div>
 
@@ -259,7 +252,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go }
           </div>
         ) : recentResumes.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-4 text-center">
-            <p className="m-0 text-[12.5px] text-muted-foreground">Nothing saved yet — build your first resume to see it here.</p>
+            <p className="m-0 text-[12.5px] text-muted-foreground">Nothing yet</p>
           </div>
         ) : (
           <div className="grid gap-2">
@@ -288,7 +281,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go }
           </div>
         ) : recentApps.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-4 text-center">
-            <p className="m-0 text-[12.5px] text-muted-foreground">No applications tracked yet.</p>
+            <p className="m-0 text-[12.5px] text-muted-foreground">Nothing yet</p>
           </div>
         ) : (
           <div className="grid gap-2">
@@ -399,7 +392,6 @@ export default function Dashboard({ onClose, onNavigate }) {
                 </div>
                 <div className="min-w-0">
                   <p className="m-0 truncate text-[12.5px] font-bold text-foreground">{user.name || user.email}</p>
-                  <p className="m-0 text-[11px] text-muted-foreground">Signed in</p>
                 </div>
               </div>
             ) : (
@@ -408,9 +400,7 @@ export default function Dashboard({ onClose, onNavigate }) {
                 className="w-full rounded-xl border border-primary/25 bg-primary/10 p-3 text-left [-webkit-tap-highlight-color:transparent]"
               >
                 <p className="m-0 text-[12.5px] font-bold text-primary">Sign in</p>
-                <p className="m-0 mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                  Sync resumes and applications across devices
-                </p>
+                <p className="m-0 mt-0.5 text-[11px] leading-snug text-muted-foreground">Sync across devices</p>
               </button>
             )}
           </div>

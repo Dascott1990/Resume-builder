@@ -28,7 +28,7 @@ import JobDetailDialog from "./JobDetailDialog";
 import { getThread, postMessage, markThreadRead } from "../messages/api";
 
 const STATUS_META = {
-  requested: { label: "Waiting for a response", className: "border-primary/30 bg-primary/10 text-primary" },
+  requested: { label: "Pending", className: "border-primary/30 bg-primary/10 text-primary" },
   accepted: { label: "Accepted", className: "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[var(--success,#22c55e)]" },
   completed: { label: "Completed", className: "border-border bg-muted text-muted-foreground" },
   declined: { label: "Declined", className: "border-destructive/30 bg-destructive/10 text-destructive" },
@@ -118,7 +118,7 @@ export default function MyRequestsPane() {
     setReleaseBusy(true);
     try {
       await apiRequest(`/api/v1/requests/${openId}/release-payment`, { method: "POST" });
-      toast.success("Payment released to the artisan");
+      toast.success("Payment released");
       load();
     } catch (e) {
       toast.error(e.message);
@@ -135,7 +135,7 @@ export default function MyRequestsPane() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stars, comment }),
       });
-      toast.success("Thanks for the review!");
+      toast.success("Review sent");
       load();
     } catch (e) {
       toast.error(e.message);
@@ -175,9 +175,6 @@ export default function MyRequestsPane() {
         ) : items.length === 0 ? (
           <div className="grid justify-items-center gap-2 px-1 py-10 text-center">
             <p className="m-0 text-sm font-bold text-foreground">No requests yet</p>
-            <p className="m-0 max-w-[240px] text-[12.5px] leading-relaxed text-muted-foreground">
-              Open an artisan's profile and tap "Request" to reach out.
-            </p>
           </div>
         ) : (
           <div className="grid gap-2.5 pb-1">

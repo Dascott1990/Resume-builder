@@ -449,7 +449,7 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
           ) : !user ? (
             <SignInPrompt
               icon={User} title="Not signed in"
-              body="Sign in to save resumes and job applications across devices."
+              body="Sync across devices"
               ctaLabel="Sign in" onCta={onOpenLogin}
             />
           ) : (
@@ -506,8 +506,8 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
           ) : !artisan ? (
             <SignInPrompt
               icon={Wrench} title="No artisan account"
-              body="Sign in or list yourself to receive job requests."
-              ctaLabel="Sign in as an artisan" onCta={onOpenArtisanAuth}
+              body="Get job requests"
+              ctaLabel="Sign in" onCta={onOpenArtisanAuth}
             />
           ) : (
             <Card className="grid gap-3 p-3.5">

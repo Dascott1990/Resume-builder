@@ -424,9 +424,6 @@ function EmptyState({ trade, onListYourself }) {
       <p className="m-0 text-sm font-bold text-foreground">
         {trade && trade !== "All" ? `No ${trade}s listed yet` : "No artisans yet"}
       </p>
-      <p className="m-0 max-w-[240px] text-[12.5px] leading-relaxed text-muted-foreground">
-        Be the first — listings go live in under a minute.
-      </p>
       <Btn small variant="ghost" icon="Plus" onClick={onListYourself}>
         List yourself
       </Btn>
@@ -552,13 +549,13 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
   useEffect(() => {
     if (sort !== "distance" || nearMe) return;
     if (!navigator.geolocation) {
-      toast.error("Location isn't available in this browser.");
+      toast.error("Not available here.");
       setSort("newest");
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => setNearMe({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => { toast.error("Couldn't get your location — check your browser's permission settings."); setSort("newest"); },
+      () => { toast.error("Location permission denied."); setSort("newest"); },
       { timeout: 10000 }
     );
   }, [sort, nearMe]);
@@ -819,7 +816,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
             {editingId ? "Edit your listing" : "List yourself"}
           </p>
           <p className="m-0 text-[12px] text-muted-foreground">
-            {editingId ? "Changes go live immediately." : "Live in under a minute — no account required."}
+            {editingId ? "Live immediately" : "No account required"}
           </p>
         </div>
       </div>
@@ -841,7 +838,6 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
         onChange={(v) => setForm({ ...form, email: v })} />
 
       <Field label="Bio" hint="AI can polish this" multiline rows={3}
-        placeholder="Rough notes about your work — AI can turn this into a polished bio"
         value={form.bio} onChange={(v) => setForm({ ...form, bio: v })} />
       <Btn small variant="ghost" icon="Sparkles" type="button" className="-mt-2.5 mb-1 justify-self-start"
         disabled={polishing || !form.trade} loading={polishing} onClick={polish}>
@@ -902,7 +898,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
       <div className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5">
         <ClipboardList className="size-3.5 shrink-0 text-muted-foreground/60" />
         <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
-          To request an artisan, open their profile from Browse and tap "Request."
+          Open a profile from Browse to request
         </p>
       </div>
       <MyRequestsPane />
@@ -985,10 +981,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
                   <div className="flex size-11 items-center justify-center rounded-full border border-border bg-card">
                     <User className="size-[18px] text-muted-foreground" />
                   </div>
-                  <p className="m-0 text-sm font-bold text-foreground">Select an artisan to view their profile</p>
-                  <p className="m-0 max-w-[280px] text-[12.5px] leading-relaxed text-muted-foreground">
-                    Select a listing to see their full profile.
-                  </p>
+                  <p className="m-0 text-sm font-bold text-foreground">Select an artisan</p>
                 </div>
               )}
             </div>

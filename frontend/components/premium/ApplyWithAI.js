@@ -134,10 +134,6 @@ function ProfileForm({ initial, onConfirmed }) {
       <div className="mb-5 flex flex-col items-center gap-2 text-center">
         <IconTile icon={Sparkles} size="md" />
         <h1 className="m-0 text-xl font-bold text-foreground">Confirm your career profile</h1>
-        <p className="m-0 max-w-sm text-[13px] leading-relaxed text-muted-foreground">
-          This is the only data the agent is ever allowed to use — it never invents facts about you.
-          Review it once here; you can update it any time.
-        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2">
@@ -151,7 +147,7 @@ function ProfileForm({ initial, onConfirmed }) {
         <Select value={form.work_auth_status || "__unset__"} onValueChange={(v) => setForm({ ...form, work_auth_status: v === "__unset__" ? "" : v })}>
           <SelectTrigger className="h-11 w-full"><SelectValue placeholder="Not set" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="__unset__">Not set — the agent will ask if needed</SelectItem>
+            <SelectItem value="__unset__">Not set</SelectItem>
             <SelectItem value="citizen">Citizen</SelectItem>
             <SelectItem value="permanent_resident">Permanent resident</SelectItem>
             <SelectItem value="authorized_no_sponsorship">Authorized to work, no sponsorship needed</SelectItem>
@@ -170,7 +166,7 @@ function ProfileForm({ initial, onConfirmed }) {
       </Field>
       {extraWorkHistory.length > 0 && (
         <p className="m-0 mb-3 -mt-2 text-[11.5px] text-muted-foreground">
-          + {extraWorkHistory.length} earlier {extraWorkHistory.length === 1 ? "role" : "roles"} from your resume, kept as-is.
+          +{extraWorkHistory.length} earlier {extraWorkHistory.length === 1 ? "role" : "roles"}
         </p>
       )}
 
@@ -180,7 +176,7 @@ function ProfileForm({ initial, onConfirmed }) {
       </div>
       {extraEducation.length > 0 && (
         <p className="m-0 mb-3 -mt-2 text-[11.5px] text-muted-foreground">
-          + {extraEducation.length} more {extraEducation.length === 1 ? "entry" : "entries"} from your resume, kept as-is.
+          +{extraEducation.length} more {extraEducation.length === 1 ? "entry" : "entries"}
         </p>
       )}
       <Field label="Skills (comma separated)">
@@ -234,9 +230,9 @@ function UrlForm({ onStarted }) {
     <form onSubmit={submit} className="mx-auto w-full max-w-md">
       <div className="mb-5 flex flex-col items-center gap-2 text-center">
         <IconTile icon={Sparkles} size="md" />
-        <h1 className="m-0 text-xl font-bold text-foreground">What do you want Noqeev to do?</h1>
+        <h1 className="m-0 text-xl font-bold text-foreground">Paste the application link</h1>
         <p className="m-0 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
-          Paste the link to a real job application. Noqeev fills it out, then stops for you to review before anything is submitted.
+          Stops for your review before anything is submitted.
         </p>
       </div>
       <Input
@@ -421,10 +417,10 @@ function ReviewScreen({ run, onSubmitted, onCancelled }) {
 // ── Phase 5: terminal states ─────────────────────────────────────────────
 function TerminalScreen({ run, onRestart }) {
   const map = {
-    submitted: { icon: Check, title: "Application submitted", tone: "text-primary", body: "Noqeev submitted the application and added it to your Job Tracker." },
+    submitted: { icon: Check, title: "Application submitted", tone: "text-primary", body: "Added to your Job Tracker." },
     failed: { icon: AlertTriangle, title: "Couldn't finish this one", tone: "text-destructive", body: run.error_message || "Something went wrong." },
-    cancelled: { icon: X, title: "Cancelled", tone: "text-muted-foreground", body: "This run was cancelled." },
-    expired: { icon: AlertTriangle, title: "Review window expired", tone: "text-muted-foreground", body: "Nobody confirmed in time, so the session was closed. Nothing was submitted." },
+    cancelled: { icon: X, title: "Cancelled", tone: "text-muted-foreground", body: null },
+    expired: { icon: AlertTriangle, title: "Review window expired", tone: "text-muted-foreground", body: "Nothing was submitted." },
   };
   const meta = map[run.status] || map.failed;
   const Icon = meta.icon;
@@ -432,7 +428,7 @@ function TerminalScreen({ run, onRestart }) {
     <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-3 text-center">
       <IconTile icon={Icon} size="md" />
       <h1 className={`m-0 text-lg font-bold ${meta.tone}`}>{meta.title}</h1>
-      <p className="m-0 text-[13.5px] leading-relaxed text-muted-foreground">{meta.body}</p>
+      {meta.body && <p className="m-0 text-[13.5px] leading-relaxed text-muted-foreground">{meta.body}</p>}
       <Btn variant="gold" onClick={onRestart} className="mt-2 w-full">Start another</Btn>
     </div>
   );

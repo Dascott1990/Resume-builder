@@ -16,9 +16,7 @@ export function BookmarkletModal({ open, onClose }) {
             <Bookmark className="size-[17px] text-primary" /> Skip the copy-paste
           </p>
           <p className="m-0 mb-5 text-[12.5px] leading-relaxed text-muted-foreground">
-            Drag the button below to your bookmarks bar. Next time you're looking at a job
-            posting anywhere — LinkedIn, Indeed, a company's own site — click it, and Noqeev
-            opens with that posting already in place.
+            Drag to your bookmarks bar. Click it on any job posting.
           </p>
 
           <div className="mb-5 flex justify-center rounded-2xl border border-dashed border-border bg-muted p-5">
@@ -39,8 +37,7 @@ export function BookmarkletModal({ open, onClose }) {
           <div className="flex items-start gap-2.5 rounded-xl border border-border bg-card p-3.5">
             <MousePointerClick className="mt-0.5 size-[15px] shrink-0 text-muted-foreground" />
             <p className="m-0 text-[12px] leading-relaxed text-muted-foreground">
-              On a phone, bookmarklets can't be dragged — open this page on a computer once to
-              add it, and it'll be there on any device signed into the same browser.
+              On mobile? Add it from a computer once.
             </p>
           </div>
 

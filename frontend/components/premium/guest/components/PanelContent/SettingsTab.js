@@ -14,9 +14,6 @@ export function SettingsTab({ saved, onResetStyle, onClearAll }) {
 
       <div className="mb-4 border-b border-border pb-4">
         <p className="m-0 mb-0.5 text-[13px] font-semibold text-foreground">Style defaults</p>
-        <p className="m-0 mb-2.5 text-xs leading-relaxed text-muted-foreground">
-          Reset font, size, spacing and accent back to Calibri, 11pt, navy.
-        </p>
         <Btn small variant="ghost" icon="RefreshCw" onClick={onResetStyle}>
           Reset style
         </Btn>

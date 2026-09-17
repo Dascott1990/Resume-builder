@@ -276,7 +276,7 @@ export default function ArtisanProfile({
           {reviews.length === 0 ? (
             <div className="flex items-center gap-2.5 rounded-lg border border-dashed border-border px-3 py-3">
               <MessageCircle className="size-4 shrink-0 text-muted-foreground/60" />
-              <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">No reviews yet — job-verified reviews show up here once work's completed.</p>
+              <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">No reviews yet</p>
             </div>
           ) : reviews.map((r) => (
             <div key={r.id} className="rounded-lg border border-border p-2.5">

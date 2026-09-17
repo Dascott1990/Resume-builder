@@ -73,7 +73,7 @@ export default function CVScan({ onClose, onImported }) {
       formData.append("file", file);
       if (tailoring) formData.append("job_description", jobDesc.trim());
       const data = await apiRequest("/api/v1/resume/scan", { method: "POST", body: formData });
-      toast.success(tailoring ? "Tailored — review your resume and cover letter below." : "Imported — review and download below.");
+      toast.success(tailoring ? "Tailored." : "Imported.");
       clearFormDraft(CVSCAN_DRAFT_KEY);
       onImported(data);
     } catch (e) {
@@ -105,9 +105,6 @@ export default function CVScan({ onClose, onImported }) {
         <div>
           <IconTile icon={ScanLine} size="md" className="mb-3" />
           <p className="m-0 font-serif text-[22px] italic text-foreground">CV Scan</p>
-          <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-            Import an existing resume, or add a job posting below to tailor it.
-          </p>
         </div>
 
         <input
@@ -136,21 +133,20 @@ export default function CVScan({ onClose, onImported }) {
             <>
               <FileText className="size-7 text-primary" />
               <span className="text-[13.5px] font-semibold text-foreground">{file.name}</span>
-              <span className="text-[11.5px] text-muted-foreground">{(file.size / 1024).toFixed(0)} KB — tap to choose a different file</span>
+              <span className="text-[11.5px] text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</span>
             </>
           ) : (
             <>
               <UploadCloud className="size-7 text-muted-foreground" />
-              <span className="text-[13.5px] font-semibold text-foreground">Drop a file here, or tap to browse</span>
+              <span className="text-[13.5px] font-semibold text-foreground">Drop or tap to upload</span>
               <span className="text-[11.5px] text-muted-foreground">.pdf or .docx, up to 8MB</span>
             </>
           )}
         </button>
 
         <Field
-          label="JOB DESCRIPTION" hint={`Optional — ${tailoring ? "will tailor to this posting ✓" : "paste one to tailor this resume"}`}
+          label="JOB DESCRIPTION" hint={tailoring ? "Will tailor ✓" : "Optional"}
           value={jobDesc} onChange={setJobDesc} multiline rows={6} mono
-          placeholder={"Paste a job posting here and we'll rewrite this resume to match it — plus a matching cover letter and interview tips. Leave blank to just import as-is."}
         />
 
         {error && (

@@ -123,7 +123,7 @@ export default function JobTracker({ onClose }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
         });
-        toast.success("Application added.");
+        toast.success("Added.");
       }
       setFormOpen(false);
       setForm(EMPTY_FORM);
@@ -171,7 +171,6 @@ export default function JobTracker({ onClose }) {
             <IconTile icon={ClipboardList} size="sm" />
             <div>
               <h1 className="m-0 text-xl font-bold text-foreground">Job Tracker</h1>
-              <p className="m-0 mt-0.5 text-[13px] text-muted-foreground">Where you've applied, and where things stand.</p>
             </div>
           </div>
           {!formOpen && (
@@ -230,7 +229,7 @@ export default function JobTracker({ onClose }) {
                 </Select>
               </Field>
               <Field label="Notes">
-                <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Referral, interview prep, follow-up date…" rows={2} />
+                <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
               </Field>
 
               <Btn variant="gold" type="submit" small disabled={submitting} loading={submitting}>
@@ -263,10 +262,7 @@ export default function JobTracker({ onClose }) {
                 <ClipboardList className="size-[18px] text-muted-foreground" />
               </div>
               <p className="m-0 text-sm font-bold text-foreground">No applications yet</p>
-              <p className="m-0 max-w-[260px] text-[12.5px] leading-relaxed text-muted-foreground">
-                Add the jobs you've applied to and track them here.
-              </p>
-              <Btn small variant="ghost" icon="Plus" onClick={startAdd}>Add your first</Btn>
+              <Btn small variant="ghost" icon="Plus" onClick={startAdd}>Add</Btn>
             </div>
           )}
 

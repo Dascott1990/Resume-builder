@@ -851,8 +851,7 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
               </div>
             ))}
             <div className="mt-1 rounded-xl border border-border bg-card p-2.5">
-              <p className="m-0 mb-1 font-mono text-[9px] tracking-[0.08em] text-muted-foreground/45">TIP</p>
-              <p className="m-0 text-[11px] leading-relaxed text-muted-foreground">Click any text in the preview to edit it inline.</p>
+              <p className="m-0 text-[11px] leading-relaxed text-muted-foreground">Click text to edit</p>
             </div>
           </div>
         )}

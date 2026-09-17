@@ -30,7 +30,7 @@ export function JobDescStep({
           </span>
         }
         value={jobDesc} onChange={setJobDesc} multiline rows={isPhone ? 10 : 18} mono
-        placeholder={"Paste the full job posting here — from any job board.\n\nMore text = better keyword matching."} />
+        placeholder="Paste the job posting" />
 
       <BookmarkletModal open={bookmarkletOpen} onClose={() => setBookmarkletOpen(false)} />
 
@@ -44,7 +44,7 @@ export function JobDescStep({
           {optimizing ? "Optimizing…" : "Optimize for This Job"}
         </Btn>
         <p className="mt-1.5 mb-0 ml-0.5 text-[11px] leading-relaxed text-muted-foreground/60">
-          Also writes a cover letter and interview tips.
+          + cover letter, interview tips
         </p>
       </div>
     </>
