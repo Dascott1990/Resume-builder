@@ -9,7 +9,11 @@ POST /api/v1/brand/email-asset      — emails a generated image to whoever's
 GET  /api/v1/brand/news             — recent admin-posted updates
 POST /api/v1/brand/news             — post one (admin only) + push it to
                                        everyone subscribed
+PATCH /api/v1/brand/news/<id>       — edit, or mark resolved/reopen (admin only)
 DELETE /api/v1/brand/news/<id>      — remove one (admin only)
+GET  /api/v1/brand/world-feed       — real auto-fetched tech/physics/history
+                                       (admin only — see utils/world_feed.py)
+DELETE /api/v1/brand/world-feed/<id> — dismiss one item (admin only)
 GET  /api/v1/brand/push/vapid-public-key — the public half of the app's
                                        VAPID key pair (safe to expose; the
                                        browser needs it to open a subscription)
@@ -44,7 +48,7 @@ from flask import Blueprint, request, jsonify
 
 from app import db, limiter
 from app.middleware.error_handlers import APIError
-from app.models import BrandNews, BrandTask, PushSubscription
+from app.models import BrandNews, BrandTask, PushSubscription, WorldFeedItem
 from app.utils.ai_client import ai_complete
 from app.utils.auth import require_admin
 from app.utils.mail import send_email
@@ -259,7 +263,9 @@ def email_asset():
 @brand_bp.route("/news", methods=["GET"])
 @limiter.limit("60 per hour")
 def list_news():
-    items = BrandNews.query.order_by(BrandNews.created_at.desc()).limit(20).all()
+    # Unresolved first (most actionable), each group newest-first — a
+    # resolved update sinks below anything still open regardless of age.
+    items = BrandNews.query.order_by(BrandNews.resolved.asc(), BrandNews.created_at.desc()).limit(50).all()
     return jsonify({"success": True, "data": [n.to_dict() for n in items]}), 200
 
 
@@ -296,11 +302,70 @@ def post_news():
     return jsonify({"success": True, "data": item.to_dict()}), 201
 
 
+@brand_bp.route("/news/<news_id>", methods=["PATCH"])
+@limiter.limit("60 per hour")
+def update_news(news_id):
+    require_admin(request)
+    item = db.session.get(BrandNews, news_id)
+    if not item:
+        raise APIError("Not found", 404)
+    body = request.get_json(force=True) or {}
+
+    if "title" in body:
+        title = _clean_str(body.get("title"), 140)
+        if not title:
+            raise APIError("Title is required", 400)
+        item.title = title
+    if "body" in body:
+        item.body = _clean_str(body.get("body"), 500) or None
+    if "link" in body:
+        link = _clean_str(body.get("link"), 500)
+        if link and not re.match(r"^https?://", link):
+            raise APIError("Link must start with http:// or https://", 400)
+        item.link = link or None
+    if "title" in body or "body" in body or "link" in body:
+        item.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    if "resolved" in body:
+        item.resolved = bool(body["resolved"])
+        item.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None) if item.resolved else None
+
+    db.session.commit()
+    return jsonify({"success": True, "data": item.to_dict()}), 200
+
+
 @brand_bp.route("/news/<news_id>", methods=["DELETE"])
 @limiter.limit("30 per hour")
 def delete_news(news_id):
     require_admin(request)
     item = db.session.get(BrandNews, news_id)
+    if not item:
+        raise APIError("Not found", 404)
+    db.session.delete(item)
+    db.session.commit()
+    return jsonify({"success": True, "data": {"deleted": True}}), 200
+
+
+# ── World feed — real, auto-fetched technology/physics/history, on a
+# timer (see utils/world_feed.py). Read-only aside from an admin
+# dismissing an individual item; there's nothing here to "edit." ─────────
+@brand_bp.route("/world-feed", methods=["GET"])
+@limiter.limit("120 per hour")
+def list_world_feed():
+    require_admin(request)
+    category = request.args.get("category")
+    q = WorldFeedItem.query
+    if category in ("tech", "physics", "history"):
+        q = q.filter_by(category=category)
+    items = q.order_by(WorldFeedItem.fetched_at.desc()).limit(150).all()
+    return jsonify({"success": True, "data": [i.to_dict() for i in items]}), 200
+
+
+@brand_bp.route("/world-feed/<item_id>", methods=["DELETE"])
+@limiter.limit("60 per hour")
+def dismiss_world_feed_item(item_id):
+    require_admin(request)
+    item = db.session.get(WorldFeedItem, item_id)
     if not item:
         raise APIError("Not found", 404)
     db.session.delete(item)

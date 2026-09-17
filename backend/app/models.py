@@ -593,24 +593,66 @@ class PushSubscription(db.Model):
 
 class BrandNews(db.Model):
     """
-    A short admin-authored update shown in /brand's notification bell —
-    "we shipped X," "reminder: Y," a link worth everyone seeing. Real
-    content an admin actually wrote, not a fabricated external feed;
-    posting one also fires a real push (see utils/push.py) to everyone
-    who's subscribed, so it reaches people even with the tab closed.
+    A short admin-authored update shown in /brand's notification bell and
+    its /brand/news page — "we shipped X," "reminder: Y," a link worth
+    everyone seeing. Real content an admin actually wrote, not the
+    auto-fetched external feed (see WorldFeedItem below); posting one
+    also fires a real push (see utils/push.py) to everyone subscribed, so
+    it reaches people even with the tab closed.
+
+    resolved is separate from "deleted" on purpose — an update that's
+    been handled ("bug's fixed now") is still worth keeping around as a
+    record, just not cluttering the active list the way an outright
+    mistake (delete it) would.
     """
     __tablename__ = "brand_news"
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
     title = db.Column(db.String(140), nullable=False)
     body = db.Column(db.String(500), nullable=True)
     link = db.Column(db.String(500), nullable=True)
+    resolved = db.Column(db.Boolean, default=False, nullable=False)
+    resolved_at = db.Column(db.DateTime, nullable=True)
     created_by = db.Column(db.String(32), db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, nullable=True)
 
     def to_dict(self):
         return {
             "id": self.id, "title": self.title, "body": self.body, "link": self.link,
+            "resolved": bool(self.resolved),
             "created_at": _iso_utc(self.created_at),
+            "updated_at": _iso_utc(self.updated_at),
+        }
+
+
+class WorldFeedItem(db.Model):
+    """
+    The auto-fetched half of /brand's news — technology (Hacker News),
+    physics (arXiv), history (Wikipedia's "on this day") — refreshed on a
+    timer (see utils/world_feed.py), not written by anyone here. Real
+    external sources, real external_ids for dedup across polls, no
+    fabricated content standing in for a feed. Admins can dismiss
+    (delete) an individual item they don't want cluttering the list; the
+    row itself is otherwise read-only — there's nothing to "edit" about
+    someone else's article.
+    """
+    __tablename__ = "world_feed_items"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    source = db.Column(db.String(20), nullable=False)  # "hn" | "arxiv" | "wikipedia"
+    category = db.Column(db.String(20), nullable=False)  # "tech" | "physics" | "history"
+    external_id = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    title = db.Column(db.String(300), nullable=False)
+    url = db.Column(db.String(500), nullable=True)
+    summary = db.Column(db.String(400), nullable=True)
+    published_at = db.Column(db.DateTime, nullable=True)
+    fetched_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id": self.id, "source": self.source, "category": self.category,
+            "title": self.title, "url": self.url, "summary": self.summary,
+            "published_at": _iso_utc(self.published_at),
+            "fetched_at": _iso_utc(self.fetched_at),
         }
 
 

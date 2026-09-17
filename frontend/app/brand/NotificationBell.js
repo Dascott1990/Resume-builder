@@ -16,9 +16,10 @@
  * task come due with nobody in the app to see it happen.
  */
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
-  Bell, Send, BellRing, BellOff, Check, Plus, CalendarPlus, X, Clock,
+  Bell, Send, BellRing, BellOff, Check, Plus, CalendarPlus, X, Clock, ArrowRight,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { getToken } from "@/lib/authToken";
@@ -375,30 +376,24 @@ export function NotificationBell() {
               </>
             )}
 
-            {news.length > 0 && (
-              <div className="mt-1 border-t border-border pt-1">
-                <p className="m-0 px-2 pt-1 pb-0.5 font-mono text-[9.5px] font-bold tracking-[0.1em] text-muted-foreground/50 uppercase">News</p>
-                {news.map((n) => (
-                  n.link ? (
-                    <a key={n.id} href={n.link} target="_blank" rel="noreferrer" className="block rounded-lg p-2 text-[12.5px] text-foreground no-underline hover:bg-muted">
-                      <p className="m-0 font-semibold">{n.title}</p>
-                      <p className="m-0 mt-0.5 text-[10.5px] text-muted-foreground/70">{timeAgo(n.created_at)}</p>
-                    </a>
-                  ) : (
-                    <div key={n.id} className="rounded-lg p-2 text-[12.5px] text-foreground">
-                      <p className="m-0 font-semibold">{n.title}</p>
-                      <p className="m-0 mt-0.5 text-[10.5px] text-muted-foreground/70">{timeAgo(n.created_at)}</p>
-                    </div>
-                  )
-                ))}
-              </div>
-            )}
+            <div className="mt-1 border-t border-border pt-1">
+              <p className="m-0 px-2 pt-1 pb-0.5 font-mono text-[9.5px] font-bold tracking-[0.1em] text-muted-foreground/50 uppercase">News</p>
+              {news.slice(0, 3).map((n) => (
+                <div key={n.id} className="rounded-lg p-2 text-[12.5px] text-foreground">
+                  <p className={`m-0 font-semibold ${n.resolved ? "text-muted-foreground line-through" : ""}`}>{n.title}</p>
+                  <p className="m-0 mt-0.5 text-[10.5px] text-muted-foreground/70">{timeAgo(n.created_at)}</p>
+                </div>
+              ))}
+              {/* World feed (tech/physics/history) only lives on the full
+                  page — real, auto-fetched content deserves more room than
+                  a dropdown, not a cramped preview of it here. */}
+              <Link href="/brand/news" className="flex items-center gap-1 rounded-lg p-2 text-[12px] font-semibold text-primary no-underline hover:bg-muted">
+                See all <ArrowRight className="size-3" />
+              </Link>
+            </div>
 
-            {isAdmin && tasks.open.length === 0 && news.length === 0 && (
-              <p className="m-0 p-3 text-[12.5px] text-muted-foreground">All clear</p>
-            )}
-            {!isAdmin && news.length === 0 && (
-              <p className="m-0 p-3 text-[12.5px] text-muted-foreground">Nothing pending</p>
+            {isAdmin && tasks.open.length === 0 && (
+              <p className="m-0 px-2 pb-1 text-[12.5px] text-muted-foreground">No open tasks</p>
             )}
 
             {isAdmin && (

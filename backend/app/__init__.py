@@ -178,13 +178,17 @@ def create_app():
 
     # Non-critical — a scheduler that fails to start shouldn't take the
     # whole app down with it, same reasoning as the DB setup above. Just
-    # means due-task push reminders won't fire until the next successful
-    # boot; every other route (including the task list itself) still works.
+    # means due-task push reminders (and the world feed refresh) won't
+    # fire until the next successful boot; every other route (including
+    # the task list and news pages themselves) still works.
     try:
         from app.utils.task_reminders import start_scheduler
-        start_scheduler(app)
+        from app.utils.world_feed import start_world_feed_scheduler
+        scheduler = start_scheduler(app)
+        if scheduler:
+            start_world_feed_scheduler(scheduler, app)
     except Exception as exc:
-        print(f"❌ Task reminder scheduler failed to start: {exc}")
+        print(f"❌ Background scheduler failed to start: {exc}")
 
     return app
 
