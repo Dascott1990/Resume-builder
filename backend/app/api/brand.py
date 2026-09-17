@@ -355,7 +355,7 @@ def list_world_feed():
     require_admin(request)
     category = request.args.get("category")
     q = WorldFeedItem.query
-    if category in ("tech", "physics", "history"):
+    if category in ("world", "tech", "physics", "history"):
         q = q.filter_by(category=category)
     items = q.order_by(WorldFeedItem.fetched_at.desc()).limit(150).all()
     return jsonify({"success": True, "data": [i.to_dict() for i in items]}), 200

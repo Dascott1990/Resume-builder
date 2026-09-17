@@ -20,7 +20,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Check, Pencil, Trash2, X, Newspaper, Cpu, Atom, Landmark,
+  ArrowLeft, Check, Pencil, Trash2, X, Newspaper, Globe, Cpu, Atom, Landmark,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -29,6 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Logo from "@/components/premium/Logo";
 
 const CATEGORY_META = {
+  world: { label: "World", Icon: Globe },
   tech: { label: "Technology", Icon: Cpu },
   physics: { label: "Physics", Icon: Atom },
   history: { label: "History", Icon: Landmark },

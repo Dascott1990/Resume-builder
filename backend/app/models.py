@@ -627,14 +627,15 @@ class BrandNews(db.Model):
 
 class WorldFeedItem(db.Model):
     """
-    The auto-fetched half of /brand's news — technology (Hacker News),
-    physics (arXiv), history (Wikipedia's "on this day") — refreshed on a
-    timer (see utils/world_feed.py), not written by anyone here. Real
-    external sources, real external_ids for dedup across polls, no
-    fabricated content standing in for a feed. Admins can dismiss
-    (delete) an individual item they don't want cluttering the list; the
-    row itself is otherwise read-only — there's nothing to "edit" about
-    someone else's article.
+    The auto-fetched half of /brand's news — world (BBC/NPR/Guardian),
+    technology (Hacker News/Ars Technica/BBC), physics (arXiv/Guardian/
+    BBC), history (Wikipedia's "on this day") — refreshed on a timer (see
+    utils/world_feed.py), not written by anyone here. Real external
+    sources, real external_ids for dedup across polls, no fabricated
+    content standing in for a feed. Admins can dismiss (delete) an
+    individual item they don't want cluttering the list; the row itself
+    is otherwise read-only — there's nothing to "edit" about someone
+    else's article.
     """
     __tablename__ = "world_feed_items"
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)

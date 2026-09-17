@@ -1,32 +1,62 @@
 """
 app/utils/world_feed.py — the auto-fetched half of /brand's news: real
-technology, physics, and history content, polled on a timer (see
-start_world_feed_scheduler, called from app/__init__.py), not written by
-anyone or fabricated. Three sources, all free and keyless — no signup
-this app can't complete on someone's behalf, no API key to configure
-before this works at all:
+content, polled on a timer (see start_world_feed_scheduler, called from
+app/__init__.py), never written or fabricated by anyone here. Every
+source is free and keyless — no signup this app can't complete on
+someone's behalf, no API key to configure before any of this works:
 
-- Hacker News (Firebase API)          -> category "tech"
-- arXiv (physics preprints)           -> category "physics"
-- Wikipedia's "on this day" feed      -> category "history"
+- Hacker News (Firebase API)                  -> category "tech"
+- Ars Technica (RSS)                          -> category "tech"
+- BBC Technology (RSS)                        -> category "tech"
+- arXiv (physics preprints)                   -> category "physics"
+- The Guardian, Physics section (RSS)         -> category "physics"
+- BBC Science & Environment (RSS)             -> category "physics"
+- BBC World (RSS)                             -> category "world"
+- NPR News (RSS)                              -> category "world"
+- The Guardian, World section (RSS)           -> category "world"
+- Wikipedia's "on this day" feed              -> category "history"
 
-Each fetcher is independent and wrapped in its own try/except in
-refresh_world_feed — one source being down or rate-limiting shouldn't
-lose the other two, and NEVER shouldn't take the poll job down entirely.
+All genuine, editorially-run outlets (BBC, NPR, The Guardian, Ars
+Technica) alongside the raw-source feeds (Hacker News, arXiv, Wikipedia)
+— not one single source standing in for "the news," and not anything
+scraped or generated. Each fetcher is independent and wrapped in its own
+try/except in refresh_world_feed — one source being down or slow costs
+that one source's items for this poll, never the others, and never
+crashes the poll job itself.
 """
 import hashlib
+import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 
 import requests
 
 USER_AGENT = "Noqeev-BrandFeed/1.0 (internal tool; contact via app settings)"
 REQUEST_TIMEOUT = 10
-POLL_SECONDS = 10 * 60
-MAX_ITEMS_STORED = 150
+POLL_SECONDS = 8 * 60  # within the requested 5-10 minute window
+MAX_ITEMS_STORED = 300
+
+_TAG_RE = re.compile(r"<[^>]+>")
 
 
-def fetch_hn(limit=8):
+def _strip_html(text):
+    if not text:
+        return None
+    clean = _TAG_RE.sub("", text).strip()
+    return clean[:300] or None
+
+
+def _stable_id(*parts):
+    """Python's builtin hash() is randomized per-process (a security
+    property, not a bug) — using it for a dedup key would mean the exact
+    same story gets a different id after every restart, defeating dedup
+    entirely and re-inserting everything on each deploy. md5 is
+    deterministic across runs, which is the one property this needs."""
+    return hashlib.md5("|".join(str(p) for p in parts).encode()).hexdigest()[:16]
+
+
+def fetch_hn(limit=6):
     ids = requests.get("https://hacker-news.firebaseio.com/v0/topstories.json", timeout=REQUEST_TIMEOUT).json()[:limit]
     items = []
     for item_id in ids:
@@ -44,7 +74,7 @@ def fetch_hn(limit=8):
     return items
 
 
-def fetch_arxiv_physics(limit=5):
+def fetch_arxiv_physics(limit=4):
     resp = requests.get(
         "http://export.arxiv.org/api/query",
         params={
@@ -76,7 +106,7 @@ def fetch_arxiv_physics(limit=5):
     return items
 
 
-def fetch_wikipedia_on_this_day(limit=6):
+def fetch_wikipedia_on_this_day(limit=5):
     now = datetime.now(timezone.utc)
     resp = requests.get(
         f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/{now.month:02d}/{now.day:02d}",
@@ -91,8 +121,8 @@ def fetch_wikipedia_on_this_day(limit=6):
         return "https://en.wikipedia.org/wiki/Portal:Current_events"
 
     # Prefer 1900-1999 events specifically (what this feed was asked for),
-    # filling out the rest of the quota from any other year if there
-    # aren't enough — "on this day" doesn't always have six from one century.
+    # filling the rest of the quota from any other year — "on this day"
+    # doesn't always have five from one century.
     century = [e for e in events if isinstance(e.get("year"), int) and 1900 <= e["year"] < 2000]
     rest = [e for e in events if e not in century]
     chosen = (century + rest)[:limit]
@@ -104,16 +134,52 @@ def fetch_wikipedia_on_this_day(limit=6):
             continue
         items.append({
             "source": "wikipedia", "category": "history",
-            # Python's builtin hash() is randomized per-process (a security
-            # feature, not a bug) — using it here would mean the SAME
-            # Wikipedia event gets a different external_id after every
-            # restart, defeating dedup entirely and re-inserting the whole
-            # day's events on every deploy. md5 is deterministic across
-            # runs, which is the one property this actually needs.
-            "external_id": f"wiki-{now.month}-{now.day}-{year}-{hashlib.md5(text.encode()).hexdigest()[:10]}",
+            "external_id": f"wiki-{_stable_id(now.month, now.day, year, text)}",
             "title": f"{year}: {text}" if year else text,
             "url": page_url(e), "summary": None,
             "published_at": None,
+        })
+    return items
+
+
+# ── Real editorial RSS feeds — one generic parser, many sources. Standard
+# RSS 2.0 <channel><item> shape; title/link/description/pubDate are
+# unprefixed even when the feed declares extra namespaces for optional
+# fields, so no namespace map is needed for these four. ───────────────────
+RSS_SOURCES = [
+    {"name": "bbc_world", "category": "world", "url": "http://feeds.bbci.co.uk/news/world/rss.xml"},
+    {"name": "npr_news", "category": "world", "url": "https://feeds.npr.org/1001/rss.xml"},
+    {"name": "guardian_world", "category": "world", "url": "https://www.theguardian.com/world/rss"},
+    {"name": "bbc_tech", "category": "tech", "url": "http://feeds.bbci.co.uk/news/technology/rss.xml"},
+    {"name": "arstechnica", "category": "tech", "url": "https://arstechnica.com/feed/"},
+    {"name": "bbc_science", "category": "physics", "url": "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml"},
+    {"name": "guardian_physics", "category": "physics", "url": "https://www.theguardian.com/science/physics/rss"},
+]
+
+
+def fetch_rss(source_name, category, url, limit=5):
+    resp = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
+    root = ET.fromstring(resp.text)
+    channel = root.find("channel")
+    if channel is None:
+        return []
+    items = []
+    for entry in channel.findall("item")[:limit]:
+        title = (entry.findtext("title") or "").strip()
+        link = (entry.findtext("link") or "").strip()
+        if not title or not link:
+            continue
+        summary = _strip_html(entry.findtext("description"))
+        pub_raw = entry.findtext("pubDate")
+        try:
+            published_at = parsedate_to_datetime(pub_raw).astimezone(timezone.utc).replace(tzinfo=None) if pub_raw else None
+        except (TypeError, ValueError):
+            published_at = None
+        items.append({
+            "source": source_name, "category": category,
+            "external_id": f"{source_name}-{_stable_id(link)}",
+            "title": title, "url": link, "summary": summary,
+            "published_at": published_at,
         })
     return items
 
@@ -123,14 +189,22 @@ def refresh_world_feed(app):
     from app.models import WorldFeedItem
 
     with app.app_context():
+        fetchers = [fetch_hn, fetch_arxiv_physics, fetch_wikipedia_on_this_day]
         fetched = []
-        for fetcher in (fetch_hn, fetch_arxiv_physics, fetch_wikipedia_on_this_day):
+        for fetcher in fetchers:
             try:
                 fetched.extend(fetcher())
             except Exception as exc:
                 print(f"❌ World feed fetch failed ({fetcher.__name__}): {exc}")
 
+        for src in RSS_SOURCES:
+            try:
+                fetched.extend(fetch_rss(src["name"], src["category"], src["url"]))
+            except Exception as exc:
+                print(f"❌ World feed fetch failed ({src['name']}): {exc}")
+
         if not fetched:
+            print("❌ World feed: every source failed this poll")
             return
 
         existing_ids = {row[0] for row in db.session.query(WorldFeedItem.external_id).all()}
@@ -143,7 +217,7 @@ def refresh_world_feed(app):
             added += 1
         if added:
             db.session.commit()
-            print(f"🌐 World feed: added {added} new item(s)")
+            print(f"🌐 World feed: added {added} new item(s) from {len(fetched)} fetched across {len(fetchers) + len(RSS_SOURCES)} sources")
 
         total = WorldFeedItem.query.count()
         if total > MAX_ITEMS_STORED:
