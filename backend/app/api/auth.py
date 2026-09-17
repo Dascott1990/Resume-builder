@@ -4,6 +4,7 @@ POST /api/v1/auth/signup
 POST /api/v1/auth/verify-email
 POST /api/v1/auth/resend-verification
 POST /api/v1/auth/login
+POST /api/v1/auth/break-glass-login
 POST /api/v1/auth/forgot-password
 POST /api/v1/auth/reset-password
 GET  /api/v1/auth/me
@@ -29,7 +30,10 @@ from flask import Blueprint, request, jsonify
 from app import db, limiter
 from app.models import User, Media, JobApplication, CareerProfile, ApplicationRun
 from app.middleware.error_handlers import APIError
-from app.utils.auth import hash_password, verify_password, issue_token, get_scope, require_customer_scope
+from app.utils.auth import (
+    hash_password, verify_password, issue_token, get_scope, require_customer_scope,
+    break_glass_configured, verify_break_glass_credentials, issue_break_glass_token,
+)
 from app.utils.mail import send_email
 
 auth_bp = Blueprint("auth", __name__)
@@ -255,6 +259,57 @@ def login():
         db.session.commit()
 
     return jsonify({"success": True, "data": {"user": user.to_dict(), "token": issue_token(user.id)}}), 200
+
+
+def _notify_break_glass_login(request):
+    """Best-effort alert to whoever owns ADMIN_BOOTSTRAP_EMAIL whenever the
+    break-glass path is actually used — it's meant for real emergencies, so
+    the real admin should always find out it happened, not just trust it
+    never will. Sending fails silently (see the call site): SMTP being down
+    too must never block the login this whole feature exists to guarantee."""
+    to = os.environ.get("ADMIN_BOOTSTRAP_EMAIL")
+    if not to:
+        return
+    when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr) or "unknown"
+    send_email(
+        to,
+        "Break-glass admin login used",
+        _email_shell(
+            "Break-glass admin login used",
+            f"The emergency admin credential signed in at {when} from {ip}. "
+            "If this wasn't you, rotate BREAK_GLASS_ADMIN_USERNAME and "
+            "BREAK_GLASS_ADMIN_PASSWORD_HASH immediately.",
+            "Open admin", f"{FRONTEND_URL}/admin",
+            "This path exists to keep admin access working even when the database is down, so it bypasses the normal account system entirely.",
+        ),
+    )
+
+
+@auth_bp.route("/break-glass-login", methods=["POST"])
+@limiter.limit("5 per hour")
+def break_glass_login():
+    """The one login that never reads the database — see
+    app.utils.auth.get_admin_user for the matching database-free
+    authorization check. 404s (not 400) when unconfigured, so the endpoint's
+    existence isn't itself a signal to anyone probing for it."""
+    if not break_glass_configured():
+        raise APIError("Not found", 404)
+
+    body = request.get_json(force=True) or {}
+    username = (body.get("username") or "").strip()
+    password = body.get("password") or ""
+
+    if not username or not verify_break_glass_credentials(username, password):
+        raise APIError("Incorrect username or password", 401)
+
+    token = issue_break_glass_token()
+    try:
+        _notify_break_glass_login(request)
+    except Exception as exc:
+        print(f"⚠️ Break-glass login notification failed (login still succeeded): {exc}")
+
+    return jsonify({"success": True, "data": {"token": token}}), 200
 
 
 @auth_bp.route("/forgot-password", methods=["POST"])

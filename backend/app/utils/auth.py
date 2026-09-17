@@ -8,6 +8,7 @@ Authorization: Bearer <jwt> header (if the visitor signed in) or an
 X-Guest-Id header (the anonymous default) and scopes by whichever is
 present — preferring the authenticated user_id when both somehow show up.
 """
+import hmac
 import os
 import jwt
 from datetime import datetime, timedelta, timezone
@@ -20,6 +21,20 @@ from werkzeug.security import generate_password_hash, check_password_hash
 JWT_SECRET = os.environ.get("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_DAYS = 30
+
+# Break-glass admin — the one login path that never touches the database,
+# so the team keeps admin access even when Postgres itself is down (the
+# exact scenario every other admin capability is powerless against, since
+# the normal path below is a User row lookup). Credentials live only in
+# env vars, generated once by scripts/generate_break_glass_admin.py — never
+# a chosen username/password, never committed, and unset means the whole
+# feature is off (see break_glass_configured()). The password is stored
+# hashed here exactly like a real account's — never in plaintext.
+BREAK_GLASS_USERNAME = os.environ.get("BREAK_GLASS_ADMIN_USERNAME")
+BREAK_GLASS_PASSWORD_HASH = os.environ.get("BREAK_GLASS_ADMIN_PASSWORD_HASH")
+BREAK_GLASS_SUBJECT = "break-glass-admin"
+BREAK_GLASS_ROLE = "break-glass-admin"
+BREAK_GLASS_TOKEN_HOURS = 12
 
 
 def hash_password(password: str) -> str:
@@ -64,6 +79,68 @@ def verify_token(token: str, expected_role: str = "user"):
     if payload.get("role", "user") != expected_role:
         return None
     return payload.get("sub")
+
+
+def break_glass_configured():
+    return bool(BREAK_GLASS_USERNAME and BREAK_GLASS_PASSWORD_HASH)
+
+
+def verify_break_glass_credentials(username: str, password: str) -> bool:
+    """Both checks against env vars only — no database, no session table.
+    hmac.compare_digest on the username (not just `==`) so a timing side
+    channel can't be used to guess it character-by-character the same way
+    check_password_hash already prevents that for the password."""
+    if not break_glass_configured():
+        return False
+    got = (username or "").strip().encode()
+    want = BREAK_GLASS_USERNAME.encode()
+    if len(got) != len(want) or not hmac.compare_digest(got, want):
+        return False
+    return check_password_hash(BREAK_GLASS_PASSWORD_HASH, password or "")
+
+
+def issue_break_glass_token() -> str:
+    if not JWT_SECRET:
+        raise RuntimeError("JWT_SECRET is not configured")
+    payload = {
+        "sub": BREAK_GLASS_SUBJECT,
+        "role": BREAK_GLASS_ROLE,
+        "exp": datetime.now(timezone.utc) + timedelta(hours=BREAK_GLASS_TOKEN_HOURS),
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def _decode_break_glass_token(token: str):
+    if not token or not JWT_SECRET:
+        return None
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.PyJWTError:
+        return None
+    if payload.get("role") != BREAK_GLASS_ROLE or payload.get("sub") != BREAK_GLASS_SUBJECT:
+        return None
+    return payload
+
+
+class BreakGlassAdmin:
+    """Stand-in for a User row, minted straight from a verified break-glass
+    token rather than a database read — the whole point being that this
+    works when the users table doesn't respond. Carries just the fields
+    admin routes actually read off an admin (see api/admin.py's
+    _serialize_user and the admin.id self-action checks)."""
+
+    id = BREAK_GLASS_SUBJECT
+    email = "break-glass-admin"
+    email_verified = True
+    is_admin = True
+    created_at = None
+
+    def to_dict(self):
+        return {
+            "id": self.id, "email": self.email, "email_verified": True,
+            "is_admin": True, "created_at": None, "break_glass": True,
+        }
 
 
 def get_scope(request):
@@ -127,7 +204,20 @@ def get_admin_user(request):
     raises: returns None for anonymous guests, non-admin users, or a
     missing/invalid token, same as an unrecognized caller. Local imports to
     avoid a module-load-time cycle with app.models (see app/__init__.py's
-    own deferred blueprint imports for the same pattern)."""
+    own deferred blueprint imports for the same pattern).
+
+    Checked first, before any database access: a break-glass token decodes
+    and verifies entirely from JWT_SECRET + the signature, so this whole
+    branch never reaches the database — the one auth path built specifically
+    to survive Postgres being unreachable. A normal user token still goes
+    through the User row lookup below, deliberately — that's what lets
+    revoking someone's is_admin flag actually take effect immediately."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[len("Bearer "):].strip()
+        if _decode_break_glass_token(token):
+            return BreakGlassAdmin()
+
     from app import db
     from app.models import User
 
