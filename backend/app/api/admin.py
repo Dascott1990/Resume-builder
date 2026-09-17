@@ -19,6 +19,12 @@ PATCH  /api/v1/admin/applications/<id>     — company/role/status/date_applied/
 DELETE /api/v1/admin/applications/<id>
 GET    /api/v1/admin/reviews               — every artisan review
 DELETE /api/v1/admin/reviews/<id>          — recomputes the artisan's rating after removal
+GET    /api/v1/admin/vendors               — third-party services registry (auto-detected + manual)
+POST   /api/v1/admin/vendors               — add a vendor manually
+PATCH  /api/v1/admin/vendors/<id>          — edit any field, auto-detected or manual
+DELETE /api/v1/admin/vendors/<id>
+POST   /api/v1/admin/vendors/sync          — re-run env-var detection (see utils/vendors.py)
+GET    /api/v1/admin/vendors/<id>/news     — real status-feed items, only for vendors with a status_feed_url set
 POST   /api/v1/admin/resumes/polish-summary — AI-rewrites a resume's summary paragraph;
                                                same Claude-then-Groq fallback /api/v1/resume
                                                already uses, reused here rather than
@@ -45,20 +51,26 @@ listing regardless of who created it or whether its token was ever kept.
 """
 import json
 import re
+from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify
 
 from app import db
-from app.models import User, Media, Artisan, Review, JobApplication, JdCapture, CareerProfile, ApplicationRun
+from app.models import (
+    User, Media, Artisan, Review, JobApplication, JdCapture, CareerProfile,
+    ApplicationRun, Vendor, VendorNewsItem,
+)
 from app.middleware.error_handlers import APIError
 from app.utils.auth import require_admin
 from app.utils.ratings import recompute_rating
+from app.utils.vendors import sync_vendor_catalog
 from app.api.resume import _ai_complete
 
 admin_bp = Blueprint("admin", __name__)
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 VALID_APPLICATION_STATUSES = {"applied", "interview", "offer", "rejected"}
+VALID_VENDOR_CATEGORIES = {"hosting", "database", "ai", "payments", "email", "push", "monitoring", "other"}
 
 
 def _clean_pagination(default_limit=50, max_limit=200):
@@ -360,3 +372,113 @@ def delete_review(review_id):
     recompute_rating(artisan_id)
     db.session.commit()
     return jsonify({"success": True}), 200
+
+
+# ── Vendors — the third-party services registry. Rows starting with
+# auto_detected=True came from real env-var presence (see utils/vendors.py);
+# everything else is exactly what an admin typed in. Both kinds are edited
+# and deleted through the same two routes below — once a row exists, how it
+# got there stops mattering. ────────────────────────────────────────────
+@admin_bp.route("/vendors", methods=["GET"])
+def list_vendors():
+    require_admin(request)
+    items = Vendor.query.order_by(Vendor.category.asc(), Vendor.name.asc()).all()
+    return jsonify({"success": True, "data": [v.to_dict() for v in items]}), 200
+
+
+@admin_bp.route("/vendors", methods=["POST"])
+def create_vendor():
+    require_admin(request)
+    body = request.get_json(force=True) or {}
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise APIError("name is required", 400)
+    category = body.get("category") or "other"
+    if category not in VALID_VENDOR_CATEGORIES:
+        raise APIError(f"category must be one of {sorted(VALID_VENDOR_CATEGORIES)}", 400)
+
+    vendor = Vendor(
+        name=name, category=category,
+        plan=(body.get("plan") or "").strip() or None,
+        is_free=body.get("is_free") if isinstance(body.get("is_free"), bool) else None,
+        monthly_cost=body.get("monthly_cost") if isinstance(body.get("monthly_cost"), (int, float)) else None,
+        console_url=(body.get("console_url") or "").strip() or None,
+        status_feed_url=(body.get("status_feed_url") or "").strip() or None,
+        notes=(body.get("notes") or "").strip() or None,
+        auto_detected=False,
+    )
+    db.session.add(vendor)
+    db.session.commit()
+    return jsonify({"success": True, "data": vendor.to_dict()}), 201
+
+
+@admin_bp.route("/vendors/<vendor_id>", methods=["PATCH"])
+def update_vendor(vendor_id):
+    require_admin(request)
+    vendor = db.session.get(Vendor, vendor_id)
+    if not vendor:
+        raise APIError("Vendor not found", 404)
+
+    body = request.get_json(force=True) or {}
+    if "name" in body:
+        name = (body["name"] or "").strip()
+        if not name:
+            raise APIError("name can't be empty", 400)
+        vendor.name = name
+    if "category" in body:
+        if body["category"] not in VALID_VENDOR_CATEGORIES:
+            raise APIError(f"category must be one of {sorted(VALID_VENDOR_CATEGORIES)}", 400)
+        vendor.category = body["category"]
+    if "plan" in body:
+        vendor.plan = (body["plan"] or "").strip() or None
+    if "is_free" in body:
+        vendor.is_free = body["is_free"] if isinstance(body["is_free"], bool) else None
+    if "monthly_cost" in body:
+        vendor.monthly_cost = body["monthly_cost"] if isinstance(body["monthly_cost"], (int, float)) else None
+    if "console_url" in body:
+        vendor.console_url = (body["console_url"] or "").strip() or None
+    if "status_feed_url" in body:
+        vendor.status_feed_url = (body["status_feed_url"] or "").strip() or None
+    if "notes" in body:
+        vendor.notes = (body["notes"] or "").strip() or None
+
+    vendor.updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return jsonify({"success": True, "data": vendor.to_dict()}), 200
+
+
+@admin_bp.route("/vendors/<vendor_id>", methods=["DELETE"])
+def delete_vendor(vendor_id):
+    require_admin(request)
+    vendor = db.session.get(Vendor, vendor_id)
+    if vendor:
+        VendorNewsItem.query.filter_by(vendor_id=vendor.id).delete()
+        db.session.delete(vendor)
+        db.session.commit()
+    return jsonify({"success": True}), 200
+
+
+@admin_bp.route("/vendors/sync", methods=["POST"])
+def resync_vendors():
+    """Explicit, admin-triggered re-detection — unlike the boot-time sync
+    (which only ever runs once, see sync_vendor_catalog_at_boot), clicking
+    this can re-add a previously-deleted auto-detected row if it's still
+    configured. That's expected here: the admin asked for it by clicking."""
+    require_admin(request)
+    added = sync_vendor_catalog()
+    items = Vendor.query.order_by(Vendor.category.asc(), Vendor.name.asc()).all()
+    return jsonify({"success": True, "data": {"added": added, "vendors": [v.to_dict() for v in items]}}), 200
+
+
+@admin_bp.route("/vendors/<vendor_id>/news", methods=["GET"])
+def vendor_news(vendor_id):
+    require_admin(request)
+    if not db.session.get(Vendor, vendor_id):
+        raise APIError("Vendor not found", 404)
+    items = (
+        VendorNewsItem.query.filter_by(vendor_id=vendor_id)
+        .order_by(VendorNewsItem.fetched_at.desc())
+        .limit(10)
+        .all()
+    )
+    return jsonify({"success": True, "data": [i.to_dict() for i in items]}), 200

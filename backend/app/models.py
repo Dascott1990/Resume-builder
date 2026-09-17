@@ -696,3 +696,71 @@ class BrandTask(db.Model):
             "created_at": _iso_utc(self.created_at),
             "completed_at": _iso_utc(self.completed_at),
         }
+
+
+class Vendor(db.Model):
+    """
+    A third-party service this app actually depends on — hosting,
+    database, AI providers, payments, email, push — one registry instead
+    of scattered across .env files and whoever remembers what's paid.
+
+    catalog_key ties an auto-detected row back to its entry in
+    utils/vendors.py's CATALOG so a re-scan can tell "already have this
+    one" from "newly configured", without matching on name (which can
+    change — see the mail entry's dynamic name). Manually-added rows have
+    no catalog_key at all.
+
+    Detection only sets the STARTING guess for plan/is_free/console_url,
+    once, on first sight — sync_vendor_catalog() never overwrites a row
+    that already exists, so an admin's edits always stick.
+    """
+    __tablename__ = "vendors"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    name = db.Column(db.String(80), nullable=False)
+    category = db.Column(db.String(20), nullable=False, default="other")  # hosting|database|ai|payments|email|push|monitoring|other
+    plan = db.Column(db.String(80), nullable=True)
+    is_free = db.Column(db.Boolean, nullable=True)  # None = unknown, not yet set
+    monthly_cost = db.Column(db.Float, nullable=True)
+    console_url = db.Column(db.String(300), nullable=True)
+    status_feed_url = db.Column(db.String(300), nullable=True)
+    notes = db.Column(db.String(500), nullable=True)
+    auto_detected = db.Column(db.Boolean, default=False, nullable=False)
+    detected_via = db.Column(db.String(80), nullable=True)  # which env var proved it's configured
+    catalog_key = db.Column(db.String(40), nullable=True, unique=True, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "name": self.name, "category": self.category,
+            "plan": self.plan, "is_free": self.is_free, "monthly_cost": self.monthly_cost,
+            "console_url": self.console_url, "status_feed_url": self.status_feed_url,
+            "notes": self.notes, "auto_detected": bool(self.auto_detected),
+            "detected_via": self.detected_via,
+            "created_at": _iso_utc(self.created_at), "updated_at": _iso_utc(self.updated_at),
+        }
+
+
+class VendorNewsItem(db.Model):
+    """
+    Real status/incident items pulled from a vendor's own status-page RSS
+    feed (utils/world_feed.py's fetch_rss, reused as-is — see
+    utils/vendors.py's refresh_vendor_news). Only exists for vendors an
+    admin has actually set a status_feed_url on: guessing a vendor's
+    status-page path risks silently showing nothing — or the wrong thing —
+    the way arXiv's did for the world feed, so nothing here is guessed.
+    """
+    __tablename__ = "vendor_news_items"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    vendor_id = db.Column(db.String(32), db.ForeignKey("vendors.id"), nullable=False, index=True)
+    external_id = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    title = db.Column(db.String(300), nullable=False)
+    url = db.Column(db.String(500), nullable=True)
+    published_at = db.Column(db.DateTime, nullable=True)
+    fetched_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id": self.id, "vendor_id": self.vendor_id, "title": self.title, "url": self.url,
+            "published_at": _iso_utc(self.published_at), "fetched_at": _iso_utc(self.fetched_at),
+        }

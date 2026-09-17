@@ -1,8 +1,9 @@
 "use client";
 /**
  * AdminDashboard.js — the actual admin panel, once app/admin/page.js has
- * already confirmed the caller is a real admin. Six tabs: a live overview
- * plus full manage-and-moderate tables for every model in the app.
+ * already confirmed the caller is a real admin. Seven tabs: a live
+ * overview, full manage-and-moderate tables for every model in the app,
+ * and a Vendors registry of the third-party services this app depends on.
  *
  * Artisan listings are the one tab that talks to /api/v1/artisans instead
  * of /api/v1/admin/* — that resource already has full CRUD with no auth of
@@ -15,6 +16,7 @@ import { toast } from "sonner";
 import {
   Loader2, RefreshCw, Trash2, ShieldCheck, ShieldOff, LogOut, KeyRound,
   Users, FileText, Briefcase, Star, Wrench, LayoutGrid, Pencil, Mail, Plus, X, Sparkles,
+  Newspaper, ExternalLink,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { Button } from "@/components/ui/button";
@@ -991,6 +993,241 @@ function ArtisansTab() {
   );
 }
 
+// ── Vendors — the third-party services registry (backend/app/api/
+// admin.py's /vendors routes). "Detected" rows came from real env-var
+// presence at boot (see backend/app/utils/vendors.py's CATALOG) — the
+// badge is the only thing distinguishing them from a row an admin typed
+// in by hand; both edit and delete the same way after that. ────────────
+const VENDOR_CATEGORIES = ["hosting", "database", "ai", "payments", "email", "push", "monitoring", "other"];
+const CATEGORY_LABELS = {
+  hosting: "Hosting", database: "Database", ai: "AI", payments: "Payments",
+  email: "Email", push: "Push", monitoring: "Monitoring", other: "Other",
+};
+
+function FreeBadge({ isFree }) {
+  if (isFree === true) return <Badge variant="secondary">Free</Badge>;
+  if (isFree === false) return <Badge variant="outline">Paid</Badge>;
+  return <Badge variant="ghost">Unknown</Badge>;
+}
+
+function VendorNewsDialog({ vendor, open, onOpenChange }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!open || !vendor) return;
+    setLoading(true);
+    apiRequest(`/api/v1/admin/vendors/${vendor.id}/news`)
+      .then(setItems)
+      .catch((e) => toast.error(e.message))
+      .finally(() => setLoading(false));
+  }, [open, vendor]);
+
+  if (!vendor) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>{vendor.name}</DialogTitle></DialogHeader>
+        {loading ? (
+          <div className="flex justify-center py-8"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+        ) : items.length === 0 ? (
+          <p className="m-0 py-8 text-center text-sm text-muted-foreground">No updates yet.</p>
+        ) : (
+          <div className="max-h-80 space-y-2 overflow-y-auto">
+            {items.map((i) => (
+              <a key={i.id} href={i.url} target="_blank" rel="noreferrer"
+                className="block rounded-lg border border-border p-2.5 text-[13px] font-medium text-foreground no-underline hover:border-primary/40">
+                {i.title}
+                <span className="mt-1 block text-[11px] font-normal text-muted-foreground">{fmtDate(i.published_at || i.fetched_at)}</span>
+              </a>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function VendorFormDialog({ vendor, open, onOpenChange, onSaved }) {
+  const isNew = !vendor?.id;
+  const [form, setForm] = useState(vendor || {});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setForm(vendor || {}); }, [vendor]);
+
+  const save = async () => {
+    if (!form.name?.trim()) { toast.error("Name is required."); return; }
+    setSaving(true);
+    try {
+      const payload = {
+        name: form.name.trim(), category: form.category || "other",
+        plan: form.plan || "", is_free: form.is_free ?? null,
+        monthly_cost: form.monthly_cost === "" || form.monthly_cost == null ? null : Number(form.monthly_cost),
+        console_url: form.console_url || "", status_feed_url: form.status_feed_url || "",
+        notes: form.notes || "",
+      };
+      if (isNew) {
+        await apiRequest("/api/v1/admin/vendors", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        });
+        toast.success("Vendor added.");
+      } else {
+        await apiRequest(`/api/v1/admin/vendors/${vendor.id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        });
+        toast.success("Vendor updated.");
+      }
+      onOpenChange(false);
+      onSaved();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>{isNew ? "Add vendor" : "Edit vendor"}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label>Name</Label><Input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Select value={form.category || "other"} onValueChange={(v) => setForm({ ...form, category: v })}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {VENDOR_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label>Plan</Label><Input value={form.plan || ""} onChange={(e) => setForm({ ...form, plan: e.target.value })} /></div>
+            <div className="space-y-1.5">
+              <Label>Free?</Label>
+              <Select
+                value={form.is_free === true ? "free" : form.is_free === false ? "paid" : "unknown"}
+                onValueChange={(v) => setForm({ ...form, is_free: v === "free" ? true : v === "paid" ? false : null })}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="free">Free</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="unknown">Unknown</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label>Monthly cost (USD)</Label><Input type="number" value={form.monthly_cost ?? ""} onChange={(e) => setForm({ ...form, monthly_cost: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Console URL</Label><Input value={form.console_url || ""} onChange={(e) => setForm({ ...form, console_url: e.target.value })} /></div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Status feed URL (RSS/Atom, optional)</Label>
+            <Input value={form.status_feed_url || ""} onChange={(e) => setForm({ ...form, status_feed_url: e.target.value })} />
+          </div>
+          <div className="space-y-1.5"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="size-3.5 animate-spin" /> : "Save"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function VendorsTab() {
+  const { rows, loading, busyId, load, remove } = useAdminList("/api/v1/admin/vendors");
+  const [editing, setEditing] = useState(null); // {} for "new", a row for "edit"
+  const [newsFor, setNewsFor] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+
+  const resync = async () => {
+    setSyncing(true);
+    try {
+      const data = await apiRequest("/api/v1/admin/vendors/sync", { method: "POST" });
+      toast.success(data.added ? `Found ${data.added} newly-configured service(s).` : "Nothing new detected.");
+      load();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <div>
+      <TabHeader
+        title="Vendors"
+        onRefresh={load}
+        refreshing={loading}
+        extra={
+          <>
+            <Button variant="outline" size="sm" onClick={resync} disabled={syncing} title="Re-scan for newly-configured services">
+              <RefreshCw className={`size-3.5 ${syncing ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Re-scan</span>
+            </Button>
+            <Button size="sm" onClick={() => setEditing({})}>
+              <Plus className="size-3.5" /> Add vendor
+            </Button>
+          </>
+        }
+      />
+      {editing && (
+        <VendorFormDialog vendor={editing} open={!!editing} onOpenChange={(o) => !o && setEditing(null)} onSaved={load} />
+      )}
+      <VendorNewsDialog vendor={newsFor} open={!!newsFor} onOpenChange={(o) => !o && setNewsFor(null)} />
+      <AdminTable
+        loading={loading}
+        emptyLabel="No vendors yet."
+        rows={rows}
+        columns={[
+          {
+            key: "name", label: "Service",
+            render: (v) => (
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold">{v.name}</span>
+                {v.auto_detected && <Badge variant="secondary" className="text-[10px]">Detected</Badge>}
+              </div>
+            ),
+          },
+          { key: "category", label: "Category", render: (v) => CATEGORY_LABELS[v.category] || v.category },
+          { key: "plan", label: "Plan", render: (v) => v.plan || "—" },
+          { key: "is_free", label: "Free?", render: (v) => <FreeBadge isFree={v.is_free} /> },
+          { key: "monthly_cost", label: "Cost/mo", render: (v) => (v.monthly_cost != null ? `$${v.monthly_cost}` : "—") },
+          {
+            key: "actions", label: "",
+            render: (v) => (
+              <div className="flex justify-end gap-1.5">
+                {v.status_feed_url && (
+                  <Button size="icon-sm" variant="ghost" onClick={() => setNewsFor(v)} title="Recent updates">
+                    <Newspaper className="size-3.5" />
+                  </Button>
+                )}
+                {v.console_url && (
+                  <Button size="icon-sm" variant="ghost" asChild title="Open console">
+                    <a href={v.console_url} target="_blank" rel="noreferrer"><ExternalLink className="size-3.5" /></a>
+                  </Button>
+                )}
+                <Button size="icon-sm" variant="ghost" onClick={() => setEditing(v)} title="Edit">
+                  <Pencil className="size-3.5" />
+                </Button>
+                <Button size="icon-sm" variant="ghost" disabled={busyId === v.id} onClick={() => remove(v.id, `Remove ${v.name}?`)} title="Delete">
+                  <Trash2 className="size-3.5 text-destructive" />
+                </Button>
+              </div>
+            ),
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
 // Reuses the exact same forgot-password flow the public site already has
 // (rate-limited, single-use, time-limited token — see backend/app/api/
 // auth.py) rather than a separate "change password" endpoint. Surfaced
@@ -1068,6 +1305,7 @@ export function AdminDashboard({ adminUser, onSignOut }) {
             <TabsTrigger value="applications" className="shrink-0">Applications</TabsTrigger>
             <TabsTrigger value="reviews" className="shrink-0">Reviews</TabsTrigger>
             <TabsTrigger value="artisans" className="shrink-0">Artisans</TabsTrigger>
+            <TabsTrigger value="vendors" className="shrink-0">Vendors</TabsTrigger>
           </TabsList>
         </div>
 
@@ -1079,6 +1317,7 @@ export function AdminDashboard({ adminUser, onSignOut }) {
             <TabsContent value="applications"><ApplicationsTab /></TabsContent>
             <TabsContent value="reviews"><ReviewsTab /></TabsContent>
             <TabsContent value="artisans"><ArtisansTab /></TabsContent>
+            <TabsContent value="vendors"><VendorsTab /></TabsContent>
           </div>
         </main>
       </Tabs>

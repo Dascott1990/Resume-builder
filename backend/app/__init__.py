@@ -169,6 +169,8 @@ def create_app():
             _bootstrap_admin(app)
             _backfill_artisan_tokens(app)
             _bootstrap_brand_tasks(app)
+            from app.utils.vendors import sync_vendor_catalog_at_boot
+            sync_vendor_catalog_at_boot(app)
             from app.api.apply import sweep_stuck_runs
             sweep_stuck_runs(app)
             table_names = sorted(db.metadata.tables.keys())
@@ -184,9 +186,11 @@ def create_app():
     try:
         from app.utils.task_reminders import start_scheduler
         from app.utils.world_feed import start_world_feed_scheduler
+        from app.utils.vendors import start_vendor_news_scheduler
         scheduler = start_scheduler(app)
         if scheduler:
             start_world_feed_scheduler(scheduler, app)
+            start_vendor_news_scheduler(scheduler, app)
     except Exception as exc:
         print(f"❌ Background scheduler failed to start: {exc}")
 
