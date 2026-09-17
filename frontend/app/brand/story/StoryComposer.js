@@ -240,44 +240,46 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     </Tabs>
   );
 
-  const PreviewAndTimeline = () => (
+  // Just the player + its header — deliberately NOT bundled with
+  // ClipTimeline in the same box. Create's own sticky canvas (see
+  // PostComposer.js) is the direct grid child with nothing wrapping it;
+  // nesting the sticky element one level inside a shared container with
+  // the clip list was the actual bug here — this now matches that exact
+  // shape, with ClipTimeline placed as its own row instead.
+  const Preview = () => (
     <div className="grid gap-4">
-      {/* The player itself is the sticky element, not this whole block —
-          ClipTimeline below can grow tall (up to MAX_CLIPS=20 clips), and
-          stickying the combined block would still let the actual player
-          scroll out of view underneath a long clip list. top-4 + bg so it
-          reads as staying in place, not floating transparently over
-          whatever timeline row scrolls past underneath it. */}
-      <div className="sticky top-4 z-10 grid gap-4 bg-background pb-1">
-        <div className="flex items-center justify-between">
-          <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Preview</p>
-          <div className="flex items-center gap-1">
-            <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
-              className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
-              <Undo2 className="size-4" />
-            </button>
-            <button type="button" onClick={redo} disabled={!canRedo} title="Redo"
-              className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
-              <Redo2 className="size-4" />
-            </button>
-          </div>
+      <div className="flex items-center justify-between">
+        <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Preview</p>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
+            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+            <Undo2 className="size-4" />
+          </button>
+          <button type="button" onClick={redo} disabled={!canRedo} title="Redo"
+            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+            <Redo2 className="size-4" />
+          </button>
         </div>
-        <PreviewPlayer
-          clips={clips} platform={PLATFORMS[platformId]} accent={accent} selectedIndex={selectedIndex}
-          onCaptionLive={updateCaptionLive} onCaptionCommit={updateCaption}
-        />
       </div>
-      <ClipTimeline
-        clips={clips} selectedIndex={selectedIndex} onSelect={setSelectedIndex}
-        onAdd={handleAdd} onRemove={handleRemove} onReorder={handleReorder} onUpdateClip={handleUpdateClip}
+      <PreviewPlayer
+        clips={clips} platform={PLATFORMS[platformId]} accent={accent} selectedIndex={selectedIndex}
+        onCaptionLive={updateCaptionLive} onCaptionCommit={updateCaption}
       />
     </div>
+  );
+
+  const clipTimeline = (
+    <ClipTimeline
+      clips={clips} selectedIndex={selectedIndex} onSelect={setSelectedIndex}
+      onAdd={handleAdd} onRemove={handleRemove} onReorder={handleReorder} onUpdateClip={handleUpdateClip}
+    />
   );
 
   if (isPhone) {
     return (
       <div className="grid gap-4">
-        <PreviewAndTimeline />
+        <Preview />
+        {clipTimeline}
         <Btn variant="gold" onClick={() => setSheetOpen(true)}>
           <SlidersHorizontal className="size-4" /> Edit caption & export
         </Btn>
@@ -291,18 +293,20 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   }
 
   return (
-    <div className="grid items-start gap-5 sm:grid-cols-[1fr_320px]">
-      <PreviewAndTimeline />
-      {/* Sticky, same as the preview player — whichever tab (Caption/
-          Voice/Export) is actively being edited should stay in view
-          while scrolling too, not just the preview. items-start on the
-          grid above is required alongside this: a grid row stretches
-          its items to match the tallest one by default, which leaves a
-          sticky item no room to actually move/stick as the page scrolls
-          past it. */}
-      <div className="sticky top-4 self-start">
-        <ControlsPanel />
+    <div className="grid gap-5">
+      <div className="grid items-start gap-5 sm:grid-cols-[1fr_320px]">
+        {/* Sticky as the direct grid child, same shape as PostComposer's
+            own canvas column — pinned in view exactly like Create's,
+            while ClipTimeline (below, outside this row entirely) and
+            whichever tab is being edited scroll normally. */}
+        <div className="sticky top-4 self-start">
+          <Preview />
+        </div>
+        <div className="sticky top-4 self-start">
+          <ControlsPanel />
+        </div>
       </div>
+      {clipTimeline}
     </div>
   );
 }
