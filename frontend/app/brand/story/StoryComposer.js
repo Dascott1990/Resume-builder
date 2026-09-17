@@ -299,7 +299,12 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
             trigger) — not buried behind the same button as content/style
             editing. */}
         {exportPanel}
-        <Btn variant="ghost" onClick={() => setSheetOpen(true)}>
+        {/* gold, not ghost — this is the one thing on the phone screen
+            that opens content/style editing at all (Caption + Voice live
+            only in the sheet behind it), so it needs to read as an
+            unmistakable button, not blend in with the export controls
+            above it. */}
+        <Btn variant="gold" onClick={() => setSheetOpen(true)}>
           <SlidersHorizontal className="size-4" /> Edit content & style
         </Btn>
         <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit">
