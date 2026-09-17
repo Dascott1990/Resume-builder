@@ -12,11 +12,21 @@
  * a full editor" brief. LayerPanel still expects duplicate/front/back
  * handlers; they're no-ops here since ordering/duplicating don't mean
  * anything for a single layer.
+ *
+ * Layout mirrors GuestMode.js's own showSplit split: tablet/desktop has
+ * real room for preview + controls side by side (unchanged grid below).
+ * A phone doesn't, so the preview + clip timeline stay the permanent
+ * base view and the caption/AI/export controls move into a BottomSheet
+ * instead — same "edit here, see it there, never scroll away from the
+ * preview to change something" outcome GuestMode's StyleBottomSheet
+ * already gives the resume editor, not a second design.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2 } from "lucide-react";
+import { Plus, Undo2, Redo2, SlidersHorizontal } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
+import { BottomSheet } from "@/components/premium/shared/BottomSheet";
+import { useViewport } from "@/lib/useViewport";
 import { PLATFORMS, DEFAULT_ACCENT, makeTextLayer } from "../postTemplates";
 import { LayerPanel } from "../LayerPanel";
 import { AiSuggestPanel } from "../AiSuggestPanel";
@@ -26,11 +36,13 @@ import { ExportPanel } from "./ExportPanel";
 import { releaseClip } from "./clipModel";
 
 export function StoryComposer({ accent = DEFAULT_ACCENT }) {
+  const { isPhone } = useViewport();
   const [clips, setClipsRaw] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [platformId, setPlatformId] = useState("story");
   const [outputFormat, setOutputFormat] = useState("mp4");
   const [historyTick, setHistoryTick] = useState(0);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const historyRef = useRef([[]]);
   const historyIndexRef = useRef(0);
@@ -135,57 +147,80 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     setClips((cs) => cs.map((c, i) => (i === selectedIndex ? { ...c, captionLayers: [layer] } : c)));
   };
 
+  const ControlsPanel = () => (
+    <div className="grid gap-4">
+      <AiSuggestPanel onSuggestion={applyCaptionSuggestion} />
+
+      {selectedClip ? (
+        selectedCaption ? (
+          <LayerPanel
+            layer={selectedCaption} onChange={updateCaption} onDelete={removeCaption}
+            onDuplicate={() => {}} onFront={() => {}} onBack={() => {}}
+          />
+        ) : (
+          <Btn variant="ghost" onClick={addCaption}>
+            <Plus className="size-4" /> Add a caption to this clip
+          </Btn>
+        )
+      ) : (
+        <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
+          Select a clip to caption it
+        </p>
+      )}
+
+      <ExportPanel
+        clips={clips} platformId={platformId} setPlatformId={setPlatformId}
+        outputFormat={outputFormat} setOutputFormat={setOutputFormat} accent={accent}
+      />
+    </div>
+  );
+
+  const PreviewAndTimeline = () => (
+    <div className="grid gap-4">
+      <div className="flex items-center justify-between">
+        <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Preview</p>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
+            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+            <Undo2 className="size-4" />
+          </button>
+          <button type="button" onClick={redo} disabled={!canRedo} title="Redo"
+            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+            <Redo2 className="size-4" />
+          </button>
+        </div>
+      </div>
+      <PreviewPlayer
+        clips={clips} platform={PLATFORMS[platformId]} accent={accent} selectedIndex={selectedIndex}
+        onCaptionLive={updateCaptionLive} onCaptionCommit={updateCaption}
+      />
+      <ClipTimeline
+        clips={clips} selectedIndex={selectedIndex} onSelect={setSelectedIndex}
+        onAdd={handleAdd} onRemove={handleRemove} onReorder={handleReorder} onUpdateClip={handleUpdateClip}
+      />
+    </div>
+  );
+
+  if (isPhone) {
+    return (
+      <div className="grid gap-4">
+        <PreviewAndTimeline />
+        <Btn variant="gold" onClick={() => setSheetOpen(true)}>
+          <SlidersHorizontal className="size-4" /> Edit caption & export
+        </Btn>
+        <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit & export">
+          <div className="p-4">
+            <ControlsPanel />
+          </div>
+        </BottomSheet>
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-5 sm:grid-cols-[1fr_320px]">
-      <div className="grid gap-4">
-        <div className="flex items-center justify-between">
-          <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Preview</p>
-          <div className="flex items-center gap-1">
-            <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
-              className="flex size-8 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
-              <Undo2 className="size-4" />
-            </button>
-            <button type="button" onClick={redo} disabled={!canRedo} title="Redo"
-              className="flex size-8 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
-              <Redo2 className="size-4" />
-            </button>
-          </div>
-        </div>
-        <PreviewPlayer
-          clips={clips} platform={PLATFORMS[platformId]} accent={accent} selectedIndex={selectedIndex}
-          onCaptionLive={updateCaptionLive} onCaptionCommit={updateCaption}
-        />
-        <ClipTimeline
-          clips={clips} selectedIndex={selectedIndex} onSelect={setSelectedIndex}
-          onAdd={handleAdd} onRemove={handleRemove} onReorder={handleReorder} onUpdateClip={handleUpdateClip}
-        />
-      </div>
-
-      <div className="grid gap-4">
-        <AiSuggestPanel onSuggestion={applyCaptionSuggestion} />
-
-        {selectedClip ? (
-          selectedCaption ? (
-            <LayerPanel
-              layer={selectedCaption} onChange={updateCaption} onDelete={removeCaption}
-              onDuplicate={() => {}} onFront={() => {}} onBack={() => {}}
-            />
-          ) : (
-            <Btn variant="ghost" onClick={addCaption}>
-              <Plus className="size-4" /> Add a caption to this clip
-            </Btn>
-          )
-        ) : (
-          <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
-            Select a clip to caption it
-          </p>
-        )}
-
-        <ExportPanel
-          clips={clips} platformId={platformId} setPlatformId={setPlatformId}
-          outputFormat={outputFormat} setOutputFormat={setOutputFormat} accent={accent}
-        />
-      </div>
+      <PreviewAndTimeline />
+      <ControlsPanel />
     </div>
   );
 }

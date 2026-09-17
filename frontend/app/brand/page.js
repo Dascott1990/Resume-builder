@@ -5,14 +5,18 @@
  * the code it describes and stays reviewable in git history the same way
  * everything else here does.
  *
- * Four flat destinations, not a scrolling stack — Assets (logo exports +
- * this month's signature color), Create (the post composer), Capture (the
- * screenshot studio), and Reference (the mark's own rationale, read-only).
- * Each opens to exactly the one thing it's for; nothing to scroll past to
- * reach another tool. Which destination — and which Reference sections —
- * were left open is remembered per device (assetKit.js's
- * loadBrandUiState/saveBrandUiState) so returning here picks up exactly
- * where someone left off.
+ * Five flat destinations, not a scrolling stack — Assets (logo exports +
+ * this month's signature color), Create (the post composer), Story (the
+ * multi-clip story composer), Capture (the screenshot studio), and
+ * Reference (the mark's own rationale, read-only) — switched via a fixed
+ * bottom nav (components/premium/shared/BottomNav.js, the same one
+ * Dashboard.js and Artisans.js already use) rather than a sticky top tab
+ * strip, so switching never costs a scroll-to-top first. Each opens to
+ * exactly the one thing it's for; nothing to scroll past to reach another
+ * tool. Which destination — and which Reference sections — were left
+ * open is remembered per device (assetKit.js's loadBrandUiState/
+ * saveBrandUiState) so returning here picks up exactly where someone
+ * left off.
  *
  * The shipped mark's preview below renders through the real
  * <LogoMark>/<Logo> components, not a hand-copied SVG duplicate — this
@@ -20,8 +24,8 @@
  */
 import { useEffect, useState } from "react";
 import Logo, { LogoMark, MARK_PATH, MARK_STROKE } from "@/components/premium/Logo";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sparkles, Type, Archive } from "lucide-react";
+import { BottomNav } from "@/components/premium/shared/BottomNav";
+import { Sparkles, Type, Clapperboard, Camera, Archive } from "lucide-react";
 import { Section } from "./BrandSection";
 import { LogoDownloads } from "./LogoDownloads";
 import { PostComposer } from "./PostComposer";
@@ -114,6 +118,14 @@ function AtAGlanceStrip() {
   );
 }
 
+const ZONES = [
+  { id: "assets", Icon: Sparkles, label: "Assets" },
+  { id: "create", Icon: Type, label: "Create" },
+  { id: "story", Icon: Clapperboard, label: "Story" },
+  { id: "capture", Icon: Camera, label: "Capture" },
+  { id: "reference", Icon: Archive, label: "Reference" },
+];
+
 export default function BrandPage() {
   const [accent, setAccent] = useState(DEFAULT_ACCENT);
   const [zone, setZone] = useState("assets");
@@ -148,25 +160,16 @@ export default function BrandPage() {
 
   return (
     <div className="min-h-[100dvh] w-full bg-background font-sans text-foreground">
-      <div className="mx-auto w-full max-w-4xl px-6 py-14 sm:px-10 sm:py-20">
+      <div
+        className="mx-auto w-full max-w-4xl px-6 py-14 sm:px-10 sm:py-20"
+        style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}
+      >
         <div className="flex items-center justify-between">
           <Logo size={26} />
           <NotificationBell />
         </div>
 
         <AtAGlanceStrip />
-
-        <div className="sticky top-0 z-10 -mx-6 mt-8 overflow-x-auto bg-background/95 px-6 py-3 backdrop-blur sm:-mx-10 sm:px-10">
-          <Tabs value={zone} onValueChange={setZone}>
-            <TabsList>
-              <TabsTrigger value="assets">Assets</TabsTrigger>
-              <TabsTrigger value="create">Create</TabsTrigger>
-              <TabsTrigger value="story">Story</TabsTrigger>
-              <TabsTrigger value="capture">Capture</TabsTrigger>
-              <TabsTrigger value="reference">Reference</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
 
         {zone === "assets" && (
           <div className="mt-6 grid gap-6">
@@ -269,6 +272,7 @@ export default function BrandPage() {
           </div>
         )}
       </div>
+      <BottomNav items={ZONES} active={zone} onChange={setZone} />
     </div>
   );
 }
