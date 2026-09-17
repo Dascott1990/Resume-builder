@@ -177,8 +177,6 @@ def create_app():
             sync_vendor_catalog_at_boot(app)
             from app.api.apply import sweep_stuck_runs
             sweep_stuck_runs(app)
-            from app.api.story import sweep_stuck_story_runs
-            sweep_stuck_story_runs(app)
             table_names = sorted(db.metadata.tables.keys())
             print(f"✅ Database tables created/verified: {table_names}")
         except Exception as exc:

@@ -12,6 +12,8 @@ import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
+from email.mime.base import MIMEBase
+from email import encoders
 
 import certifi
 
@@ -60,9 +62,19 @@ def send_email(to, subject, html_body, attachment=None):
         filename, file_bytes, mime_subtype = attachment
         msg = MIMEMultipart("mixed")
         msg.attach(body_part)
-        image = MIMEImage(file_bytes, _subtype=mime_subtype)
-        image.add_header("Content-Disposition", "attachment", filename=filename)
-        msg.attach(image)
+        if mime_subtype in ("png", "jpeg", "jpg", "gif"):
+            part = MIMEImage(file_bytes, _subtype=mime_subtype)
+        else:
+            # Anything that isn't a still image (e.g. mp4, from api/story.py's
+            # story-render email delivery) — MIMEImage only ever declares an
+            # image/* Content-Type, which is simply wrong for a video file,
+            # so this falls back to the generic base64 attachment encoding
+            # every other MIME type uses.
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(file_bytes)
+            encoders.encode_base64(part)
+        part.add_header("Content-Disposition", "attachment", filename=filename)
+        msg.attach(part)
     else:
         msg = body_part
 

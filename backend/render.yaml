@@ -20,7 +20,15 @@ services:
     # apt-get during this build step, proven to work on Render's native
     # Python runtime by the Playwright line above it.
     buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium && apt-get update && apt-get install -y ffmpeg
-    startCommand: gunicorn run:app
+    # --timeout 120: POST /api/v1/brand/story/render (api/story.py) does its
+    # ffmpeg encoding synchronously inside the request — deliberately, so it
+    # never depends on the database (see that file's module docstring) —
+    # rather than gunicorn's sync-worker default of 30s, which a multi-clip
+    # render could plausibly exceed. Render's own reverse proxy may still
+    # impose a shorter hard ceiling this setting can't override; if large
+    # story renders start timing out in production, that's the sign this
+    # needs to become an async job again.
+    startCommand: gunicorn run:app --timeout 120
     envVars:
       - key: DATABASE_URL
         fromDatabase:

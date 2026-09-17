@@ -3,48 +3,36 @@ app/api/story.py — /brand's story-assembly tool: multiple image/video
 clips, sequenced with straight cuts, each optionally captioned, rendered
 server-side to MP4 or GIF via ffmpeg.
 
-POST /api/v1/brand/story/runs            — start a render, returns immediately
-GET  /api/v1/brand/story/runs            — last 20 runs
-GET  /api/v1/brand/story/runs/<id>       — poll status
-GET  /api/v1/brand/story/runs/<id>/download — the finished file
+POST /api/v1/brand/story/render — renders synchronously in the request
+and either returns the file directly, or (if email_to is given) emails
+it as an attachment and returns a plain success message instead.
 
-Same unauthenticated posture as the rest of api/brand.py (see that
-file's module docstring) — this is a team tool, not customer-facing, and
-deliberately not gated behind the separate admin-panel auth system.
+Deliberately NOT an async job with a database-backed status row. Unlike
+Apply-with-AI's browser-automation runs (which can take many minutes), a
+straight-cut ffmpeg render of a handful of short clips finishes in
+seconds — well inside one HTTP request. Skipping a StoryRun/Media row
+entirely means this keeps working even when the database itself is
+down (see this session's own recurring Neon outage) — the exact same
+"never touches the database" shape brand.py's email_asset already uses.
+Everything here is ephemeral: clips and every intermediate ffmpeg file
+live in a tempfile.mkdtemp() working directory, deleted before the
+response returns.
 
-Modeled on api/apply.py's ApplicationRun pattern: the route that starts a
-run does its validation synchronously, then hands the actual work to a
-plain threading.Thread(daemon=True) — not APScheduler (reserved for
-periodic work, see utils/task_reminders.py) and not Celery/RQ (this app
-runs a single gunicorn worker with no queue infra, so a thread inside
-that one process is the right amount of infrastructure). The frontend
-polls GET .../runs/<id> for status; there's no websocket/SSE anywhere in
-this app and no reason to introduce one here.
-
-Unlike apply.py's Playwright sessions, a render has no idle "waiting on a
-human" phase — every ffmpeg call is timeout-bounded — so this skips
-_RunLock's ownership-token complexity entirely and just caps concurrency
-with a plain threading.Semaphore.
-
-Clip files are never persisted to Postgres — see StoryRun's docstring in
-models.py. They live in a tempfile.mkdtemp() working directory for the
-life of one render and are deleted unconditionally when it finishes,
-success or failure. Only the rendered output becomes a Media row.
+Same unauthenticated posture as the rest of api/brand.py.
 """
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
-import threading
-from datetime import datetime, timezone
 
-from flask import Blueprint, current_app, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file
 
-from app import db, limiter
-from app.models import StoryRun, Media
+from app import limiter
 from app.middleware.error_handlers import APIError
+from app.utils.mail import send_email
 
 story_bp = Blueprint("story", __name__)
 
@@ -62,7 +50,7 @@ MAX_CLIP_BYTES = 60 * 1024 * 1024
 MAX_TOTAL_UPLOAD_BYTES = 250 * 1024 * 1024
 MAX_GIF_DURATION_SEC = 10  # GIF is for short single-scene loops only, not full stories
 FFMPEG_TIMEOUT_SEC = 120
-_STORY_SEMAPHORE = threading.Semaphore(2)  # caps concurrent renders on one dyno's CPU
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _clip_duration(clip_spec):
@@ -80,9 +68,9 @@ def _run_ffmpeg(args, cwd):
         raise RuntimeError(result.stderr.decode(errors="replace")[-800:])
 
 
-@story_bp.route("/runs", methods=["POST"])
+@story_bp.route("/render", methods=["POST"])
 @limiter.limit("20 per hour")
-def create_story_run():
+def render_story():
     raw_spec = request.form.get("spec")
     if not raw_spec:
         raise APIError("spec is required", 400)
@@ -98,6 +86,10 @@ def create_story_run():
     if output_format not in VALID_FORMATS:
         raise APIError(f"output_format must be one of {VALID_FORMATS}", 400)
 
+    email_to = (request.form.get("email_to") or "").strip()
+    if email_to and not _EMAIL_RE.match(email_to):
+        raise APIError("Enter a valid email address", 400)
+
     clip_specs = spec.get("clips")
     if not isinstance(clip_specs, list) or not (1 <= len(clip_specs) <= MAX_CLIPS):
         raise APIError(f"clips must be a list of 1-{MAX_CLIPS} items", 400)
@@ -106,9 +98,6 @@ def create_story_run():
     if len(files) != len(clip_specs):
         raise APIError("Number of uploaded clip files must match spec.clips", 400)
 
-    # Read every clip's bytes now — request.files streams are only valid
-    # inside this request; the background thread gets plain bytes, not a
-    # file handle it could accidentally touch after the response returns.
     clip_bytes = []
     total_bytes = 0
     for i, (clip_spec, file) in enumerate(zip(clip_specs, files)):
@@ -151,75 +140,42 @@ def create_story_run():
                 400,
             )
 
-    run = StoryRun(status="queued", output_format=output_format, platform_id=platform_id, sequence_spec=spec)
-    db.session.add(run)
-    db.session.commit()
+    workdir = tempfile.mkdtemp(prefix="story_")
+    try:
+        out_bytes, mime_type, ext = _render_story(workdir, clip_bytes, caption_bytes, platform_id, output_format)
+    except subprocess.TimeoutExpired:
+        raise APIError("Render timed out — try fewer or shorter clips", 504)
+    except Exception as exc:
+        print(f"❌ Story render failed: {exc}")
+        raise APIError(f"Render failed: {str(exc)[:300]}", 502)
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
 
-    app_obj = current_app._get_current_object()
-    threading.Thread(
-        target=_execute_story_run, args=(app_obj, run.id, clip_bytes, caption_bytes, platform_id, output_format),
-        daemon=True,
-    ).start()
+    filename = f"noqeev-story-{platform_id}.{ext}"
 
-    return jsonify({"success": True, "data": run.to_dict()}), 201
+    if email_to:
+        try:
+            send_email(
+                email_to, "Noqeev — your story is ready",
+                f"""<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
+                  <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
+                  <h2 style="color:#111;margin:0 0 12px;">Your story is ready</h2>
+                  <p style="color:#444;line-height:1.6;margin:0 0 4px;">Attached — ready to post.</p>
+                </div>""",
+                attachment=(filename, out_bytes, ext),
+            )
+        except Exception as exc:
+            print(f"❌ Failed to email story render to {email_to}: {exc}")
+            raise APIError("Could not send this email — check the mail server configuration", 502)
+        return jsonify({"success": True, "data": {"message": f"Sent to {email_to}"}}), 200
 
-
-@story_bp.route("/runs", methods=["GET"])
-def list_story_runs():
-    items = StoryRun.query.order_by(StoryRun.created_at.desc()).limit(20).all()
-    return jsonify({"success": True, "data": [r.to_dict() for r in items]}), 200
-
-
-@story_bp.route("/runs/<run_id>", methods=["GET"])
-def get_story_run(run_id):
-    run = db.session.get(StoryRun, run_id)
-    if not run:
-        raise APIError("Run not found", 404)
-    return jsonify({"success": True, "data": run.to_dict()}), 200
-
-
-@story_bp.route("/runs/<run_id>/download", methods=["GET"])
-def download_story_run(run_id):
-    run = db.session.get(StoryRun, run_id)
-    if not run or run.status != "done" or not run.output_media_id:
-        raise APIError("This render isn't ready yet", 404)
-    media = db.session.get(Media, run.output_media_id)
-    if not media or not media.file_data:
-        raise APIError("Render output not found", 404)
-    ext = "mp4" if run.output_format == "mp4" else "gif"
     return send_file(
-        io.BytesIO(media.file_data), mimetype=media.mime_type,
-        as_attachment=True, download_name=f"noqeev-story-{run.platform_id}.{ext}", max_age=0,
+        io.BytesIO(out_bytes), mimetype=mime_type,
+        as_attachment=True, download_name=filename, max_age=0,
     )
 
 
-def _execute_story_run(app, run_id, clip_bytes, caption_bytes, platform_id, output_format):
-    acquired = _STORY_SEMAPHORE.acquire(timeout=FFMPEG_TIMEOUT_SEC * 2)
-    workdir = tempfile.mkdtemp(prefix="story_")
-    try:
-        with app.app_context():
-            run = db.session.get(StoryRun, run_id)
-            if not run:
-                return
-            run.status = "rendering"
-            db.session.commit()
-            try:
-                media = _render_story(workdir, run, clip_bytes, caption_bytes, platform_id, output_format)
-                run.output_media_id = media.id
-                run.status = "done"
-            except Exception as exc:
-                run.status = "failed"
-                run.error_message = str(exc)[:1000]
-                print(f"❌ Story render {run_id} failed: {exc}")
-            run.completed_at = datetime.now(timezone.utc)
-            db.session.commit()
-    finally:
-        shutil.rmtree(workdir, ignore_errors=True)
-        if acquired:
-            _STORY_SEMAPHORE.release()
-
-
-def _render_story(workdir, run, clip_bytes, caption_bytes, platform_id, output_format):
+def _render_story(workdir, clip_bytes, caption_bytes, platform_id, output_format):
     w, h = PLATFORMS[platform_id]
     seg_paths = []
 
@@ -244,11 +200,9 @@ def _render_story(workdir, run, clip_bytes, caption_bytes, platform_id, output_f
             if caption_path:
                 inputs += ["-i", caption_path]
                 filter_complex = f"[0:v]{scale_pad}[bg];[bg][1:v]overlay=0:0:format=auto[outv]"
-                map_arg = "[outv]"
             else:
                 filter_complex = f"[0:v]{scale_pad}[outv]"
-                map_arg = "[outv]"
-            args = [*inputs, "-filter_complex", filter_complex, "-map", map_arg,
+            args = [*inputs, "-filter_complex", filter_complex, "-map", "[outv]",
                     "-t", str(duration), "-r", "30", "-pix_fmt", "yuv420p", seg_path]
         else:
             trim_in = float(clip["spec"]["trim_in"])
@@ -270,15 +224,13 @@ def _render_story(workdir, run, clip_bytes, caption_bytes, platform_id, output_f
     with open(concat_list, "w") as f:
         for p in seg_paths:
             f.write(f"file '{os.path.basename(p)}'\n")
-    concat_path = os.path.join(workdir, "concat.mp4")
     _run_ffmpeg(["-f", "concat", "-safe", "0", "-i", "concat_list.txt", "-c", "copy", "concat.mp4"], workdir)
 
     if output_format == "mp4":
         final_path = os.path.join(workdir, "final.mp4")
         _run_ffmpeg(["-i", "concat.mp4", "-c", "copy", "-movflags", "+faststart", "final.mp4"], workdir)
-        mime_type, media_type = "video/mp4", "video"
+        mime_type, ext = "video/mp4", "mp4"
     else:
-        palette_path = os.path.join(workdir, "palette.png")
         _run_ffmpeg(["-i", "concat.mp4", "-vf", f"fps=15,scale={w}:-1:flags=lanczos,palettegen", "palette.png"], workdir)
         final_path = os.path.join(workdir, "final.gif")
         _run_ffmpeg(
@@ -286,32 +238,7 @@ def _render_story(workdir, run, clip_bytes, caption_bytes, platform_id, output_f
              f"fps=15,scale={w}:-1:flags=lanczos[x];[x][1:v]paletteuse", "final.gif"],
             workdir,
         )
-        mime_type, media_type = "image/gif", "image"
+        mime_type, ext = "image/gif", "gif"
 
     with open(final_path, "rb") as f:
-        out_bytes = f.read()
-
-    media = Media(
-        filename=f"story_{run.id}.{output_format}", media_type=media_type, mime_type=mime_type,
-        file_data=out_bytes, file_size=len(out_bytes), filter_name="story_render",
-        metadata_json={"story_run_id": run.id, "platform_id": platform_id, "clip_count": len(clip_bytes)},
-    )
-    db.session.add(media)
-    db.session.flush()
-    return media
-
-
-def sweep_stuck_story_runs(app):
-    """A redeploy mid-render leaves a row in queued/rendering with no
-    thread left alive to ever finish it — same reasoning as apply.py's
-    sweep_stuck_runs, simpler here since there's no live browser session
-    to tear down, just DB state to correct."""
-    with app.app_context():
-        stuck = StoryRun.query.filter(StoryRun.status.in_(["queued", "rendering"])).all()
-        for run in stuck:
-            run.status = "failed"
-            run.error_message = "Interrupted by a server restart."
-            run.completed_at = datetime.now(timezone.utc)
-        if stuck:
-            db.session.commit()
-            print(f"🔧 Swept {len(stuck)} stuck StoryRun row(s) after restart")
+        return f.read(), mime_type, ext
