@@ -25,15 +25,20 @@ function LayerHeaderRow({ label, onDuplicate, onFront, onBack, onDelete }) {
   return (
     <div className="mb-3 flex items-center justify-between">
       <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{label}</span>
-      <div className="flex items-center gap-1">
+      {/* size-11 (44px), not the tighter size-7 this row used to use —
+          the app's minimum reliable touch target (Apple HIG/Material
+          Design both call for ~44-48px) rather than a size that's fine
+          with a mouse cursor but easy to mis-tap on a phone. gap-2, not
+          gap-1, so four adjacent 44px targets stay easy to tell apart. */}
+      <div className="flex items-center gap-2">
         {hasOrderControls && (
           <>
-            {onBack && <button type="button" onClick={onBack} title="Send to back" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><SendToBack className="size-3.5" /></button>}
-            {onFront && <button type="button" onClick={onFront} title="Bring to front" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><BringToFront className="size-3.5" /></button>}
-            {onDuplicate && <button type="button" onClick={onDuplicate} title="Duplicate" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><Copy className="size-3.5" /></button>}
+            {onBack && <button type="button" onClick={onBack} title="Send to back" className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><SendToBack className="size-4" /></button>}
+            {onFront && <button type="button" onClick={onFront} title="Bring to front" className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><BringToFront className="size-4" /></button>}
+            {onDuplicate && <button type="button" onClick={onDuplicate} title="Duplicate" className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><Copy className="size-4" /></button>}
           </>
         )}
-        <button type="button" onClick={onDelete} title="Delete" aria-label="Delete" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
+        <button type="button" onClick={onDelete} title="Delete" aria-label="Delete" className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button>
       </div>
     </div>
   );
@@ -80,10 +85,10 @@ export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, on
       </div>
 
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           {[["left", AlignLeft], ["center", AlignCenter], ["right", AlignRight]].map(([id, Icon]) => (
             <button key={id} type="button" onClick={() => set({ align: id })} aria-pressed={layer.align === id}
-              className={`flex size-8 items-center justify-center rounded-lg border ${layer.align === id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+              className={`flex size-11 items-center justify-center rounded-lg border ${layer.align === id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
               <Icon className="size-3.5" />
             </button>
           ))}

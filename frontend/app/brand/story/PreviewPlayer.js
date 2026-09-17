@@ -204,8 +204,8 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
       </div>
       <div className="flex items-center gap-2.5">
         <button type="button" onClick={togglePlay} disabled={!clips.length}
-          className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border text-foreground disabled:opacity-40">
-          {playing ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
+          className="flex size-11 shrink-0 items-center justify-center rounded-full border border-border text-foreground disabled:opacity-40">
+          {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
         </button>
         <input
           type="range" min="0" max={totalDuration || 1} step="0.05" value={Math.min(globalTime, totalDuration || 1)}

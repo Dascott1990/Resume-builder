@@ -11,6 +11,7 @@
  * admin-specific to add server-side; this tab just reuses it.
  */
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   Loader2, RefreshCw, Trash2, ShieldCheck, ShieldOff, LogOut, KeyRound,
@@ -1281,6 +1282,18 @@ export function AdminDashboard({ adminUser, onSignOut }) {
         </div>
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
           <span className="hidden text-[13px] text-muted-foreground sm:inline">{adminUser?.email}</span>
+          {/* /brand has zero functional connection to admin (no shared
+              auth, no shared backend — see api/brand.py's module
+              docstring) — this is a plain navigation link, nothing more.
+              Without it, /brand's whole toolkit (Create, Story, etc.) had
+              no discoverable path from anywhere in the app at all, only
+              reachable by typing the URL from memory or a bookmark. */}
+          <Button variant="outline" size="sm" asChild title="Post composer, story assembly, and other brand tools">
+            <Link href="/brand">
+              <Sparkles className="size-3.5" />
+              <span className="hidden sm:inline">Brand kit</span>
+            </Link>
+          </Button>
           <ChangePasswordButton email={adminUser?.email} />
           <Button variant="outline" size="sm" onClick={onSignOut} title="Sign out">
             <LogOut className="size-3.5" />

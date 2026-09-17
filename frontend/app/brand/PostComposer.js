@@ -276,11 +276,11 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
       <div className="flex min-w-0 w-full flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5">
         <div className="flex w-full max-w-[560px] items-center justify-end gap-1">
           <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
             <Undo2 className="size-4" />
           </button>
           <button type="button" onClick={redo} disabled={!canRedo} title="Redo"
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
             <Redo2 className="size-4" />
           </button>
         </div>
@@ -341,9 +341,11 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
             <Btn small variant="ghost" onClick={() => { setGifUrlOpen((v) => !v); setStickerPickerOpen(false); }}><ImagePlus className="size-3.5" /> GIF / Image</Btn>
           </div>
           {stickerPickerOpen && (
-            <div className="mt-2 grid grid-cols-8 gap-1 rounded-lg border border-border bg-card p-2">
+            // 6 columns, not 8 — at a real 44px touch target (down from
+            // size-8/32px) 8 columns would overflow this sidebar's width.
+            <div className="mt-2 grid grid-cols-6 gap-1.5 rounded-lg border border-border bg-card p-2">
               {STICKER_EMOJI.map((e) => (
-                <button key={e} type="button" onClick={() => addEmoji(e)} className="flex size-8 items-center justify-center rounded-md text-base hover:bg-muted">{e}</button>
+                <button key={e} type="button" onClick={() => addEmoji(e)} className="flex size-11 items-center justify-center rounded-md text-lg hover:bg-muted">{e}</button>
               ))}
             </div>
           )}

@@ -240,11 +240,11 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
         <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Preview</p>
         <div className="flex items-center gap-1">
           <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
             <Undo2 className="size-4" />
           </button>
           <button type="button" onClick={redo} disabled={!canRedo} title="Redo"
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
             <Redo2 className="size-4" />
           </button>
         </div>

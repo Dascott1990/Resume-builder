@@ -1,13 +1,18 @@
 "use client";
 /**
- * ClipTimeline.js — add clips (image/video), reorder by dragging, set
- * per-clip duration (images) or trim in/out (video), delete, select.
- * Reordering uses native HTML5 drag-and-drop — the list is always small
- * (MAX_CLIPS=20 server-side), so no drag library is warranted.
+ * ClipTimeline.js — add clips (image/video), reorder, set per-clip
+ * duration (images) or trim in/out (video), delete, select.
+ *
+ * Reordering is a pair of up/down buttons, not native HTML5 drag-and-
+ * drop — draggable + dragstart/dragover/drop never fire from a touch
+ * interaction on any mobile browser (iOS Safari, Android Chrome, none
+ * of them), so a drag handle would have made reordering silently
+ * impossible on every phone/tablet this tool needs to work on. Buttons
+ * work identically everywhere — mouse, touch, and keyboard.
  */
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Upload, X, GripVertical, Clock } from "lucide-react";
+import { Upload, X, ChevronUp, ChevronDown, Clock } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { loadClipFromFile, makeClip, clipLengthSec } from "./clipModel";
 
@@ -38,7 +43,6 @@ function ClipThumb({ clip }) {
 export function ClipTimeline({ clips, selectedIndex, onSelect, onAdd, onRemove, onReorder, onUpdateClip }) {
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
-  const dragIndexRef = useRef(null);
 
   const handleFiles = async (fileList) => {
     const files = Array.from(fileList || []);
@@ -88,19 +92,23 @@ export function ClipTimeline({ clips, selectedIndex, onSelect, onAdd, onRemove, 
           {clips.map((clip, i) => (
             <div
               key={clip.id}
-              draggable
-              onDragStart={() => { dragIndexRef.current = i; }}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => {
-                const from = dragIndexRef.current;
-                if (from === null || from === i) return;
-                onReorder(from, i);
-                dragIndexRef.current = null;
-              }}
               onClick={() => onSelect(i)}
-              className={`flex items-center gap-2.5 rounded-xl border p-2 cursor-pointer ${selectedIndex === i ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-card"}`}
+              className={`flex items-center gap-2 rounded-xl border p-2 cursor-pointer ${selectedIndex === i ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-card"}`}
             >
-              <GripVertical className="size-3.5 shrink-0 cursor-grab text-muted-foreground/50" />
+              <div className="flex shrink-0 flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button" onClick={() => i > 0 && onReorder(i, i - 1)} disabled={i === 0} title="Move up"
+                  className="flex size-9 items-center justify-center rounded-md text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground"
+                >
+                  <ChevronUp className="size-4" />
+                </button>
+                <button
+                  type="button" onClick={() => i < clips.length - 1 && onReorder(i, i + 1)} disabled={i === clips.length - 1} title="Move down"
+                  className="flex size-9 items-center justify-center rounded-md text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground"
+                >
+                  <ChevronDown className="size-4" />
+                </button>
+              </div>
               <ClipThumb clip={clip} />
               <div className="min-w-0 flex-1">
                 <p className="m-0 truncate text-[11.5px] font-semibold text-foreground">
@@ -138,7 +146,7 @@ export function ClipTimeline({ clips, selectedIndex, onSelect, onAdd, onRemove, 
               </div>
               <button
                 type="button" onClick={(e) => { e.stopPropagation(); onRemove(i); }}
-                title="Remove" className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive"
+                title="Remove" className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive"
               >
                 <X className="size-3.5" />
               </button>
