@@ -293,20 +293,16 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
         <div className="sticky top-4 z-10 self-start bg-background pb-1">
           <Preview />
         </div>
-        {clipTimeline}
-        {/* Export sits here, always visible — same position Create's
-            Download/Email row has (canvas, then export, then the edit
-            trigger) — not buried behind the same button as content/style
-            editing. */}
+        {/* Directly under the preview's play/pause row — same position
+            Create's canvas → Download/Email → Edit sequence uses
+            (PostComposer.js) — not further down the page past the clip
+            list, so the three action buttons read together as one group
+            right where the preview controls leave off. */}
         {exportPanel}
-        {/* gold, not ghost — this is the one thing on the phone screen
-            that opens content/style editing at all (Caption + Voice live
-            only in the sheet behind it), so it needs to read as an
-            unmistakable button, not blend in with the export controls
-            above it. */}
         <Btn variant="gold" onClick={() => setSheetOpen(true)}>
           <SlidersHorizontal className="size-4" /> Edit content & style
         </Btn>
+        {clipTimeline}
         <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit">
           <div className="p-4">
             <ControlsPanel />
