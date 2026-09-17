@@ -79,7 +79,12 @@ export function ClipTimeline({ clips, selectedIndex, onSelect, onAdd, onRemove, 
           Add images or short clips to start your sequence.
         </p>
       ) : (
-        <div className="grid gap-1.5">
+        // Capped height + its own scroll — with MAX_CLIPS=20 possible
+        // (backend/app/api/story.py), an uncapped list would grow the
+        // whole page instead of staying a fixed part of "one page, one
+        // screen." 5 rows (~72px each) is enough to see what's next
+        // without scrolling for a typical hook/feature/CTA sequence.
+        <div className="grid max-h-[360px] gap-1.5 overflow-y-auto overscroll-contain pr-0.5">
           {clips.map((clip, i) => (
             <div
               key={clip.id}
