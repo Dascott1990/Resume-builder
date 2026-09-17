@@ -160,7 +160,7 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
         <Btn variant="gold" onClick={handleDownload} disabled={downloading || emailing || !clips.length} loading={downloading} className="flex-1">
           <Download className="size-4" /> {downloading ? "Rendering…" : "Download"}
         </Btn>
-        <Btn variant="ghost" onClick={() => setEmailOpen(true)} disabled={downloading || emailing || !clips.length} aria-label="Email this">
+        <Btn small variant="ghost" onClick={() => setEmailOpen(true)} disabled={downloading || emailing || !clips.length} aria-label="Email this">
           <Mail className="size-4" />
         </Btn>
       </div>
