@@ -18,10 +18,6 @@ export function Footer({ onOpen, onOpenDashboard }) {
         <div className="flex flex-col items-start justify-between gap-8 sm:flex-row sm:items-center">
           <div className="flex flex-col gap-2.5">
             <Logo size={22} />
-            <p className="m-0 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
-              Every career deserves a second chance. Account optional,
-              no trace by default — just a resume that gets you in the door.
-            </p>
           </div>
 
           <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -52,7 +48,7 @@ export function Footer({ onOpen, onOpenDashboard }) {
 
         <div className="flex flex-col-reverse items-start justify-between gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
           <p className="m-0 text-[11.5px] text-muted-foreground/60">
-            © {new Date().getFullYear()} Noqeev. Built for people rebuilding their careers.
+            © {new Date().getFullYear()} Noqeev
           </p>
           <p className="m-0 text-[11.5px] text-muted-foreground/60">
             Anonymous by design.

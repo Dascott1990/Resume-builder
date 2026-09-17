@@ -12,11 +12,6 @@ export function ArtisanTeaser({ onOpenArtisans }) {
             <h2 className="m-0 text-[clamp(1.6rem,4vw,2.2rem)] leading-tight font-bold text-foreground">
               Not every next chance is behind a desk.
             </h2>
-            <p className="m-0 mt-4 max-w-md text-[14.5px] leading-relaxed text-muted-foreground">
-              Browse local electricians, carpenters, movers, and more —
-              or list yourself in under a minute. Same rules as the resume
-              side: no account, real contact info, one tap to call.
-            </p>
             <button
               onClick={onOpenArtisans}
               className="mt-6 flex min-h-[50px] items-center gap-2 rounded-2xl border border-border bg-card px-6 text-[14.5px] font-bold text-foreground [-webkit-tap-highlight-color:transparent]"
@@ -49,8 +44,7 @@ export function ArtisanTeaser({ onOpenArtisans }) {
                 </div>
               </div>
               <p className="m-0 mt-3.5 text-[12.5px] leading-relaxed text-foreground">
-                Residential and light commercial wiring, panel upgrades, and
-                troubleshooting. Same-week availability.
+                Same-week availability
               </p>
               <div className="mt-3.5 flex items-center justify-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 py-2.5 text-[12.5px] font-bold text-primary">
                 <Phone className="size-3.5" />

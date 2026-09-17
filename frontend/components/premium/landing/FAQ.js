@@ -5,26 +5,11 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { Reveal, SECTION_WRAP, EYEBROW } from "./shared";
 
 const FAQS = [
-  {
-    q: "Is Noqeev really free?",
-    a: "Yes. Building, editing, and downloading a resume costs nothing — no credit card, no trial period, no subscription to cancel later.",
-  },
-  {
-    q: "Do I need to create an account?",
-    a: "No — it's entirely optional. Your draft lives in your own browser by default, tied to a random anonymous id, never your name. Signing in just lets it follow you to another device.",
-  },
-  {
-    q: "How does the AI actually tailor my resume?",
-    a: "You paste the job posting and tell us about your background. The AI matches your experience to that posting's real keywords and phrasing — the kind of tailoring an experienced resume writer would do by hand, done in under a minute.",
-  },
-  {
-    q: "What files do I get, and can I edit them?",
-    a: "A real, editable .docx that opens in Word or Google Docs, and a clean PDF with selectable text — never a locked preview or a watermark. You can also click any line in the on-screen preview to edit it before downloading.",
-  },
-  {
-    q: "Is the Artisan directory anonymous too?",
-    a: "Same rules apply: no account to browse or to list yourself. Just a name, a trade, and a way to reach you — nothing more is collected.",
-  },
+  { q: "Is Noqeev really free?", a: "Yes — no credit card, no trial, no subscription." },
+  { q: "Do I need to create an account?", a: "No. Your draft lives in your browser. Signing in just syncs it across devices." },
+  { q: "How does the AI actually tailor my resume?", a: "Paste the job posting — it matches your background to the posting's own keywords." },
+  { q: "What files do I get, and can I edit them?", a: "An editable .docx and a clean PDF. No watermark, no locked preview." },
+  { q: "Is the Artisan directory anonymous too?", a: "Yes — no account needed to browse or to list yourself." },
 ];
 
 function FAQItem({ q, a }) {

@@ -5,31 +5,11 @@ import { Sparkles, ShieldOff, FileCheck2, Hammer, LayoutDashboard } from "lucide
 import { Reveal, SECTION_WRAP, EYEBROW } from "./shared";
 
 const FEATURES = [
-  {
-    Icon: LayoutDashboard,
-    title: "One dashboard for the whole job search",
-    body: "Build a resume, scan in one you already have, and track every application's status — all from one home screen, not scattered across tabs and files.",
-  },
-  {
-    Icon: Sparkles,
-    title: "AI that reads the job, not just your title",
-    body: "Paste any posting and Noqeev matches your background to its exact keywords and phrasing — the kind of tailoring that used to take an hour, done in seconds.",
-  },
-  {
-    Icon: ShieldOff,
-    title: "Anonymous by default. Account optional.",
-    body: "Nothing to sign up for unless you want cross-device sync — by default your draft lives in your own browser, tied to a random id, never your name. Close the tab and it's gone.",
-  },
-  {
-    Icon: FileCheck2,
-    title: "Real files, not a locked preview",
-    body: "Download an actual editable .docx or a clean, selectable PDF — open it in Word, Google Docs, or an ATS upload box, no watermark, no paywall.",
-  },
-  {
-    Icon: Hammer,
-    title: "A real trade directory too",
-    body: "Not everyone's next chance is behind a desk. Browse local tradespeople or list yourself — same anonymous, no-account philosophy.",
-  },
+  { Icon: LayoutDashboard, title: "One dashboard for the whole job search" },
+  { Icon: Sparkles, title: "AI that reads the job, not just your title" },
+  { Icon: ShieldOff, title: "Anonymous by default. Account optional." },
+  { Icon: FileCheck2, title: "Real files, not a locked preview" },
+  { Icon: Hammer, title: "A real trade directory too" },
 ];
 
 // Subtle pointer-tracked tilt on desktop only (a mouse is required for the
@@ -93,7 +73,6 @@ export function WhyNoqeev() {
                   <f.Icon className="size-5 text-primary" />
                 </div>
                 <h3 className="m-0 mt-4 text-[16.5px] font-bold text-foreground">{f.title}</h3>
-                <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-muted-foreground">{f.body}</p>
               </div>
             </TiltCard>
           ))}

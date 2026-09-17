@@ -16,10 +16,6 @@ export function FinalCTA({ onOpen, onOpenDashboard }) {
           <h2 className="m-0 text-[clamp(1.8rem,5vw,2.75rem)] leading-[1.1] font-bold text-foreground">
             Your next chance starts with one resume.
           </h2>
-          <p className="m-0 max-w-md text-[14.5px] leading-relaxed text-muted-foreground">
-            No account to make, nothing to delete later. Just open your
-            dashboard and see what two minutes gets you.
-          </p>
           <motion.button
             onClick={onOpenDashboard}
             whileTap={{ scale: 0.96 }}

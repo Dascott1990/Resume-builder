@@ -18,13 +18,7 @@ export function CareerSection() {
       <div className={`${SECTION_WRAP} relative`}>
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="m-0 text-balance font-serif text-[clamp(1.5rem,4.2vw,2.5rem)] leading-[1.35] font-medium text-foreground italic">
-            "A gap on your resume isn't the end of the story. A layoff, a
-            career change, a first job after years away — they're the
-            moment that tries to box you in. Noqeev is the line that won't
-            stay closed."
-          </p>
-          <p className="m-0 mt-6 text-[13px] font-semibold tracking-wide text-muted-foreground/70 uppercase">
-            No judgment. No account required. Just a better resume, fast.
+            "A gap isn't the end of the story."
           </p>
         </Reveal>
       </div>
