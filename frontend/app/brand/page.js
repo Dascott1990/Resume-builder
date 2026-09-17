@@ -5,22 +5,30 @@
  * the code it describes and stays reviewable in git history the same way
  * everything else here does.
  *
- * Documents what actually shipped (Ascending Q, Unbounded wordmark — see
- * Logo.js and globals.css's --font-wordmark) and the two directions that
- * were explored and set aside, with the reasoning for each. The shipped
- * mark's preview below renders through the real <LogoMark>/<Logo>
- * components, not a hand-copied SVG duplicate — this page can never drift
- * out of sync with what the app actually ships.
+ * Split into two zones so a visit only surfaces what it came for: Tools
+ * (download/share, the monthly theme picker, the post composer, the
+ * screenshot studio — working utilities) and Reference (the mark's own
+ * rationale, the wordmark, the rejected-concept archive — read-only).
+ * Both zones are made of collapsible sections rather than one continuous
+ * scroll, and which zone/sections were left open is remembered per device
+ * (see assetKit.js's loadBrandUiState/saveBrandUiState) so returning here
+ * picks up exactly where someone left off.
+ *
+ * The shipped mark's preview below renders through the real
+ * <LogoMark>/<Logo> components, not a hand-copied SVG duplicate — this
+ * page can never drift out of sync with what the app actually ships.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Logo, { LogoMark, MARK_PATH, MARK_STROKE } from "@/components/premium/Logo";
-import { IconTile } from "@/components/premium/shared/IconTile";
-import { Sparkles, Download, PenSquare, Camera } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Sparkles, Download, PenSquare, Camera, Type, Archive } from "lucide-react";
+import { Section } from "./BrandSection";
 import { LogoDownloads } from "./LogoDownloads";
 import { PostComposer } from "./PostComposer";
 import { SignatureTheme } from "./SignatureTheme";
 import { ScreenshotStudio } from "./ScreenshotStudio";
 import { DEFAULT_ACCENT } from "./postTemplates";
+import { loadBrandUiState, saveBrandUiState } from "./assetKit";
 
 function Eyebrow({ children }) {
   return (
@@ -100,8 +108,58 @@ function TurningPointPreview() {
   );
 }
 
+// Always-visible, non-interactive — instant orientation on the mark,
+// colors, and wordmark without opening anything (the Canva-brand-kit
+// reference point: the summary sits up front, the deeper docs are below).
+function AtAGlanceStrip() {
+  return (
+    <div className="mt-8 flex flex-wrap items-center gap-4 rounded-xl border border-border bg-card/60 px-5 py-3.5 sm:gap-5">
+      <LogoMark size={22} />
+      <div className="flex items-center gap-1.5">
+        {["#F6E6B3", "#f59e0b", "#5C4419"].map((hex) => (
+          <span key={hex} className="size-3.5 rounded-full border border-border" style={{ background: hex }} />
+        ))}
+      </div>
+      <span className="h-4 w-px bg-border" />
+      <span style={{ fontFamily: "var(--font-wordmark)" }} className="text-[13px] font-extrabold tracking-[0.02em] text-foreground">
+        NOQEEV
+      </span>
+      <span className="ml-auto text-[10.5px] text-muted-foreground/60">Brand kit at a glance</span>
+    </div>
+  );
+}
+
 export default function BrandPage() {
   const [accent, setAccent] = useState(DEFAULT_ACCENT);
+  const [zone, setZone] = useState("tools");
+  const [openSections, setOpenSections] = useState({ tools: ["download"], reference: ["mark"] });
+  const [uiLoaded, setUiLoaded] = useState(false);
+
+  // Loaded after mount, never in a useState initializer — this file is
+  // rendered on the server first (no localStorage there), so reading it
+  // eagerly would mismatch whatever the client actually has stored. Same
+  // "default first, hydrate for real in an effect" pattern this page's
+  // own sub-components already use for the handle/signature theme.
+  useEffect(() => {
+    const stored = loadBrandUiState();
+    setZone(stored.zone);
+    setOpenSections(stored.openSections);
+    setUiLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!uiLoaded) return; // don't clobber the stored state with pre-load defaults
+    saveBrandUiState({ zone, openSections });
+  }, [zone, openSections, uiLoaded]);
+
+  const isOpen = (zoneKey, id) => (openSections[zoneKey] || []).includes(id);
+  const toggleSection = (zoneKey, id) => {
+    setOpenSections((prev) => {
+      const current = prev[zoneKey] || [];
+      const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
+      return { ...prev, [zoneKey]: next };
+    });
+  };
 
   return (
     <div className="min-h-[100dvh] w-full bg-background font-sans text-foreground">
@@ -119,149 +177,163 @@ export default function BrandPage() {
           direction just disappear once a decision's made.
         </p>
 
-        {/* ── Applied ── */}
-        <div className="mt-12 rounded-2xl border border-primary/25 bg-primary/[0.04] p-6 sm:p-8">
-          <div className="mb-5 flex items-center gap-2">
-            <IconTile icon={Sparkles} size="sm" />
-            <span className="font-mono text-[10.5px] font-bold tracking-[0.14em] text-primary uppercase">Shipped</span>
+        <AtAGlanceStrip />
+
+        <div className="sticky top-0 z-10 -mx-6 mt-8 bg-background/95 px-6 py-3 backdrop-blur sm:-mx-10 sm:px-10">
+          <Tabs value={zone} onValueChange={setZone}>
+            <TabsList>
+              <TabsTrigger value="tools">Tools</TabsTrigger>
+              <TabsTrigger value="reference">Reference</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {zone === "tools" && (
+          <div className="mt-6 grid gap-6">
+            {/* ── This month's signature theme — docked, not a section to scroll past ── */}
+            <SignatureTheme onLockIn={setAccent} />
+
+            {/* ── Download & share ── */}
+            <Section
+              icon={Download}
+              eyebrow="Download & share"
+              description="Real files, generated on the spot from the same mark shipped in the app — never a stale export someone made once and forgot to update. Pick whichever fits: a profile photo, an icon on its own background, a banner, or the raw vector."
+              open={isOpen("tools", "download")}
+              onOpenChange={() => toggleSection("tools", "download")}
+            >
+              <LogoDownloads />
+            </Section>
+
+            {/* ── Create a post ── */}
+            <Section
+              icon={PenSquare}
+              eyebrow="Create a post"
+              description="Whoever's on posting duty today doesn't need a separate design tool — pick a shape, write the words (or let AI draft them), download it sized for wherever it's going. Colors, gradient, and type are already the brand's own; nothing to match by eye."
+              open={isOpen("tools", "post")}
+              onOpenChange={() => toggleSection("tools", "post")}
+            >
+              <PostComposer accent={accent} />
+            </Section>
+
+            {/* ── Screenshot studio ── */}
+            <Section
+              icon={Camera}
+              eyebrow="Turn a real screen into a post"
+              description="Capture an actual screen (or upload one), crop it, blur anything that shouldn't be public, drop it in a frame, sign it, ship it."
+              open={isOpen("tools", "screenshot")}
+              onOpenChange={() => toggleSection("tools", "screenshot")}
+            >
+              <ScreenshotStudio />
+            </Section>
           </div>
+        )}
 
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-[auto_1fr] sm:items-start">
-            <div className="flex size-32 shrink-0 items-center justify-center rounded-2xl border border-border bg-card">
-              <LogoMark size={92} />
-            </div>
-            <div className="grid gap-4">
-              <div>
-                <h2 className="m-0 text-[19px] font-bold text-foreground">Ascending Q</h2>
-                <p className="m-0 mt-2 max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
-                  A squared bowl — a page, not a circle — with its tail broken loose: instead
-                  of settling back down the way a real Q's tail does, it kicks up and out into
-                  a flat-cut point. Legible as Noqeev's own initial at any size, which neither
-                  of the other two directions could claim. One continuous stroked path, six
-                  points, five straight segments — see the full rationale in Logo.js.
-                </p>
-              </div>
+        {zone === "reference" && (
+          <div className="mt-6 grid gap-6">
+            {/* ── Shipped mark ── */}
+            <Section
+              icon={Sparkles}
+              eyebrow="Shipped"
+              title="Ascending Q"
+              open={isOpen("reference", "mark")}
+              onOpenChange={() => toggleSection("reference", "mark")}
+            >
+              <div className="grid grid-cols-1 gap-8 sm:grid-cols-[auto_1fr] sm:items-start">
+                <div className="flex size-32 shrink-0 items-center justify-center rounded-2xl border border-border bg-background">
+                  <LogoMark size={92} />
+                </div>
+                <div className="grid gap-4">
+                  <p className="m-0 max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
+                    A squared bowl — a page, not a circle — with its tail broken loose: instead
+                    of settling back down the way a real Q's tail does, it kicks up and out into
+                    a flat-cut point. Legible as Noqeev's own initial at any size, which neither
+                    of the other two directions could claim. One continuous stroked path, six
+                    points, five straight segments — see the full rationale in Logo.js.
+                  </p>
 
-              <div>
-                <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">In the header lockup</p>
-                <div className="flex items-center gap-3 rounded-xl border border-border bg-[#0a0a0a] px-5 py-4">
-                  <Logo size={26} />
+                  <div>
+                    <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">In the header lockup</p>
+                    <div className="flex items-center gap-3 rounded-xl border border-border bg-[#0a0a0a] px-5 py-4">
+                      <Logo size={26} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Holds at real UI sizes</p>
+                    <SizeProof path={MARK_PATH} stroke={MARK_STROKE} />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border pt-4">
+                    <Swatch hex="#F6E6B3" />
+                    <Swatch hex="#f59e0b" label="primary" />
+                    <Swatch hex="#5C4419" />
+                  </div>
                 </div>
               </div>
+            </Section>
 
-              <div>
-                <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Holds at real UI sizes</p>
-                <SizeProof path={MARK_PATH} stroke={MARK_STROKE} />
-              </div>
-
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border pt-4">
-                <Swatch hex="#F6E6B3" />
-                <Swatch hex="#f59e0b" label="primary" />
-                <Swatch hex="#5C4419" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Download & share ── */}
-        <div className="mt-6 rounded-2xl border border-border bg-card p-6 sm:p-8">
-          <div className="mb-1 flex items-center gap-2">
-            <IconTile icon={Download} size="sm" />
-            <Eyebrow>Download &amp; share</Eyebrow>
-          </div>
-          <p className="m-0 mt-2 mb-5 max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
-            Real files, generated on the spot from the same mark shipped in the app — never a
-            stale export someone made once and forgot to update. Pick whichever fits: a profile
-            photo, an icon on its own background, a banner, or the raw vector.
-          </p>
-          <LogoDownloads />
-        </div>
-
-        {/* ── This month's signature theme ── */}
-        <div className="mt-6">
-          <SignatureTheme onLockIn={setAccent} />
-        </div>
-
-        {/* ── Create a post ── */}
-        <div className="mt-6 rounded-2xl border border-border bg-card p-6 sm:p-8">
-          <div className="mb-1 flex items-center gap-2">
-            <IconTile icon={PenSquare} size="sm" />
-            <Eyebrow>Create a post</Eyebrow>
-          </div>
-          <p className="m-0 mt-2 mb-5 max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
-            Whoever's on posting duty today doesn't need a separate design tool — pick a shape,
-            write the words (or let AI draft them), download it sized for wherever it's going.
-            Colors, gradient, and type are already the brand's own; nothing to match by eye.
-          </p>
-          <PostComposer accent={accent} />
-        </div>
-
-        {/* ── Screenshot studio ── */}
-        <div className="mt-6 rounded-2xl border border-border bg-card p-6 sm:p-8">
-          <div className="mb-1 flex items-center gap-2">
-            <IconTile icon={Camera} size="sm" />
-            <Eyebrow>Turn a real screen into a post</Eyebrow>
-          </div>
-          <p className="m-0 mt-2 mb-5 max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
-            Capture an actual screen (or upload one), crop it, blur anything that shouldn't be
-            public, drop it in a frame, sign it, ship it.
-          </p>
-          <ScreenshotStudio />
-        </div>
-
-        {/* ── Wordmark / type ── */}
-        <div className="mt-6 rounded-2xl border border-border bg-card p-6 sm:p-8">
-          <Eyebrow>Wordmark</Eyebrow>
-          <div className="mt-3 flex flex-wrap items-baseline justify-between gap-3">
-            <span
-              className="text-[34px] font-extrabold text-foreground"
-              style={{ fontFamily: "var(--font-wordmark)", letterSpacing: "0.02em" }}
+            {/* ── Wordmark / type ── */}
+            <Section
+              icon={Type}
+              eyebrow="Wordmark"
+              open={isOpen("reference", "wordmark")}
+              onOpenChange={() => toggleSection("reference", "wordmark")}
             >
-              NOQEEV
-            </span>
-            <span className="font-mono text-[11.5px] text-muted-foreground">Unbounded · 800</span>
-          </div>
-          <p className="m-0 mt-3 max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
-            Unbounded's squared, geometric letterforms are the deliberate pairing with the
-            mark's own squared bowl — icon and wordmark built from the same blocky, flat-edged
-            vocabulary instead of an icon dropped in front of an unrelated UI font. Replaces
-            the previous Helvetica Neue treatment; the app's body text stays on{" "}
-            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[12px]">--font-sans</code>{" "}
-            unchanged — only the wordmark moved.
-          </p>
-        </div>
-
-        {/* ── Explored, set aside ── */}
-        <div className="mt-12">
-          <Eyebrow>Explored, set aside</Eyebrow>
-
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-border bg-card p-6">
-              <div className="mb-4 flex size-24 items-center justify-center rounded-xl border border-border bg-[#0a0a0a]">
-                <RisingLinesPreview />
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <span
+                  className="text-[34px] font-extrabold text-foreground"
+                  style={{ fontFamily: "var(--font-wordmark)", letterSpacing: "0.02em" }}
+                >
+                  NOQEEV
+                </span>
+                <span className="font-mono text-[11.5px] text-muted-foreground">Unbounded · 800</span>
               </div>
-              <h3 className="m-0 text-[15px] font-bold text-foreground">Rising Lines</h3>
-              <p className="m-0 mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                Four bars shaped like a resume's own header block, tilted nine degrees so the
-                stack itself reads as ascending. Closest in spirit to the app's own loading-
-                skeleton bars — familiar fast, but the most literal of the three, and the
-                easiest for a competitor to redraw without much effort.
+              <p className="m-0 mt-3 max-w-md text-[13.5px] leading-relaxed text-muted-foreground">
+                Unbounded's squared, geometric letterforms are the deliberate pairing with the
+                mark's own squared bowl — icon and wordmark built from the same blocky, flat-edged
+                vocabulary instead of an icon dropped in front of an unrelated UI font. Replaces
+                the previous Helvetica Neue treatment; the app's body text stays on{" "}
+                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[12px]">--font-sans</code>{" "}
+                unchanged — only the wordmark moved.
               </p>
-            </div>
+            </Section>
 
-            <div className="rounded-2xl border border-border bg-card p-6">
-              <div className="mb-4 flex size-24 items-center justify-center rounded-xl border border-border bg-[#0a0a0a]">
-                <TurningPointPreview />
+            {/* ── Explored, set aside ── */}
+            <Section
+              icon={Archive}
+              eyebrow="Explored, set aside"
+              open={isOpen("reference", "explored")}
+              onOpenChange={() => toggleSection("reference", "explored")}
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-border bg-background p-6">
+                  <div className="mb-4 flex size-24 items-center justify-center rounded-xl border border-border bg-[#0a0a0a]">
+                    <RisingLinesPreview />
+                  </div>
+                  <h3 className="m-0 text-[15px] font-bold text-foreground">Rising Lines</h3>
+                  <p className="m-0 mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                    Four bars shaped like a resume's own header block, tilted nine degrees so the
+                    stack itself reads as ascending. Closest in spirit to the app's own loading-
+                    skeleton bars — familiar fast, but the most literal of the three, and the
+                    easiest for a competitor to redraw without much effort.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-background p-6">
+                  <div className="mb-4 flex size-24 items-center justify-center rounded-xl border border-border bg-[#0a0a0a]">
+                    <TurningPointPreview />
+                  </div>
+                  <h3 className="m-0 text-[15px] font-bold text-foreground">Turning Point</h3>
+                  <p className="m-0 mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                    A page whose top-right corner opens straight into an arrowhead — document and
+                    trajectory as one continuous outline. The fastest "resume → growth" read of
+                    the three, but also the closest to the category's common shorthand.
+                  </p>
+                </div>
               </div>
-              <h3 className="m-0 text-[15px] font-bold text-foreground">Turning Point</h3>
-              <p className="m-0 mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                A page whose top-right corner opens straight into an arrowhead — document and
-                trajectory as one continuous outline. The fastest "resume → growth" read of
-                the three, but also the closest to the category's common shorthand.
-              </p>
-            </div>
+            </Section>
           </div>
-        </div>
+        )}
 
         <p className="m-0 mt-14 border-t border-border pt-5 font-mono text-[10.5px] tracking-[0.06em] text-muted-foreground/50">
           /brand — internal design reference, not linked from product navigation.

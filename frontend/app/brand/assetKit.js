@@ -188,3 +188,25 @@ export function loadSignatureTheme() {
 export function saveSignatureTheme(theme) {
   try { localStorage.setItem(THEME_KEY, JSON.stringify({ ...theme, monthKey: currentMonthKey() })); } catch { /* best-effort */ }
 }
+
+// Which zone (Reference/Tools) and which collapsible sections were left
+// open — restored on the next visit so returning to this page picks up
+// exactly where someone left off (mid-draft in the post composer, or
+// always-here-for-the-colors) instead of a fresh scroll from the top.
+const UI_STATE_KEY = "noqeev_brand_ui_state";
+const DEFAULT_UI_STATE = {
+  zone: "tools",
+  openSections: { tools: ["download"], reference: ["mark"] },
+};
+export function loadBrandUiState() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(UI_STATE_KEY) || "null");
+    if (raw && raw.zone && raw.openSections) return raw;
+    return DEFAULT_UI_STATE;
+  } catch {
+    return DEFAULT_UI_STATE;
+  }
+}
+export function saveBrandUiState(state) {
+  try { localStorage.setItem(UI_STATE_KEY, JSON.stringify(state)); } catch { /* best-effort */ }
+}
