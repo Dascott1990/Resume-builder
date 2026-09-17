@@ -1,10 +1,18 @@
 "use client";
 /**
  * LayerPanel.js — the font/size/spacing/align/bounce controls for a
- * selected layer, plus its order/duplicate/delete row. Extracted out of
- * PostComposer.js so the story-assembly tool can reuse it verbatim for
- * per-clip caption editing (captions are just text layers, same shape
- * PostComposer already edits) — see frontend/app/brand/story/StoryComposer.js.
+ * selected layer, plus a header row combining its label with order/
+ * duplicate/delete actions. Extracted out of PostComposer.js so the
+ * story-assembly tool can reuse it verbatim for per-clip caption editing
+ * (captions are just text layers, same shape PostComposer already
+ * edits) — see frontend/app/brand/story/StoryComposer.js.
+ *
+ * onDuplicate/onFront/onBack are optional: PostComposer's multi-layer
+ * canvas passes real handlers, but a caption is always exactly one
+ * layer, where "send to back," "bring to front," and "duplicate" have
+ * no meaning — Story passes none of the three, and the row collapses to
+ * just the label and Delete instead of rendering buttons that do
+ * nothing when pressed.
  */
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -12,15 +20,21 @@ import {
 } from "lucide-react";
 import { FONT_OPTIONS } from "./postTemplates";
 
-function LayerOrderRow({ onDuplicate, onFront, onBack, onDelete }) {
+function LayerHeaderRow({ label, onDuplicate, onFront, onBack, onDelete }) {
+  const hasOrderControls = onDuplicate || onFront || onBack;
   return (
     <div className="mb-3 flex items-center justify-between">
+      <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{label}</span>
       <div className="flex items-center gap-1">
-        <button type="button" onClick={onBack} title="Send to back" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><SendToBack className="size-3.5" /></button>
-        <button type="button" onClick={onFront} title="Bring to front" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><BringToFront className="size-3.5" /></button>
-        <button type="button" onClick={onDuplicate} title="Duplicate" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><Copy className="size-3.5" /></button>
+        {hasOrderControls && (
+          <>
+            {onBack && <button type="button" onClick={onBack} title="Send to back" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><SendToBack className="size-3.5" /></button>}
+            {onFront && <button type="button" onClick={onFront} title="Bring to front" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><BringToFront className="size-3.5" /></button>}
+            {onDuplicate && <button type="button" onClick={onDuplicate} title="Duplicate" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><Copy className="size-3.5" /></button>}
+          </>
+        )}
+        <button type="button" onClick={onDelete} title="Delete" aria-label="Delete" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
       </div>
-      <button type="button" onClick={onDelete} aria-label="Delete" className="text-muted-foreground hover:text-destructive"><Trash2 className="size-3.5" /></button>
     </div>
   );
 }
@@ -32,10 +46,7 @@ export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, on
   if (layer.type === "sticker") {
     return (
       <div className="rounded-xl border border-border bg-card p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Sticker</span>
-        </div>
-        <LayerOrderRow onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
+        <LayerHeaderRow label="Sticker" onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
         <label className="mb-1.5 block text-[11.5px] font-bold text-foreground">Size</label>
         <input type="range" min="0.05" max="0.35" step="0.01" value={layer.sizeFrac} onChange={(e) => set({ sizeFrac: Number(e.target.value) })} className="w-full accent-primary" />
       </div>
@@ -44,10 +55,7 @@ export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, on
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Text</span>
-      </div>
-      <LayerOrderRow onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
+      <LayerHeaderRow label="Text" onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
       <Textarea value={layer.text} onChange={(e) => set({ text: e.target.value })} rows={2} className="mb-3 resize-none rounded-[10px] text-[13px]" />
 
       <label className="mb-1.5 block text-[11px] font-bold text-foreground">Font</label>

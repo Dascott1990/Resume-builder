@@ -9,22 +9,30 @@
  *
  * Each clip carries at most ONE caption text layer for phase one — no
  * per-layer selection UI within a caption, matching the "scoped tool, not
- * a full editor" brief. LayerPanel still expects duplicate/front/back
- * handlers; they're no-ops here since ordering/duplicating don't mean
- * anything for a single layer.
+ * a full editor" brief. LayerPanel's onDuplicate/onFront/onBack are left
+ * unset here (not no-ops — genuinely absent), so its header shows just
+ * the label and Delete instead of three buttons with nothing to do.
+ *
+ * Controls are split into three compact tabs (Caption / Voice / Export)
+ * instead of stacking AiSuggestPanel + the caption editor + the voice-
+ * over field + ExportPanel all in one column — that stack ran taller
+ * than a normal viewport, forcing a scroll just to reach Export. Only
+ * one tab's content is on screen at a time now, each short enough to
+ * fit without scrolling on its own.
  *
  * Layout mirrors GuestMode.js's own showSplit split: tablet/desktop has
  * real room for preview + controls side by side (unchanged grid below).
  * A phone doesn't, so the preview + clip timeline stay the permanent
- * base view and the caption/AI/export controls move into a BottomSheet
- * instead — same "edit here, see it there, never scroll away from the
- * preview to change something" outcome GuestMode's StyleBottomSheet
- * already gives the resume editor, not a second design.
+ * base view and the tabbed controls move into a BottomSheet instead —
+ * same "edit here, see it there, never scroll away from the preview to
+ * change something" outcome GuestMode's StyleBottomSheet already gives
+ * the resume editor, not a second design.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { BottomSheet } from "@/components/premium/shared/BottomSheet";
 import { useViewport } from "@/lib/useViewport";
@@ -73,6 +81,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   const [outputFormat, setOutputFormat] = useState("mp4");
   const [historyTick, setHistoryTick] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [controlTab, setControlTab] = useState("caption");
 
   const historyRef = useRef([[]]);
   const historyIndexRef = useRef(0);
@@ -182,34 +191,47 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   };
 
   const ControlsPanel = () => (
-    <div className="grid gap-4">
-      <AiSuggestPanel onSuggestion={applyCaptionSuggestion} />
+    <Tabs value={controlTab} onValueChange={setControlTab} className="gap-3">
+      <TabsList className="w-full">
+        <TabsTrigger value="caption">Caption</TabsTrigger>
+        <TabsTrigger value="voice">Voice</TabsTrigger>
+        <TabsTrigger value="export">Export</TabsTrigger>
+      </TabsList>
 
-      {selectedClip ? (
-        <>
-          {selectedCaption ? (
-            <LayerPanel
-              layer={selectedCaption} onChange={updateCaption} onDelete={removeCaption}
-              onDuplicate={() => {}} onFront={() => {}} onBack={() => {}}
-            />
+      <TabsContent value="caption" className="grid gap-4">
+        <AiSuggestPanel onSuggestion={applyCaptionSuggestion} />
+        {selectedClip ? (
+          selectedCaption ? (
+            <LayerPanel layer={selectedCaption} onChange={updateCaption} onDelete={removeCaption} />
           ) : (
             <Btn variant="ghost" onClick={addCaption}>
               <Plus className="size-4" /> Add a caption to this clip
             </Btn>
-          )}
-          <VoiceOverField clip={selectedClip} onChange={updateNarration} />
-        </>
-      ) : (
-        <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
-          Select a clip to caption it
-        </p>
-      )}
+          )
+        ) : (
+          <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
+            Select a clip to caption it
+          </p>
+        )}
+      </TabsContent>
 
-      <ExportPanel
-        clips={clips} platformId={platformId} setPlatformId={setPlatformId}
-        outputFormat={outputFormat} setOutputFormat={setOutputFormat} accent={accent}
-      />
-    </div>
+      <TabsContent value="voice">
+        {selectedClip ? (
+          <VoiceOverField clip={selectedClip} onChange={updateNarration} />
+        ) : (
+          <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
+            Select a clip to add a voice-over
+          </p>
+        )}
+      </TabsContent>
+
+      <TabsContent value="export">
+        <ExportPanel
+          clips={clips} platformId={platformId} setPlatformId={setPlatformId}
+          outputFormat={outputFormat} setOutputFormat={setOutputFormat} accent={accent}
+        />
+      </TabsContent>
+    </Tabs>
   );
 
   const PreviewAndTimeline = () => (
