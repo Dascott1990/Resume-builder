@@ -8,12 +8,16 @@
  * monthly theme) regenerate themselves the instant they're completed —
  * see backend/app/api/brand.py's PATCH handler.
  *
- * Below that: the admin-authored news feed (real updates, not a
+ * Below that: the team-authored news feed (real updates, not a
  * fabricated external one) and real Web Push — "Enable notifications"
  * opens an actual browser subscription; a due task or a posted update
  * both fan out a real push, delivered even with the tab closed. See
  * backend/app/utils/task_reminders.py for the scheduler that notices a
  * task come due with nobody in the app to see it happen.
+ *
+ * No admin gate — /brand is standalone, same as the rest of the page
+ * (see api/brand.py's module docstring): unlisted in product nav is the
+ * only thing keeping this from customers, not a login wall.
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -183,18 +187,17 @@ function QuickAddTask({ onAdded }) {
   );
 }
 
-function PushToggle({ isAdmin }) {
+function PushToggle() {
   const [state, setState] = useState("checking"); // checking | unsupported | off | on | busy
 
   useEffect(() => {
-    if (!isAdmin) { setState("unsupported"); return; }
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) { setState("unsupported"); return; }
     navigator.serviceWorker.getRegistration().then(async (reg) => {
       if (!reg) { setState("off"); return; }
       const sub = await reg.pushManager.getSubscription();
       setState(sub ? "on" : "off");
     }).catch(() => setState("off"));
-  }, [isAdmin]);
+  }, []);
 
   const enable = async () => {
     setState("busy");
@@ -298,7 +301,6 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [tasks, setTasks] = useState({ open: [], done: [] });
   const [news, setNews] = useState([]);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   const loadTasks = () => {
     apiRequest("/api/v1/brand/tasks").then(setTasks).catch(() => {});
@@ -309,7 +311,7 @@ export function NotificationBell() {
 
   useEffect(() => {
     loadNews();
-    apiRequest("/api/v1/admin/me").then(() => { setIsAdmin(true); loadTasks(); }).catch(() => setIsAdmin(false));
+    loadTasks();
   }, []);
 
   const toggleDone = async (task, done) => {
@@ -340,8 +342,7 @@ export function NotificationBell() {
   };
 
   const buckets = bucketTasks(tasks.open);
-  const urgentCount = buckets.overdue.length + buckets.today.length;
-  const badgeCount = isAdmin ? urgentCount : 0;
+  const badgeCount = buckets.overdue.length + buckets.today.length;
   const hasBadge = badgeCount > 0 || news.length > 0;
   const taskHandlers = { onToggle: toggleDone, onSnooze: snoozeTask, onDelete: deleteTask };
 
@@ -366,15 +367,11 @@ export function NotificationBell() {
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute top-11 right-0 z-20 max-h-[75vh] w-80 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-[0_8px_28px_rgba(0,0,0,0.25)]">
-            {isAdmin && (
-              <>
-                <QuickAddTask onAdded={loadTasks} />
-                <TaskSection label="Overdue" tasks={buckets.overdue} overdue {...taskHandlers} />
-                <TaskSection label="Today" tasks={buckets.today} {...taskHandlers} />
-                <TaskSection label="Upcoming" tasks={buckets.upcoming} {...taskHandlers} />
-                <TaskSection label="No date" tasks={buckets.noDate} {...taskHandlers} />
-              </>
-            )}
+            <QuickAddTask onAdded={loadTasks} />
+            <TaskSection label="Overdue" tasks={buckets.overdue} overdue {...taskHandlers} />
+            <TaskSection label="Today" tasks={buckets.today} {...taskHandlers} />
+            <TaskSection label="Upcoming" tasks={buckets.upcoming} {...taskHandlers} />
+            <TaskSection label="No date" tasks={buckets.noDate} {...taskHandlers} />
 
             <div className="mt-1 border-t border-border pt-1">
               <p className="m-0 px-2 pt-1 pb-0.5 font-mono text-[9.5px] font-bold tracking-[0.1em] text-muted-foreground/50 uppercase">News</p>
@@ -392,16 +389,14 @@ export function NotificationBell() {
               </Link>
             </div>
 
-            {isAdmin && tasks.open.length === 0 && (
+            {tasks.open.length === 0 && (
               <p className="m-0 px-2 pb-1 text-[12.5px] text-muted-foreground">No open tasks</p>
             )}
 
-            {isAdmin && (
-              <div className="mt-1 border-t border-border pt-1">
-                <PushToggle isAdmin={isAdmin} />
-                <NewsComposer onPosted={loadNews} />
-              </div>
-            )}
+            <div className="mt-1 border-t border-border pt-1">
+              <PushToggle />
+              <NewsComposer onPosted={loadNews} />
+            </div>
           </div>
         </>
       )}

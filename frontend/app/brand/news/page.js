@@ -4,17 +4,17 @@
  * Two genuinely different things, kept visually separate rather than
  * merged into one list:
  *
- * - Updates: admin-authored (backend/app/api/brand.py's BrandNews) — full
- *   CRUD here (edit, mark resolved/reopen, delete), since these are real
- *   posts an admin owns.
+ * - Updates: team-authored (backend/app/api/brand.py's BrandNews) — full
+ *   CRUD here (edit, mark resolved/reopen, delete).
  * - World feed: auto-fetched technology (Hacker News), physics (arXiv),
  *   history (Wikipedia's "on this day") — refreshed on a timer server-
  *   side (utils/world_feed.py), read-only aside from dismissing an item
  *   nobody wants cluttering the list. Real external links, not summaries
  *   invented here.
  *
- * Admin-gated like the rest of the notification system — this isn't
- * customer-facing.
+ * No admin gate — /brand is standalone (see api/brand.py's module
+ * docstring): unlisted in product nav is the only thing keeping this
+ * from customers, not a login wall.
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -26,7 +26,6 @@ import { apiRequest } from "@/components/premium/shared/api";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import Logo from "@/components/premium/Logo";
 
 const CATEGORY_META = {
   world: { label: "World", Icon: Globe },
@@ -157,17 +156,13 @@ function WorldFeedRow({ item, onDeleted }) {
 }
 
 export default function BrandNewsPage() {
-  const [checking, setChecking] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [updates, setUpdates] = useState([]);
   const [feed, setFeed] = useState([]);
   const [category, setCategory] = useState("all");
 
   useEffect(() => {
-    apiRequest("/api/v1/admin/me")
-      .then(() => { setIsAdmin(true); loadUpdates(); loadFeed(); })
-      .catch(() => setIsAdmin(false))
-      .finally(() => setChecking(false));
+    loadUpdates();
+    loadFeed();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -175,18 +170,6 @@ export default function BrandNewsPage() {
   const loadFeed = () => apiRequest("/api/v1/brand/world-feed").then(setFeed).catch(() => {});
 
   const shownFeed = category === "all" ? feed : feed.filter((f) => f.category === category);
-
-  if (checking) return null;
-
-  if (!isAdmin) {
-    return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 bg-background px-6 text-center">
-        <Logo size={24} />
-        <p className="m-0 text-[13.5px] text-muted-foreground">Admin sign-in required.</p>
-        <Link href="/admin" className="text-[13px] font-semibold text-primary no-underline">Go to admin →</Link>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-[100dvh] w-full bg-background font-sans text-foreground">

@@ -166,6 +166,7 @@ def create_app():
         try:
             db.create_all()
             _sync_missing_columns(app)
+            _relax_push_subscription_user_id(app)
             _bootstrap_admin(app)
             _backfill_artisan_tokens(app)
             _bootstrap_brand_tasks(app)
@@ -322,3 +323,30 @@ def _sync_missing_columns(app):
                 with db.engine.begin() as conn:
                     conn.execute(text('UPDATE "users" SET "is_admin" = FALSE WHERE "is_admin" IS NULL'))
                 print("🔧 Backfilled existing users.is_admin = FALSE")
+
+
+def _relax_push_subscription_user_id(app):
+    """
+    push_subscriptions.user_id was NOT NULL back when subscribing required
+    signed-in admin (see api/brand.py's now-removed require_admin gate) —
+    /brand is unauthenticated now, so nothing populates it on new rows.
+    _sync_missing_columns above only ever ADDS columns, never relaxes an
+    existing constraint, so this one specific case needs its own step —
+    same auto-heal-on-boot spirit, just a DROP NOT NULL instead of an ADD
+    COLUMN. SQLite (only ever the local-fallback DB, never production —
+    see create_app's db_url logic) can't ALTER a column's nullability at
+    all without rebuilding the table, so this is a no-op there; every real
+    deploy runs Postgres, where the ALTER is a fast, safe metadata change.
+    """
+    from sqlalchemy import inspect, text
+
+    if db.engine.dialect.name != "postgresql":
+        return
+    inspector = inspect(db.engine)
+    if not inspector.has_table("push_subscriptions"):
+        return
+    col = next((c for c in inspector.get_columns("push_subscriptions") if c["name"] == "user_id"), None)
+    if col and not col["nullable"]:
+        with db.engine.begin() as conn:
+            conn.execute(text('ALTER TABLE "push_subscriptions" ALTER COLUMN "user_id" DROP NOT NULL'))
+        print("🔧 Relaxed push_subscriptions.user_id to nullable")

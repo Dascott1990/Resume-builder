@@ -573,15 +573,17 @@ class PushSubscription(db.Model):
     """
     One browser's Web Push subscription (endpoint + the two keys the
     browser's push service needs to decrypt what we send it) — behind
-    /brand's notification bell, so scoped to the admin who enabled it
-    rather than guest_id like the rest of the app. `endpoint` itself is
-    already unique per browser+origin (the push service assigns it), so
+    /brand's notification bell. /brand is unauthenticated (see api/brand.py's
+    module docstring), so there's no identity to scope this by — user_id is
+    a leftover from when subscribing required admin sign-in and stays
+    nullable for that reason, not populated on new rows. `endpoint` itself
+    is already unique per browser+origin (the push service assigns it), so
     it's the natural dedupe key — re-subscribing from the same browser
     updates the row in place instead of piling up duplicates.
     """
     __tablename__ = "push_subscriptions"
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
-    user_id = db.Column(db.String(32), db.ForeignKey("users.id"), nullable=False, index=True)
+    user_id = db.Column(db.String(32), db.ForeignKey("users.id"), nullable=True, index=True)
     endpoint = db.Column(db.Text, nullable=False, unique=True)
     p256dh = db.Column(db.String(255), nullable=False)
     auth = db.Column(db.String(255), nullable=False)

@@ -6,38 +6,35 @@ POST /api/v1/brand/suggest-post     — AI drafts one post (shape + copy),
 POST /api/v1/brand/suggest-theme    — AI proposes this month's signature accent
 POST /api/v1/brand/email-asset      — emails a generated image to whoever's
                                        shipping it to a given platform
-GET  /api/v1/brand/news             — recent admin-posted updates
-POST /api/v1/brand/news             — post one (admin only) + push it to
-                                       everyone subscribed
-PATCH /api/v1/brand/news/<id>       — edit, or mark resolved/reopen (admin only)
-DELETE /api/v1/brand/news/<id>      — remove one (admin only)
+GET  /api/v1/brand/news             — recent team-posted updates
+POST /api/v1/brand/news             — post one + push it to everyone subscribed
+PATCH /api/v1/brand/news/<id>       — edit, or mark resolved/reopen
+DELETE /api/v1/brand/news/<id>      — remove one
 GET  /api/v1/brand/world-feed       — real auto-fetched tech/physics/history
-                                       (admin only — see utils/world_feed.py)
-DELETE /api/v1/brand/world-feed/<id> — dismiss one item (admin only)
+                                       (see utils/world_feed.py)
+DELETE /api/v1/brand/world-feed/<id> — dismiss one item
 GET  /api/v1/brand/push/vapid-public-key — the public half of the app's
                                        VAPID key pair (safe to expose; the
                                        browser needs it to open a subscription)
 POST /api/v1/brand/push/subscribe   — save this browser's push subscription
-                                       (admin only)
 POST /api/v1/brand/push/unsubscribe — remove it
-GET  /api/v1/brand/tasks            — the task list (admin only — this is
-                                       internal work-tracking, not public
-                                       like the news feed)
+GET  /api/v1/brand/tasks            — the task list
 POST /api/v1/brand/tasks            — add one
 PATCH /api/v1/brand/tasks/<id>      — mark done/reopen, snooze, or edit
 DELETE /api/v1/brand/tasks/<id>     — remove one
 GET  /api/v1/brand/tasks/<id>/ics   — a calendar file for one task (Google/
                                        Apple/Outlook can all import it)
 
-Most of this file is unauthenticated on purpose — no auth, no guest_id
-scoping, since it's a tool for whoever's running the brand, not a
-customer-facing feature (same "no identity to scope by" reasoning as
-api/capture.py's bookmarklet endpoint). The news/push/tasks write paths
-are the exception: news and push broadcast to real subscribers, and
-tasks are internal work-tracking nobody outside the team should see, so
-all three require an actual signed-in admin (require_admin) — reading
-the news list is the one thing that stays open, same as everything else
-here.
+Entirely unauthenticated on purpose, no auth, no guest_id scoping — this
+is a tool for whoever's running the brand, not a customer-facing feature
+(same "no identity to scope by" reasoning as api/capture.py's bookmarklet
+endpoint), and deliberately standalone from the separate admin-panel auth
+system (see api/admin.py) rather than gated behind it: the two are
+unrelated concerns that happened to share a login for a while, and
+tying /brand's availability to whether the admin database is reachable
+turned out to be exactly the wrong coupling — an internal tool going
+down because Postgres is having a bad day serves nobody. What keeps this
+from customers is staying unlinked from product nav, not a login wall.
 """
 import base64
 import json
@@ -50,7 +47,6 @@ from app import db, limiter
 from app.middleware.error_handlers import APIError
 from app.models import BrandNews, BrandTask, PushSubscription, WorldFeedItem
 from app.utils.ai_client import ai_complete
-from app.utils.auth import require_admin
 from app.utils.mail import send_email
 from app.utils.push import VAPID_PUBLIC_KEY, push_configured, send_push_to_all
 from app.utils.task_reminders import build_ics, next_occurrence
@@ -258,7 +254,7 @@ def email_asset():
     return jsonify({"success": True, "data": {"message": f"Sent to {to_email}"}}), 200
 
 
-# ── News feed — real, admin-authored updates, not a fabricated external
+# ── News feed — real, team-authored updates, not a fabricated external
 # feed. Posting one fans out a real push to everyone subscribed. ──────────
 @brand_bp.route("/news", methods=["GET"])
 @limiter.limit("60 per hour")
@@ -272,7 +268,6 @@ def list_news():
 @brand_bp.route("/news", methods=["POST"])
 @limiter.limit("30 per hour")
 def post_news():
-    admin = require_admin(request)
     body = request.get_json(force=True) or {}
     title = _clean_str(body.get("title"), 140)
     news_body = _clean_str(body.get("body"), 500)
@@ -282,7 +277,7 @@ def post_news():
     if link and not re.match(r"^https?://", link):
         raise APIError("Link must start with http:// or https://", 400)
 
-    item = BrandNews(title=title, body=news_body or None, link=link or None, created_by=admin.id)
+    item = BrandNews(title=title, body=news_body or None, link=link or None)
     db.session.add(item)
     db.session.commit()
 
@@ -305,7 +300,6 @@ def post_news():
 @brand_bp.route("/news/<news_id>", methods=["PATCH"])
 @limiter.limit("60 per hour")
 def update_news(news_id):
-    require_admin(request)
     item = db.session.get(BrandNews, news_id)
     if not item:
         raise APIError("Not found", 404)
@@ -337,7 +331,6 @@ def update_news(news_id):
 @brand_bp.route("/news/<news_id>", methods=["DELETE"])
 @limiter.limit("30 per hour")
 def delete_news(news_id):
-    require_admin(request)
     item = db.session.get(BrandNews, news_id)
     if not item:
         raise APIError("Not found", 404)
@@ -347,12 +340,11 @@ def delete_news(news_id):
 
 
 # ── World feed — real, auto-fetched technology/physics/history, on a
-# timer (see utils/world_feed.py). Read-only aside from an admin
-# dismissing an individual item; there's nothing here to "edit." ─────────
+# timer (see utils/world_feed.py). Read-only aside from dismissing an
+# individual item; there's nothing here to "edit." ───────────────────────
 @brand_bp.route("/world-feed", methods=["GET"])
 @limiter.limit("120 per hour")
 def list_world_feed():
-    require_admin(request)
     category = request.args.get("category")
     q = WorldFeedItem.query
     if category in ("world", "tech", "physics", "history"):
@@ -364,7 +356,6 @@ def list_world_feed():
 @brand_bp.route("/world-feed/<item_id>", methods=["DELETE"])
 @limiter.limit("60 per hour")
 def dismiss_world_feed_item(item_id):
-    require_admin(request)
     item = db.session.get(WorldFeedItem, item_id)
     if not item:
         raise APIError("Not found", 404)
@@ -387,7 +378,6 @@ def vapid_public_key():
 @brand_bp.route("/push/subscribe", methods=["POST"])
 @limiter.limit("30 per hour")
 def push_subscribe():
-    admin = require_admin(request)
     body = request.get_json(force=True) or {}
     endpoint = (body.get("endpoint") or "").strip()
     keys = body.get("keys") or {}
@@ -401,11 +391,10 @@ def push_subscribe():
     # id for this browser+origin.
     existing = PushSubscription.query.filter_by(endpoint=endpoint).first()
     if existing:
-        existing.user_id = admin.id
         existing.p256dh = p256dh
         existing.auth = auth
     else:
-        db.session.add(PushSubscription(user_id=admin.id, endpoint=endpoint, p256dh=p256dh, auth=auth))
+        db.session.add(PushSubscription(endpoint=endpoint, p256dh=p256dh, auth=auth))
     db.session.commit()
     return jsonify({"success": True, "data": {"subscribed": True}}), 200
 
@@ -413,7 +402,6 @@ def push_subscribe():
 @brand_bp.route("/push/unsubscribe", methods=["POST"])
 @limiter.limit("30 per hour")
 def push_unsubscribe():
-    require_admin(request)
     body = request.get_json(force=True) or {}
     endpoint = (body.get("endpoint") or "").strip()
     if endpoint:
@@ -440,7 +428,6 @@ def _parse_due_at(value):
 @brand_bp.route("/tasks", methods=["GET"])
 @limiter.limit("120 per hour")
 def list_tasks():
-    require_admin(request)
     # Open tasks (any due date, including none) plus the 10 most recently
     # completed — enough to undo an accidental check-off without the list
     # growing forever with done items nobody needs to see again.
@@ -457,7 +444,6 @@ def list_tasks():
 @brand_bp.route("/tasks", methods=["POST"])
 @limiter.limit("60 per hour")
 def create_task():
-    admin = require_admin(request)
     body = request.get_json(force=True) or {}
     title = _clean_str(body.get("title"), 140)
     if not title:
@@ -468,7 +454,6 @@ def create_task():
         notes=_clean_str(body.get("notes"), 500) or None,
         due_at=_parse_due_at(body.get("due_at")),
         recurring=recurring,
-        created_by=admin.id,
     )
     db.session.add(task)
     db.session.commit()
@@ -478,7 +463,6 @@ def create_task():
 @brand_bp.route("/tasks/<task_id>", methods=["PATCH"])
 @limiter.limit("120 per hour")
 def update_task(task_id):
-    require_admin(request)
     task = db.session.get(BrandTask, task_id)
     if not task:
         raise APIError("Not found", 404)
@@ -528,7 +512,6 @@ def update_task(task_id):
 @brand_bp.route("/tasks/<task_id>", methods=["DELETE"])
 @limiter.limit("60 per hour")
 def delete_task(task_id):
-    require_admin(request)
     task = db.session.get(BrandTask, task_id)
     if not task:
         raise APIError("Not found", 404)
@@ -539,7 +522,6 @@ def delete_task(task_id):
 
 @brand_bp.route("/tasks/<task_id>/ics", methods=["GET"])
 def task_ics(task_id):
-    require_admin(request)
     task = db.session.get(BrandTask, task_id)
     if not task:
         raise APIError("Not found", 404)
