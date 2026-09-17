@@ -15,7 +15,11 @@ services:
     # PLAYWRIGHT_BROWSERS_PATH at a path inside the project directory (which
     # Render DOES carry over) makes the build and the running app agree on
     # where the browser actually lives.
-    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium
+    # ffmpeg (for /brand's story-assembly render job, see api/story.py) is
+    # installed the same way Chromium's system deps above already are —
+    # apt-get during this build step, proven to work on Render's native
+    # Python runtime by the Playwright line above it.
+    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium && apt-get update && apt-get install -y ffmpeg
     startCommand: gunicorn run:app
     envVars:
       - key: DATABASE_URL
