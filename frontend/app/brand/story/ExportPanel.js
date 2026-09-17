@@ -128,35 +128,43 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
   };
 
   return (
-    <div className="grid gap-3 rounded-xl border border-border bg-card p-4">
-      <div>
-        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Platform</p>
-        <div className="flex flex-wrap gap-1.5">
-          {Object.entries(PLATFORMS).map(([id, p]) => (
-            <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={p.sub}
-              className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${platformId === id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-              {p.label}
+    <div className="grid gap-3">
+      <div className="grid gap-3 rounded-xl border border-border bg-card p-4">
+        <div>
+          <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Platform</p>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(PLATFORMS).map(([id, p]) => (
+              <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={p.sub}
+                className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${platformId === id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Format</p>
+          <div className="flex gap-1.5">
+            <button type="button" onClick={() => setOutputFormat("mp4")} aria-pressed={outputFormat === "mp4"}
+              className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${outputFormat === "mp4" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+              MP4
             </button>
-          ))}
+            <button
+              type="button" onClick={() => !gifTooLong && setOutputFormat("gif")} aria-pressed={outputFormat === "gif"}
+              disabled={gifTooLong} title={gifTooLong ? `GIF is limited to ${MAX_GIF_DURATION_SEC}s total` : undefined}
+              className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold disabled:opacity-40 ${outputFormat === "gif" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+              GIF
+            </button>
+          </div>
         </div>
       </div>
 
-      <div>
-        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Format</p>
-        <div className="flex gap-1.5">
-          <button type="button" onClick={() => setOutputFormat("mp4")} aria-pressed={outputFormat === "mp4"}
-            className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${outputFormat === "mp4" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-            MP4
-          </button>
-          <button
-            type="button" onClick={() => !gifTooLong && setOutputFormat("gif")} aria-pressed={outputFormat === "gif"}
-            disabled={gifTooLong} title={gifTooLong ? `GIF is limited to ${MAX_GIF_DURATION_SEC}s total` : undefined}
-            className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold disabled:opacity-40 ${outputFormat === "gif" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-            GIF
-          </button>
-        </div>
-      </div>
-
+      {/* Download + Email as their own unwrapped row, not nested inside
+          the settings card above — the exact same shape as Create's
+          DownloadRow (PostComposer.js), so the three phone-view actions
+          (Email, Download, Edit content & style) read as a matching set
+          of buttons rather than two of them being tucked behind platform/
+          format pills. */}
       <div className="flex gap-2">
         <Btn variant="gold" onClick={handleDownload} disabled={downloading || emailing || !clips.length} loading={downloading} className="flex-1">
           <Download className="size-4" /> {downloading ? "Rendering…" : "Download"}
