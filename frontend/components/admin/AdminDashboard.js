@@ -11,7 +11,6 @@
  * admin-specific to add server-side; this tab just reuses it.
  */
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
 import {
   Loader2, RefreshCw, Trash2, ShieldCheck, ShieldOff, LogOut, KeyRound,
@@ -1282,12 +1281,6 @@ export function AdminDashboard({ adminUser, onSignOut }) {
         </div>
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
           <span className="hidden text-[13px] text-muted-foreground sm:inline">{adminUser?.email}</span>
-          <Button variant="outline" size="sm" asChild title="Logo, colors, exports, and posting tools">
-            <Link href="/brand">
-              <Sparkles className="size-3.5" />
-              <span className="hidden sm:inline">Brand kit</span>
-            </Link>
-          </Button>
           <ChangePasswordButton email={adminUser?.email} />
           <Button variant="outline" size="sm" onClick={onSignOut} title="Sign out">
             <LogOut className="size-3.5" />

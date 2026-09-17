@@ -2,6 +2,7 @@ import logging
 import traceback
 
 from flask import jsonify
+from sqlalchemy.exc import OperationalError
 
 logger = logging.getLogger(__name__)
 
@@ -46,4 +47,20 @@ def register_error_handlers(app):
         # Also print for environments (like Render's basic log tail) that
         # don't surface the logging module's output distinctly from stdout.
         traceback.print_exc()
+
+        # A dead database connection (wrong credentials, network partition,
+        # a provider-side outage/quota like Neon's data-transfer cap) is by
+        # far the most common thing to land here uncaught — every DB-backed
+        # route hits it identically, admin login included. "An unexpected
+        # error occurred" told nobody what to do about it; this at least
+        # points toward the one login path that doesn't need the database
+        # (see app/utils/auth.py's break-glass admin, app/api/auth.py's
+        # POST /break-glass-login).
+        if isinstance(err, OperationalError):
+            return jsonify({
+                "success": False,
+                "error": "The database is temporarily unavailable. If you're trying to sign in as admin, use Emergency access instead.",
+                "code": "DB_UNAVAILABLE",
+            }), 503
+
         return jsonify({"success": False, "error": "An unexpected error occurred"}), 500
