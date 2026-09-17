@@ -20,6 +20,17 @@
  * one tab's content is on screen at a time now, each short enough to
  * fit without scrolling on its own.
  *
+ * Back/Next underneath walks through those three tabs in order — the
+ * defining piece of YouTube Studio's own upload flow (Details -> Video
+ * elements -> Checks -> Visibility): a docked, always-visible preview
+ * next to a GUIDED sequence of short steps, not just a pile of tabs
+ * someone has to already know to click through. Clicking a tab directly
+ * still jumps straight there, same as Studio's own step list does —
+ * Back/Next is the suggested path, not the only one. Clip sequencing
+ * stays outside this stepper on purpose: unlike Studio's one-file-then-
+ * lock upload step, Story is inherently multi-clip, something worth
+ * revisiting at any point, not a step you finish once and move past.
+ *
  * Layout mirrors GuestMode.js's own showSplit split: tablet/desktop has
  * real room for preview + controls side by side (unchanged grid below).
  * A phone doesn't, so the preview + clip timeline stay the permanent
@@ -30,7 +41,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2 } from "lucide-react";
+import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -45,6 +56,7 @@ import { ExportPanel } from "./ExportPanel";
 import { releaseClip } from "./clipModel";
 
 const MAX_NARRATION_CHARS = 400; // mirrors backend/app/api/story.py's cap
+const CONTROL_TAB_ORDER = ["caption", "voice", "export"]; // the Back/Next sequence
 
 function VoiceOverField({ clip, onChange }) {
   const captionText = clip.captionLayers?.[0]?.text || "";
@@ -190,6 +202,10 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     handleUpdateClip(selectedIndex, { narrationText: text });
   };
 
+  const tabIndex = CONTROL_TAB_ORDER.indexOf(controlTab);
+  const goToPrevTab = () => setControlTab(CONTROL_TAB_ORDER[Math.max(0, tabIndex - 1)]);
+  const goToNextTab = () => setControlTab(CONTROL_TAB_ORDER[Math.min(CONTROL_TAB_ORDER.length - 1, tabIndex + 1)]);
+
   const ControlsPanel = () => (
     <Tabs value={controlTab} onValueChange={setControlTab} className="gap-3">
       <TabsList className="w-full">
@@ -231,6 +247,23 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
           outputFormat={outputFormat} setOutputFormat={setOutputFormat} accent={accent}
         />
       </TabsContent>
+
+      {/* The guided path through the three tabs above — clicking a tab
+          directly still works, this is just the suggested route for
+          someone who hasn't already decided which one they want. No
+          "Next" on the last tab — Export already ends in a real
+          terminal action (Download/Email), not another step to advance
+          through. */}
+      <div className="flex items-center justify-between pt-1">
+        <Btn small variant="ghost" onClick={goToPrevTab} disabled={tabIndex === 0}>
+          <ChevronLeft className="size-3.5" /> Back
+        </Btn>
+        {tabIndex < CONTROL_TAB_ORDER.length - 1 && (
+          <Btn small variant="gold" onClick={goToNextTab}>
+            Next <ChevronRight className="size-3.5" />
+          </Btn>
+        )}
+      </div>
     </Tabs>
   );
 
