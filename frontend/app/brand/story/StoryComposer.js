@@ -196,12 +196,16 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     handleUpdateClip(selectedIndex, { narrationText: text });
   };
 
+  // Caption + Voice only — Export deliberately isn't a third tab here
+  // anymore. Create keeps Download/Email as a separate, always-visible
+  // action outside its own "Edit content & style" sheet (see
+  // PostComposer.js's DownloadRow); Export belongs the same way, not
+  // buried behind the same button as content/style editing.
   const ControlsPanel = () => (
     <Tabs value={controlTab} onValueChange={setControlTab} className="gap-3">
       <TabsList className="w-full">
         <TabsTrigger value="caption">Caption</TabsTrigger>
         <TabsTrigger value="voice">Voice</TabsTrigger>
-        <TabsTrigger value="export">Export</TabsTrigger>
       </TabsList>
 
       <TabsContent value="caption" className="grid gap-4">
@@ -230,14 +234,14 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
           </p>
         )}
       </TabsContent>
-
-      <TabsContent value="export">
-        <ExportPanel
-          clips={clips} platformId={platformId} setPlatformId={setPlatformId}
-          outputFormat={outputFormat} setOutputFormat={setOutputFormat} accent={accent}
-        />
-      </TabsContent>
     </Tabs>
+  );
+
+  const exportPanel = (
+    <ExportPanel
+      clips={clips} platformId={platformId} setPlatformId={setPlatformId}
+      outputFormat={outputFormat} setOutputFormat={setOutputFormat} accent={accent}
+    />
   );
 
   // Just the player + its header — deliberately NOT bundled with
@@ -280,7 +284,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
       <div className="grid gap-4">
         {/* Sticky here too, not just on desktop/tablet below — without
             it, scrolling down past a long clip list to reach the "Edit
-            caption & export" button already carries the preview off
+            content & style" button already carries the preview off
             screen before the sheet even opens. The sheet itself only
             covers the bottom ~64% of the viewport with no scrim (see
             BottomSheet.js) specifically so a still-visible preview
@@ -290,10 +294,15 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
           <Preview />
         </div>
         {clipTimeline}
-        <Btn variant="gold" onClick={() => setSheetOpen(true)}>
-          <SlidersHorizontal className="size-4" /> Edit caption & export
+        {/* Export sits here, always visible — same position Create's
+            Download/Email row has (canvas, then export, then the edit
+            trigger) — not buried behind the same button as content/style
+            editing. */}
+        {exportPanel}
+        <Btn variant="ghost" onClick={() => setSheetOpen(true)}>
+          <SlidersHorizontal className="size-4" /> Edit content & style
         </Btn>
-        <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit & export">
+        <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit">
           <div className="p-4">
             <ControlsPanel />
           </div>
@@ -312,8 +321,9 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
         <div className="sticky top-4 self-start">
           <Preview />
         </div>
-        <div className="sticky top-4 self-start">
+        <div className="sticky top-4 grid gap-4 self-start">
           <ControlsPanel />
+          {exportPanel}
         </div>
       </div>
       {clipTimeline}
