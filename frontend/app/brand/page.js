@@ -150,7 +150,7 @@ export default function BrandPage() {
       <div className="mx-auto w-full max-w-4xl px-6 py-14 sm:px-10 sm:py-20">
         <div className="flex items-center justify-between">
           <Logo size={26} />
-          <NotificationBell onGoToAssets={() => setZone("assets")} onGoToCreate={() => setZone("create")} />
+          <NotificationBell />
         </div>
 
         <AtAGlanceStrip />

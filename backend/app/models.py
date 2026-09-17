@@ -7,6 +7,23 @@ def _gen_id():
     return uuid.uuid4().hex
 
 
+def _iso_utc(dt):
+    """Every stored datetime in this app is naive UTC (no tzinfo — see
+    the module-level note on why), so a plain dt.isoformat() produces a
+    string with no timezone marker at all, e.g. "2026-09-17T02:46:42".
+    JS's `new Date(...)` treats a date-TIME string with no timezone
+    designator as LOCAL time, not UTC — so a browser west of UTC reads a
+    genuinely-overdue task as being hours in the future. Appending "Z"
+    makes the UTC-ness explicit and unambiguous to every consumer, not
+    just this one. Used by BrandTask specifically because its due-date
+    bucketing (Overdue vs. Today vs. Tomorrow) breaks visibly on a
+    multi-hour misread; other models' timestamps are display-only
+    ("3 days ago"), where the same ambiguity was never granular enough
+    to notice.
+    """
+    return dt.isoformat() + "Z" if dt else None
+
+
 class User(db.Model):
     # Entirely optional — the app works fully anonymously via guest_id on
     # every other model. This exists only for people who want their saved
@@ -593,5 +610,46 @@ class BrandNews(db.Model):
     def to_dict(self):
         return {
             "id": self.id, "title": self.title, "body": self.body, "link": self.link,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": _iso_utc(self.created_at),
+        }
+
+
+class BrandTask(db.Model):
+    """
+    A real to-do behind /brand's notification bell — "post this Friday,"
+    "record the demo clip," "reply to comments" — not a hardcoded nudge.
+    due_at is optional on purpose: some tasks genuinely have no date
+    ("update the LinkedIn banner sometime") and shouldn't be forced into
+    one just to exist in the list.
+
+    recurring regenerates the NEXT occurrence the moment a recurring task
+    is marked done (see api/brand.py's PATCH handler) — event-driven, not
+    something the scheduler has to notice and react to later. A task that
+    goes overdue without being completed just sits visibly overdue; it
+    doesn't silently reschedule itself, since that would hide the fact
+    that it was missed.
+
+    reminded_at exists purely so the background scheduler (see
+    utils/task_reminders.py) pushes a "this is due" notification exactly
+    ONCE per due occurrence, not every time its poll interval ticks.
+    """
+    __tablename__ = "brand_tasks"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    title = db.Column(db.String(140), nullable=False)
+    notes = db.Column(db.String(500), nullable=True)
+    due_at = db.Column(db.DateTime, nullable=True)
+    recurring = db.Column(db.String(10), nullable=True)  # None | "weekly" | "monthly"
+    done = db.Column(db.Boolean, default=False, nullable=False)
+    reminded_at = db.Column(db.DateTime, nullable=True)
+    created_by = db.Column(db.String(32), db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "title": self.title, "notes": self.notes,
+            "due_at": _iso_utc(self.due_at),
+            "recurring": self.recurring, "done": bool(self.done),
+            "created_at": _iso_utc(self.created_at),
+            "completed_at": _iso_utc(self.completed_at),
         }

@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/components/premium/shared/api";
 import {
   loadMarkImage, ensureFontsReady, canvasToPngBlob, downloadBlob,
-  loadHandle, saveHandle, markShipped,
+  loadHandle, saveHandle,
 } from "./assetKit";
 import {
   renderPost, PLATFORMS, DEFAULT_ACCENT, SHAPES, INITIAL_LAYOUTS,
@@ -401,7 +401,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const exportFilename = () => `noqeev-${shapeId}-${platformId}.png`;
   const handleDownload = async () => {
     setDownloading(true);
-    try { downloadBlob(await exportBlob(), exportFilename()); markShipped(); }
+    try { downloadBlob(await exportBlob(), exportFilename()); }
     catch { toast.error("Try again."); }
     finally { setDownloading(false); }
   };

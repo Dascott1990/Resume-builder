@@ -18,7 +18,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { apiRequest } from "@/components/premium/shared/api";
-import { blobToDataUrl, markShipped } from "./assetKit";
+import { blobToDataUrl } from "./assetKit";
 
 const LAST_EMAIL_KEY = "noqeev_brand_last_email";
 
@@ -49,7 +49,6 @@ export function EmailAssetButton({ getBlob, filename, label }) {
         }),
       });
       try { localStorage.setItem(LAST_EMAIL_KEY, email.trim()); } catch { /* best-effort */ }
-      markShipped();
       toast.success(`Sent to ${email.trim()}`);
       setOpen(false);
     } catch (e) {

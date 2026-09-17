@@ -168,22 +168,6 @@ export function saveHandle(handle) {
   try { localStorage.setItem(HANDLE_KEY, handle); } catch { /* best-effort */ }
 }
 
-// Stamped whenever a post or screenshot actually leaves this page
-// (download or email) — the one real signal the notification bell's
-// "haven't shipped in a while" reminder is computed from.
-const LAST_SHIPPED_KEY = "noqeev_brand_last_shipped";
-export function markShipped() {
-  try { localStorage.setItem(LAST_SHIPPED_KEY, String(Date.now())); } catch { /* best-effort */ }
-}
-export function loadLastShipped() {
-  try {
-    const raw = localStorage.getItem(LAST_SHIPPED_KEY);
-    return raw ? Number(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
 // The signature theme is deliberately keyed by calendar month ("2026-03")
 // rather than stored bare — reopening this page in a new month should
 // surface the "generate this month's theme" prompt again instead of

@@ -28,7 +28,7 @@ import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
 import {
   loadMarkImage, ensureFontsReady, canvasToPngBlob, downloadBlob,
-  loadHandle, saveHandle, markShipped,
+  loadHandle, saveHandle,
 } from "./assetKit";
 import { paintBrandStamp, PLATFORMS } from "./postTemplates";
 import { EmailAssetButton } from "./EmailAssetButton";
@@ -353,7 +353,6 @@ export function ScreenshotStudio() {
     setDownloading(true);
     try {
       downloadBlob(await exportBlob(), exportFilename());
-      markShipped();
     } catch {
       toast.error("Try again.");
     } finally {

@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
@@ -167,12 +168,23 @@ def create_app():
             _sync_missing_columns(app)
             _bootstrap_admin(app)
             _backfill_artisan_tokens(app)
+            _bootstrap_brand_tasks(app)
             from app.api.apply import sweep_stuck_runs
             sweep_stuck_runs(app)
             table_names = sorted(db.metadata.tables.keys())
             print(f"✅ Database tables created/verified: {table_names}")
         except Exception as exc:
             print(f"❌ Database setup failed at boot — app is starting anyway, but every DB-backed route will 500 until this is fixed: {exc}")
+
+    # Non-critical — a scheduler that fails to start shouldn't take the
+    # whole app down with it, same reasoning as the DB setup above. Just
+    # means due-task push reminders won't fire until the next successful
+    # boot; every other route (including the task list itself) still works.
+    try:
+        from app.utils.task_reminders import start_scheduler
+        start_scheduler(app)
+    except Exception as exc:
+        print(f"❌ Task reminder scheduler failed to start: {exc}")
 
     return app
 
@@ -200,6 +212,30 @@ def _backfill_artisan_tokens(app):
         artisan.edit_token = secrets.token_urlsafe(24)
     db.session.commit()
     print(f"🔧 Backfilled edit_token for {len(stragglers)} artisan listing(s)")
+
+
+def _bootstrap_brand_tasks(app):
+    """
+    Seeds the two recurring reminders /brand's notification bell used to
+    hardcode as a local-only JS check ("no signature theme this month",
+    "nothing shipped in a week") — now real, editable, deletable rows in
+    the same task system as everything else an admin adds. Runs once:
+    only inserts if the table has never had a recurring task at all, so
+    an admin deleting these later doesn't just have them silently
+    reappear on the next boot.
+    """
+    from app.models import BrandTask
+
+    if BrandTask.query.filter(BrandTask.recurring.isnot(None)).first():
+        return
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    seeds = [
+        BrandTask(title="Set this month's signature theme", due_at=now, recurring="monthly"),
+        BrandTask(title="Ship a post this week", due_at=now, recurring="weekly"),
+    ]
+    db.session.add_all(seeds)
+    db.session.commit()
+    print(f"🔧 Seeded {len(seeds)} recurring brand task(s)")
 
 
 def _bootstrap_admin(app):
