@@ -291,9 +291,18 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   }
 
   return (
-    <div className="grid gap-5 sm:grid-cols-[1fr_320px]">
+    <div className="grid items-start gap-5 sm:grid-cols-[1fr_320px]">
       <PreviewAndTimeline />
-      <ControlsPanel />
+      {/* Sticky, same as the preview player — whichever tab (Caption/
+          Voice/Export) is actively being edited should stay in view
+          while scrolling too, not just the preview. items-start on the
+          grid above is required alongside this: a grid row stretches
+          its items to match the tallest one by default, which leaves a
+          sticky item no room to actually move/stick as the page scrolls
+          past it. */}
+      <div className="sticky top-4 self-start">
+        <ControlsPanel />
+      </div>
     </div>
   );
 }
