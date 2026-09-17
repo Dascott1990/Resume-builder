@@ -61,9 +61,6 @@ function BreakGlassLogin({ onSignedIn }) {
       <p className="m-0 flex items-center gap-1.5 text-[12px] font-semibold text-amber-600 dark:text-amber-400">
         <KeyRound className="size-3.5" /> Emergency access
       </p>
-      <p className="m-0 text-[12px] leading-relaxed text-muted-foreground">
-        Uses the break-glass credential instead of an account — works even if the database is down.
-      </p>
       <div className="space-y-1.5">
         <Label htmlFor="bg-username">Username</Label>
         <Input id="bg-username" required value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="off" />
