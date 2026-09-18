@@ -21,12 +21,13 @@ const INK = "#f5f0e6";
 const MUTED = "#a89b7e";
 const BG = "#0a0a0a";
 
-// ── Fonts — five real, distinct registers, picked for being genuinely
-// common in this exact category (social/quote/statement graphics), not
-// house taste: a clean default sans, a bold geometric sans (what most
-// Canva-style templates default to), a bold condensed impact face (the
-// standard for punchy statement text), a handwritten script, and a
-// classic serif for an editorial/quote feel. ─────────────────────────────
+// ── Fonts — eleven real, distinct registers spanning what an actual
+// caption/video-editing tool offers (CapCut, IG Story, Canva), not house
+// taste: a clean default sans, a bold geometric sans, a bold display
+// face, a condensed impact face and its taller condensed cousin, a
+// heavy grotesk, a handwritten script and a bold marker, a classic serif
+// and an editorial display serif, and a monospace for a typewriter/code
+// look. Each picked for being genuinely common in the category. ─────────
 export const FONT_STACKS = {
   sans: '"Helvetica Neue", Arial, sans-serif',
   display: '"Unbounded", "Helvetica Neue", sans-serif',
@@ -34,14 +35,37 @@ export const FONT_STACKS = {
   impact: '"Bebas Neue", "Helvetica Neue", sans-serif',
   script: '"Caveat", cursive',
   serif: 'Georgia, "Times New Roman", serif',
+  anton: '"Anton", "Helvetica Neue", sans-serif',
+  oswald: '"Oswald", "Helvetica Neue", sans-serif',
+  montserrat: '"Montserrat", "Helvetica Neue", sans-serif',
+  mono: '"Space Mono", "Courier New", monospace',
+  rounded: '"Baloo 2", "Helvetica Neue", sans-serif',
+  marker: '"Permanent Marker", cursive',
+  playfair: '"Playfair Display", Georgia, serif',
+};
+// A font picked in the UI also sets weight to its own natural default —
+// several of these (Anton, Bebas Neue, Permanent Marker) only ship ONE
+// real weight; requesting 700 on a family that only has 400 either
+// silently falls back to a system font or renders unstyled, exactly the
+// kind of inconsistency "professional" caption styling can't have.
+export const FONT_DEFAULT_WEIGHTS = {
+  sans: 700, display: 800, geometric: 800, impact: 400, script: 700, serif: 500,
+  anton: 400, oswald: 700, montserrat: 800, mono: 700, rounded: 700, marker: 400, playfair: 800,
 };
 export const FONT_OPTIONS = [
   { id: "sans", label: "Clean" },
   { id: "geometric", label: "Modern" },
   { id: "display", label: "Bold" },
+  { id: "montserrat", label: "Montserrat" },
+  { id: "anton", label: "Anton" },
   { id: "impact", label: "Impact" },
+  { id: "oswald", label: "Condensed" },
+  { id: "rounded", label: "Rounded" },
+  { id: "mono", label: "Mono" },
   { id: "script", label: "Script" },
+  { id: "marker", label: "Marker" },
   { id: "serif", label: "Serif" },
+  { id: "playfair", label: "Editorial" },
 ];
 
 function hexToHsl(hex) {
@@ -95,7 +119,7 @@ export function makeTextLayer(overrides = {}) {
     text: "Your text",
     font: "sans", weight: 700, italic: false,
     sizeFrac: 0.04, spacingFrac: 0.001, lineHeightMult: 1.25,
-    align: "center", color: "ink", gradientFill: false, bounce: false, highlight: false, karaoke: false,
+    align: "center", color: "ink", gradientFill: false, bounce: false, highlight: false, highlightColor: "black", karaoke: false,
     x: 0.5, y: 0.46, maxWidthFrac: 0.8,
     ...overrides,
   };
@@ -181,6 +205,15 @@ function resolveColor(colorKey, accent) {
   return INK;
 }
 
+// The highlight chip's own colour, independent of the text colour on top
+// of it — same swatch set (see LayerPanel.js), rendered at less than
+// full opacity so it reads as a caption chip over video rather than a
+// flat sticker cutout.
+function resolveHighlightFill(colorKey, accent) {
+  const [r, g, b] = hexToRgb(resolveColor(colorKey, accent));
+  return `rgba(${r}, ${g}, ${b}, 0.82)`;
+}
+
 /** Draws one text layer and returns its bounding box in PIXEL space, for
  * hit-testing drags/selection against. layer.x/y is the TOP anchor of the
  * text block (left/center/right per layer.align), not its baseline. */
@@ -220,7 +253,7 @@ function drawTextLayer(ctx, w, h, layer, accent) {
   if (layer.highlight && lines.length) {
     const padX = sizePx * 0.34, padY = sizePx * 0.22;
     ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillStyle = resolveHighlightFill(layer.highlightColor, accent);
     const rx = boxX - padX, ry = topYPx - padY, rw = blockW + padX * 2, rh = blockH + padY * 2;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, sizePx * 0.16);
@@ -304,7 +337,7 @@ function drawKaraokeTextLayer(ctx, w, h, layer, accent, activeIndex) {
   if (layer.highlight && lines.length) {
     const padX = sizePx * 0.34, padY = sizePx * 0.22;
     ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillStyle = resolveHighlightFill(layer.highlightColor, accent);
     const rx = boxX - padX, ry = topYPx - padY, rw = blockW + padX * 2, rh = blockH + padY * 2;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, sizePx * 0.16);

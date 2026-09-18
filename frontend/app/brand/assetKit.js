@@ -67,6 +67,16 @@ const FONT_SPECS = [
   '800 40px "Helvetica Neue"',
   '700 40px "Helvetica Neue"',
   'italic 500 40px Georgia',
+  '800 40px Poppins',
+  '400 40px "Bebas Neue"',
+  '700 40px Caveat',
+  '400 40px Anton',
+  '700 40px Oswald',
+  '800 40px Montserrat',
+  '700 40px "Space Mono"',
+  '700 40px "Baloo 2"',
+  '400 40px "Permanent Marker"',
+  '800 40px "Playfair Display"',
 ];
 export async function ensureFontsReady() {
   try {

@@ -155,7 +155,14 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
     const layer = clips[index]?.captionLayers?.[0];
     if (!box || !layer || !platform) return;
     const p = pointFromEvent(e);
-    if (p.x < box.x || p.x > box.x + box.w || p.y < box.y || p.y > box.y + box.h) return;
+    // Padded well past the drawn text's own pixel bounds — a short
+    // caption (a few words) has a genuinely small bbox, and requiring a
+    // pixel-perfect hit on the glyphs themselves is exactly why this read
+    // as "barely responding" on a touchscreen. Sized as a fraction of the
+    // platform, not a fixed px count, so the grab margin scales the same
+    // way the caption itself does across every preset/display size.
+    const pad = Math.max(platform.w, platform.h) * 0.045;
+    if (p.x < box.x - pad || p.x > box.x + box.w + pad || p.y < box.y - pad || p.y > box.y + box.h + pad) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = { dx: p.x / platform.w - layer.x, dy: p.y / platform.h - layer.y };
     setDragging(true);

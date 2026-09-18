@@ -64,17 +64,20 @@ export default function RootLayout({ children }) {
             by name from a plain 2D canvas context inside a dynamically
             imported, ssr:false Three.js module.
             Unbounded — the wordmark face (--font-wordmark in globals.css).
-            Poppins + Bebas Neue — the two extra text-layer fonts in
-            /brand's post composer (see FONT_STACKS in postTemplates.js):
-            Poppins is the geometric sans most social-template tools
-            (Canva chief among them) default to for clean body/headline
-            text; Bebas Neue is the standard bold condensed face for
-            punchy statement graphics. Picked for being genuinely common
-            in the category, not house taste. Same plain-stylesheet
-            loading as Caveat/Unbounded, one request for all four. */}
+            Everything else here is the text-layer font library for
+            /brand's post + story composers (see FONT_STACKS in
+            postTemplates.js) — a curated set spanning the registers a
+            real caption/video-editing tool offers (clean sans, geometric,
+            bold display, impact/condensed, script, marker, serif,
+            editorial serif, mono, rounded), not house taste, picked for
+            being genuinely common in the category. Same plain-stylesheet
+            loading, one request for all of them. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Caveat:wght@600;700&family=Poppins:wght@400;600;700;800&family=Unbounded:wght@700;800&display=swap" rel="stylesheet" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Caveat:wght@600;700&family=Poppins:wght@400;600;700;800&family=Unbounded:wght@700;800&family=Anton&family=Oswald:wght@500;700&family=Montserrat:wght@700;800&family=Space+Mono:wght@400;700&family=Baloo+2:wght@600;700&family=Permanent+Marker&family=Playfair+Display:wght@700;800&display=swap"
+          rel="stylesheet"
+        />
       </head>
       <body className="m-0 overscroll-none bg-background">
         {children}

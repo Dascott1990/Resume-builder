@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Trash2, SendToBack, BringToFront, Copy, AlignLeft, AlignCenter, AlignRight, Waves, Square, Captions,
 } from "lucide-react";
-import { FONT_OPTIONS } from "./postTemplates";
+import { FONT_OPTIONS, FONT_STACKS, FONT_DEFAULT_WEIGHTS } from "./postTemplates";
 
 // Fixed, on-brand swatches rather than a free RGB picker — matches the
 // rest of the app's "one deliberate accent, no arbitrary colour boxes"
@@ -76,10 +76,17 @@ export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, on
       <Textarea value={layer.text} onChange={(e) => set({ text: e.target.value })} rows={2} className="mb-3 resize-none rounded-[10px] text-[13px]" />
 
       <label className="mb-1.5 block text-[11px] font-bold text-foreground">Font</label>
+      {/* Each pill set in its own actual typeface, not a generic label —
+          picking a font is exploring what it looks like, not reading a
+          name off a list. */}
       <div className="mb-3 flex flex-wrap gap-1.5">
         {FONT_OPTIONS.map((f) => (
-          <button key={f.id} type="button" onClick={() => set({ font: f.id })} aria-pressed={layer.font === f.id}
-            className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${layer.font === f.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+          <button
+            key={f.id} type="button"
+            onClick={() => set({ font: f.id, weight: FONT_DEFAULT_WEIGHTS[f.id] || 700 })}
+            aria-pressed={layer.font === f.id}
+            style={{ fontFamily: FONT_STACKS[f.id] }}
+            className={`rounded-full border px-3 py-1.5 text-[13px] font-semibold ${layer.font === f.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
             {f.label}
           </button>
         ))}
@@ -106,6 +113,21 @@ export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, on
           </button>
         ))}
       </div>
+
+      {layer.highlight && (
+        <div className="mb-3">
+          <label className="mb-1.5 block text-[11px] font-bold text-foreground">Highlight color</label>
+          <div className="flex flex-wrap items-center gap-2">
+            {[...COLOR_OPTIONS, ...(accent ? [{ id: "accent", swatch: accent.primary, label: "Accent" }] : [])].map((c) => (
+              <button key={c.id} type="button" onClick={() => set({ highlightColor: c.id })} aria-pressed={(layer.highlightColor || "black") === c.id}
+                title={c.label}
+                className={`flex size-9 items-center justify-center rounded-full border-2 ${(layer.highlightColor || "black") === c.id ? "border-primary" : "border-transparent"}`}>
+                <span className="size-6 rounded-full border border-black/10" style={{ backgroundColor: c.swatch }} />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-2">
