@@ -23,6 +23,7 @@ from app.utils.auth import require_workspace
 from app.utils.storage import get_storage, make_key, LocalStorage
 from app.utils.uploads import validate_upload
 from app.utils import logo_render
+from app.utils.story_quality import score_story
 
 workspace_bp = Blueprint("brand_workspace", __name__)
 
@@ -141,6 +142,22 @@ def export_post():
     result = asset.to_dict()
     result["url"] = get_storage().url(key)
     return jsonify({"success": True, "data": result}), 201
+
+
+@workspace_bp.route("/story/quality-check", methods=["POST"])
+def story_quality_check():
+    """Advisory only — mirrors how the resume ATS score never blocks a
+    download, this never blocks export or download either. Scored from
+    the clip timeline the browser just rendered from, not the rendered
+    file itself — see story_quality.py for why (no audio track to
+    inspect, so every real issue here is derivable from timing/caption
+    data the client already has exactly)."""
+    require_workspace(request)
+    body = request.get_json(force=True) or {}
+    clips = body.get("clips") or []
+    if not isinstance(clips, list):
+        raise APIError("clips must be a list", 400)
+    return jsonify({"success": True, "data": score_story(clips)}), 200
 
 
 @workspace_bp.route("/assets/<path:key>", methods=["GET"])

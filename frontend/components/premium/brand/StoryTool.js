@@ -19,17 +19,23 @@
  */
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Sparkles, Download, Film, ImageIcon } from "lucide-react";
+import { Loader2, Sparkles, Download, Film, ImageIcon, Gauge } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { ClipTimeline } from "@/app/brand/story/ClipTimeline";
 import { PreviewPlayer } from "@/app/brand/story/PreviewPlayer";
 import { LayerPanel } from "@/app/brand/LayerPanel";
 import { AiSuggestPanel } from "@/app/brand/AiSuggestPanel";
-import { releaseClip } from "@/app/brand/story/clipModel";
+import { releaseClip, clipLengthSec } from "@/app/brand/story/clipModel";
 import { makeTextLayer, DEFAULT_ACCENT, PLATFORMS } from "@/app/brand/postTemplates";
 import { downloadBlob } from "@/app/brand/assetKit";
 import { recordWebm, recordGif } from "./storyClientExport";
 import { workspaceFetch } from "./workspaceApi";
+
+function scoreColor(score) {
+  if (score >= 85) return "text-emerald-400 border-emerald-400/30 bg-emerald-400/10";
+  if (score >= 60) return "text-amber-400 border-amber-400/30 bg-amber-400/10";
+  return "text-red-400 border-red-400/30 bg-red-400/10";
+}
 
 export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
   const [clips, setClips] = useState([]);
@@ -37,6 +43,9 @@ export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
   const [platformId, setPlatformId] = useState("story");
   const [exporting, setExporting] = useState(null); // "webm" | "gif" | null
   const [progress, setProgress] = useState(0);
+  const [quality, setQuality] = useState(null); // { score, summary, issues } | null
+  const [checkingQuality, setCheckingQuality] = useState(false);
+  const [seekRequest, setSeekRequest] = useState(null); // { time, nonce } — jumps the preview to an issue's timestamp
 
   const platform = PLATFORMS[platformId];
   const selectedClip = selectedIndex != null ? clips[selectedIndex] : null;
@@ -80,10 +89,26 @@ export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
     return workspaceFetch(token, "/api/v1/workspace/compose/export", { method: "POST", body: formData }).catch(() => {});
   };
 
+  const runQualityCheck = async () => {
+    setCheckingQuality(true);
+    try {
+      const payload = { clips: clips.map((c) => ({ duration: clipLengthSec(c), caption_text: c.captionLayers?.[0]?.text || "" })) };
+      const data = await workspaceFetch(token, "/api/v1/workspace/story/quality-check", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      setQuality(data);
+    } catch {
+      // Advisory only — a failed check just means no report shows, never blocks the export the person already has.
+    } finally {
+      setCheckingQuality(false);
+    }
+  };
+
   const runExport = async (format) => {
     if (!clips.length) { toast.error("Add at least one clip first."); return; }
     setExporting(format);
     setProgress(0);
+    setQuality(null);
     try {
       const blob = format === "webm"
         ? await recordWebm(clips, platform, accent, { onProgress: setProgress })
@@ -91,6 +116,7 @@ export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
       downloadBlob(blob, exportFilename(format === "webm" ? "webm" : "gif"));
       persistExport(blob, format === "webm" ? "webm" : "gif");
       toast.success(`${format === "webm" ? "Video" : "GIF"} ready.`);
+      runQualityCheck(); // advisory, never blocks the download that already happened
     } catch (e) {
       toast.error(e.message || "Export failed — try again.");
     } finally {
@@ -98,6 +124,8 @@ export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
       setProgress(0);
     }
   };
+
+  const seekToIssue = (timestamp) => setSeekRequest({ time: timestamp, nonce: Date.now() });
 
   return (
     <div className="grid gap-5 sm:grid-cols-[1fr_320px]">
@@ -112,7 +140,7 @@ export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
         </div>
         <PreviewPlayer
           clips={clips} platform={platform} accent={accent} selectedIndex={selectedIndex}
-          onCaptionLive={setCaption} onCaptionCommit={setCaption}
+          onCaptionLive={setCaption} onCaptionCommit={setCaption} seekRequest={seekRequest}
         />
         <div className="flex w-full gap-2">
           <Btn variant="gold" className="flex-1" onClick={() => runExport("webm")} disabled={!!exporting || !clips.length} loading={exporting === "webm"}>
@@ -125,6 +153,33 @@ export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
         <p className="m-0 text-center text-[11px] text-muted-foreground">
           Rendered right here in your browser — short clips, straight cuts, no sound.
         </p>
+
+        {checkingQuality && (
+          <p className="m-0 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+            <Loader2 className="size-3 animate-spin" /> Checking pacing…
+          </p>
+        )}
+
+        {quality && (
+          <div className="w-full rounded-xl border border-border bg-background p-3">
+            <div className="mb-2 flex items-center gap-2">
+              <Gauge className="size-3.5 text-muted-foreground" />
+              <span className={`rounded-full border px-2 py-0.5 font-mono text-[11px] font-bold ${scoreColor(quality.score)}`}>{quality.score}/100</span>
+              <span className="text-[11.5px] text-muted-foreground">{quality.summary}</span>
+            </div>
+            {quality.issues?.length > 0 && (
+              <div className="grid gap-1">
+                {quality.issues.map((issue, i) => (
+                  <button key={i} type="button" onClick={() => seekToIssue(issue.timestamp)}
+                    className="flex items-start gap-2 rounded-lg border border-transparent p-1.5 text-left hover:border-border hover:bg-card">
+                    <span className="mt-0.5 shrink-0 font-mono text-[10.5px] text-primary">{issue.timestamp.toFixed(1)}s</span>
+                    <span className="text-[11.5px] text-muted-foreground">{issue.message}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4">
