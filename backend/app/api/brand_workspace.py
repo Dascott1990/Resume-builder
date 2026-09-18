@@ -17,12 +17,20 @@ from flask import Blueprint, request, jsonify, send_file
 import io
 
 from app import db
-from app.models import BrandWorkspace
+from app.models import BrandWorkspace, BrandAsset
 from app.middleware.error_handlers import APIError
 from app.utils.auth import require_workspace
-from app.utils.storage import get_storage, LocalStorage
+from app.utils.storage import get_storage, make_key, LocalStorage
+from app.utils import logo_render
 
 workspace_bp = Blueprint("brand_workspace", __name__)
+
+DOWNLOAD_FORMATS = {
+    "icon": ("image/png", "noqeev-app-icon.png", lambda: logo_render.render_app_icon()),
+    "avatar": ("image/png", "noqeev-social-avatar.png", lambda: logo_render.render_social_avatar()),
+    "lockup": ("image/png", "noqeev-lockup.png", lambda: logo_render.render_lockup()),
+    "svg": ("image/svg+xml", "noqeev-mark.svg", lambda: logo_render.render_svg().encode("utf-8")),
+}
 
 
 @workspace_bp.route("", methods=["POST"])
@@ -54,6 +62,42 @@ def update_my_workspace():
         ws.notify_email = (body["notify_email"] or "").strip() or None
     db.session.commit()
     return jsonify({"success": True, "data": ws.to_dict()}), 200
+
+
+def _get_or_create_source_asset(ws):
+    """The one cached source every download format renders from — a
+    workspace's first download request mints it via the storage
+    interface (never a pre-made static file), every request after that
+    reuses the same stored key instead of re-minting one."""
+    asset = BrandAsset.query.filter_by(workspace_id=ws.id, kind="logo_source").first()
+    if asset:
+        return asset
+    svg_bytes = logo_render.render_svg().encode("utf-8")
+    key = make_key(ws.id, "logo_source", "svg")
+    get_storage().put(key, svg_bytes, "image/svg+xml")
+    asset = BrandAsset(workspace_id=ws.id, kind="logo_source", storage_key=key, content_type="image/svg+xml", filename="mark.svg")
+    db.session.add(asset)
+    db.session.commit()
+    return asset
+
+
+@workspace_bp.route("/downloads/<fmt>", methods=["GET"])
+def download_asset(fmt):
+    ws = require_workspace(request)
+    if fmt not in DOWNLOAD_FORMATS:
+        raise APIError(f"Unknown format '{fmt}' — choose one of: {', '.join(DOWNLOAD_FORMATS)}", 400)
+    content_type, filename, render_fn = DOWNLOAD_FORMATS[fmt]
+    source_asset = _get_or_create_source_asset(ws)
+    if fmt == "svg":
+        # The cached source IS the SVG — serve it straight from storage.
+        data = get_storage().get(source_asset.storage_key)
+    else:
+        # Rasterized from the same MARK_POINTS/MARK_STROKE constants the
+        # cached source SVG was itself built from — see logo_render.py's
+        # module docstring for why this renders natively in Pillow
+        # rather than re-parsing the cached SVG bytes.
+        data = render_fn()
+    return send_file(io.BytesIO(data), mimetype=content_type, download_name=filename)
 
 
 @workspace_bp.route("/assets/<path:key>", methods=["GET"])
