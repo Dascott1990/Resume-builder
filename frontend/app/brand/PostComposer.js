@@ -377,6 +377,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
         <LayerPanel
           layer={selectedLayer} onChange={updateLayer} onDelete={deleteSelected}
           onDuplicate={duplicateSelected} onFront={bringSelectedToFront} onBack={sendSelectedToBack}
+          accent={accent}
         />
       ) : (
         <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">

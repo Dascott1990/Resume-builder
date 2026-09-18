@@ -16,9 +16,21 @@
  */
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Trash2, SendToBack, BringToFront, Copy, AlignLeft, AlignCenter, AlignRight, Waves,
+  Trash2, SendToBack, BringToFront, Copy, AlignLeft, AlignCenter, AlignRight, Waves, Square,
 } from "lucide-react";
 import { FONT_OPTIONS } from "./postTemplates";
+
+// Fixed, on-brand swatches rather than a free RGB picker — matches the
+// rest of the app's "one deliberate accent, no arbitrary colour boxes"
+// convention (see Btn's own "gold" comment in primitives.js). White/black
+// cover the two classic caption looks (light text on dark video, dark
+// text on light video); Ink/Muted/Accent are the existing theme tokens.
+const COLOR_OPTIONS = [
+  { id: "ink", swatch: "#f5f0e6", label: "Ink" },
+  { id: "white", swatch: "#ffffff", label: "White" },
+  { id: "black", swatch: "#0a0a0a", label: "Black" },
+  { id: "muted", swatch: "#a89b7e", label: "Muted" },
+];
 
 function LayerHeaderRow({ label, onDuplicate, onFront, onBack, onDelete }) {
   const hasOrderControls = onDuplicate || onFront || onBack;
@@ -44,7 +56,7 @@ function LayerHeaderRow({ label, onDuplicate, onFront, onBack, onDelete }) {
   );
 }
 
-export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, onBack }) {
+export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, onBack, accent }) {
   if (!layer) return null;
   const set = (patch) => onChange({ ...layer, ...patch });
 
@@ -84,7 +96,18 @@ export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, on
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
+      <label className="mb-1.5 block text-[11px] font-bold text-foreground">Color</label>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {[...COLOR_OPTIONS, ...(accent ? [{ id: "accent", swatch: accent.primary, label: "Accent" }] : [])].map((c) => (
+          <button key={c.id} type="button" onClick={() => set({ color: c.id, gradientFill: false })} aria-pressed={layer.color === c.id && !layer.gradientFill}
+            title={c.label}
+            className={`flex size-9 items-center justify-center rounded-full border-2 ${layer.color === c.id && !layer.gradientFill ? "border-primary" : "border-transparent"}`}>
+            <span className="size-6 rounded-full border border-black/10" style={{ backgroundColor: c.swatch }} />
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-2">
           {[["left", AlignLeft], ["center", AlignCenter], ["right", AlignRight]].map(([id, Icon]) => (
             <button key={id} type="button" onClick={() => set({ align: id })} aria-pressed={layer.align === id}
@@ -93,10 +116,19 @@ export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, on
             </button>
           ))}
         </div>
-        <button type="button" onClick={() => set({ bounce: !layer.bounce })} aria-pressed={layer.bounce}
-          className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${layer.bounce ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-          <Waves className="size-3.5" /> Bounce
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Solid chip behind the text — the classic IG Story / WhatsApp
+              status caption look, so captions stay legible over any video
+              frame regardless of colour underneath. */}
+          <button type="button" onClick={() => set({ highlight: !layer.highlight })} aria-pressed={layer.highlight}
+            className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${layer.highlight ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+            <Square className="size-3.5" /> Highlight
+          </button>
+          <button type="button" onClick={() => set({ bounce: !layer.bounce })} aria-pressed={layer.bounce}
+            className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${layer.bounce ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+            <Waves className="size-3.5" /> Bounce
+          </button>
+        </div>
       </div>
     </div>
   );

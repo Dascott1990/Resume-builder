@@ -212,7 +212,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
         <AiSuggestPanel onSuggestion={applyCaptionSuggestion} />
         {selectedClip ? (
           selectedCaption ? (
-            <LayerPanel layer={selectedCaption} onChange={updateCaption} onDelete={removeCaption} />
+            <LayerPanel layer={selectedCaption} onChange={updateCaption} onDelete={removeCaption} accent={accent} />
           ) : (
             <Btn variant="ghost" onClick={addCaption}>
               <Plus className="size-4" /> Add a caption to this clip

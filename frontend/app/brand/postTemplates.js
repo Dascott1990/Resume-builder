@@ -95,7 +95,7 @@ export function makeTextLayer(overrides = {}) {
     text: "Your text",
     font: "sans", weight: 700, italic: false,
     sizeFrac: 0.04, spacingFrac: 0.001, lineHeightMult: 1.25,
-    align: "center", color: "ink", gradientFill: false, bounce: false,
+    align: "center", color: "ink", gradientFill: false, bounce: false, highlight: false,
     x: 0.5, y: 0.46, maxWidthFrac: 0.8,
     ...overrides,
   };
@@ -176,6 +176,8 @@ function fillBounceText(ctx, text, x, y, trackingPx, align, sizePx) {
 function resolveColor(colorKey, accent) {
   if (colorKey === "accent") return accent.primary;
   if (colorKey === "muted") return MUTED;
+  if (colorKey === "white") return "#ffffff";
+  if (colorKey === "black") return "#0a0a0a";
   return INK;
 }
 
@@ -196,8 +198,31 @@ function drawTextLayer(ctx, w, h, layer, accent) {
   const anchorXPx = layer.x * w;
   const topYPx = layer.y * h;
 
+  // Measured up front (not inside the draw loop below) so the highlight
+  // box — drawn BEHIND the text — already knows the block's real
+  // dimensions instead of guessing at them before any line is measured.
+  const widestLine = lines.length ? Math.max(...lines.map((line) => ctx.measureText(line).width)) : 0;
+  const blockW = Math.min(maxWidthPx, widestLine) || sizePx * 2;
+  const blockH = Math.max(lines.length, 1) * lineHeightPx;
+  const boxX = layer.align === "center" ? anchorXPx - blockW / 2 : layer.align === "right" ? anchorXPx - blockW : anchorXPx;
+
+  // The IG Story / WhatsApp status "caption chip" look — a solid block
+  // behind the whole text, not per-line — so captions stay legible over
+  // any video frame regardless of what's underneath.
+  if (layer.highlight && lines.length) {
+    const padX = sizePx * 0.34, padY = sizePx * 0.22;
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    const rx = boxX - padX, ry = topYPx - padY, rw = blockW + padX * 2, rh = blockH + padY * 2;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, sizePx * 0.16);
+    else ctx.rect(rx, ry, rw, rh);
+    ctx.fill();
+    ctx.restore();
+  }
+
   if (layer.gradientFill) {
-    const gradient = ctx.createLinearGradient(0, topYPx, 0, topYPx + lines.length * lineHeightPx);
+    const gradient = ctx.createLinearGradient(0, topYPx, 0, topYPx + blockH);
     gradient.addColorStop(0, accent.bright);
     gradient.addColorStop(0.38, accent.primary);
     gradient.addColorStop(1, accent.deep);
@@ -207,18 +232,13 @@ function drawTextLayer(ctx, w, h, layer, accent) {
   }
 
   let lineY = topYPx + sizePx * 0.85;
-  let widestLine = 0;
   lines.forEach((line) => {
     ctx.font = `${style}${weight} ${sizePx}px ${FONT_STACKS[layer.font] || FONT_STACKS.sans}`;
-    widestLine = Math.max(widestLine, ctx.measureText(line).width);
     if (layer.bounce) fillBounceText(ctx, line, anchorXPx, lineY, trackingPx, layer.align, sizePx);
     else fillTrackedText(ctx, line, anchorXPx, lineY, trackingPx, layer.align);
     lineY += lineHeightPx;
   });
 
-  const blockW = Math.min(maxWidthPx, widestLine) || sizePx * 2;
-  const blockH = Math.max(lines.length, 1) * lineHeightPx;
-  const boxX = layer.align === "center" ? anchorXPx - blockW / 2 : layer.align === "right" ? anchorXPx - blockW : anchorXPx;
   return { x: boxX, y: topYPx, w: blockW, h: blockH };
 }
 
