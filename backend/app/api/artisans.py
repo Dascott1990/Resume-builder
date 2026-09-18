@@ -15,6 +15,7 @@ from app.middleware.error_handlers import APIError
 from app.utils.auth import get_admin_user, require_artisan_scope, hash_password, verify_password, issue_token
 from app.utils.geocoding import geocode_city, haversine_km
 from app.utils.ratings import recompute_rating
+from app.utils.uploads import validate_upload
 
 artisans_bp = Blueprint("artisans", __name__)
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -382,14 +383,7 @@ def artisan_upload_avatar_photo():
         raise APIError("Artisan account not found", 404)
 
     file = request.files.get("file")
-    if not file or not file.filename:
-        raise APIError("file is required", 400)
-    if not (file.mimetype or "").startswith("image/"):
-        raise APIError("Only image files are allowed", 400)
-
-    data = file.read()
-    if len(data) > MAX_PHOTO_BYTES:
-        raise APIError("Photo must be 5MB or smaller", 400)
+    data = validate_upload(file, allowed_mimetypes=("image/",), max_bytes=MAX_PHOTO_BYTES)
 
     a.avatar_photo_data = data
     a.avatar_photo_mime_type = file.mimetype
@@ -536,14 +530,7 @@ def upload_photo(artisan_id):
     _authorize_edit(a)
 
     file = request.files.get("file")
-    if not file or not file.filename:
-        raise APIError("file is required", 400)
-    if not (file.mimetype or "").startswith("image/"):
-        raise APIError("Only image files are allowed", 400)
-
-    data = file.read()
-    if len(data) > MAX_PHOTO_BYTES:
-        raise APIError("Photo must be 5MB or smaller", 400)
+    data = validate_upload(file, allowed_mimetypes=("image/",), max_bytes=MAX_PHOTO_BYTES)
 
     # New uploads go to the end of the strip by default — sort_order is
     # only ever reordered explicitly via PATCH, never inferred otherwise.

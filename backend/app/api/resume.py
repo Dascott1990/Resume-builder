@@ -22,6 +22,7 @@ from flask import Blueprint, request, jsonify
 from app import db, limiter
 from app.middleware.error_handlers import APIError
 from app.utils.auth import get_scope
+from app.utils.uploads import validate_upload
 
 resume_bp = Blueprint("resume", __name__)
 
@@ -663,16 +664,9 @@ def scan_resume():
     just transcribing it faithfully — resume + cover letter + interview tips
     + apply-method detection, identical output shape to /optimize.
     """
-    if "file" not in request.files:
-        raise APIError("No file uploaded", 400)
-    upload = request.files["file"]
+    upload = request.files.get("file")
+    file_bytes = validate_upload(upload, allowed_extensions=(".pdf", ".docx"), max_bytes=8 * 1024 * 1024)
     filename = (upload.filename or "").lower()
-    if not (filename.endswith(".pdf") or filename.endswith(".docx")):
-        raise APIError("Only .pdf and .docx files are supported", 400)
-
-    file_bytes = upload.read()
-    if len(file_bytes) > 8 * 1024 * 1024:
-        raise APIError("File is too large (8MB max)", 400)
 
     job_desc = (request.form.get("job_description") or "").strip()[:4000]
     tailoring = len(job_desc) >= 50
