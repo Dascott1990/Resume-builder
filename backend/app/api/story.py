@@ -50,6 +50,7 @@ MAX_CLIP_BYTES = 60 * 1024 * 1024
 MAX_TOTAL_UPLOAD_BYTES = 250 * 1024 * 1024
 MAX_GIF_DURATION_SEC = 10  # GIF is for short single-scene loops only, not full stories
 MAX_NARRATION_CHARS = 400  # ~30-40s of speech at espeak's default rate — bounds render time
+MAX_KARAOKE_FRAMES = 60  # mirrors frontend/app/brand/story/ExportPanel.js's MAX_KARAOKE_WORDS
 FFMPEG_TIMEOUT_SEC = 120
 TTS_TIMEOUT_SEC = 30
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -157,7 +158,35 @@ def render_story():
         clip_bytes.append({"kind": kind, "mimetype": mimetype, "data": data, "spec": clip_spec})
 
     caption_bytes = {}
+    # caption_frames_{i}: word-by-word karaoke captions (see ExportPanel.js's
+    # buildCaptionFrames) — a JSON list of {start, end} windows (seconds,
+    # relative to the CLIP's own start) plus one caption_{i}_{j} PNG per
+    # window, each showing a different word highlighted. Falls back to the
+    # single static caption_{i} PNG below when a caption isn't karaoke (or
+    # has no words to time) — that path is untouched.
+    caption_frame_bytes = {}
     for i in range(len(clip_specs)):
+        frames_raw = request.form.get(f"caption_frames_{i}")
+        if frames_raw:
+            try:
+                windows = json.loads(frames_raw)
+            except json.JSONDecodeError:
+                raise APIError(f"caption_frames_{i} must be valid JSON", 400)
+            if not isinstance(windows, list) or not (1 <= len(windows) <= MAX_KARAOKE_FRAMES):
+                raise APIError(f"caption_frames_{i} must be a list of 1-{MAX_KARAOKE_FRAMES} windows", 400)
+            frames = []
+            for j, win in enumerate(windows):
+                if not isinstance(win, dict) or not isinstance(win.get("start"), (int, float)) or not isinstance(win.get("end"), (int, float)):
+                    raise APIError(f"caption_frames_{i}[{j}] must have numeric start/end", 400)
+                frame_file = request.files.get(f"caption_{i}_{j}")
+                if not frame_file:
+                    raise APIError(f"caption_{i}_{j} is required (caption_frames_{i} lists {len(windows)} windows)", 400)
+                if (frame_file.mimetype or "") != "image/png":
+                    raise APIError(f"caption_{i}_{j} must be a PNG", 400)
+                frames.append((frame_file.read(), float(win["start"]), float(win["end"])))
+            caption_frame_bytes[i] = frames
+            continue
+
         cap_file = request.files.get(f"caption_{i}")
         if cap_file:
             if (cap_file.mimetype or "") != "image/png":
@@ -174,7 +203,7 @@ def render_story():
 
     workdir = tempfile.mkdtemp(prefix="story_")
     try:
-        out_bytes, mime_type, ext = _render_story(workdir, clip_bytes, caption_bytes, platform_id, output_format)
+        out_bytes, mime_type, ext = _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platform_id, output_format)
     except subprocess.TimeoutExpired:
         raise APIError("Render timed out — try fewer or shorter clips", 504)
     except Exception as exc:
@@ -207,7 +236,7 @@ def render_story():
     )
 
 
-def _render_story(workdir, clip_bytes, caption_bytes, platform_id, output_format):
+def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platform_id, output_format):
     w, h = PLATFORMS[platform_id]
     # Once ANY clip carries narration, every segment needs the same
     # stream layout (video+audio) or the concat demuxer's stream-copy in
@@ -224,11 +253,26 @@ def _render_story(workdir, clip_bytes, caption_bytes, platform_id, output_format
         with open(src_path, "wb") as f:
             f.write(clip["data"])
 
-        caption_path = None
-        if i in caption_bytes:
+        # (path, start, end) per overlay to apply, in order — either the
+        # N per-word karaoke frames for this clip, or a single window
+        # covering the whole segment for a plain static caption. Segment
+        # duration can still grow past `end` on the last window (narration
+        # running long — see below), which is exactly why that window's
+        # `end` is a large sentinel rather than the clip's nominal length:
+        # the last-shown word/caption just holds through the overrun
+        # instead of going dark before the segment actually ends.
+        caption_frames = []
+        if i in caption_frame_bytes:
+            for j, (data, start, end) in enumerate(caption_frame_bytes[i]):
+                p = os.path.join(workdir, f"caption_{i}_{j}.png")
+                with open(p, "wb") as f:
+                    f.write(data)
+                caption_frames.append((p, start, end))
+        elif i in caption_bytes:
             caption_path = os.path.join(workdir, f"caption_{i}.png")
             with open(caption_path, "wb") as f:
                 f.write(caption_bytes[i])
+            caption_frames.append((caption_path, 0.0, 99999.0))
 
         narration_text = (clip["spec"].get("narration_text") or "").strip()
         narration_wav, narration_duration = None, 0.0
@@ -260,10 +304,22 @@ def _render_story(workdir, clip_bytes, caption_bytes, platform_id, output_format
 
         next_idx = 1
         filter_parts = []
-        if caption_path:
-            video_inputs += ["-i", caption_path]
-            filter_parts.append(f"{video_chain}[bg];[bg][{next_idx}:v]overlay=0:0:format=auto[outv]")
-            next_idx += 1
+        if caption_frames:
+            # Chained overlays, each gated to its own [start,end) window
+            # via `enable` — outside that window the overlay is skipped
+            # entirely and the previous stage's frame passes through
+            # untouched, so only ever one caption image is visible at a
+            # time even though every frame's overlay is in the graph.
+            label = "bg"
+            filter_parts.append(f"{video_chain}[{label}]")
+            for j, (path, start, end) in enumerate(caption_frames):
+                video_inputs += ["-i", path]
+                out_label = "outv" if j == len(caption_frames) - 1 else f"cap{j}"
+                filter_parts.append(
+                    f"[{label}][{next_idx}:v]overlay=0:0:format=auto:enable='between(t,{start:.3f},{end:.3f})'[{out_label}]"
+                )
+                label = out_label
+                next_idx += 1
         else:
             filter_parts.append(f"{video_chain}[outv]")
 

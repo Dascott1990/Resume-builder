@@ -16,7 +16,7 @@
  */
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Trash2, SendToBack, BringToFront, Copy, AlignLeft, AlignCenter, AlignRight, Waves, Square,
+  Trash2, SendToBack, BringToFront, Copy, AlignLeft, AlignCenter, AlignRight, Waves, Square, Captions,
 } from "lucide-react";
 import { FONT_OPTIONS } from "./postTemplates";
 
@@ -56,7 +56,7 @@ function LayerHeaderRow({ label, onDuplicate, onFront, onBack, onDelete }) {
   );
 }
 
-export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, onBack, accent }) {
+export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, onBack, accent, showKaraoke }) {
   if (!layer) return null;
   const set = (patch) => onChange({ ...layer, ...patch });
 
@@ -128,6 +128,15 @@ export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, on
             className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${layer.bounce ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
             <Waves className="size-3.5" /> Bounce
           </button>
+          {/* Only where there's a clip duration to time words against —
+              Create's layers have no time axis, so this only shows up
+              from Story's caption editor (see StoryComposer.js). */}
+          {showKaraoke && (
+            <button type="button" onClick={() => set({ karaoke: !layer.karaoke })} aria-pressed={layer.karaoke}
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${layer.karaoke ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+              <Captions className="size-3.5" /> Karaoke
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -27,18 +27,42 @@ import { getToken } from "@/lib/authToken";
 import { PLATFORMS, renderPost } from "../postTemplates";
 import { canvasToPngBlob, downloadBlob } from "../assetKit";
 import { clipLengthSec } from "./clipModel";
+import { wordTimings } from "./karaoke";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL;
 const MAX_GIF_DURATION_SEC = 10; // mirrors backend/app/api/story.py's cap
 const LAST_EMAIL_KEY = "noqeev_brand_last_email";
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+// A generous ceiling on how many per-word overlay frames one caption can
+// generate — not a text truncation (the full caption still renders every
+// frame, just this many distinct highlight positions), just a bound on
+// render time/ffmpeg filter-graph size for an unreasonably long caption.
+const MAX_KARAOKE_WORDS = 60;
 
-async function buildCaptionPng(clip, w, h, accent) {
+async function renderCaptionFrame(clip, w, h, accent, activeWordIndex) {
   const canvas = document.createElement("canvas");
   canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext("2d");
-  renderPost(ctx, w, h, clip.captionLayers, null, accent, "", {}, { skipBackground: true, skipStamp: true });
+  renderPost(ctx, w, h, clip.captionLayers, null, accent, "", {}, { skipBackground: true, skipStamp: true, activeWordIndex });
   return canvasToPngBlob(canvas);
+}
+
+// One static PNG for a plain caption (unchanged from before); for a
+// karaoke caption, one PNG PER WORD (each showing that word boxed in the
+// accent colour) plus the [{start,end}] window each frame is visible
+// for — backend/app/api/story.py chains them as timed ffmpeg overlays so
+// the exported video actually shows the same word-by-word highlight the
+// live preview does, not just a static caption.
+async function buildCaptionFrames(clip, w, h, accent) {
+  const caption = clip.captionLayers?.[0];
+  const timings = caption?.karaoke ? wordTimings(caption.text, clipLengthSec(clip)).slice(0, MAX_KARAOKE_WORDS) : [];
+
+  if (!timings.length) {
+    return { blobs: [await renderCaptionFrame(clip, w, h, accent, null)], timings: [{ start: 0, end: 99999 }] };
+  }
+  const blobs = [];
+  for (let i = 0; i < timings.length; i++) blobs.push(await renderCaptionFrame(clip, w, h, accent, i));
+  return { blobs, timings: timings.map((t) => ({ start: t.start, end: t.end === Infinity ? 99999 : t.end })) };
 }
 
 async function buildFormData(clips, platformId, outputFormat, accent) {
@@ -56,8 +80,13 @@ async function buildFormData(clips, platformId, outputFormat, accent) {
         : { kind: "video", trim_in: clip.trimIn, trim_out: clip.trimOut, has_caption: hasCaption, narration_text: narrationText },
     );
     if (hasCaption) {
-      const blob = await buildCaptionPng(clip, w, h, accent);
-      formData.append(`caption_${i}`, blob, `caption_${i}.png`);
+      const { blobs, timings } = await buildCaptionFrames(clip, w, h, accent);
+      if (blobs.length === 1) {
+        formData.append(`caption_${i}`, blobs[0], `caption_${i}.png`);
+      } else {
+        formData.append(`caption_frames_${i}`, JSON.stringify(timings));
+        blobs.forEach((blob, j) => formData.append(`caption_${i}_${j}`, blob, `caption_${i}_${j}.png`));
+      }
     }
   }
   formData.append("spec", JSON.stringify({ platform_id: platformId, output_format: outputFormat, clips: clipSpecs }));

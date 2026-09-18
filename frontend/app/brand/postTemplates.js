@@ -95,7 +95,7 @@ export function makeTextLayer(overrides = {}) {
     text: "Your text",
     font: "sans", weight: 700, italic: false,
     sizeFrac: 0.04, spacingFrac: 0.001, lineHeightMult: 1.25,
-    align: "center", color: "ink", gradientFill: false, bounce: false, highlight: false,
+    align: "center", color: "ink", gradientFill: false, bounce: false, highlight: false, karaoke: false,
     x: 0.5, y: 0.46, maxWidthFrac: 0.8,
     ...overrides,
   };
@@ -242,6 +242,96 @@ function drawTextLayer(ctx, w, h, layer, accent) {
   return { x: boxX, y: topYPx, w: blockW, h: blockH };
 }
 
+function measureWordWidth(ctx, word, trackingPx) {
+  const widths = [...word].map((ch) => ctx.measureText(ch).width);
+  return widths.reduce((a, b) => a + b, 0) + trackingPx * Math.max(0, word.length - 1);
+}
+
+/** The CapCut/TikTok "auto-caption" look — same text layer as
+ * drawTextLayer, but laid out WORD by word (not line by line) so
+ * `activeIndex` (see karaoke.js's activeWordIndex) can be boxed in the
+ * accent colour while every other word stays in the layer's normal
+ * colour. Returns the same bbox shape as drawTextLayer, for identical
+ * drag hit-testing whichever renderer actually drew this layer. */
+function drawKaraokeTextLayer(ctx, w, h, layer, accent, activeIndex) {
+  const sizePx = layer.sizeFrac * w;
+  const trackingPx = layer.spacingFrac * w;
+  const lineHeightPx = sizePx * layer.lineHeightMult;
+  const maxWidthPx = layer.maxWidthFrac * w;
+  const weight = layer.weight || 700;
+  const style = layer.italic ? "italic " : "";
+  ctx.font = `${style}${weight} ${sizePx}px ${FONT_STACKS[layer.font] || FONT_STACKS.sans}`;
+  ctx.textBaseline = "alphabetic";
+
+  const words = (layer.text || "").trim().split(/\s+/).filter(Boolean);
+  const spaceWidth = ctx.measureText(" ").width + trackingPx;
+  const anchorXPx = layer.x * w;
+  const topYPx = layer.y * h;
+
+  // Word-wrap into lines while keeping each word's own measured width —
+  // drawTextLayer only needs whole-line widths, but positioning (and
+  // boxing) one word at a time needs to know where each one starts.
+  const lines = [];
+  let current = [];
+  let currentWidth = 0;
+  words.forEach((word) => {
+    const wordW = measureWordWidth(ctx, word, trackingPx);
+    const attemptWidth = current.length ? currentWidth + spaceWidth + wordW : wordW;
+    if (attemptWidth > maxWidthPx && current.length) {
+      lines.push({ words: current, width: currentWidth });
+      current = [{ word, width: wordW }];
+      currentWidth = wordW;
+    } else {
+      current.push({ word, width: wordW });
+      currentWidth = attemptWidth;
+    }
+  });
+  if (current.length) lines.push({ words: current, width: currentWidth });
+
+  const blockW = Math.min(maxWidthPx, lines.length ? Math.max(...lines.map((l) => l.width)) : 0) || sizePx * 2;
+  const blockH = Math.max(lines.length, 1) * lineHeightPx;
+  const boxX = layer.align === "center" ? anchorXPx - blockW / 2 : layer.align === "right" ? anchorXPx - blockW : anchorXPx;
+
+  if (layer.highlight && lines.length) {
+    const padX = sizePx * 0.34, padY = sizePx * 0.22;
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    const rx = boxX - padX, ry = topYPx - padY, rw = blockW + padX * 2, rh = blockH + padY * 2;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, sizePx * 0.16);
+    else ctx.rect(rx, ry, rw, rh);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  let globalIndex = 0;
+  let lineY = topYPx + sizePx * 0.85;
+  lines.forEach((line) => {
+    let cursor = layer.align === "center" ? anchorXPx - line.width / 2 : layer.align === "right" ? anchorXPx - line.width : anchorXPx;
+    line.words.forEach(({ word, width }) => {
+      const isActive = globalIndex === activeIndex;
+      if (isActive) {
+        const padX = sizePx * 0.16, padY = sizePx * 0.14;
+        ctx.save();
+        ctx.fillStyle = accent.primary;
+        const rx = cursor - padX, ry = lineY - sizePx * 0.78 - padY, rw = width + padX * 2, rh = sizePx + padY * 2;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, sizePx * 0.14);
+        else ctx.rect(rx, ry, rw, rh);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.fillStyle = isActive ? "#ffffff" : resolveColor(layer.color, accent);
+      fillTrackedText(ctx, word, cursor, lineY, trackingPx, "left");
+      cursor += width + spaceWidth;
+      globalIndex++;
+    });
+    lineY += lineHeightPx;
+  });
+
+  return { x: boxX, y: topYPx, w: blockW, h: blockH };
+}
+
 function drawStickerLayer(ctx, w, h, images, layer) {
   const sizePx = layer.sizeFrac * w;
   const cx = layer.x * w, cy = layer.y * h;
@@ -272,7 +362,7 @@ export function renderPost(ctx, w, h, layers, markImg, accent, handle, stickerIm
   // transparent canvas, so the result composites correctly via ffmpeg's
   // overlay filter). Every existing call site passes no 9th argument, so
   // both default to false and this is a no-op change for them.
-  const { skipBackground = false, skipStamp = false } = opts;
+  const { skipBackground = false, skipStamp = false, activeWordIndex } = opts;
   if (!skipBackground) {
     paintBase(ctx, w, h);
     paintGlow(ctx, w, h, w * 0.82, h * 0.14, w * 0.6, accent);
@@ -280,8 +370,13 @@ export function renderPost(ctx, w, h, layers, markImg, accent, handle, stickerIm
 
   const boxes = new Map();
   for (const layer of layers) {
-    if (layer.type === "text") boxes.set(layer.id, drawTextLayer(ctx, w, h, layer, accent));
-    else boxes.set(layer.id, drawStickerLayer(ctx, w, h, stickerImages, layer));
+    if (layer.type !== "text") { boxes.set(layer.id, drawStickerLayer(ctx, w, h, stickerImages, layer)); continue; }
+    boxes.set(
+      layer.id,
+      layer.karaoke && activeWordIndex != null
+        ? drawKaraokeTextLayer(ctx, w, h, layer, accent, activeWordIndex)
+        : drawTextLayer(ctx, w, h, layer, accent),
+    );
   }
 
   if (markImg && !skipStamp) {

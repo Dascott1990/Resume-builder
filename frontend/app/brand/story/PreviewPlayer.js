@@ -19,6 +19,7 @@ import { Play, Pause } from "lucide-react";
 import { renderPost } from "../postTemplates";
 import { ensureFontsReady } from "../assetKit";
 import { clipLengthSec } from "./clipModel";
+import { wordTimings, activeWordIndex as pickActiveWordIndex } from "./karaoke";
 
 function drawContain(ctx, el, naturalW, naturalH, w, h) {
   ctx.fillStyle = "#000";
@@ -85,8 +86,15 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
     }
     drawContain(ctx, clip.el, clip.naturalW, clip.naturalH, w, h);
     if (clip.captionLayers?.length) {
-      const boxes = renderPost(ctx, w, h, clip.captionLayers, null, accent, "", {}, { skipBackground: true, skipStamp: true });
-      captionBoxRef.current = boxes.get(clip.captionLayers[0].id) || null;
+      const caption = clip.captionLayers[0];
+      // Word timing is derived fresh each redraw from the clip's own
+      // duration, not memoized — cheap (a handful of words) and it needs
+      // to track clip length live as the timeline's duration slider moves.
+      const activeWordIndex = caption.karaoke
+        ? pickActiveWordIndex(wordTimings(caption.text, clipLengthSec(clip)), local)
+        : null;
+      const boxes = renderPost(ctx, w, h, clip.captionLayers, null, accent, "", {}, { skipBackground: true, skipStamp: true, activeWordIndex });
+      captionBoxRef.current = boxes.get(caption.id) || null;
     } else {
       captionBoxRef.current = null;
     }
