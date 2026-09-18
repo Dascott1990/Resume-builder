@@ -48,7 +48,8 @@ import { AiSuggestPanel } from "../AiSuggestPanel";
 import { ClipTimeline } from "./ClipTimeline";
 import { PreviewPlayer } from "./PreviewPlayer";
 import { ExportPanel } from "./ExportPanel";
-import { releaseClip } from "./clipModel";
+import { releaseClip, loadClipFromFile } from "./clipModel";
+import { saveStoryDraft, loadStoryDraft } from "./draftStore";
 
 const MAX_NARRATION_CHARS = 400; // mirrors backend/app/api/story.py's cap
 
@@ -135,6 +136,69 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   // Clips carry object URLs that must be revoked eventually — release
   // every one still held when the tool itself unmounts.
   useEffect(() => () => { clips.forEach(releaseClip); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Restore whatever was in progress last time, once, on mount — a
+  // refresh (or just coming back later) used to lose every clip, caption,
+  // and voice-over with nothing to show for it. draftStore.js keeps the
+  // actual uploaded File objects in IndexedDB (not just JSON), so this
+  // rebuilds the same clip elements loadClipFromFile would from a fresh
+  // upload — object URLs and <img>/<video> elements don't survive a
+  // reload themselves, everything else about the clip does.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const draft = await loadStoryDraft();
+      if (cancelled || !draft?.clips?.length) { restoredRef.current = true; return; }
+      try {
+        const restored = await Promise.all(draft.clips.map(async (saved) => {
+          const loaded = await loadClipFromFile(saved.file);
+          return {
+            ...loaded, id: saved.id, durationSec: saved.durationSec, trimIn: saved.trimIn,
+            trimOut: saved.trimOut, captionLayers: saved.captionLayers || [], narrationText: saved.narrationText || "",
+          };
+        }));
+        if (cancelled) return;
+        setClipsRaw(restored);
+        historyRef.current = [restored];
+        historyIndexRef.current = 0;
+        setHistoryTick((t) => t + 1);
+        setSelectedIndex(0);
+        if (draft.platformId) setPlatformId(draft.platformId);
+        if (draft.outputFormat) setOutputFormat(draft.outputFormat);
+        toast.success(`Picked up where you left off — ${restored.length} clip${restored.length === 1 ? "" : "s"} restored.`);
+      } catch {
+        // A corrupt/unreadable draft is discarded, not shown as an error —
+        // this is a convenience restore, never something that should block
+        // starting fresh.
+      } finally {
+        restoredRef.current = true;
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Autosaves after every settled change (debounced so a dragged slider
+  // or fast typing doesn't write on every intermediate value) — not on
+  // an explicit "save" action, because losing progress by forgetting to
+  // press one is exactly the failure this exists to prevent. Skipped
+  // until the restore effect above has run once, so a still-loading
+  // draft is never overwritten with the empty state a fresh mount starts
+  // from.
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    const timer = setTimeout(() => {
+      saveStoryDraft({
+        platformId, outputFormat,
+        clips: clips.map((c) => ({
+          id: c.id, kind: c.kind, file: c.file, naturalW: c.naturalW, naturalH: c.naturalH,
+          naturalDurationSec: c.naturalDurationSec, durationSec: c.durationSec, trimIn: c.trimIn,
+          trimOut: c.trimOut, captionLayers: c.captionLayers, narrationText: c.narrationText,
+        })),
+      });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [clips, platformId, outputFormat]);
 
   const handleAdd = (clip) => {
     setClips((cs) => [...cs, clip]);

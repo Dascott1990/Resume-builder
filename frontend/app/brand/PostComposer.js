@@ -32,7 +32,7 @@ import { BottomSheet } from "@/components/premium/shared/BottomSheet";
 import { useViewport } from "@/lib/useViewport";
 import {
   loadMarkImage, ensureFontsReady, canvasToPngBlob, downloadBlob,
-  loadHandle, saveHandle,
+  loadHandle, saveHandle, loadPostDraft, savePostDraft,
 } from "./assetKit";
 import {
   renderPost, PLATFORMS, DEFAULT_ACCENT, SHAPES, INITIAL_LAYOUTS,
@@ -135,10 +135,39 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [undo, redo]);
 
+  // Whatever was in progress last time, restored once on mount — a
+  // refresh used to lose every layer and every restyle with nothing to
+  // show for it. Only shapeId/platformId/layers are drafted; ready/mark
+  // image loading below is unrelated and runs regardless.
+  const restoredRef = useRef(false);
   useEffect(() => {
     setHandle(loadHandle());
     Promise.all([loadMarkImage(), ensureFontsReady()]).then(([img]) => { markImgRef.current = img; setReady(true); });
-  }, []);
+
+    const draft = loadPostDraft();
+    if (draft?.layers?.length) {
+      setLayersRaw(draft.layers);
+      historyRef.current = [draft.layers];
+      historyIndexRef.current = 0;
+      setHistoryTick((t) => t + 1);
+      if (draft.shapeId) setShapeId(draft.shapeId);
+      if (draft.platformId) setPlatformId(draft.platformId);
+      toast.success("Picked up your last post.");
+    }
+    restoredRef.current = true;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Debounced so a dragged slider or fast typing doesn't write on every
+  // intermediate value — autosaves after every settled change instead of
+  // an explicit "save" action, so forgetting to press one can't lose
+  // anything. Skipped until the restore above has run once, so the
+  // initial default layers (before a draft is checked for) never
+  // overwrite a real draft that just hasn't loaded yet.
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    const timer = setTimeout(() => savePostDraft({ shapeId, platformId, layers }), 600);
+    return () => clearTimeout(timer);
+  }, [layers, shapeId, platformId]);
 
   const updateHandle = (v) => { setHandle(v); saveHandle(v); };
 

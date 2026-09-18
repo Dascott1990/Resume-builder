@@ -215,3 +215,18 @@ export function loadBrandUiState() {
 export function saveBrandUiState(state) {
   try { localStorage.setItem(UI_STATE_KEY, JSON.stringify(state)); } catch { /* best-effort */ }
 }
+
+// A refresh (or just closing the tab and coming back) used to lose an
+// entire in-progress post — every layer, every restyle. PostComposer's
+// layers/shape/platform are already plain JSON (image stickers are a
+// pasted URL, not an uploaded file — see makeStickerLayer's "kind:
+// image" path in PostComposer.js), so unlike Story's real uploaded clip
+// files (draftStore.js, IndexedDB) this is a normal localStorage
+// autosave, same pattern as everything else on this page.
+const POST_DRAFT_KEY = "noqeev_brand_post_draft";
+export function loadPostDraft() {
+  try { return JSON.parse(localStorage.getItem(POST_DRAFT_KEY) || "null"); } catch { return null; }
+}
+export function savePostDraft(draft) {
+  try { localStorage.setItem(POST_DRAFT_KEY, JSON.stringify(draft)); } catch { /* best-effort */ }
+}
