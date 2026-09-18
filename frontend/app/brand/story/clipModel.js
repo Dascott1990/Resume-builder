@@ -64,6 +64,14 @@ export function makeClip(loaded) {
     // caption text" action for that instead, so a clip can be captioned,
     // narrated, or both without one silently overwriting the other.
     narrationText: "",
+    // Voice/tone/speed/fit — all espeak-ng flags server-side (see
+    // backend/app/api/story.py's NARRATION_VOICES etc.), defaults
+    // matching what espeak-ng itself defaults to so an untouched clip
+    // sounds exactly like it did before these controls existed.
+    narrationVoice: "neutral", // "neutral" | "woman" | "man"
+    narrationRate: 165, // words per minute — 80 (slow) to 320 (fast)
+    narrationPitch: 50, // 0 (low) to 99 (high)
+    narrationFit: "extend", // "extend" the clip to fit the voice-over, or "cut" the voice-over short at the clip's own length
   };
 }
 

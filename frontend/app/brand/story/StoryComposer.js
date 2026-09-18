@@ -52,30 +52,88 @@ import { releaseClip, loadClipFromFile } from "./clipModel";
 import { saveStoryDraft, loadStoryDraft } from "./draftStore";
 
 const MAX_NARRATION_CHARS = 400; // mirrors backend/app/api/story.py's cap
+const MIN_NARRATION_RATE = 80; // mirrors backend/app/api/story.py's MIN/MAX_NARRATION_RATE
+const MAX_NARRATION_RATE = 320;
 
-function VoiceOverField({ clip, onChange }) {
+const VOICE_OPTIONS = [
+  { id: "neutral", label: "Neutral" },
+  { id: "woman", label: "Woman" },
+  { id: "man", label: "Man" },
+];
+const FIT_OPTIONS = [
+  { id: "extend", label: "Extend clip", hint: "Clip holds longer if the voice-over runs past it — speech is never cut off." },
+  { id: "cut", label: "Cut to length", hint: "Voice-over stops at the clip's own length, even mid-sentence." },
+];
+
+function VoiceOverField({ clip, onPatch }) {
   const captionText = clip.captionLayers?.[0]?.text || "";
+  const voice = clip.narrationVoice || "neutral";
+  const rate = clip.narrationRate || 165;
+  const pitch = clip.narrationPitch ?? 50;
+  const fit = clip.narrationFit || "extend";
+
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <div className="mb-2.5 flex items-center justify-between">
+    <div className="grid gap-3 rounded-xl border border-border bg-card p-4">
+      <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">
           <Volume2 className="size-3.5" /> Voice-over
         </span>
         {captionText && (
-          <button type="button" onClick={() => onChange(captionText)} className="text-[11px] font-semibold text-primary">
+          <button type="button" onClick={() => onPatch({ narrationText: captionText })} className="text-[11px] font-semibold text-primary">
             Use caption text
           </button>
         )}
       </div>
       <Textarea
         value={clip.narrationText || ""}
-        onChange={(e) => onChange(e.target.value.slice(0, MAX_NARRATION_CHARS))}
+        onChange={(e) => onPatch({ narrationText: e.target.value.slice(0, MAX_NARRATION_CHARS) })}
         rows={2} placeholder="What should be read aloud for this clip — leave blank for silence"
         className="resize-none rounded-[10px] text-[13px]"
       />
-      <p className="m-0 mt-1 text-right text-[10.5px] text-muted-foreground/60">
+      <p className="m-0 -mt-2 text-right text-[10.5px] text-muted-foreground/60">
         {(clip.narrationText || "").length}/{MAX_NARRATION_CHARS}
       </p>
+
+      <div>
+        <p className="m-0 mb-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Voice</p>
+        <div className="flex flex-wrap gap-1.5">
+          {VOICE_OPTIONS.map((v) => (
+            <button key={v.id} type="button" onClick={() => onPatch({ narrationVoice: v.id })} aria-pressed={voice === v.id}
+              className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${voice === v.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+              {v.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1.5 flex items-center justify-between text-[11px] font-bold text-foreground">
+            Speed <span className="font-mono text-[10px] font-normal text-muted-foreground">{rate <= 130 ? "Slow" : rate >= 210 ? "Fast" : "Normal"}</span>
+          </label>
+          <input type="range" min={MIN_NARRATION_RATE} max={MAX_NARRATION_RATE} step="5" value={rate}
+            onChange={(e) => onPatch({ narrationRate: Number(e.target.value) })} className="w-full accent-primary" />
+        </div>
+        <div>
+          <label className="mb-1.5 flex items-center justify-between text-[11px] font-bold text-foreground">
+            Tone <span className="font-mono text-[10px] font-normal text-muted-foreground">{pitch <= 33 ? "Low" : pitch >= 66 ? "High" : "Mid"}</span>
+          </label>
+          <input type="range" min="0" max="99" step="1" value={pitch}
+            onChange={(e) => onPatch({ narrationPitch: Number(e.target.value) })} className="w-full accent-primary" />
+        </div>
+      </div>
+
+      <div>
+        <p className="m-0 mb-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">If it runs long</p>
+        <div className="flex flex-wrap gap-1.5">
+          {FIT_OPTIONS.map((f) => (
+            <button key={f.id} type="button" onClick={() => onPatch({ narrationFit: f.id })} aria-pressed={fit === f.id} title={f.hint}
+              className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${fit === f.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -156,6 +214,8 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
           return {
             ...loaded, id: saved.id, durationSec: saved.durationSec, trimIn: saved.trimIn,
             trimOut: saved.trimOut, captionLayers: saved.captionLayers || [], narrationText: saved.narrationText || "",
+            narrationVoice: saved.narrationVoice || "neutral", narrationRate: saved.narrationRate || 165,
+            narrationPitch: saved.narrationPitch ?? 50, narrationFit: saved.narrationFit || "extend",
           };
         }));
         if (cancelled) return;
@@ -194,6 +254,8 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
           id: c.id, kind: c.kind, file: c.file, naturalW: c.naturalW, naturalH: c.naturalH,
           naturalDurationSec: c.naturalDurationSec, durationSec: c.durationSec, trimIn: c.trimIn,
           trimOut: c.trimOut, captionLayers: c.captionLayers, narrationText: c.narrationText,
+          narrationVoice: c.narrationVoice, narrationRate: c.narrationRate,
+          narrationPitch: c.narrationPitch, narrationFit: c.narrationFit,
         })),
       });
     }, 600);
@@ -255,9 +317,9 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     const layer = makeTextLayer({ text });
     setClips((cs) => cs.map((c, i) => (i === selectedIndex ? { ...c, captionLayers: [layer] } : c)));
   };
-  const updateNarration = (text) => {
+  const updateNarration = (patch) => {
     if (selectedIndex == null) return;
-    handleUpdateClip(selectedIndex, { narrationText: text });
+    handleUpdateClip(selectedIndex, patch);
   };
 
   // Caption + Voice only — Export deliberately isn't a third tab here
@@ -301,7 +363,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
 
       <TabsContent value="voice">
         {selectedClip ? (
-          <VoiceOverField clip={selectedClip} onChange={updateNarration} />
+          <VoiceOverField clip={selectedClip} onPatch={updateNarration} />
         ) : (
           <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
             Select a clip to add a voice-over

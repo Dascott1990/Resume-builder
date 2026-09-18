@@ -79,6 +79,14 @@ async function buildFormData(clips, platformId, outputFormat, accent) {
         ? { kind: "image", duration_sec: clip.durationSec, has_caption: hasCaption, narration_text: narrationText }
         : { kind: "video", trim_in: clip.trimIn, trim_out: clip.trimOut, has_caption: hasCaption, narration_text: narrationText },
     );
+    if (narrationText) {
+      Object.assign(clipSpecs[clipSpecs.length - 1], {
+        narration_voice: clip.narrationVoice || "neutral",
+        narration_rate: clip.narrationRate || 165,
+        narration_pitch: clip.narrationPitch ?? 50,
+        narration_fit: clip.narrationFit || "extend",
+      });
+    }
     if (hasCaption) {
       const { blobs, timings } = await buildCaptionFrames(clip, w, h, accent);
       if (blobs.length === 1) {

@@ -55,6 +55,19 @@ FFMPEG_TIMEOUT_SEC = 120
 TTS_TIMEOUT_SEC = 30
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
+# Voice/tone/speed controls for the narration — all just espeak-ng flags,
+# no new vendor or model: "woman"/"man" are espeak-ng's own built-in
+# formant-shifted variants of the one en-us voice (+f3/+m3), not separate
+# voice packs — nothing extra to install beyond what render.yaml already
+# apt-gets. Pitch is espeak-ng's own 0-99 "-p" scale (its idea of low ↔
+# high tone); rate is words-per-minute via "-s", clamped to espeak-ng's
+# own sane bounds so a wild client value can't make TTS pathologically
+# slow (ties up the request) or so fast it desyncs badly from the clip.
+NARRATION_VOICES = {"neutral": "en-us", "woman": "en-us+f3", "man": "en-us+m3"}
+MIN_NARRATION_RATE, MAX_NARRATION_RATE, DEFAULT_NARRATION_RATE = 80, 320, 165
+MIN_NARRATION_PITCH, MAX_NARRATION_PITCH, DEFAULT_NARRATION_PITCH = 0, 99, 50
+VALID_NARRATION_FITS = ("extend", "cut")
+
 
 def _clip_duration(clip_spec):
     if clip_spec["kind"] == "image":
@@ -71,14 +84,15 @@ def _run_ffmpeg(args, cwd):
         raise RuntimeError(result.stderr.decode(errors="replace")[-800:])
 
 
-def _tts_wav(workdir, text, index):
+def _tts_wav(workdir, text, index, voice="neutral", rate=DEFAULT_NARRATION_RATE, pitch=DEFAULT_NARRATION_PITCH):
     """espeak-ng, not a paid neural TTS API — free, offline, zero new
     credentials (explicit tradeoff the user chose: synthetic-sounding
     over natural-sounding, to avoid provisioning a new vendor). Installed
     via apt in render.yaml's buildCommand, same mechanism as ffmpeg."""
     wav_path = os.path.join(workdir, f"narration_{index}.wav")
+    voice_flag = NARRATION_VOICES.get(voice, NARRATION_VOICES["neutral"])
     result = subprocess.run(
-        ["espeak-ng", "-s", "165", "-w", wav_path, text],
+        ["espeak-ng", "-v", voice_flag, "-s", str(rate), "-p", str(pitch), "-w", wav_path, text],
         cwd=workdir, timeout=TTS_TIMEOUT_SEC, capture_output=True,
     )
     if result.returncode != 0:
@@ -148,6 +162,18 @@ def render_story():
         if narration_text is not None:
             if not isinstance(narration_text, str) or len(narration_text) > MAX_NARRATION_CHARS:
                 raise APIError(f"clips[{i}].narration_text must be a string under {MAX_NARRATION_CHARS} characters", 400)
+        # Clamped rather than rejected — these come off sliders in the UI,
+        # not typed input, so a value that's merely out of range (a stale
+        # draft from before the range changed, a client bug) should just
+        # get pulled back in bounds instead of failing the whole render.
+        if clip_spec.get("narration_voice") not in NARRATION_VOICES:
+            clip_spec["narration_voice"] = "neutral"
+        rate = clip_spec.get("narration_rate")
+        clip_spec["narration_rate"] = min(MAX_NARRATION_RATE, max(MIN_NARRATION_RATE, rate)) if isinstance(rate, (int, float)) else DEFAULT_NARRATION_RATE
+        pitch = clip_spec.get("narration_pitch")
+        clip_spec["narration_pitch"] = min(MAX_NARRATION_PITCH, max(MIN_NARRATION_PITCH, pitch)) if isinstance(pitch, (int, float)) else DEFAULT_NARRATION_PITCH
+        if clip_spec.get("narration_fit") not in VALID_NARRATION_FITS:
+            clip_spec["narration_fit"] = "extend"
 
         data = file.read()
         if len(data) > MAX_CLIP_BYTES:
@@ -277,15 +303,29 @@ def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platf
         narration_text = (clip["spec"].get("narration_text") or "").strip()
         narration_wav, narration_duration = None, 0.0
         if narration_text:
-            narration_wav = _tts_wav(workdir, narration_text, i)
-            narration_duration = _probe_duration(narration_wav)
+            narration_wav = _tts_wav(
+                workdir, narration_text, i,
+                voice=clip["spec"].get("narration_voice", "neutral"),
+                rate=clip["spec"].get("narration_rate", DEFAULT_NARRATION_RATE),
+                pitch=clip["spec"].get("narration_pitch", DEFAULT_NARRATION_PITCH),
+            )
+            # "cut" means the clip's own set duration/trim window wins even
+            # if the voice-over runs longer — narration_duration only
+            # exists below to LENGTHEN the segment, so leaving it at 0
+            # here is enough: every -t <duration> encode further down
+            # already truncates whatever audio came in to that length, no
+            # separate audio-trim step needed. "extend" (the default) is
+            # the original behavior — never cut speech off.
+            if clip["spec"].get("narration_fit") != "cut":
+                narration_duration = _probe_duration(narration_wav)
 
         seg_path = os.path.join(workdir, f"seg_{i}.mp4")
         scale_pad = f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1"
 
         if clip["kind"] == "image":
             # Hold the frame at least as long as the narration takes to
-            # read — never shorter, so speech is never cut off.
+            # read — never shorter, so speech is never cut off (unless
+            # narration_fit is "cut" — see above).
             duration = max(float(clip["spec"]["duration_sec"]), narration_duration)
             video_inputs = ["-loop", "1", "-i", src_path]
             video_chain = f"[0:v]{scale_pad}"
