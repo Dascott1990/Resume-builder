@@ -36,7 +36,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2 } from "lucide-react";
+import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2, Copy } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -65,7 +65,7 @@ const FIT_OPTIONS = [
   { id: "cut", label: "Cut to length", hint: "Voice-over stops at the clip's own length, even mid-sentence." },
 ];
 
-function VoiceOverField({ clip, onPatch }) {
+function VoiceOverField({ clip, onPatch, onApplyToAll }) {
   const captionText = clip.captionLayers?.[0]?.text || "";
   const voice = clip.narrationVoice || "neutral";
   const rate = clip.narrationRate || 165;
@@ -134,6 +134,17 @@ function VoiceOverField({ clip, onPatch }) {
           ))}
         </div>
       </div>
+
+      {/* Voice/speed/tone/fit only — narrationText is each clip's own
+          spoken words, copying that would overwrite every clip's script
+          with this one's. Only shown once there's more than one clip to
+          actually apply it to. */}
+      {onApplyToAll && (
+        <button type="button" onClick={onApplyToAll}
+          className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-[11.5px] font-bold text-muted-foreground hover:border-primary/30 hover:text-primary">
+          <Copy className="size-3.5" /> Apply voice, speed & tone to all clips
+        </button>
+      )}
     </div>
   );
 }
@@ -321,6 +332,20 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     if (selectedIndex == null) return;
     handleUpdateClip(selectedIndex, patch);
   };
+  // Voice/speed/tone/fit only, not narrationText — the words spoken are
+  // per-clip content, but "I picked man voice, fast, cut to length" is a
+  // STYLE choice someone reasonably wants consistent across every clip in
+  // the story without re-picking it clip by clip.
+  const applyVoiceSettingsToAll = () => {
+    if (selectedIndex == null) return;
+    const src = clips[selectedIndex];
+    setClips((cs) => cs.map((c) => ({
+      ...c,
+      narrationVoice: src.narrationVoice, narrationRate: src.narrationRate,
+      narrationPitch: src.narrationPitch, narrationFit: src.narrationFit,
+    })));
+    toast.success(`Applied to all ${clips.length} clips.`);
+  };
 
   // Caption + Voice only — Export deliberately isn't a third tab here
   // anymore. Create keeps Download/Email as a separate, always-visible
@@ -363,7 +388,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
 
       <TabsContent value="voice">
         {selectedClip ? (
-          <VoiceOverField clip={selectedClip} onPatch={updateNarration} />
+          <VoiceOverField clip={selectedClip} onPatch={updateNarration} onApplyToAll={clips.length > 1 ? applyVoiceSettingsToAll : null} />
         ) : (
           <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
             Select a clip to add a voice-over
