@@ -36,7 +36,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2, Copy } from "lucide-react";
+import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2, VolumeX, Copy } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -71,6 +71,8 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
   const rate = clip.narrationRate || 165;
   const pitch = clip.narrationPitch ?? 50;
   const fit = clip.narrationFit || "extend";
+  const volume = clip.narrationVolume ?? 1;
+  const muted = !!clip.narrationMuted;
 
   return (
     <div className="grid gap-3 rounded-xl border border-border bg-card p-4">
@@ -78,11 +80,20 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
         <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">
           <Volume2 className="size-3.5" /> Voice-over
         </span>
-        {captionText && (
-          <button type="button" onClick={() => onPatch({ narrationText: captionText })} className="text-[11px] font-semibold text-primary">
-            Use caption text
+        <div className="flex items-center gap-3">
+          {captionText && (
+            <button type="button" onClick={() => onPatch({ narrationText: captionText })} className="text-[11px] font-semibold text-primary">
+              Use caption text
+            </button>
+          )}
+          {/* Silences without losing the typed script or any other
+              setting here — flip it back on and everything (voice,
+              speed, tone, volume) is exactly as it was. */}
+          <button type="button" onClick={() => onPatch({ narrationMuted: !muted })} aria-pressed={muted} title={muted ? "Unmute" : "Mute"}
+            className={`flex size-8 items-center justify-center rounded-full ${muted ? "bg-destructive/10 text-destructive" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+            {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
           </button>
-        )}
+        </div>
       </div>
       <Textarea
         value={clip.narrationText || ""}
@@ -94,55 +105,67 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
         {(clip.narrationText || "").length}/{MAX_NARRATION_CHARS}
       </p>
 
-      <div>
-        <p className="m-0 mb-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Voice</p>
-        <div className="flex flex-wrap gap-1.5">
-          {VOICE_OPTIONS.map((v) => (
-            <button key={v.id} type="button" onClick={() => onPatch({ narrationVoice: v.id })} aria-pressed={voice === v.id}
-              className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${voice === v.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-              {v.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
+      {/* Dimmed and inert while muted — nothing here does anything
+          audible right now, and greying it out says so at a glance
+          instead of leaving every control looking live when it isn't. */}
+      <div className={`grid gap-3 ${muted ? "pointer-events-none opacity-40" : ""}`}>
         <div>
-          <label className="mb-1.5 flex items-center justify-between text-[11px] font-bold text-foreground">
-            Speed <span className="font-mono text-[10px] font-normal text-muted-foreground">{rate <= 130 ? "Slow" : rate >= 210 ? "Fast" : "Normal"}</span>
-          </label>
-          <input type="range" min={MIN_NARRATION_RATE} max={MAX_NARRATION_RATE} step="5" value={rate}
-            onChange={(e) => onPatch({ narrationRate: Number(e.target.value) })} className="w-full accent-primary" />
+          <p className="m-0 mb-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Voice</p>
+          <div className="flex flex-wrap gap-1.5">
+            {VOICE_OPTIONS.map((v) => (
+              <button key={v.id} type="button" onClick={() => onPatch({ narrationVoice: v.id })} aria-pressed={voice === v.id}
+                className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${voice === v.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+                {v.label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        <div className="grid grid-cols-3 gap-2.5">
+          <div>
+            <label className="mb-1.5 block text-[11px] font-bold text-foreground">
+              Speed <span className="block font-mono text-[9.5px] font-normal text-muted-foreground">{rate <= 130 ? "Slow" : rate >= 210 ? "Fast" : "Normal"}</span>
+            </label>
+            <input type="range" min={MIN_NARRATION_RATE} max={MAX_NARRATION_RATE} step="5" value={rate}
+              onChange={(e) => onPatch({ narrationRate: Number(e.target.value) })} className="w-full accent-primary" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-[11px] font-bold text-foreground">
+              Tone <span className="block font-mono text-[9.5px] font-normal text-muted-foreground">{pitch <= 33 ? "Low" : pitch >= 66 ? "High" : "Mid"}</span>
+            </label>
+            <input type="range" min="0" max="99" step="1" value={pitch}
+              onChange={(e) => onPatch({ narrationPitch: Number(e.target.value) })} className="w-full accent-primary" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-[11px] font-bold text-foreground">
+              Volume <span className="block font-mono text-[9.5px] font-normal text-muted-foreground">{Math.round(volume * 100)}%</span>
+            </label>
+            <input type="range" min="0" max="2" step="0.05" value={volume}
+              onChange={(e) => onPatch({ narrationVolume: Number(e.target.value) })} className="w-full accent-primary" />
+          </div>
+        </div>
+
         <div>
-          <label className="mb-1.5 flex items-center justify-between text-[11px] font-bold text-foreground">
-            Tone <span className="font-mono text-[10px] font-normal text-muted-foreground">{pitch <= 33 ? "Low" : pitch >= 66 ? "High" : "Mid"}</span>
-          </label>
-          <input type="range" min="0" max="99" step="1" value={pitch}
-            onChange={(e) => onPatch({ narrationPitch: Number(e.target.value) })} className="w-full accent-primary" />
+          <p className="m-0 mb-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">If it runs long</p>
+          <div className="flex flex-wrap gap-1.5">
+            {FIT_OPTIONS.map((f) => (
+              <button key={f.id} type="button" onClick={() => onPatch({ narrationFit: f.id })} aria-pressed={fit === f.id} title={f.hint}
+                className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${fit === f.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div>
-        <p className="m-0 mb-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">If it runs long</p>
-        <div className="flex flex-wrap gap-1.5">
-          {FIT_OPTIONS.map((f) => (
-            <button key={f.id} type="button" onClick={() => onPatch({ narrationFit: f.id })} aria-pressed={fit === f.id} title={f.hint}
-              className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${fit === f.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-              {f.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Voice/speed/tone/fit only — narrationText is each clip's own
+      {/* Voice/speed/tone/volume/fit only — narrationText is each clip's own
           spoken words, copying that would overwrite every clip's script
           with this one's. Only shown once there's more than one clip to
           actually apply it to. */}
       {onApplyToAll && (
         <button type="button" onClick={onApplyToAll}
           className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-[11.5px] font-bold text-muted-foreground hover:border-primary/30 hover:text-primary">
-          <Copy className="size-3.5" /> Apply voice, speed & tone to all clips
+          <Copy className="size-3.5" /> Apply voice, speed, tone & volume to all clips
         </button>
       )}
     </div>
@@ -227,6 +250,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
             trimOut: saved.trimOut, captionLayers: saved.captionLayers || [], narrationText: saved.narrationText || "",
             narrationVoice: saved.narrationVoice || "neutral", narrationRate: saved.narrationRate || 165,
             narrationPitch: saved.narrationPitch ?? 50, narrationFit: saved.narrationFit || "extend",
+            narrationVolume: saved.narrationVolume ?? 1, narrationMuted: !!saved.narrationMuted,
           };
         }));
         if (cancelled) return;
@@ -267,6 +291,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
           trimOut: c.trimOut, captionLayers: c.captionLayers, narrationText: c.narrationText,
           narrationVoice: c.narrationVoice, narrationRate: c.narrationRate,
           narrationPitch: c.narrationPitch, narrationFit: c.narrationFit,
+          narrationVolume: c.narrationVolume, narrationMuted: c.narrationMuted,
         })),
       });
     }, 600);
@@ -332,10 +357,12 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     if (selectedIndex == null) return;
     handleUpdateClip(selectedIndex, patch);
   };
-  // Voice/speed/tone/fit only, not narrationText — the words spoken are
-  // per-clip content, but "I picked man voice, fast, cut to length" is a
-  // STYLE choice someone reasonably wants consistent across every clip in
-  // the story without re-picking it clip by clip.
+  // Voice/speed/tone/volume/fit only, not narrationText or narrationMuted
+  // — the words spoken are per-clip content, and muting is a per-clip
+  // decision (silencing clip 1 doesn't mean every other clip should go
+  // silent too); "I picked man voice, fast, loud, cut to length" is the
+  // STYLE choice someone reasonably wants consistent across every clip
+  // without re-picking it clip by clip.
   const applyVoiceSettingsToAll = () => {
     if (selectedIndex == null) return;
     const src = clips[selectedIndex];
@@ -343,6 +370,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
       ...c,
       narrationVoice: src.narrationVoice, narrationRate: src.narrationRate,
       narrationPitch: src.narrationPitch, narrationFit: src.narrationFit,
+      narrationVolume: src.narrationVolume,
     })));
     toast.success(`Applied to all ${clips.length} clips.`);
   };

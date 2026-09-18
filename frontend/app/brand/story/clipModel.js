@@ -72,6 +72,8 @@ export function makeClip(loaded) {
     narrationRate: 165, // words per minute — 80 (slow) to 320 (fast)
     narrationPitch: 50, // 0 (low) to 99 (high)
     narrationFit: "extend", // "extend" the clip to fit the voice-over, or "cut" the voice-over short at the clip's own length
+    narrationVolume: 1, // 0 (silent) to 2 (2x gain), 1 = normal
+    narrationMuted: false, // silences the voice-over without losing the typed script or any other setting
   };
 }
 

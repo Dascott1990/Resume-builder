@@ -85,6 +85,8 @@ async function buildFormData(clips, platformId, outputFormat, accent) {
         narration_rate: clip.narrationRate || 165,
         narration_pitch: clip.narrationPitch ?? 50,
         narration_fit: clip.narrationFit || "extend",
+        narration_volume: clip.narrationVolume ?? 1,
+        narration_muted: !!clip.narrationMuted,
       });
     }
     if (hasCaption) {

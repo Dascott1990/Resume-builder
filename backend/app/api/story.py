@@ -67,6 +67,11 @@ NARRATION_VOICES = {"neutral": "en-us", "woman": "en-us+f3", "man": "en-us+m3"}
 MIN_NARRATION_RATE, MAX_NARRATION_RATE, DEFAULT_NARRATION_RATE = 80, 320, 165
 MIN_NARRATION_PITCH, MAX_NARRATION_PITCH, DEFAULT_NARRATION_PITCH = 0, 99, 50
 VALID_NARRATION_FITS = ("extend", "cut")
+# 0.0 (silent) to 2.0 (2x gain) via ffmpeg's own "volume" audio filter — a
+# muted clip skips TTS synthesis entirely rather than generating audio
+# just to silence it: cheaper, and it also means a muted clip's duration
+# is never extended by a voice-over it isn't even playing.
+MIN_NARRATION_VOLUME, MAX_NARRATION_VOLUME, DEFAULT_NARRATION_VOLUME = 0.0, 2.0, 1.0
 
 
 def _clip_duration(clip_spec):
@@ -174,6 +179,9 @@ def render_story():
         clip_spec["narration_pitch"] = min(MAX_NARRATION_PITCH, max(MIN_NARRATION_PITCH, pitch)) if isinstance(pitch, (int, float)) else DEFAULT_NARRATION_PITCH
         if clip_spec.get("narration_fit") not in VALID_NARRATION_FITS:
             clip_spec["narration_fit"] = "extend"
+        volume = clip_spec.get("narration_volume")
+        clip_spec["narration_volume"] = min(MAX_NARRATION_VOLUME, max(MIN_NARRATION_VOLUME, volume)) if isinstance(volume, (int, float)) else DEFAULT_NARRATION_VOLUME
+        clip_spec["narration_muted"] = bool(clip_spec.get("narration_muted"))
 
         data = file.read()
         if len(data) > MAX_CLIP_BYTES:
@@ -300,7 +308,8 @@ def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platf
                 f.write(caption_bytes[i])
             caption_frames.append((caption_path, 0.0, 99999.0))
 
-        narration_text = (clip["spec"].get("narration_text") or "").strip()
+        narration_text = "" if clip["spec"].get("narration_muted") else (clip["spec"].get("narration_text") or "").strip()
+        narration_volume = clip["spec"].get("narration_volume", DEFAULT_NARRATION_VOLUME)
         narration_wav, narration_duration = None, 0.0
         if narration_text:
             narration_wav = _tts_wav(
@@ -366,7 +375,7 @@ def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platf
         if has_narration:
             if narration_wav:
                 video_inputs += ["-i", narration_wav]
-                filter_parts.append(f"[{next_idx}:a]apad[a]")
+                filter_parts.append(f"[{next_idx}:a]volume={narration_volume},apad[a]")
             else:
                 video_inputs += ["-f", "lavfi", "-t", str(duration), "-i", "anullsrc=r=44100:cl=stereo"]
                 filter_parts.append(f"[{next_idx}:a]anull[a]")
