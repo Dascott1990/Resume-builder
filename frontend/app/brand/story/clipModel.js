@@ -80,6 +80,10 @@ export function makeClip(loaded) {
     // by it. Off turns a video clip fully silent unless it has a
     // voice-over of its own, same as before this existed.
     keepOriginalAudio: true,
+    // Same 0 (silent) to 2 (2x gain) range as narrationVolume — the
+    // clip's own sound used to have no gain control at all, just the
+    // keep/drop switch above.
+    originalAudioVolume: 1,
   };
 }
 

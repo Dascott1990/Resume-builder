@@ -75,6 +75,11 @@ VALID_NARRATION_FITS = ("extend", "cut")
 # just to silence it: cheaper, and it also means a muted clip's duration
 # is never extended by a voice-over it isn't even playing.
 MIN_NARRATION_VOLUME, MAX_NARRATION_VOLUME, DEFAULT_NARRATION_VOLUME = 0.0, 2.0, 1.0
+# Same 0 (silent) to 2 (2x gain) range as narration_volume — a video
+# clip's own sound used to have no gain control at all, just the
+# keep_original_audio on/off switch; this is what makes "complete" true
+# for both audio sources a segment can carry, not just the voice-over.
+MIN_ORIGINAL_VOLUME, MAX_ORIGINAL_VOLUME, DEFAULT_ORIGINAL_VOLUME = 0.0, 2.0, 1.0
 
 
 def _clip_duration(clip_spec):
@@ -287,6 +292,8 @@ def render_story():
         # real audio in it. Only meaningful for kind == "video"; ignored
         # for images, which never have an original audio track.
         clip_spec["keep_original_audio"] = clip_spec.get("keep_original_audio", True) is not False
+        original_volume = clip_spec.get("original_volume")
+        clip_spec["original_volume"] = min(MAX_ORIGINAL_VOLUME, max(MIN_ORIGINAL_VOLUME, original_volume)) if isinstance(original_volume, (int, float)) else DEFAULT_ORIGINAL_VOLUME
 
         data = file.read()
         if len(data) > MAX_CLIP_BYTES:
@@ -550,7 +557,8 @@ def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platf
             # sounding like itself even with a narration layered on top.
             audio_branches = []
             if has_original_audio.get(i):
-                filter_parts.append(f"[0:a]atrim=start={trim_in}:end={trim_out},asetpts=PTS-STARTPTS[orig]")
+                original_volume = clip["spec"].get("original_volume", DEFAULT_ORIGINAL_VOLUME)
+                filter_parts.append(f"[0:a]atrim=start={trim_in}:end={trim_out},asetpts=PTS-STARTPTS,volume={original_volume}[orig]")
                 audio_branches.append("orig")
             if narration_wav:
                 video_inputs += ["-i", narration_wav]

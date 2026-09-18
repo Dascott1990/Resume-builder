@@ -71,6 +71,19 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
   const captionBoxRef = useRef(null); // last-drawn caption bbox, for drag hit-testing
   const dragRef = useRef(null);
 
+  // ── Web Audio graph — real gain (0-2x, matching backend/app/api/
+  // story.py's own ffmpeg `volume` filters exactly), not HTMLMediaElement.
+  // volume (which tops out at 1) — narration and a video clip's own
+  // original sound are two independent GainNodes so their volumes are
+  // set (and previewed) completely independently, mixed together at
+  // ctx.destination the same way ffmpeg's amix mixes them at render.
+  const audioCtxRef = useRef(null);
+  const narrationGainRef = useRef(null);
+  const originalGainRef = useRef(null);
+  const narrationSourceNodeRef = useRef(null); // MediaElementAudioSourceNode for narrationAudioRef — created once, reused forever
+  const videoSourceNodesRef = useRef(new Map()); // clip.id -> MediaElementAudioSourceNode; createMediaElementSource can only be called ONCE per element ever, so each is cached permanently
+  const activeVideoSourceNodeRef = useRef(null); // whichever video source node is currently connected to originalGainRef, if any
+
   const starts = clipStarts(clips, narrationDurations);
   const totalDuration = starts.length ? starts[starts.length - 1] + clipEffectiveLength(clips[clips.length - 1], narrationDurations) : 0;
 
@@ -78,13 +91,90 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
 
   // One reusable <audio> element for narration playback — created once,
   // torn down on unmount. A plain DOM object, not JSX: nothing about it
-  // needs to be visible or part of the render tree.
+  // needs to be visible or part of the render tree. The Web Audio
+  // graph itself is NOT created here — an AudioContext must start from
+  // a user gesture (autoplay policy), so it's created lazily in
+  // ensureAudioGraph(), called the moment Play is actually pressed.
   useEffect(() => {
     const audio = new Audio();
     audio.preload = "auto";
     narrationAudioRef.current = audio;
-    return () => { audio.pause(); narrationAudioRef.current = null; };
+    return () => {
+      audio.pause();
+      narrationAudioRef.current = null;
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+    };
   }, []);
+
+  // Builds the graph on first use (idempotent) and resumes it — browsers
+  // suspend a freshly-created AudioContext until a user gesture confirms
+  // audio is actually wanted; togglePlay() is that gesture.
+  const ensureAudioGraph = () => {
+    if (!audioCtxRef.current) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return null; // no Web Audio support — preview just stays silent, nothing to crash over
+      const ctx = new AudioCtx();
+      const narrationGain = ctx.createGain();
+      narrationGain.connect(ctx.destination);
+      const originalGain = ctx.createGain();
+      originalGain.connect(ctx.destination);
+      audioCtxRef.current = ctx;
+      narrationGainRef.current = narrationGain;
+      originalGainRef.current = originalGain;
+    }
+    if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume().catch(() => {});
+    if (!narrationSourceNodeRef.current && narrationAudioRef.current) {
+      try {
+        const node = audioCtxRef.current.createMediaElementSource(narrationAudioRef.current);
+        node.connect(narrationGainRef.current);
+        narrationSourceNodeRef.current = node;
+      } catch { /* already wired, or this browser doesn't support it — narration then just stays silent */ }
+    }
+    return audioCtxRef.current;
+  };
+
+  // Lazily wraps a video clip's own <video> element in a
+  // MediaElementAudioSourceNode — cached per clip.id forever, since
+  // calling createMediaElementSource twice on the same element throws.
+  // Once wired, the element's audio ONLY flows through this graph (the
+  // browser stops routing it directly to speakers), so `muted` is
+  // cleared here rather than left true — gain/connection below is what
+  // actually gates whether it's audible, not the element's own flag.
+  const getVideoSourceNode = (clip) => {
+    const ctx = audioCtxRef.current;
+    if (!ctx || !clip?.el || clip.kind !== "video") return null;
+    let node = videoSourceNodesRef.current.get(clip.id);
+    if (!node) {
+      try {
+        node = ctx.createMediaElementSource(clip.el);
+        videoSourceNodesRef.current.set(clip.id, node);
+        clip.el.muted = false;
+      } catch {
+        return null;
+      }
+    }
+    return node;
+  };
+
+  // Connects (or disconnects) whichever video clip's own sound should be
+  // audible right now — only the ACTIVE clip's source node is ever
+  // connected to originalGainRef, matching how only one clip plays at a
+  // time visually too.
+  const setActiveOriginalAudio = (clip) => {
+    const gain = originalGainRef.current;
+    if (!gain) return;
+    if (activeVideoSourceNodeRef.current) {
+      try { activeVideoSourceNodeRef.current.disconnect(gain); } catch { /* already disconnected */ }
+      activeVideoSourceNodeRef.current = null;
+    }
+    if (!clip || clip.kind !== "video" || clip.keepOriginalAudio === false) return;
+    const node = getVideoSourceNode(clip);
+    if (!node) return;
+    node.connect(gain);
+    gain.gain.value = Math.min(2, Math.max(0, clip.originalAudioVolume ?? 1));
+    activeVideoSourceNodeRef.current = node;
+  };
 
   // Debounced narration-preview prefetch — re-synthesizing on every
   // keystroke while someone's typing a script would hammer the backend.
@@ -125,10 +215,10 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
         if (!entry || activeNarrationClipIdRef.current !== clip.id || narrationAudioRef.current !== audio) return;
         audio.src = entry.url;
         audio.currentTime = 0;
-        // HTMLMediaElement.volume tops out at 1 — narrationVolume can go
-        // to 2x for real gain at export time (an ffmpeg filter), which a
-        // plain <audio> element can't replicate; preview just clamps.
-        audio.volume = Math.min(1, Math.max(0, clip.narrationVolume ?? 1));
+        // Real gain via the Web Audio graph (0-2x, same range/filter
+        // ffmpeg applies at render) — not audio.volume, which tops out
+        // at 1 and can't represent anything past 100%.
+        if (narrationGainRef.current) narrationGainRef.current.gain.value = Math.min(2, Math.max(0, clip.narrationVolume ?? 1));
         audio.play().catch(() => {}); // browser autoplay-policy rejection is fine here — silently no sound, nothing to surface as an error
       })
       .catch(() => {});
@@ -187,14 +277,17 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
       activeVideoRef.current?.pause();
       narrationAudioRef.current?.pause();
       activeNarrationClipIdRef.current = null;
+      setActiveOriginalAudio(null);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       return;
     }
+    ensureAudioGraph();
     lastFrameAtRef.current = performance.now();
     const { index } = locate(globalTime);
     const startClip = clips[index];
     if (startClip?.kind === "video") { startClip.el.currentTime = startClip.trimIn; startClip.el.play(); activeVideoRef.current = startClip.el; }
     playNarrationForClip(startClip);
+    setActiveOriginalAudio(startClip);
 
     const tick = (now) => {
       const dt = (now - lastFrameAtRef.current) / 1000;
@@ -210,6 +303,7 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
           if (nextClip?.kind === "video") { nextClip.el.currentTime = nextClip.trimIn; nextClip.el.play(); activeVideoRef.current = nextClip.el; }
           else activeVideoRef.current = null;
           playNarrationForClip(nextClip);
+          setActiveOriginalAudio(nextClip);
         }
         return next;
       });
@@ -282,6 +376,7 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
     activeVideoRef.current?.pause();
     narrationAudioRef.current?.pause();
     activeNarrationClipIdRef.current = null;
+    setActiveOriginalAudio(null);
     setGlobalTime(Math.max(0, Math.min(totalDuration, t)));
   };
 

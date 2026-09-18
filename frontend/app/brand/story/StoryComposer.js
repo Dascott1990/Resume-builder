@@ -89,7 +89,7 @@ const snapshotClip = (c) => ({
   narrationVoice: c.narrationVoice, narrationRate: c.narrationRate,
   narrationPitch: c.narrationPitch, narrationFit: c.narrationFit,
   narrationVolume: c.narrationVolume, narrationMuted: c.narrationMuted,
-  keepOriginalAudio: c.keepOriginalAudio,
+  keepOriginalAudio: c.keepOriginalAudio, originalAudioVolume: c.originalAudioVolume,
 });
 
 // Rebuilds real clip objects (object URL + <img>/<video> element, via
@@ -105,7 +105,7 @@ async function hydrateClips(savedClips) {
       narrationVoice: saved.narrationVoice || "neutral", narrationRate: saved.narrationRate || 165,
       narrationPitch: saved.narrationPitch ?? 50, narrationFit: saved.narrationFit || "extend",
       narrationVolume: saved.narrationVolume ?? 1, narrationMuted: !!saved.narrationMuted,
-      keepOriginalAudio: saved.keepOriginalAudio !== false,
+      keepOriginalAudio: saved.keepOriginalAudio !== false, originalAudioVolume: saved.originalAudioVolume ?? 1,
     };
   }));
 }
@@ -232,12 +232,23 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
           it. Independent of Mute above (that only affects the
           voice-over), so it's never dimmed alongside those controls. */}
       {clip.kind === "video" && (
-        <button type="button" onClick={() => onPatch({ keepOriginalAudio: clip.keepOriginalAudio === false })}
-          aria-pressed={clip.keepOriginalAudio !== false}
-          className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-[11.5px] font-bold ${clip.keepOriginalAudio !== false ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-          Keep this clip's original sound
-          <span className="font-mono text-[10px] font-normal">{clip.keepOriginalAudio !== false ? "On" : "Off"}</span>
-        </button>
+        <div className="grid gap-2">
+          <button type="button" onClick={() => onPatch({ keepOriginalAudio: clip.keepOriginalAudio === false })}
+            aria-pressed={clip.keepOriginalAudio !== false}
+            className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-[11.5px] font-bold ${clip.keepOriginalAudio !== false ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+            Keep this clip's original sound
+            <span className="font-mono text-[10px] font-normal">{clip.keepOriginalAudio !== false ? "On" : "Off"}</span>
+          </button>
+          {/* Same 0-200% range and gain as the voice-over's own Volume
+              slider — dimmed the same way while the toggle above is Off. */}
+          <div className={clip.keepOriginalAudio === false ? "pointer-events-none opacity-40" : ""}>
+            <label className="mb-1.5 block text-[11px] font-bold text-foreground">
+              Original sound volume <span className="font-mono text-[9.5px] font-normal text-muted-foreground">{Math.round((clip.originalAudioVolume ?? 1) * 100)}%</span>
+            </label>
+            <input type="range" min="0" max="2" step="0.05" value={clip.originalAudioVolume ?? 1}
+              onChange={(e) => onPatch({ originalAudioVolume: Number(e.target.value) })} className="w-full accent-primary" />
+          </div>
+        </div>
       )}
 
       {/* Dimmed and inert while muted — nothing here does anything

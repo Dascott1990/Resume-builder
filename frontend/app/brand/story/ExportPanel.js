@@ -80,6 +80,7 @@ async function buildFormData(clips, platformId, outputFormat, accent) {
         : {
           kind: "video", trim_in: clip.trimIn, trim_out: clip.trimOut, has_caption: hasCaption, narration_text: narrationText,
           keep_original_audio: clip.keepOriginalAudio !== false,
+          original_volume: clip.originalAudioVolume ?? 1,
         },
     );
     if (narrationText) {
