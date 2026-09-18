@@ -44,6 +44,11 @@ import { AiSuggestPanel } from "./AiSuggestPanel";
 
 const STICKER_EMOJI = ["✨", "🔥", "🎉", "💪", "🙌", "👀", "✅", "📈", "💼", "🎯", "☕", "⚡", "🚀", "💡", "🏆", "⏳"];
 
+// Module-scope, not React state — only resets on an actual page load, so
+// the "picked up your draft" toast fires once per visit to the site, not
+// once per remount (switching /brand zones away from Create and back).
+let hasShownPostDraftToast = false;
+
 // Sample copy for manually picking a shape (distinct from the AI draft
 // path, which supplies its own real content) — same defaults the old
 // fixed-field composer shipped with.
@@ -152,7 +157,20 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
       setHistoryTick((t) => t + 1);
       if (draft.shapeId) setShapeId(draft.shapeId);
       if (draft.platformId) setPlatformId(draft.platformId);
-      toast.success("Picked up your last post.");
+      // Restoring itself has to run every mount — switching to another
+      // /brand zone and back unmounts this component entirely (page.js
+      // only renders it while zone === "create"), wiping its React state,
+      // so re-loading the draft is what makes coming straight back to
+      // Create still show what you had. The toast confirming that is a
+      // one-time "in case you just refreshed" notice, though — showing it
+      // on every single tab switch back to Create was the actual bug
+      // (10 visits, 10 toasts). hasShownPostDraftToast is a plain module
+      // variable, not React state, so it only resets on an actual page
+      // load, not a remount.
+      if (!hasShownPostDraftToast) {
+        toast.success("Picked up your last post.");
+        hasShownPostDraftToast = true;
+      }
     }
     restoredRef.current = true;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

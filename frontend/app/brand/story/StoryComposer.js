@@ -52,6 +52,11 @@ import { releaseClip, loadClipFromFile } from "./clipModel";
 import { saveStoryDraft, loadStoryDraft } from "./draftStore";
 
 const MAX_NARRATION_CHARS = 400; // mirrors backend/app/api/story.py's cap
+// Module-scope, not React state — only resets on an actual page load, so
+// the "picked up where you left off" toast fires once per visit to the
+// site, not once per remount (switching /brand zones away from Story and
+// back).
+let hasShownStoryDraftToast = false;
 const MIN_NARRATION_RATE = 80; // mirrors backend/app/api/story.py's MIN/MAX_NARRATION_RATE
 const MAX_NARRATION_RATE = 320;
 
@@ -261,7 +266,19 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
         setSelectedIndex(0);
         if (draft.platformId) setPlatformId(draft.platformId);
         if (draft.outputFormat) setOutputFormat(draft.outputFormat);
-        toast.success(`Picked up where you left off — ${restored.length} clip${restored.length === 1 ? "" : "s"} restored.`);
+        // Restoring itself has to run every mount — switching to another
+        // /brand zone and back unmounts this component (page.js only
+        // renders it while zone === "story"), wiping its React state, so
+        // re-loading the draft is what makes coming straight back to
+        // Story still show your clips. The toast is a one-time "in case
+        // you just refreshed" notice, though — showing it on every single
+        // tab switch back to Story was the actual bug (10 visits, 10
+        // toasts). hasShownStoryDraftToast is a plain module variable,
+        // not React state, so it only resets on an actual page load.
+        if (!hasShownStoryDraftToast) {
+          toast.success(`Picked up where you left off — ${restored.length} clip${restored.length === 1 ? "" : "s"} restored.`);
+          hasShownStoryDraftToast = true;
+        }
       } catch {
         // A corrupt/unreadable draft is discarded, not shown as an error —
         // this is a convenience restore, never something that should block
