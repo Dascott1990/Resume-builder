@@ -14,13 +14,14 @@
  * sub-zone the way /brand/page.js's five-zone BottomNav does.
  */
 import { useEffect, useState } from "react";
-import { ArrowLeft, Sparkles, Type, Archive, Wrench, Layers, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Sparkles, Type, Archive, Wrench, Layers, Clapperboard, AlertTriangle } from "lucide-react";
 import Logo, { LogoMark, MARK_PATH, MARK_STROKE } from "@/components/premium/Logo";
 import { Section } from "@/app/brand/BrandSection";
 import { apiRequest } from "@/components/premium/shared/api";
 import { WORKSPACE_TOKEN_HEADER, workspaceFetch } from "./workspaceApi";
 import { ComposerTool } from "./ComposerTool";
 import { DownloadsTool } from "./DownloadsTool";
+import { StoryTool } from "./StoryTool";
 import { SchedulerTool } from "./SchedulerTool";
 
 function Swatch({ hex, label }) {
@@ -109,13 +110,16 @@ function ReferenceZone() {
 }
 
 function ToolsZone({ token, workspace }) {
-  const [open, setOpen] = useState({ composer: true, downloads: false, scheduler: false });
+  const [open, setOpen] = useState({ composer: true, story: false, downloads: false, scheduler: false });
   const toggle = (id) => setOpen((o) => ({ ...o, [id]: !o[id] }));
 
   return (
     <div className="grid gap-4">
       <Section icon={Layers} eyebrow="Create" title="Post composer" open={open.composer} onOpenChange={() => toggle("composer")}>
         <ComposerTool token={token} />
+      </Section>
+      <Section icon={Clapperboard} eyebrow="Create" title="Story" open={open.story} onOpenChange={() => toggle("story")}>
+        <StoryTool token={token} />
       </Section>
       <Section icon={Sparkles} eyebrow="Assets" title="Download & share" open={open.downloads} onOpenChange={() => toggle("downloads")}>
         <DownloadsTool token={token} />

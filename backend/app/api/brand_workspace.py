@@ -101,22 +101,40 @@ def download_asset(fmt):
     return send_file(io.BytesIO(data), mimetype=content_type, download_name=filename)
 
 
+EXPORT_KINDS = {
+    # kind -> (default extension, max bytes) — the composer sends PNGs,
+    # the story tool sends WebM (MediaRecorder) or GIF (gif.js), both
+    # rendered entirely client-side and handed here purely to persist.
+    "post_export": ("png", 15 * 1024 * 1024),
+    "story_export": ("webm", 60 * 1024 * 1024),
+}
+
+
 @workspace_bp.route("/compose/export", methods=["POST"])
 def export_post():
-    """The post composer's canvas is exported client-side (canvas.toBlob),
-    then handed here so the PNG is persisted via the storage interface —
-    never left purely local — scoped to this workspace the same way
-    every other asset is. The browser also keeps its own immediate copy
-    (a plain download) so this round-trip is never on the critical path
-    for actually getting the file."""
+    """The composer/story tool's canvas is exported client-side
+    (canvas.toBlob / MediaRecorder / gif.js), then handed here so it's
+    persisted via the storage interface — never left purely local —
+    scoped to this workspace the same way every other asset is. The
+    browser also keeps its own immediate copy (a plain download) so this
+    round-trip is never on the critical path for actually getting the
+    file."""
     ws = require_workspace(request)
+    kind = request.form.get("kind") or "post_export"
+    if kind not in EXPORT_KINDS:
+        raise APIError(f"Unknown export kind '{kind}'", 400)
+    default_ext, max_bytes = EXPORT_KINDS[kind]
+
     file = request.files.get("file")
-    data = validate_upload(file, allowed_mimetypes=("image/",), max_bytes=15 * 1024 * 1024)
-    key = make_key(ws.id, "post_export", "png")
-    get_storage().put(key, data, "image/png")
+    data = validate_upload(file, allowed_mimetypes=("image/", "video/"), max_bytes=max_bytes)
+    content_type = file.mimetype or "application/octet-stream"
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else default_ext
+
+    key = make_key(ws.id, kind, ext)
+    get_storage().put(key, data, content_type)
     asset = BrandAsset(
-        workspace_id=ws.id, kind="post_export", storage_key=key,
-        content_type="image/png", filename=(request.form.get("filename") or "post.png"),
+        workspace_id=ws.id, kind=kind, storage_key=key,
+        content_type=content_type, filename=(request.form.get("filename") or f"export.{ext}"),
     )
     db.session.add(asset)
     db.session.commit()

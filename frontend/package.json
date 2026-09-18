@@ -14,6 +14,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^11.2.10",
+    "gif.js": "^0.2.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.28.0",
     "next": "14.2.5",
