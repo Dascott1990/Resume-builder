@@ -21,6 +21,7 @@ from app.models import BrandWorkspace, BrandAsset
 from app.middleware.error_handlers import APIError
 from app.utils.auth import require_workspace
 from app.utils.storage import get_storage, make_key, LocalStorage
+from app.utils.uploads import validate_upload
 from app.utils import logo_render
 
 workspace_bp = Blueprint("brand_workspace", __name__)
@@ -98,6 +99,30 @@ def download_asset(fmt):
         # rather than re-parsing the cached SVG bytes.
         data = render_fn()
     return send_file(io.BytesIO(data), mimetype=content_type, download_name=filename)
+
+
+@workspace_bp.route("/compose/export", methods=["POST"])
+def export_post():
+    """The post composer's canvas is exported client-side (canvas.toBlob),
+    then handed here so the PNG is persisted via the storage interface —
+    never left purely local — scoped to this workspace the same way
+    every other asset is. The browser also keeps its own immediate copy
+    (a plain download) so this round-trip is never on the critical path
+    for actually getting the file."""
+    ws = require_workspace(request)
+    file = request.files.get("file")
+    data = validate_upload(file, allowed_mimetypes=("image/",), max_bytes=15 * 1024 * 1024)
+    key = make_key(ws.id, "post_export", "png")
+    get_storage().put(key, data, "image/png")
+    asset = BrandAsset(
+        workspace_id=ws.id, kind="post_export", storage_key=key,
+        content_type="image/png", filename=(request.form.get("filename") or "post.png"),
+    )
+    db.session.add(asset)
+    db.session.commit()
+    result = asset.to_dict()
+    result["url"] = get_storage().url(key)
+    return jsonify({"success": True, "data": result}), 201
 
 
 @workspace_bp.route("/assets/<path:key>", methods=["GET"])
