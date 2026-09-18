@@ -36,7 +36,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2, VolumeX, Copy, Captions } from "lucide-react";
+import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -50,7 +50,10 @@ import { PreviewPlayer } from "./PreviewPlayer";
 import { ExportPanel } from "./ExportPanel";
 import { releaseClip, loadClipFromFile } from "./clipModel";
 import { transcribeClip } from "./transcribe";
-import { saveStoryDraft, loadStoryDraft } from "./draftStore";
+import {
+  saveStoryDraft, loadStoryDraft, deleteStoryDraft, listStoryDrafts,
+  getActiveStoryId, setActiveStoryId, newStoryId, migrateLegacyDraft,
+} from "./draftStore";
 
 const MAX_NARRATION_CHARS = 400; // mirrors backend/app/api/story.py's cap
 // Module-scope, not React state — only resets on an actual page load, so
@@ -70,6 +73,52 @@ const FIT_OPTIONS = [
   { id: "extend", label: "Extend clip", hint: "Clip holds longer if the voice-over runs past it — speech is never cut off." },
   { id: "cut", label: "Cut to length", hint: "Voice-over stops at the clip's own length, even mid-sentence." },
 ];
+
+// A friendly default name for a brand-new story — not required to be
+// unique, the switcher also shows when it was last touched and how many
+// clips it has, which is enough to tell same-day stories apart.
+const makeStoryName = () => `Story — ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+
+// The plain-data subset of a clip that's actually worth persisting —
+// object URLs and <img>/<video> elements don't survive a reload and get
+// rebuilt fresh by hydrateClips below, not saved themselves.
+const snapshotClip = (c) => ({
+  id: c.id, kind: c.kind, file: c.file, naturalW: c.naturalW, naturalH: c.naturalH,
+  naturalDurationSec: c.naturalDurationSec, durationSec: c.durationSec, trimIn: c.trimIn,
+  trimOut: c.trimOut, captionLayers: c.captionLayers, narrationText: c.narrationText,
+  narrationVoice: c.narrationVoice, narrationRate: c.narrationRate,
+  narrationPitch: c.narrationPitch, narrationFit: c.narrationFit,
+  narrationVolume: c.narrationVolume, narrationMuted: c.narrationMuted,
+  keepOriginalAudio: c.keepOriginalAudio,
+});
+
+// Rebuilds real clip objects (object URL + <img>/<video> element, via
+// the same loadClipFromFile a fresh upload goes through) from a saved
+// draft's plain-data snapshot — shared by the initial-mount restore, My
+// Stories switching, and reverting after a delete.
+async function hydrateClips(savedClips) {
+  return Promise.all((savedClips || []).map(async (saved) => {
+    const loaded = await loadClipFromFile(saved.file);
+    return {
+      ...loaded, id: saved.id, durationSec: saved.durationSec, trimIn: saved.trimIn,
+      trimOut: saved.trimOut, captionLayers: saved.captionLayers || [], narrationText: saved.narrationText || "",
+      narrationVoice: saved.narrationVoice || "neutral", narrationRate: saved.narrationRate || 165,
+      narrationPitch: saved.narrationPitch ?? 50, narrationFit: saved.narrationFit || "extend",
+      narrationVolume: saved.narrationVolume ?? 1, narrationMuted: !!saved.narrationMuted,
+      keepOriginalAudio: saved.keepOriginalAudio !== false,
+    };
+  }));
+}
+
+function relativeTime(ts) {
+  if (!ts) return "";
+  const diffMin = Math.round((Date.now() - ts) / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.round(diffHr / 24)}d ago`;
+}
 
 function VoiceOverField({ clip, onPatch, onApplyToAll }) {
   const captionText = clip.captionLayers?.[0]?.text || "";
@@ -232,6 +281,15 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   const [historyTick, setHistoryTick] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [controlTab, setControlTab] = useState("caption");
+  // Which saved draft (draftStore.js) is currently open, and its own
+  // display name — null until the mount effect below resolves which
+  // story should be active. storiesOpen/storiesList back the "My
+  // Stories" switcher sheet; switching is a separate concept from
+  // sheetOpen (Caption/Voice editing) above.
+  const [storyId, setStoryId] = useState(null);
+  const [storyName, setStoryName] = useState(null);
+  const [storiesOpen, setStoriesOpen] = useState(false);
+  const [storiesList, setStoriesList] = useState([]);
 
   const historyRef = useRef([[]]);
   const historyIndexRef = useRef(0);
@@ -280,31 +338,33 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   // every one still held when the tool itself unmounts.
   useEffect(() => () => { clips.forEach(releaseClip); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Restore whatever was in progress last time, once, on mount — a
-  // refresh (or just coming back later) used to lose every clip, caption,
-  // and voice-over with nothing to show for it. draftStore.js keeps the
-  // actual uploaded File objects in IndexedDB (not just JSON), so this
-  // rebuilds the same clip elements loadClipFromFile would from a fresh
-  // upload — object URLs and <img>/<video> elements don't survive a
-  // reload themselves, everything else about the clip does.
+  // Which draft is active, resolved once on mount — a refresh (or just
+  // coming back later) used to lose every clip, caption, and voice-over
+  // with nothing to show for it. draftStore.js keeps the actual uploaded
+  // File objects in IndexedDB (not just JSON), so hydrateClips rebuilds
+  // the same clip elements loadClipFromFile would from a fresh upload —
+  // object URLs and <img>/<video> elements don't survive a reload
+  // themselves, everything else about the clip does. First-ever visit
+  // (or an old pre-multi-draft single slot) gets a real id via
+  // migrateLegacyDraft/newStoryId instead of staying storyId === null.
   const restoredRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const draft = await loadStoryDraft();
-      if (cancelled || !draft?.clips?.length) { restoredRef.current = true; return; }
+      let id = getActiveStoryId();
+      if (!id) {
+        id = (await migrateLegacyDraft()) || newStoryId();
+        setActiveStoryId(id);
+      }
+      if (cancelled) return;
+      setStoryId(id);
+
+      const draft = await loadStoryDraft(id);
+      if (cancelled) return;
+      setStoryName(draft?.name || makeStoryName());
+      if (!draft?.clips?.length) { restoredRef.current = true; return; }
       try {
-        const restored = await Promise.all(draft.clips.map(async (saved) => {
-          const loaded = await loadClipFromFile(saved.file);
-          return {
-            ...loaded, id: saved.id, durationSec: saved.durationSec, trimIn: saved.trimIn,
-            trimOut: saved.trimOut, captionLayers: saved.captionLayers || [], narrationText: saved.narrationText || "",
-            narrationVoice: saved.narrationVoice || "neutral", narrationRate: saved.narrationRate || 165,
-            narrationPitch: saved.narrationPitch ?? 50, narrationFit: saved.narrationFit || "extend",
-            narrationVolume: saved.narrationVolume ?? 1, narrationMuted: !!saved.narrationMuted,
-            keepOriginalAudio: saved.keepOriginalAudio !== false,
-          };
-        }));
+        const restored = await hydrateClips(draft.clips);
         if (cancelled) return;
         setClipsRaw(restored);
         historyRef.current = [restored];
@@ -341,27 +401,74 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   // or fast typing doesn't write on every intermediate value) — not on
   // an explicit "save" action, because losing progress by forgetting to
   // press one is exactly the failure this exists to prevent. Skipped
-  // until the restore effect above has run once, so a still-loading
-  // draft is never overwritten with the empty state a fresh mount starts
-  // from.
+  // until the restore effect above has resolved storyId, so a
+  // still-loading draft is never overwritten with the empty state a
+  // fresh mount starts from, and saved under THIS story's own id — not
+  // a single fixed slot — so switching away never clobbers another
+  // draft's save.
   useEffect(() => {
-    if (!restoredRef.current) return;
+    if (!restoredRef.current || !storyId) return;
     const timer = setTimeout(() => {
-      saveStoryDraft({
-        platformId, outputFormat,
-        clips: clips.map((c) => ({
-          id: c.id, kind: c.kind, file: c.file, naturalW: c.naturalW, naturalH: c.naturalH,
-          naturalDurationSec: c.naturalDurationSec, durationSec: c.durationSec, trimIn: c.trimIn,
-          trimOut: c.trimOut, captionLayers: c.captionLayers, narrationText: c.narrationText,
-          narrationVoice: c.narrationVoice, narrationRate: c.narrationRate,
-          narrationPitch: c.narrationPitch, narrationFit: c.narrationFit,
-          narrationVolume: c.narrationVolume, narrationMuted: c.narrationMuted,
-          keepOriginalAudio: c.keepOriginalAudio,
-        })),
-      });
+      saveStoryDraft(storyId, { name: storyName, platformId, outputFormat, clips: clips.map(snapshotClip) });
     }, 600);
     return () => clearTimeout(timer);
-  }, [clips, platformId, outputFormat]);
+  }, [clips, platformId, outputFormat, storyId, storyName]);
+
+  // Resets every piece of story-specific state to blank, without
+  // touching storage — the shared tail of New Story, switching to
+  // another draft, and deleting the one currently open.
+  const resetComposerState = (nextId, nextName, restoredClips = [], nextPlatformId = "story", nextOutputFormat = "mp4") => {
+    clips.forEach(releaseClip);
+    setActiveStoryId(nextId);
+    setStoryId(nextId);
+    setStoryName(nextName);
+    setClipsRaw(restoredClips);
+    historyRef.current = [restoredClips];
+    historyIndexRef.current = 0;
+    setHistoryTick((t) => t + 1);
+    setSelectedIndex(restoredClips.length ? 0 : null);
+    setPlatformId(nextPlatformId);
+    setOutputFormat(nextOutputFormat);
+  };
+
+  // Saves whatever's open right now under its OWN id immediately (not
+  // waiting on the debounced autosave above) — used right before
+  // switching away from it, so nothing from it can be lost in the gap.
+  const persistCurrentStory = () => {
+    if (!storyId) return Promise.resolve();
+    return saveStoryDraft(storyId, { name: storyName, platformId, outputFormat, clips: clips.map(snapshotClip) });
+  };
+
+  const startNewStory = async () => {
+    await persistCurrentStory();
+    resetComposerState(newStoryId(), makeStoryName());
+    toast.success("Started a new story — your other one is saved.");
+  };
+
+  const refreshStoriesList = async () => setStoriesList(await listStoryDrafts());
+
+  const openStoriesPanel = async () => {
+    await refreshStoriesList();
+    setStoriesOpen(true);
+  };
+
+  const switchToStory = async (id) => {
+    if (id === storyId) { setStoriesOpen(false); return; }
+    await persistCurrentStory();
+    const draft = await loadStoryDraft(id);
+    const restored = draft?.clips?.length ? await hydrateClips(draft.clips) : [];
+    resetComposerState(id, draft?.name || "Untitled story", restored, draft?.platformId || "story", draft?.outputFormat || "mp4");
+    setStoriesOpen(false);
+    toast.success(`Switched to "${draft?.name || "Untitled story"}".`);
+  };
+
+  const deleteStory = async (id, e) => {
+    e.stopPropagation();
+    await deleteStoryDraft(id);
+    if (id === storyId) resetComposerState(newStoryId(), makeStoryName());
+    await refreshStoriesList();
+    toast.success("Deleted.");
+  };
 
   const handleAdd = (clip) => {
     setClips((cs) => [...cs, clip]);
@@ -549,9 +656,67 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     />
   );
 
+  // This story's name + New Story/My Stories — the one thing that has
+  // to sit above everything else regardless of phone/desktop layout, so
+  // it's always reachable without first having to find or finish
+  // whatever's currently open.
+  const storyHeader = (
+    <div className="flex items-center justify-between gap-2">
+      <p className="m-0 min-w-0 truncate text-[13px] font-bold text-foreground">{storyName || "Story"}</p>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <Btn small variant="ghost" onClick={openStoriesPanel}>
+          <ListVideo className="size-3.5" /> My Stories
+        </Btn>
+        <Btn small variant="ghost" onClick={startNewStory}>
+          <FilePlus2 className="size-3.5" /> New
+        </Btn>
+      </div>
+    </div>
+  );
+
+  const storiesPanel = (
+    <BottomSheet open={storiesOpen} onClose={() => setStoriesOpen(false)} title="My Stories">
+      <div className="grid gap-2 p-4">
+        {storiesList.length === 0 ? (
+          <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
+            No other saved stories yet.
+          </p>
+        ) : (
+          storiesList.map((s) => (
+            // A <div role="button">, not a real <button> — it wraps
+            // another real <button> (Delete) below, and nesting
+            // interactive elements inside a <button> is invalid HTML
+            // that browsers "fix" unpredictably (the nested tag doesn't
+            // reliably stay a distinct clickable target).
+            <div key={s.id} role="button" tabIndex={0} onClick={() => switchToStory(s.id)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); switchToStory(s.id); } }}
+              className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-left ${s.id === storyId ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-card"}`}>
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <FileVideo className="size-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="m-0 truncate text-[13px] font-bold text-foreground">
+                  {s.name}{s.id === storyId ? " (current)" : ""}
+                </p>
+                <p className="m-0 text-[11px] text-muted-foreground">
+                  {s.clipCount} clip{s.clipCount === 1 ? "" : "s"} · {relativeTime(s.updatedAt)}
+                </p>
+              </div>
+              <button type="button" onClick={(e) => deleteStory(s.id, e)} title="Delete"
+                className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive">
+                <Trash2 className="size-4" />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </BottomSheet>
+  );
+
   if (isPhone) {
     return (
       <div className="grid gap-4">
+        {storyHeader}
         {/* NOT sticky on phone — same reason Create's CanvasBlock isn't
             sticky in its own phone branch (PostComposer.js): a portrait
             preset (Story/Reel, 9:16) makes this box nearly the full
@@ -581,12 +746,14 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
             {controlsPanel}
           </div>
         </BottomSheet>
+        {storiesPanel}
       </div>
     );
   }
 
   return (
     <div className="grid gap-5">
+      {storyHeader}
       <div className="grid items-start gap-5 sm:grid-cols-[1fr_320px]">
         {/* Sticky as the direct grid child, same shape as PostComposer's
             own canvas column — pinned in view exactly like Create's,
@@ -601,6 +768,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
         </div>
       </div>
       {clipTimeline}
+      {storiesPanel}
     </div>
   );
 }
