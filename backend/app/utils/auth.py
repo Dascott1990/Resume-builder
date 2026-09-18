@@ -10,9 +10,12 @@ present — preferring the authenticated user_id when both somehow show up.
 """
 import hmac
 import os
+import re
 import jwt
 from datetime import datetime, timedelta, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 # Only a real secret in production — Render/Vercel both fail closed if this
 # isn't set (JWT_SECRET missing at import time raises immediately, before

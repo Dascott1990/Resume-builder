@@ -883,6 +883,7 @@ class ScheduledPost(db.Model):
         "ScheduledPostHandle", backref="post", cascade="all, delete-orphan",
         order_by="ScheduledPostHandle.id",
     )
+    workspace = db.relationship("BrandWorkspace")
 
     def to_dict(self):
         return {

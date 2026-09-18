@@ -1,0 +1,24 @@
+name: Scheduled post reminders
+
+# The branding workspace's post scheduler has no in-process timer and no
+# task queue — this is the "external free scheduled ping" that drives it
+# instead (backend/app/api/cron.py's /api/v1/cron/due-reminders). Every
+# run just checks which ScheduledPost rows are due and emails whoever
+# should post them; it does nothing to this repo, so the default
+# GITHUB_TOKEN permissions (read-only) are enough.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call due-reminders
+        run: |
+          curl -sf -X POST "${BACKEND_URL}/api/v1/cron/due-reminders" \
+            -H "X-Cron-Secret: ${CRON_SECRET}"
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

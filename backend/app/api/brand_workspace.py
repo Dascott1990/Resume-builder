@@ -39,7 +39,10 @@ DOWNLOAD_FORMATS = {
 def create_workspace():
     body = request.get_json(silent=True) or {}
     token = secrets.token_urlsafe(32)
-    ws = BrandWorkspace(token=token, name=(body.get("name") or "").strip() or None)
+    ws = BrandWorkspace(
+        token=token, name=(body.get("name") or "").strip() or None,
+        notify_email=(body.get("notify_email") or "").strip() or None,
+    )
     db.session.add(ws)
     db.session.commit()
     # token only ever appears in THIS response — to_dict() defaults

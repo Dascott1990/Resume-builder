@@ -155,6 +155,12 @@ def create_app():
     from app.api.brand_workspace import workspace_bp
     app.register_blueprint(workspace_bp, url_prefix="/api/v1/workspace")
 
+    from app.api.brand_scheduler import scheduler_bp
+    app.register_blueprint(scheduler_bp, url_prefix="/api/v1/workspace")
+
+    from app.api.cron import cron_bp
+    app.register_blueprint(cron_bp, url_prefix="/api/v1/cron")
+
     # Pinged by the frontend's keep-alive (see frontend/app/KeepAlive.js) to
     # stop Render's free-tier instance from spinning down after 15 minutes
     # of inactivity. Deliberately does nothing but respond — no DB hit, no
@@ -202,12 +208,15 @@ def create_app():
         from app.utils.task_reminders import start_scheduler
         from app.utils.world_feed import start_world_feed_scheduler
         from app.utils.vendors import start_vendor_news_scheduler
-        from app.utils.schedule_reminders import start_schedule_reminders_scheduler
         scheduler = start_scheduler(app)
         if scheduler:
             start_world_feed_scheduler(scheduler, app)
             start_vendor_news_scheduler(scheduler, app)
-            start_schedule_reminders_scheduler(scheduler, app)
+        # Scheduled-post reminders are deliberately NOT wired into this
+        # in-process scheduler — driven by an external ping instead
+        # (api/cron.py's /api/v1/cron/due-reminders, called by a scheduled
+        # GitHub Action), per the branding workspace's "no task queue, no
+        # server-side timer for this" constraint.
     except Exception as exc:
         print(f"❌ Background scheduler failed to start: {exc}")
 
