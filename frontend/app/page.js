@@ -31,6 +31,7 @@ const Signup = dynamicScreen(() => import("../components/premium/auth/Signup"));
 const CVScan = dynamicScreen(() => import("../components/premium/CVScan"));
 const JobTracker = dynamicScreen(() => import("../components/premium/JobTracker"));
 const ApplyWithAI = dynamicScreen(() => import("../components/premium/ApplyWithAI"));
+const BrandWorkspaceView = dynamicScreen(() => import("../components/premium/brand/BrandWorkspaceView").then((m) => ({ default: m.BrandWorkspaceView })));
 
 // Same pulsing-logo treatment as the !mounted gate below, not a generic
 // spinner — a chunk fetch is usually near-instant on a warm cache, but
@@ -60,8 +61,17 @@ const ENTERED_KEY = "noqeev_entered_app";
 // sensible landing spot for those two).
 const VIEW_KEY = "noqeev_last_view";
 const RESTORABLE_VIEWS = new Set([
-  "dashboard", "resume", "cvscan", "jobtracker", "apply", "settings", "artisans", "artisan-dashboard",
+  "dashboard", "resume", "cvscan", "jobtracker", "apply", "settings", "artisans", "artisan-dashboard", "brand-workspace",
 ]);
+
+// The branding workspace has no account to restore into — RESTORABLE_VIEWS
+// above only remembers which SCREEN a refresh should land on, not the
+// token that screen actually needs, so it gets its own small persisted
+// value alongside VIEW_KEY. Same "the token in the URL is the whole
+// access control" shape the backend uses (see BrandWorkspace.token) —
+// this is just where the browser keeps hold of it between visits, not a
+// second credential.
+const WORKSPACE_TOKEN_KEY = "noqeev_brand_workspace_token";
 
 function restoreView() {
   try {
@@ -91,6 +101,10 @@ export default function Home() {
   // instead of Browse. Cleared on every other path into "artisans" so a
   // stale deep-link never resurfaces on an unrelated later visit.
   const [artisansInitialTab, setArtisansInitialTab] = useState(null);
+  // The branding workspace's own access token — set from the ?ws= deep
+  // link (mount effect below) or restored from WORKSPACE_TOKEN_KEY,
+  // never anywhere else. No login means this literally IS the session.
+  const [workspaceToken, setWorkspaceToken] = useState(null);
   // Shared remount key for every view below that isn't Resume (which already
   // has its own sessionId for this exact purpose). A crash's "Try Again"
   // needs a genuinely fresh child instance, not just the error screen
@@ -147,8 +161,39 @@ export default function Home() {
       return;
     }
 
+    // The branding workspace's own deep link: /?ws=<token>. Same shape
+    // as ?jd= above, same priority over the plain restore-last-view
+    // check below — someone opening this link wants the workspace, not
+    // whatever screen they last had open. Unlike ?jd= (single-use), the
+    // token is kept (not just consumed) — there's no login to re-derive
+    // it from later, so WORKSPACE_TOKEN_KEY is what lets a refresh (or
+    // just re-opening the tab) land back in the same workspace without
+    // needing the ?ws= link again.
+    const wsToken = new URLSearchParams(window.location.search).get("ws");
+    if (wsToken) {
+      window.history.replaceState({}, "", window.location.pathname);
+      try { localStorage.setItem(WORKSPACE_TOKEN_KEY, wsToken); } catch { /* best-effort */ }
+      setWorkspaceToken(wsToken);
+      setView("brand-workspace");
+      setMounted(true);
+      return;
+    }
+
     try {
-      if (localStorage.getItem(ENTERED_KEY) === "1") setView(restoreView());
+      if (localStorage.getItem(ENTERED_KEY) === "1") {
+        const restored = restoreView();
+        if (restored === "brand-workspace") {
+          const savedToken = localStorage.getItem(WORKSPACE_TOKEN_KEY);
+          // No saved token somehow (cleared storage, a different
+          // browser) — there's nothing this screen can do without one,
+          // so land on the dashboard instead of a workspace view stuck
+          // showing its own "invalid link" state forever.
+          if (savedToken) { setWorkspaceToken(savedToken); setView("brand-workspace"); }
+          else setView("dashboard");
+        } else {
+          setView(restored);
+        }
+      }
     } catch { /* best-effort */ }
     setMounted(true);
   }, []);
@@ -319,6 +364,14 @@ export default function Home() {
     return (
       <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("artisans")}>
         <ArtisanDashboard onClose={() => setView("artisans")} />
+      </ErrorBoundary>
+    );
+  }
+
+  if (view === "brand-workspace") {
+    return (
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+        <BrandWorkspaceView token={workspaceToken} onClose={() => setView("dashboard")} />
       </ErrorBoundary>
     );
   }

@@ -768,15 +768,73 @@ class VendorNewsItem(db.Model):
         }
 
 
+class BrandWorkspace(db.Model):
+    """
+    The branding workspace's whole identity system: one long random
+    bearer token per workspace — the token in the URL is the ONLY access
+    control (same unguessable-secret-as-authorization shape
+    Artisan.edit_token already uses, see api/artisans.py's
+    _authorize_edit — this is that same pattern, generalized to a whole
+    workspace's worth of data instead of one listing). No login, no
+    signup, no User row involved anywhere in this — every BrandHandle,
+    ScheduledPost, and BrandAsset below is scoped by workspace_id, and
+    the only way to reach any of them is holding this token.
+    """
+    __tablename__ = "brand_workspaces"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(120), nullable=True)
+    notify_email = db.Column(db.String(255), nullable=True)  # default scheduler reminder recipient
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self, reveal_token=False):
+        d = {"id": self.id, "name": self.name, "notify_email": self.notify_email, "created_at": _iso_utc(self.created_at)}
+        if reveal_token:
+            # Only ever included right after creation (api/brand_workspace.py) —
+            # every other route returns to_dict() with the default False,
+            # same "the secret appears exactly once" shape edit_token uses.
+            d["token"] = self.token
+        return d
+
+
+class BrandAsset(db.Model):
+    """
+    A stored media file's KEY/URL only — the actual bytes live in
+    whatever utils/storage.py's active backend is (local disk in dev,
+    Cloudflare R2 in prod), never in this database. Covers everything
+    the branding workspace produces or works from: the brand mark/logo
+    source image, an exported post PNG, a rendered story video/GIF.
+    """
+    __tablename__ = "brand_assets"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    workspace_id = db.Column(db.String(32), db.ForeignKey("brand_workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    kind = db.Column(db.String(30), nullable=False)  # "logo_source" | "post_export" | "story_export"
+    storage_key = db.Column(db.String(500), nullable=False)
+    content_type = db.Column(db.String(80), nullable=True)
+    filename = db.Column(db.String(255), nullable=True)
+    meta_json = db.Column(db.Text, nullable=True)  # small JSON blob — platform id, title, whatever the kind needs
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        import json
+        return {
+            "id": self.id, "kind": self.kind, "content_type": self.content_type, "filename": self.filename,
+            "meta": json.loads(self.meta_json) if self.meta_json else None,
+            "created_at": _iso_utc(self.created_at),
+        }
+
+
 class BrandHandle(db.Model):
     """
-    One of our own social/campaign accounts — registered once (platform +
-    handle name) so scheduling a post just picks from this list instead of
-    re-typing "@noqeev on Instagram" every single time. See ScheduledPost
-    below for what actually gets scheduled against these.
+    One social/campaign account, registered once (platform + handle
+    name) under a workspace so scheduling a post just picks from this
+    list instead of re-typing "@noqeev on Instagram" every single time.
+    See ScheduledPost below for what actually gets scheduled against
+    these.
     """
     __tablename__ = "brand_handles"
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    workspace_id = db.Column(db.String(32), db.ForeignKey("brand_workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
     platform = db.Column(db.String(30), nullable=False)  # instagram|tiktok|x|facebook|linkedin|youtube|pinterest|other
     handle_name = db.Column(db.String(120), nullable=False)  # "@noqeev"
     label = db.Column(db.String(120), nullable=True)  # optional friendly name, e.g. "Instagram — main"
@@ -791,27 +849,25 @@ class BrandHandle(db.Model):
 
 class ScheduledPost(db.Model):
     """
-    A piece of brand content (from /brand's Create or Story tool) queued
-    to go out at a specific time — not an auto-poster (this app has no
-    API integration with any social platform, and isn't trying to
-    become one): the scheduled_at/reminded_at pair drives an EMAIL + an
-    admin-panel badge telling a human "go post this now," the same
-    reminded_at-gates-a-one-time-fire shape BrandTask's due-date
-    reminder already uses (see utils/task_reminders.py) — this is that
-    same idea, applied to a piece of content instead of a to-do.
+    A piece of brand content queued to go out at a specific time — not
+    an auto-poster (this app has no API integration with any social
+    platform, and isn't trying to become one): the scheduled_at/
+    reminded_at pair drives an EMAIL + a persistent in-app badge telling
+    a human "go post this now," checked by an endpoint an EXTERNAL
+    scheduled ping triggers (see api/brand_workspace.py's /due-reminders
+    and the GitHub Action that calls it) rather than an in-process timer.
 
     suggested_at is kept separately from scheduled_at purely as an audit
     trail of what the AI originally proposed, in case scheduled_at gets
-    overridden — never read by anything except the admin UI showing "AI
-    suggested ...".
+    overridden.
 
     status flips to "completed" the moment every one of this post's
-    ScheduledPostHandle rows has posted=True (see
-    api/admin.py's mark-posted route) — not before, and not
+    ScheduledPostHandle rows has posted=True — not before, and not
     automatically for any other reason.
     """
     __tablename__ = "scheduled_posts"
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    workspace_id = db.Column(db.String(32), db.ForeignKey("brand_workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
     content_type = db.Column(db.String(20), nullable=False)  # "post" | "story"
     title = db.Column(db.String(200), nullable=False)
     caption = db.Column(db.Text, nullable=True)
@@ -820,7 +876,6 @@ class ScheduledPost(db.Model):
     status = db.Column(db.String(20), nullable=False, default="scheduled")  # "scheduled" | "completed"
     notify_email = db.Column(db.String(255), nullable=True)
     reminded_at = db.Column(db.DateTime, nullable=True)
-    created_by = db.Column(db.String(32), db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     completed_at = db.Column(db.DateTime, nullable=True)
 

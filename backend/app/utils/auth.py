@@ -241,3 +241,35 @@ def require_admin(request):
     if not user:
         raise APIError("Admin access required", 403)
     return user
+
+
+def get_workspace(request):
+    """The branding workspace's entire access model: the token IS the
+    authorization, same bearer-secret shape as Artisan.edit_token (see
+    api/artisans.py's _authorize_edit) — no login, no User row, nothing
+    to look up beyond "does a workspace with this token exist." Checked
+    in three places, in order, so the same request shape works whether
+    the token's coming from a fetch header, a query string (a plain link
+    someone opens in a browser), or a JSON body — never raises, mirrors
+    get_admin_user's own "return None for anyone unrecognized" shape."""
+    from app.models import BrandWorkspace
+
+    token = (
+        request.headers.get("X-Workspace-Token")
+        or request.args.get("token")
+        or (request.get_json(silent=True) or {}).get("token")
+    )
+    if not token:
+        return None
+    return BrandWorkspace.query.filter_by(token=token).first()
+
+
+def require_workspace(request):
+    """Same as get_workspace, but raises instead of returning None — the
+    one-liner every branding-workspace route starts with."""
+    from app.middleware.error_handlers import APIError
+
+    ws = get_workspace(request)
+    if not ws:
+        raise APIError("Invalid or missing workspace token", 401)
+    return ws

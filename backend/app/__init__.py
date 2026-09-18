@@ -71,7 +71,7 @@ def create_app():
             # one included, Artisan listing edits too) was failing its CORS
             # preflight and never actually reaching the server.
             "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id", "X-Edit-Token", "X-Artisan-Token"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id", "X-Edit-Token", "X-Artisan-Token", "X-Workspace-Token"],
             "supports_credentials": True,
             # X-Quality-Report (api/story.py's render endpoint) rides
             # alongside the downloaded video file as a response header —
@@ -151,6 +151,9 @@ def create_app():
 
     from app.api.story import story_bp
     app.register_blueprint(story_bp, url_prefix="/api/v1/brand/story")
+
+    from app.api.brand_workspace import workspace_bp
+    app.register_blueprint(workspace_bp, url_prefix="/api/v1/workspace")
 
     # Pinged by the frontend's keep-alive (see frontend/app/KeepAlive.js) to
     # stop Render's free-tier instance from spinning down after 15 minutes
