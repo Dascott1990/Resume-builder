@@ -185,8 +185,16 @@ function resolveColor(colorKey, accent) {
  * hit-testing drags/selection against. layer.x/y is the TOP anchor of the
  * text block (left/center/right per layer.align), not its baseline. */
 function drawTextLayer(ctx, w, h, layer, accent) {
-  const sizePx = layer.sizeFrac * w;
-  const trackingPx = layer.spacingFrac * w;
+  // Text size/tracking scale off the SHORTER side, not always the
+  // width — a wide-but-short canvas (Landscape, 1600x900) would
+  // otherwise size every layer off its 1600px width with only 900px of
+  // height to fit it in, blowing headlines up far past what the format
+  // can actually hold. Square/Portrait/Story/Pin are all already
+  // width<=height, so min(w,h) === w there and this changes nothing for
+  // them — it only corrects the one format where w > h.
+  const sizeBasis = Math.min(w, h);
+  const sizePx = layer.sizeFrac * sizeBasis;
+  const trackingPx = layer.spacingFrac * sizeBasis;
   const lineHeightPx = sizePx * layer.lineHeightMult;
   const maxWidthPx = layer.maxWidthFrac * w;
   const weight = layer.weight || 700;
@@ -254,8 +262,9 @@ function measureWordWidth(ctx, word, trackingPx) {
  * colour. Returns the same bbox shape as drawTextLayer, for identical
  * drag hit-testing whichever renderer actually drew this layer. */
 function drawKaraokeTextLayer(ctx, w, h, layer, accent, activeIndex) {
-  const sizePx = layer.sizeFrac * w;
-  const trackingPx = layer.spacingFrac * w;
+  const sizeBasis = Math.min(w, h); // see drawTextLayer's own comment on this
+  const sizePx = layer.sizeFrac * sizeBasis;
+  const trackingPx = layer.spacingFrac * sizeBasis;
   const lineHeightPx = sizePx * layer.lineHeightMult;
   const maxWidthPx = layer.maxWidthFrac * w;
   const weight = layer.weight || 700;
@@ -333,7 +342,7 @@ function drawKaraokeTextLayer(ctx, w, h, layer, accent, activeIndex) {
 }
 
 function drawStickerLayer(ctx, w, h, images, layer) {
-  const sizePx = layer.sizeFrac * w;
+  const sizePx = layer.sizeFrac * Math.min(w, h); // see drawTextLayer's own comment on this
   const cx = layer.x * w, cy = layer.y * h;
   if (layer.kind === "emoji") {
     ctx.font = `${sizePx}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
@@ -380,8 +389,9 @@ export function renderPost(ctx, w, h, layers, markImg, accent, handle, stickerIm
   }
 
   if (markImg && !skipStamp) {
-    const markSize = w * 0.09;
-    const pad = w * 0.06;
+    const stampBasis = Math.min(w, h); // see drawTextLayer's own comment on this
+    const markSize = stampBasis * 0.09;
+    const pad = stampBasis * 0.06;
     paintBrandStamp(ctx, markImg, w - pad - markSize, h - pad - markSize - (handle ? markSize * 0.34 : 0), markSize, handle);
   }
   return boxes;
