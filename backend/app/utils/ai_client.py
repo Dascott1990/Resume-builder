@@ -110,6 +110,47 @@ def _groq(messages, temperature=0.5, max_tokens=800):
             raise APIError(f"Network error while calling AI: {e}", 502)
 
 
+GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+GROQ_TRANSCRIBE_MODEL = "whisper-large-v3-turbo"
+TRANSCRIBE_TIMEOUT_SEC = 60
+
+
+def groq_transcribe(file_bytes, filename, mimetype):
+    """Speech-to-text via Groq's hosted Whisper — same GROQ_API_KEY this
+    file already uses for text completion, not a new vendor/credential.
+    Accepts video files directly (mp4/mov/webm/...); Groq extracts the
+    audio itself, so callers never need to run ffmpeg first. Returns
+    Whisper's verbose_json shape: {text, duration, segments: [{text,
+    start, end}, ...]} — segment timings are real speech-aligned
+    timestamps, not the length-weighted estimate frontend/app/brand/
+    story/karaoke.js falls back to for typed (non-transcribed) captions."""
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    if not api_key:
+        raise APIError("GROQ_API_KEY not configured", 500)
+    try:
+        res = requests.post(
+            GROQ_TRANSCRIBE_URL,
+            headers={"Authorization": f"Bearer {api_key}"},
+            files={"file": (filename, file_bytes, mimetype)},
+            data={"model": GROQ_TRANSCRIBE_MODEL, "response_format": "verbose_json"},
+            timeout=TRANSCRIBE_TIMEOUT_SEC,
+        )
+        if not res.ok:
+            error_msg = f"Transcription failed: HTTP {res.status_code}"
+            try:
+                error_data = res.json()
+                if "error" in error_data:
+                    error_msg = error_data["error"].get("message", error_msg)
+            except Exception:
+                pass
+            raise APIError(error_msg, 502)
+        return res.json()
+    except requests.exceptions.Timeout:
+        raise APIError("Transcription timed out — try a shorter clip.", 504)
+    except requests.exceptions.RequestException as e:
+        raise APIError(f"Network error while transcribing: {e}", 502)
+
+
 def ai_complete(system, prompt, effort="medium", max_tokens=800, groq_temperature=0.5):
     """Generate text via Claude, falling back to Groq if Claude fails for any reason."""
     try:

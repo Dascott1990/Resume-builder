@@ -74,6 +74,12 @@ export function makeClip(loaded) {
     narrationFit: "extend", // "extend" the clip to fit the voice-over, or "cut" the voice-over short at the clip's own length
     narrationVolume: 1, // 0 (silent) to 2 (2x gain), 1 = normal
     narrationMuted: false, // silences the voice-over without losing the typed script or any other setting
+    // Only meaningful for kind === "video" — an uploaded clip's own
+    // sound (talking, ambient noise) is kept in the final render by
+    // default, mixed with any voice-over rather than silently replaced
+    // by it. Off turns a video clip fully silent unless it has a
+    // voice-over of its own, same as before this existed.
+    keepOriginalAudio: true,
   };
 }
 

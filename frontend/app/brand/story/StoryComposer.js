@@ -36,7 +36,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2, VolumeX, Copy } from "lucide-react";
+import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2, VolumeX, Copy, Captions } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -49,6 +49,7 @@ import { ClipTimeline } from "./ClipTimeline";
 import { PreviewPlayer } from "./PreviewPlayer";
 import { ExportPanel } from "./ExportPanel";
 import { releaseClip, loadClipFromFile } from "./clipModel";
+import { transcribeClip } from "./transcribe";
 import { saveStoryDraft, loadStoryDraft } from "./draftStore";
 
 const MAX_NARRATION_CHARS = 400; // mirrors backend/app/api/story.py's cap
@@ -109,6 +110,20 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
       <p className="m-0 -mt-2 text-right text-[10.5px] text-muted-foreground/60">
         {(clip.narrationText || "").length}/{MAX_NARRATION_CHARS}
       </p>
+
+      {/* Only for an uploaded video — an image never has its own sound.
+          On by default: a talking-head or ambient clip's real audio is
+          kept and mixed with any voice-over, not silently replaced by
+          it. Independent of Mute above (that only affects the
+          voice-over), so it's never dimmed alongside those controls. */}
+      {clip.kind === "video" && (
+        <button type="button" onClick={() => onPatch({ keepOriginalAudio: clip.keepOriginalAudio === false })}
+          aria-pressed={clip.keepOriginalAudio !== false}
+          className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-[11.5px] font-bold ${clip.keepOriginalAudio !== false ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+          Keep this clip's original sound
+          <span className="font-mono text-[10px] font-normal">{clip.keepOriginalAudio !== false ? "On" : "Off"}</span>
+        </button>
+      )}
 
       {/* Dimmed and inert while muted — nothing here does anything
           audible right now, and greying it out says so at a glance
@@ -174,6 +189,37 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
         </button>
       )}
     </div>
+  );
+}
+
+// Only meaningful for an uploaded video (an image has no audio to
+// transcribe) — turns what's actually SAID in the clip into its caption,
+// instead of starting from a blank textarea and retyping it by ear. A
+// manual button, not automatic-on-upload: transcription is a real network
+// call (Groq's hosted Whisper — see backend/app/api/story.py), and
+// silently firing one per upload isn't something to spend without asking.
+function TranscribeButton({ clip, onTranscribed }) {
+  const [loading, setLoading] = useState(false);
+  const run = async () => {
+    setLoading(true);
+    try {
+      const result = await transcribeClip(clip.file);
+      if (!result.text) {
+        toast.error("Couldn't make out any speech in this clip.");
+        return;
+      }
+      onTranscribed(result);
+      toast.success("Caption filled in from the clip's own audio.");
+    } catch (e) {
+      toast.error(e.message || "Transcription failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <Btn small variant="ghost" onClick={run} disabled={loading} loading={loading}>
+      <Captions className="size-3.5" /> Transcribe this clip's speech
+    </Btn>
   );
 }
 
@@ -256,6 +302,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
             narrationVoice: saved.narrationVoice || "neutral", narrationRate: saved.narrationRate || 165,
             narrationPitch: saved.narrationPitch ?? 50, narrationFit: saved.narrationFit || "extend",
             narrationVolume: saved.narrationVolume ?? 1, narrationMuted: !!saved.narrationMuted,
+            keepOriginalAudio: saved.keepOriginalAudio !== false,
           };
         }));
         if (cancelled) return;
@@ -309,6 +356,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
           narrationVoice: c.narrationVoice, narrationRate: c.narrationRate,
           narrationPitch: c.narrationPitch, narrationFit: c.narrationFit,
           narrationVolume: c.narrationVolume, narrationMuted: c.narrationMuted,
+          keepOriginalAudio: c.keepOriginalAudio,
         })),
       });
     }, 600);
@@ -370,6 +418,16 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     const layer = makeTextLayer({ text });
     setClips((cs) => cs.map((c, i) => (i === selectedIndex ? { ...c, captionLayers: [layer] } : c)));
   };
+  // Not narrationText — narration is TTS reading typed text aloud, and
+  // the clip's own original voice is already kept in the render (see
+  // backend/app/api/story.py's keep_original_audio) — layering a
+  // synthetic voice reading back what the real speaker just said would
+  // just be two voices saying the same thing at once.
+  const applyTranscript = (result) => {
+    if (selectedIndex == null) return;
+    const layer = makeTextLayer({ text: result.text });
+    setClips((cs) => cs.map((c, i) => (i === selectedIndex ? { ...c, captionLayers: [layer] } : c)));
+  };
   const updateNarration = (patch) => {
     if (selectedIndex == null) return;
     handleUpdateClip(selectedIndex, patch);
@@ -415,6 +473,9 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
       </TabsList>
 
       <TabsContent value="caption" className="grid gap-4">
+        {selectedClip?.kind === "video" && (
+          <TranscribeButton clip={selectedClip} onTranscribed={applyTranscript} />
+        )}
         <AiSuggestPanel onSuggestion={applyCaptionSuggestion} />
         {selectedClip ? (
           selectedCaption ? (

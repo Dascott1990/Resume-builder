@@ -33,6 +33,7 @@ from flask import Blueprint, request, jsonify, send_file
 from app import limiter
 from app.middleware.error_handlers import APIError
 from app.utils.mail import send_email
+from app.utils.ai_client import groq_transcribe
 
 story_bp = Blueprint("story", __name__)
 
@@ -116,6 +117,54 @@ def _probe_duration(path):
         return 0.0
 
 
+def _has_audio_stream(path):
+    """Whether an uploaded video actually has its own audio track — a
+    silent screen recording and a talking-head clip both arrive as
+    'video/*', but only one of them has anything to preserve. Checked
+    per-clip rather than assumed, since compositing a non-existent
+    [0:a] stream would just fail the whole segment's ffmpeg call."""
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=codec_type", "-of", "csv=p=0", path],
+        capture_output=True, timeout=15,
+    )
+    return bool(result.stdout.decode().strip())
+
+
+@story_bp.route("/transcribe", methods=["POST"])
+@limiter.limit("20 per hour")
+def transcribe_clip():
+    """Auto-caption an uploaded video from its own spoken audio, instead
+    of requiring someone to retype what's already said in the clip —
+    the actual gap this closes: a video clip used to be edited exactly
+    like a silent image (type a caption, type a script to read aloud),
+    with nothing about its own real sound ever taken into account.
+
+    A separate, lightweight endpoint from /render rather than folding
+    into it: this needs to return fast, while a clip is being added, well
+    before anyone has finished building out the whole story — bundling it
+    into the (already synchronous, already the slowest part of this tool)
+    render call would only add latency there for no reason."""
+    file = request.files.get("clip")
+    if not file:
+        raise APIError("clip file is required", 400)
+    if not (file.mimetype or "").startswith(("video/", "audio/")):
+        raise APIError("clip must be a video or audio file", 400)
+    data = file.read()
+    if len(data) > MAX_CLIP_BYTES:
+        raise APIError(f"clip exceeds the {MAX_CLIP_BYTES // (1024*1024)}MB limit", 400)
+
+    result = groq_transcribe(data, file.filename or "clip", file.mimetype)
+    segments = [
+        {"text": s.get("text", "").strip(), "start": s.get("start", 0), "end": s.get("end", 0)}
+        for s in result.get("segments", [])
+    ]
+    return jsonify({"success": True, "data": {
+        "text": (result.get("text") or "").strip(),
+        "duration": result.get("duration", 0),
+        "segments": segments,
+    }}), 200
+
+
 @story_bp.route("/render", methods=["POST"])
 @limiter.limit("20 per hour")
 def render_story():
@@ -182,6 +231,12 @@ def render_story():
         volume = clip_spec.get("narration_volume")
         clip_spec["narration_volume"] = min(MAX_NARRATION_VOLUME, max(MIN_NARRATION_VOLUME, volume)) if isinstance(volume, (int, float)) else DEFAULT_NARRATION_VOLUME
         clip_spec["narration_muted"] = bool(clip_spec.get("narration_muted"))
+        # Default True — a video clip's own sound used to be silently
+        # discarded every time (replaced with either narration or
+        # silence), which is wrong for an uploaded clip that already has
+        # real audio in it. Only meaningful for kind == "video"; ignored
+        # for images, which never have an original audio track.
+        clip_spec["keep_original_audio"] = clip_spec.get("keep_original_audio", True) is not False
 
         data = file.read()
         if len(data) > MAX_CLIP_BYTES:
@@ -272,20 +327,36 @@ def render_story():
 
 def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platform_id, output_format):
     w, h = PLATFORMS[platform_id]
-    # Once ANY clip carries narration, every segment needs the same
-    # stream layout (video+audio) or the concat demuxer's stream-copy in
-    # the next step breaks — clips with no narration_text get a silent
-    # track exactly matching their own duration instead of staying
-    # video-only. If nothing in the sequence has narration, the pipeline
-    # stays exactly as before (fully silent, no audio stream anywhere).
-    has_narration = any((c["spec"].get("narration_text") or "").strip() for c in clip_bytes)
-    seg_paths = []
 
+    # Every source file is written up front, not inside the main loop
+    # below, because deciding whether ANY segment needs an audio stream
+    # at all (has_audio, next) requires already knowing whether any video
+    # clip has its OWN audio track — a talking-head upload shouldn't have
+    # its sound silently discarded, the way it always used to be before
+    # this. That decision has to be made before the first segment is
+    # encoded: the concat demuxer's stream-copy step needs every segment
+    # to share the same stream layout, so it can't be decided clip by
+    # clip as the loop goes.
+    src_paths = []
+    has_original_audio = {}
     for i, clip in enumerate(clip_bytes):
         ext = ".mp4" if clip["kind"] == "video" else (".png" if "png" in clip["mimetype"] else ".jpg")
         src_path = os.path.join(workdir, f"clip_{i}{ext}")
         with open(src_path, "wb") as f:
             f.write(clip["data"])
+        src_paths.append(src_path)
+        if clip["kind"] == "video" and clip["spec"].get("keep_original_audio", True):
+            has_original_audio[i] = _has_audio_stream(src_path)
+
+    has_narration = any(
+        not c["spec"].get("narration_muted") and (c["spec"].get("narration_text") or "").strip()
+        for c in clip_bytes
+    )
+    has_audio = has_narration or any(has_original_audio.values())
+    seg_paths = []
+
+    for i, clip in enumerate(clip_bytes):
+        src_path = src_paths[i]
 
         # (path, start, end) per overlay to apply, in order — either the
         # N per-word karaoke frames for this clip, or a single window
@@ -372,13 +443,32 @@ def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platf
         else:
             filter_parts.append(f"{video_chain}[outv]")
 
-        if has_narration:
+        if has_audio:
+            # Two independent sources can both want this segment's audio:
+            # the clip's OWN sound (talking-head video, ambient noise —
+            # trimmed to the exact same window the video stream itself
+            # uses) and a typed voice-over narration. Neither should
+            # silently win over the other — one branch each, mixed
+            # together when both exist, so an uploaded video keeps
+            # sounding like itself even with a narration layered on top.
+            audio_branches = []
+            if has_original_audio.get(i):
+                filter_parts.append(f"[0:a]atrim=start={trim_in}:end={trim_out},asetpts=PTS-STARTPTS[orig]")
+                audio_branches.append("orig")
             if narration_wav:
                 video_inputs += ["-i", narration_wav]
-                filter_parts.append(f"[{next_idx}:a]volume={narration_volume},apad[a]")
+                filter_parts.append(f"[{next_idx}:a]volume={narration_volume},apad[narr]")
+                audio_branches.append("narr")
+                next_idx += 1
+
+            if len(audio_branches) == 2:
+                filter_parts.append(f"[{audio_branches[0]}][{audio_branches[1]}]amix=inputs=2:duration=longest:dropout_transition=0[a]")
+            elif audio_branches:
+                filter_parts.append(f"[{audio_branches[0]}]anull[a]")
             else:
                 video_inputs += ["-f", "lavfi", "-t", str(duration), "-i", "anullsrc=r=44100:cl=stereo"]
                 filter_parts.append(f"[{next_idx}:a]anull[a]")
+
             args = [*video_inputs, "-filter_complex", ";".join(filter_parts), "-map", "[outv]", "-map", "[a]",
                     "-t", str(duration), "-r", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", seg_path]
         else:

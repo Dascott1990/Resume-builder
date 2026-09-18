@@ -77,7 +77,10 @@ async function buildFormData(clips, platformId, outputFormat, accent) {
     clipSpecs.push(
       clip.kind === "image"
         ? { kind: "image", duration_sec: clip.durationSec, has_caption: hasCaption, narration_text: narrationText }
-        : { kind: "video", trim_in: clip.trimIn, trim_out: clip.trimOut, has_caption: hasCaption, narration_text: narrationText },
+        : {
+          kind: "video", trim_in: clip.trimIn, trim_out: clip.trimOut, has_caption: hasCaption, narration_text: narrationText,
+          keep_original_audio: clip.keepOriginalAudio !== false,
+        },
     );
     if (narrationText) {
       Object.assign(clipSpecs[clipSpecs.length - 1], {
