@@ -315,7 +315,15 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const platform = PLATFORMS[platformId];
   const selectedLayer = layers.find((l) => l.id === selectedId) || null;
 
-  const CanvasBlock = () => (
+  // Plain JSX values below, NOT `() => (...)` components defined in this
+  // function's own body — a function declared in here is a brand-new
+  // reference every render, so e.g. <EditControls /> was a different
+  // component TYPE to React on every keystroke in the Handle/AI-prompt
+  // inputs, fully unmounting/remounting the whole subtree instead of just
+  // re-rendering it — which drops focus and forces a re-click before the
+  // next character. A plain JSX variable has no separate identity to
+  // break; it's just part of this render, so React diffs it normally.
+  const canvasBlock = (
     <>
       <div className="flex w-full max-w-[560px] items-center justify-end gap-1">
         <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
@@ -362,7 +370,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     </>
   );
 
-  const EditControls = () => (
+  const editControls = (
     <div className="grid gap-4">
       <AiSuggestPanel onSuggestion={applySuggestion} />
 
@@ -421,7 +429,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     </div>
   );
 
-  const DownloadRow = () => (
+  const downloadRow = (
     <div className="flex gap-2">
       <Btn variant="gold" onClick={handleDownload} disabled={!ready || downloading} loading={downloading} className="flex-1">
         <Download className="size-4" /> {downloading ? "Preparing…" : "Download"}
@@ -438,9 +446,9 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
             height on a phone, and pinning something that tall is what
             pushed Download/Email out of easy reach in the first place. */}
         <div className="flex min-w-0 w-full flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5">
-          <CanvasBlock />
+          {canvasBlock}
         </div>
-        <DownloadRow />
+        {downloadRow}
         {/* Hidden while the sheet itself is open — its own "Done" button
             (BottomSheet.js) is the way back, so having this trigger still
             sitting there too is a redundant second way to do the same
@@ -452,7 +460,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
         )}
         <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit">
           <div className="p-4">
-            <EditControls />
+            {editControls}
           </div>
         </BottomSheet>
       </div>
@@ -470,12 +478,12 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
           element as tall as its sibling and leave no room to visibly
           "stick" as the page scrolls past it. */}
       <div className="sticky top-4 flex min-w-0 w-full flex-col items-center gap-3 self-start rounded-2xl border border-border bg-card p-5">
-        <CanvasBlock />
+        {canvasBlock}
       </div>
 
       <div className="grid gap-4">
-        <EditControls />
-        <DownloadRow />
+        {editControls}
+        {downloadRow}
       </div>
     </div>
   );

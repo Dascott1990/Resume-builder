@@ -98,10 +98,35 @@ async function buildFormData(clips, platformId, outputFormat, accent) {
 // bytes (or, with email_to set, a JSON success message) — two different
 // shapes from the one endpoint depending on what was submitted.
 async function submitRender(formData) {
+  if (!BASE) {
+    // Same check apiRequest (shared/api.js) does, and the same reason:
+    // no silent localhost fallback, or every visitor's browser would try
+    // ITS OWN localhost:5002, where nothing is listening.
+    throw new Error("NEXT_PUBLIC_API_URL is not set — set it in Vercel → Project Settings → Environment Variables to the Render backend URL, then redeploy.");
+  }
   const headers = { "X-Guest-Id": getGuestId() };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${BASE}/api/v1/brand/story/render`, { method: "POST", headers, body: formData });
+
+  let res;
+  try {
+    res = await fetch(`${BASE}/api/v1/brand/story/render`, { method: "POST", headers, body: formData });
+  } catch {
+    // fetch() itself throwing (as opposed to resolving with a non-2xx
+    // status) means the request never got a response at all — most
+    // likely this render (video encoding + voice-over synthesis, all
+    // synchronous inside one request — see backend/app/api/story.py's
+    // module docstring) ran long enough that Render's platform-level
+    // proxy cut the connection before gunicorn's own --timeout 120 in
+    // render.yaml even applied; a raw CORS/DNS failure is possible too,
+    // but this is the one that scales with story length/narration and
+    // wouldn't reproduce locally (no such proxy in front of a dev
+    // server) — matching "works on localhost, fails in production."
+    const err = new Error("The render didn't finish in time — try a shorter story, fewer clips, or without voice-over, and try again.");
+    err.code = "STORY_RENDER_NETWORK_ERROR";
+    throw err;
+  }
+
   if (!res.ok) {
     let message = `Render failed (${res.status})`;
     try { message = (await res.json()).error || message; } catch { /* non-JSON error body */ }

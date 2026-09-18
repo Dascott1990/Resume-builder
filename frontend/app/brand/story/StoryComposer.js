@@ -265,7 +265,17 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   // action outside its own "Edit content & style" sheet (see
   // PostComposer.js's DownloadRow); Export belongs the same way, not
   // buried behind the same button as content/style editing.
-  const ControlsPanel = () => (
+  //
+  // Plain JSX value, NOT a `() => (...)` component defined in here — that
+  // was the actual bug behind "the caption input loses focus after every
+  // character": a function declared inside this component's own body is a
+  // brand-new function reference every render, so <ControlsPanel /> was a
+  // different component TYPE to React on every keystroke, and it fully
+  // unmounted/remounted the Tabs/Textarea underneath instead of just
+  // re-rendering them — which drops focus and forces a re-click before
+  // the next character. A plain JSX variable has no separate identity to
+  // break; it's just part of this render, so React diffs it normally.
+  const controlsPanel = (
     <Tabs value={controlTab} onValueChange={setControlTab} className="gap-3">
       <TabsList className="w-full">
         <TabsTrigger value="caption">Caption</TabsTrigger>
@@ -314,7 +324,10 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   // nesting the sticky element one level inside a shared container with
   // the clip list was the actual bug here — this now matches that exact
   // shape, with ClipTimeline placed as its own row instead.
-  const Preview = () => (
+  //
+  // Plain JSX value, not a component defined in here — same reasoning as
+  // controlsPanel above.
+  const preview = (
     <div className="grid gap-4">
       <div className="flex items-center justify-between">
         <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Preview</p>
@@ -353,7 +366,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
             is exactly what made Download/Email/Edit unreachable below
             it. Flowing normally lets the page scroll past it like any
             other block. */}
-        <Preview />
+        {preview}
         {/* Directly under the preview's play/pause row — same position
             Create's canvas → Download/Email → Edit sequence uses
             (PostComposer.js) — not further down the page past the clip
@@ -372,7 +385,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
         {clipTimeline}
         <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit">
           <div className="p-4">
-            <ControlsPanel />
+            {controlsPanel}
           </div>
         </BottomSheet>
       </div>
@@ -387,10 +400,10 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
             while ClipTimeline (below, outside this row entirely) and
             whichever tab is being edited scroll normally. */}
         <div className="sticky top-4 self-start">
-          <Preview />
+          {preview}
         </div>
         <div className="sticky top-4 grid gap-4 self-start">
-          <ControlsPanel />
+          {controlsPanel}
           {exportPanel}
         </div>
       </div>
