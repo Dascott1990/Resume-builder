@@ -766,3 +766,97 @@ class VendorNewsItem(db.Model):
             "id": self.id, "vendor_id": self.vendor_id, "title": self.title, "url": self.url,
             "published_at": _iso_utc(self.published_at), "fetched_at": _iso_utc(self.fetched_at),
         }
+
+
+class BrandHandle(db.Model):
+    """
+    One of our own social/campaign accounts — registered once (platform +
+    handle name) so scheduling a post just picks from this list instead of
+    re-typing "@noqeev on Instagram" every single time. See ScheduledPost
+    below for what actually gets scheduled against these.
+    """
+    __tablename__ = "brand_handles"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    platform = db.Column(db.String(30), nullable=False)  # instagram|tiktok|x|facebook|linkedin|youtube|pinterest|other
+    handle_name = db.Column(db.String(120), nullable=False)  # "@noqeev"
+    label = db.Column(db.String(120), nullable=True)  # optional friendly name, e.g. "Instagram — main"
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id": self.id, "platform": self.platform, "handle_name": self.handle_name,
+            "label": self.label, "created_at": _iso_utc(self.created_at),
+        }
+
+
+class ScheduledPost(db.Model):
+    """
+    A piece of brand content (from /brand's Create or Story tool) queued
+    to go out at a specific time — not an auto-poster (this app has no
+    API integration with any social platform, and isn't trying to
+    become one): the scheduled_at/reminded_at pair drives an EMAIL + an
+    admin-panel badge telling a human "go post this now," the same
+    reminded_at-gates-a-one-time-fire shape BrandTask's due-date
+    reminder already uses (see utils/task_reminders.py) — this is that
+    same idea, applied to a piece of content instead of a to-do.
+
+    suggested_at is kept separately from scheduled_at purely as an audit
+    trail of what the AI originally proposed, in case scheduled_at gets
+    overridden — never read by anything except the admin UI showing "AI
+    suggested ...".
+
+    status flips to "completed" the moment every one of this post's
+    ScheduledPostHandle rows has posted=True (see
+    api/admin.py's mark-posted route) — not before, and not
+    automatically for any other reason.
+    """
+    __tablename__ = "scheduled_posts"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    content_type = db.Column(db.String(20), nullable=False)  # "post" | "story"
+    title = db.Column(db.String(200), nullable=False)
+    caption = db.Column(db.Text, nullable=True)
+    suggested_at = db.Column(db.DateTime, nullable=True)
+    scheduled_at = db.Column(db.DateTime, nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default="scheduled")  # "scheduled" | "completed"
+    notify_email = db.Column(db.String(255), nullable=True)
+    reminded_at = db.Column(db.DateTime, nullable=True)
+    created_by = db.Column(db.String(32), db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    handles = db.relationship(
+        "ScheduledPostHandle", backref="post", cascade="all, delete-orphan",
+        order_by="ScheduledPostHandle.id",
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id, "content_type": self.content_type, "title": self.title, "caption": self.caption,
+            "suggested_at": _iso_utc(self.suggested_at), "scheduled_at": _iso_utc(self.scheduled_at),
+            "status": self.status, "notify_email": self.notify_email, "reminded_at": _iso_utc(self.reminded_at),
+            "created_at": _iso_utc(self.created_at), "completed_at": _iso_utc(self.completed_at),
+            "handles": [h.to_dict() for h in self.handles],
+        }
+
+
+class ScheduledPostHandle(db.Model):
+    """Per-handle completion tracking for one ScheduledPost — a post
+    targeting 3 handles needs all 3 marked posted before the reminder
+    actually clears (see ScheduledPost.status above)."""
+    __tablename__ = "scheduled_post_handles"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    scheduled_post_id = db.Column(db.String(32), db.ForeignKey("scheduled_posts.id", ondelete="CASCADE"), nullable=False, index=True)
+    brand_handle_id = db.Column(db.String(32), db.ForeignKey("brand_handles.id"), nullable=False)
+    posted = db.Column(db.Boolean, nullable=False, default=False)
+    posted_at = db.Column(db.DateTime, nullable=True)
+
+    handle = db.relationship("BrandHandle")
+
+    def to_dict(self):
+        return {
+            "id": self.id, "brand_handle_id": self.brand_handle_id,
+            "platform": self.handle.platform if self.handle else None,
+            "handle_name": self.handle.handle_name if self.handle else None,
+            "label": self.handle.label if self.handle else None,
+            "posted": bool(self.posted), "posted_at": _iso_utc(self.posted_at),
+        }

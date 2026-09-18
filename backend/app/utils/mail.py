@@ -27,6 +27,16 @@ MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER") or MAIL_USERNAME
 _real_getaddrinfo = socket.getaddrinfo
 
 
+def mail_configured():
+    """Same shape as utils/push.py's push_configured() — a guard a
+    background job can check before attempting to send, instead of every
+    caller having to wrap send_email() in its own try/except for the
+    "not configured" case specifically (send_email itself still raises
+    if called without credentials; this just lets a caller skip the
+    attempt entirely, silently, when that's the more correct response)."""
+    return bool(MAIL_USERNAME and MAIL_PASSWORD)
+
+
 def _ipv4_only_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     # smtplib resolves the SMTP host via socket.getaddrinfo() with no
     # family preference, so if DNS returns an AAAA (IPv6) record first,

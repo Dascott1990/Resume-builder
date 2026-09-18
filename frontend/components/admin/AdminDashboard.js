@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import {
   Loader2, RefreshCw, Trash2, ShieldCheck, ShieldOff, LogOut, KeyRound,
   Users, FileText, Briefcase, Star, Wrench, LayoutGrid, Pencil, Mail, Plus, X, Sparkles,
-  Newspaper, ExternalLink,
+  Newspaper, ExternalLink, CalendarClock, Check, Sparkle,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { Button } from "@/components/ui/button";
@@ -1228,6 +1228,343 @@ function VendorsTab() {
   );
 }
 
+// ── Post scheduler ──────────────────────────────────────────────────────
+const PLATFORM_OPTIONS = ["instagram", "tiktok", "x", "facebook", "linkedin", "youtube", "pinterest", "other"];
+const PLATFORM_LABELS = {
+  instagram: "Instagram", tiktok: "TikTok", x: "X", facebook: "Facebook",
+  linkedin: "LinkedIn", youtube: "YouTube", pinterest: "Pinterest", other: "Other",
+};
+const CONTENT_TYPE_LABELS = { post: "Post", story: "Story" };
+
+function fmtDateTime(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+// datetime-local input wants "YYYY-MM-DDTHH:MM" in LOCAL time, not the
+// ISO-with-Z UTC string the backend stores/returns — this converts one
+// to the other for the input's value; toLocalInputValue back the other
+// way happens inline at submit time (see ScheduledPostFormDialog).
+function toLocalInputValue(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function HandleFormDialog({ open, onOpenChange, onSaved }) {
+  const [platform, setPlatform] = useState("instagram");
+  const [handleName, setHandleName] = useState("");
+  const [label, setLabel] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!handleName.trim()) { toast.error("Handle name is required."); return; }
+    setSaving(true);
+    try {
+      await apiRequest("/api/v1/admin/handles", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform, handle_name: handleName.trim(), label: label.trim() || undefined }),
+      });
+      toast.success("Handle registered.");
+      setHandleName(""); setLabel("");
+      onOpenChange(false);
+      onSaved();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Register a handle</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Platform</Label>
+            <Select value={platform} onValueChange={setPlatform}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PLATFORM_OPTIONS.map((p) => <SelectItem key={p} value={p}>{PLATFORM_LABELS[p]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5"><Label>Handle name</Label><Input value={handleName} onChange={(e) => setHandleName(e.target.value)} placeholder="@noqeev" /></div>
+          <div className="space-y-1.5"><Label>Label (optional)</Label><Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Main account" /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="size-3.5 animate-spin" /> : "Register"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ScheduledPostFormDialog({ open, onOpenChange, onSaved, handles, defaultEmail }) {
+  const [contentType, setContentType] = useState("post");
+  const [title, setTitle] = useState("");
+  const [caption, setCaption] = useState("");
+  const [handleIds, setHandleIds] = useState([]);
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [reasoning, setReasoning] = useState("");
+  const [notifyEmail, setNotifyEmail] = useState(defaultEmail || "");
+  const [suggesting, setSuggesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const toggleHandle = (id) => setHandleIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+
+  const suggestTime = async () => {
+    setSuggesting(true);
+    try {
+      const data = await apiRequest("/api/v1/admin/scheduled-posts/suggest-time", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content_type: contentType, title, caption }),
+      });
+      setScheduledAt(toLocalInputValue(data.scheduled_at));
+      setReasoning(data.reasoning || "");
+      toast.success("Suggested a time — adjust it below if you'd rather post at a different one.");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  const save = async () => {
+    if (!title.trim()) { toast.error("Title is required."); return; }
+    if (!handleIds.length) { toast.error("Pick at least one handle."); return; }
+    if (!scheduledAt) { toast.error("Set a date/time (or tap Suggest time)."); return; }
+    setSaving(true);
+    try {
+      // The <input type="datetime-local"> value has no seconds/timezone —
+      // append :00 for the backend's YYYY-MM-DDTHH:MM:SS parser; it's
+      // already local time chosen by whoever's scheduling, sent as-is
+      // (the backend treats every scheduled_at as UTC — see api/admin.py
+      // — so this intentionally does NOT convert local-to-UTC: the
+      // person scheduling picked a wall-clock time meaning "this time,
+      // whenever reminders fire," not a precise UTC instant).
+      await apiRequest("/api/v1/admin/scheduled-posts", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content_type: contentType, title: title.trim(), caption: caption.trim() || undefined,
+          scheduled_at: `${scheduledAt}:00`, suggested_at: reasoning ? `${scheduledAt}:00` : undefined,
+          handle_ids: handleIds, notify_email: notifyEmail.trim() || undefined,
+        }),
+      });
+      toast.success("Scheduled.");
+      onOpenChange(false);
+      onSaved();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Schedule a post</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Content type</Label>
+            <Select value={contentType} onValueChange={setContentType}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="post">Post</SelectItem>
+                <SelectItem value="story">Story</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5"><Label>Title</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Morning routine tip" /></div>
+          <div className="space-y-1.5"><Label>Caption / notes</Label><Textarea rows={3} value={caption} onChange={(e) => setCaption(e.target.value)} /></div>
+
+          <div className="space-y-1.5">
+            <Label>Handles</Label>
+            {handles.length === 0 ? (
+              <p className="m-0 text-[12.5px] text-muted-foreground">No handles registered yet — add one first.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {handles.map((h) => (
+                  <button key={h.id} type="button" onClick={() => toggleHandle(h.id)} aria-pressed={handleIds.includes(h.id)}
+                    className={`rounded-full border px-3 py-1.5 text-[12px] font-semibold ${handleIds.includes(h.id) ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+                    {PLATFORM_LABELS[h.platform] || h.platform} — {h.handle_name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label>When</Label>
+              <Button variant="outline" size="sm" onClick={suggestTime} disabled={suggesting || (!title.trim() && !caption.trim())}>
+                {suggesting ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkle className="size-3.5" />}
+                Suggest time
+              </Button>
+            </div>
+            <Input type="datetime-local" value={scheduledAt} onChange={(e) => { setScheduledAt(e.target.value); setReasoning(""); }} />
+            {reasoning && <p className="m-0 text-[12px] text-muted-foreground">AI: {reasoning}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Notify email</Label>
+            <Input type="email" value={notifyEmail} onChange={(e) => setNotifyEmail(e.target.value)} placeholder="you@example.com" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="size-3.5 animate-spin" /> : "Schedule"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// One row's worth of per-handle "mark posted" chips — its own component
+// so toggling one handle only re-renders this row, not the whole table.
+function ScheduledPostHandles({ post, onChanged }) {
+  const [busyId, setBusyId] = useState(null);
+  const toggle = async (handleId, posted) => {
+    setBusyId(handleId);
+    try {
+      await apiRequest(`/api/v1/admin/scheduled-posts/${post.id}/handles/${handleId}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ posted }),
+      });
+      onChanged();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {post.handles.map((h) => (
+        <button key={h.id} type="button" onClick={() => toggle(h.brand_handle_id, !h.posted)} disabled={busyId === h.brand_handle_id}
+          className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold ${h.posted ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-border bg-transparent text-muted-foreground"}`}>
+          {h.posted && <Check className="size-3" />}
+          {PLATFORM_LABELS[h.platform] || h.platform} — {h.handle_name || "(removed)"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SchedulerTab({ adminEmail, onDueCountChange }) {
+  const posts = useAdminList("/api/v1/admin/scheduled-posts");
+  const [handles, setHandles] = useState([]);
+  const [nextUp, setNextUp] = useState(null);
+  const [postDialogOpen, setPostDialogOpen] = useState(false);
+  const [handleDialogOpen, setHandleDialogOpen] = useState(false);
+
+  const loadHandles = useCallback(async () => {
+    try { setHandles(await apiRequest("/api/v1/admin/handles")); } catch (e) { toast.error(e.message); }
+  }, []);
+  const loadNextUp = useCallback(async () => {
+    try { setNextUp(await apiRequest("/api/v1/admin/scheduled-posts/next-up")); } catch { /* non-critical */ }
+  }, []);
+  const refreshDueCount = useCallback(async () => {
+    try { onDueCountChange((await apiRequest("/api/v1/admin/scheduled-posts/due-count")).count); } catch { /* non-critical */ }
+  }, [onDueCountChange]);
+
+  useEffect(() => { loadHandles(); loadNextUp(); refreshDueCount(); }, [loadHandles, loadNextUp, refreshDueCount]);
+
+  const reloadAll = () => { posts.load(); loadNextUp(); refreshDueCount(); };
+
+  const deleteHandle = async (id) => {
+    if (!window.confirm("Remove this handle? Scheduled posts that targeted it keep their history but lose the live link.")) return;
+    try {
+      await apiRequest(`/api/v1/admin/handles/${id}`, { method: "DELETE" });
+      toast.success("Removed.");
+      loadHandles();
+    } catch (e) {
+      toast.error(e.message);
+    }
+  };
+
+  return (
+    <div>
+      {nextUp && (
+        <div className="mb-4 flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.04] p-3.5">
+          <CalendarClock className="size-4 shrink-0 text-primary" />
+          <div className="min-w-0 flex-1">
+            <p className="m-0 text-[11px] font-bold tracking-wide text-primary uppercase">Next up</p>
+            <p className="m-0 truncate text-[13.5px] font-semibold text-foreground">{nextUp.title} — {fmtDateTime(nextUp.scheduled_at)}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-5">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="m-0 text-[13px] font-bold text-foreground">Handles</h3>
+          <Button variant="outline" size="sm" onClick={() => setHandleDialogOpen(true)}><Plus className="size-3.5" /> Add handle</Button>
+        </div>
+        {handles.length === 0 ? (
+          <p className="m-0 text-[12.5px] text-muted-foreground">No handles registered yet.</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {handles.map((h) => (
+              <span key={h.id} className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[12px] font-semibold text-foreground">
+                {PLATFORM_LABELS[h.platform] || h.platform} — {h.handle_name}
+                <button type="button" onClick={() => deleteHandle(h.id)} className="text-muted-foreground hover:text-destructive"><X className="size-3" /></button>
+              </span>
+            ))}
+          </div>
+        )}
+        <HandleFormDialog open={handleDialogOpen} onOpenChange={setHandleDialogOpen} onSaved={loadHandles} />
+      </div>
+
+      <TabHeader
+        title="Scheduled posts"
+        onRefresh={reloadAll}
+        refreshing={posts.loading}
+        extra={<Button size="sm" onClick={() => setPostDialogOpen(true)}><Plus className="size-3.5" /> Schedule a post</Button>}
+      />
+      <ScheduledPostFormDialog
+        open={postDialogOpen} onOpenChange={setPostDialogOpen} onSaved={reloadAll}
+        handles={handles} defaultEmail={adminEmail}
+      />
+      <AdminTable
+        loading={posts.loading}
+        emptyLabel="Nothing scheduled yet."
+        rows={posts.rows}
+        columns={[
+          {
+            key: "title", label: "Content",
+            render: (p) => (
+              <div>
+                <p className="m-0 font-semibold text-foreground">{p.title}</p>
+                <p className="m-0 text-[11.5px] text-muted-foreground">{CONTENT_TYPE_LABELS[p.content_type] || p.content_type}</p>
+              </div>
+            ),
+          },
+          { key: "scheduled_at", label: "When", render: (p) => fmtDateTime(p.scheduled_at) },
+          {
+            key: "status", label: "Status",
+            render: (p) => (
+              <Badge variant={p.status === "completed" ? "secondary" : "outline"}>
+                {p.status === "completed" ? "Posted" : "Scheduled"}
+              </Badge>
+            ),
+          },
+          { key: "handles", label: "Handles", render: (p) => <ScheduledPostHandles post={p} onChanged={reloadAll} /> },
+          {
+            key: "actions", label: "",
+            render: (p) => (
+              <Button variant="ghost" size="sm" onClick={() => posts.remove(p.id, `Delete "${p.title}"?`)} disabled={posts.busyId === p.id}>
+                {posts.busyId === p.id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+              </Button>
+            ),
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
 // Reuses the exact same forgot-password flow the public site already has
 // (rate-limited, single-use, time-limited token — see backend/app/api/
 // auth.py) rather than a separate "change password" endpoint. Surfaced
@@ -1267,6 +1604,21 @@ function ChangePasswordButton({ email }) {
 }
 
 export function AdminDashboard({ adminUser, onSignOut }) {
+  // The persistent badge — scheduled posts at/past their time and still
+  // open. Lives here, not inside SchedulerTab, so it stays visible on the
+  // tab trigger itself regardless of which tab is actually open; polled
+  // periodically (not just once on mount) so it stays current even if
+  // nobody's touched the Scheduler tab in a while, and refreshed
+  // immediately by SchedulerTab itself after any action that could
+  // change it (see its onDueCountChange prop).
+  const [dueCount, setDueCount] = useState(0);
+  useEffect(() => {
+    const load = () => apiRequest("/api/v1/admin/scheduled-posts/due-count").then((d) => setDueCount(d.count)).catch(() => {});
+    load();
+    const interval = setInterval(load, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     // Fixed shell, not a scrolling page — matches every other screen in
     // the app (see GuestMode.js's own `absolute inset-0 ... overflow-hidden`
@@ -1312,6 +1664,17 @@ export function AdminDashboard({ adminUser, onSignOut }) {
             <TabsTrigger value="reviews" className="shrink-0">Reviews</TabsTrigger>
             <TabsTrigger value="artisans" className="shrink-0">Artisans</TabsTrigger>
             <TabsTrigger value="vendors" className="shrink-0">Vendors</TabsTrigger>
+            {/* The persistent badge — stays visible on the tab itself
+                (not just inside the tab's own content) until every
+                due, open scheduled post is resolved. */}
+            <TabsTrigger value="scheduler" className="shrink-0 gap-1.5">
+              Scheduler
+              {dueCount > 0 && (
+                <span className="flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
+                  {dueCount > 9 ? "9+" : dueCount}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -1324,6 +1687,7 @@ export function AdminDashboard({ adminUser, onSignOut }) {
             <TabsContent value="reviews"><ReviewsTab /></TabsContent>
             <TabsContent value="artisans"><ArtisansTab /></TabsContent>
             <TabsContent value="vendors"><VendorsTab /></TabsContent>
+            <TabsContent value="scheduler"><SchedulerTab adminEmail={adminUser?.email} onDueCountChange={setDueCount} /></TabsContent>
           </div>
         </main>
       </Tabs>

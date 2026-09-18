@@ -199,10 +199,12 @@ def create_app():
         from app.utils.task_reminders import start_scheduler
         from app.utils.world_feed import start_world_feed_scheduler
         from app.utils.vendors import start_vendor_news_scheduler
+        from app.utils.schedule_reminders import start_schedule_reminders_scheduler
         scheduler = start_scheduler(app)
         if scheduler:
             start_world_feed_scheduler(scheduler, app)
             start_vendor_news_scheduler(scheduler, app)
+            start_schedule_reminders_scheduler(scheduler, app)
     except Exception as exc:
         print(f"❌ Background scheduler failed to start: {exc}")
 
