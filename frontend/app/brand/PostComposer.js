@@ -25,14 +25,17 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Download, Loader2, Type, Smile, ImagePlus, Undo2, Redo2, SlidersHorizontal,
+  FilePlus2, Images, FileImage, Trash2, Upload,
 } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
 import { BottomSheet } from "@/components/premium/shared/BottomSheet";
 import { useViewport } from "@/lib/useViewport";
 import {
-  loadMarkImage, ensureFontsReady, canvasToPngBlob, downloadBlob,
-  loadHandle, saveHandle, loadPostDraft, savePostDraft,
+  loadMarkImage, ensureFontsReady, canvasToPngBlob, downloadBlob, resizeImageToDataUrl,
+  loadHandle, saveHandle,
+  savePostDraft, loadPostDraft, deletePostDraft, listPostDrafts,
+  getActivePostId, setActivePostId, newPostId, migrateLegacyPostDraft,
 } from "./assetKit";
 import {
   renderPost, PLATFORMS, DEFAULT_ACCENT, SHAPES, INITIAL_LAYOUTS,
@@ -58,6 +61,18 @@ const SHAPE_DEFAULTS = {
   stat: { eyebrow: "Noqeev · By the numbers", headline: "3 minutes", subtext: "The average time it takes to tailor a resume with Noqeev." },
 };
 
+const makePostName = () => `Post — ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+
+function relativeTime(ts) {
+  if (!ts) return "";
+  const diffMin = Math.round((Date.now() - ts) / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.round(diffHr / 24)}d ago`;
+}
+
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 export function PostComposer({ accent = DEFAULT_ACCENT }) {
@@ -74,9 +89,19 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const [gifUrlOpen, setGifUrlOpen] = useState(false);
   const [gifUrl, setGifUrl] = useState("");
   const [gifLoading, setGifLoading] = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
   const [historyTick, setHistoryTick] = useState(0); // bumped on every undo/redo/commit so the buttons' disabled state re-renders
+  // Which saved draft (assetKit.js's multi-draft store) is currently
+  // open, and its own display name — null until the mount effect below
+  // resolves which post should be active. postsOpen/postsList back the
+  // "My Posts" switcher sheet.
+  const [postId, setPostId] = useState(null);
+  const [postName, setPostName] = useState(null);
+  const [postsOpen, setPostsOpen] = useState(false);
+  const [postsList, setPostsList] = useState([]);
 
   const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
   const markImgRef = useRef(null);
   const stickerImagesRef = useRef({});
   const boxesRef = useRef(new Map());
@@ -140,16 +165,25 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [undo, redo]);
 
-  // Whatever was in progress last time, restored once on mount — a
-  // refresh used to lose every layer and every restyle with nothing to
-  // show for it. Only shapeId/platformId/layers are drafted; ready/mark
-  // image loading below is unrelated and runs regardless.
+  // Which draft is active, resolved once on mount — a refresh used to
+  // lose every layer and every restyle with nothing to show for it.
+  // First-ever visit (or an old pre-multi-draft single slot) gets a
+  // real id via migrateLegacyPostDraft/newPostId instead of staying
+  // postId === null.
   const restoredRef = useRef(false);
   useEffect(() => {
     setHandle(loadHandle());
     Promise.all([loadMarkImage(), ensureFontsReady()]).then(([img]) => { markImgRef.current = img; setReady(true); });
 
-    const draft = loadPostDraft();
+    let id = getActivePostId();
+    if (!id) {
+      id = migrateLegacyPostDraft() || newPostId();
+      setActivePostId(id);
+    }
+    setPostId(id);
+
+    const draft = loadPostDraft(id);
+    setPostName(draft?.name || makePostName());
     if (draft?.layers?.length) {
       setLayersRaw(draft.layers);
       historyRef.current = [draft.layers];
@@ -178,14 +212,67 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   // Debounced so a dragged slider or fast typing doesn't write on every
   // intermediate value — autosaves after every settled change instead of
   // an explicit "save" action, so forgetting to press one can't lose
-  // anything. Skipped until the restore above has run once, so the
-  // initial default layers (before a draft is checked for) never
-  // overwrite a real draft that just hasn't loaded yet.
+  // anything. Skipped until the restore above has resolved postId, so
+  // the initial default layers (before a draft is checked for) never
+  // overwrite a real draft that just hasn't loaded yet, and saved under
+  // THIS post's own id — not a single fixed slot — so switching away
+  // never clobbers another draft's save.
   useEffect(() => {
-    if (!restoredRef.current) return;
-    const timer = setTimeout(() => savePostDraft({ shapeId, platformId, layers }), 600);
+    if (!restoredRef.current || !postId) return;
+    const timer = setTimeout(() => savePostDraft(postId, { name: postName, shapeId, platformId, layers }), 600);
     return () => clearTimeout(timer);
-  }, [layers, shapeId, platformId]);
+  }, [layers, shapeId, platformId, postId, postName]);
+
+  // Resets every piece of post-specific state to blank, without touching
+  // storage — the shared tail of New Post, switching to another draft,
+  // and deleting the one currently open.
+  const resetComposerState = (nextId, nextName, restoredLayers, restoredShapeId = "tip", restoredPlatformId = "square") => {
+    const nextLayers = restoredLayers?.length ? restoredLayers : INITIAL_LAYOUTS[restoredShapeId](SHAPE_DEFAULTS[restoredShapeId]);
+    setActivePostId(nextId);
+    setPostId(nextId);
+    setPostName(nextName);
+    setLayersRaw(nextLayers);
+    historyRef.current = [nextLayers];
+    historyIndexRef.current = 0;
+    setHistoryTick((t) => t + 1);
+    setSelectedId(null);
+    setShapeId(restoredShapeId);
+    setPlatformId(restoredPlatformId);
+  };
+
+  // Saves whatever's open right now under its OWN id immediately (not
+  // waiting on the debounced autosave above) — used right before
+  // switching away from it, so nothing from it can be lost in the gap.
+  const persistCurrentPost = () => {
+    if (!postId) return;
+    savePostDraft(postId, { name: postName, shapeId, platformId, layers });
+  };
+
+  const startNewPost = () => {
+    persistCurrentPost();
+    resetComposerState(newPostId(), makePostName());
+    toast.success("Started a new post — your other one is saved.");
+  };
+
+  const refreshPostsList = () => setPostsList(listPostDrafts());
+  const openPostsPanel = () => { refreshPostsList(); setPostsOpen(true); };
+
+  const switchToPost = (id) => {
+    if (id === postId) { setPostsOpen(false); return; }
+    persistCurrentPost();
+    const draft = loadPostDraft(id);
+    resetComposerState(id, draft?.name || "Untitled post", draft?.layers, draft?.shapeId || "tip", draft?.platformId || "square");
+    setPostsOpen(false);
+    toast.success(`Switched to "${draft?.name || "Untitled post"}".`);
+  };
+
+  const deletePost = (id, e) => {
+    e.stopPropagation();
+    deletePostDraft(id);
+    if (id === postId) resetComposerState(newPostId(), makePostName());
+    refreshPostsList();
+    toast.success("Deleted.");
+  };
 
   const updateHandle = (v) => { setHandle(v); saveHandle(v); };
 
@@ -236,6 +323,34 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
       toast.error("Couldn't load that link.");
     } finally {
       setGifLoading(false);
+    }
+  };
+  // A device upload, not just a pasted URL — resizeImageToDataUrl turns
+  // it into an inline data: URL (see assetKit.js) rather than an object
+  // URL, so it's plain JSON and survives the draft autosave/reload like
+  // every other layer does, instead of pointing at a blob that's gone
+  // the moment the tab closes.
+  const addUploadedImage = async (file) => {
+    if (!file) return;
+    setUploadLoading(true);
+    try {
+      const dataUrl = await resizeImageToDataUrl(file);
+      const img = await new Promise((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error("Couldn't read that image."));
+        el.src = dataUrl;
+      });
+      stickerImagesRef.current = { ...stickerImagesRef.current, [dataUrl]: img };
+      const layer = makeStickerLayer({ kind: "image", value: dataUrl, sizeFrac: 0.3 });
+      setLayers((ls) => [...ls, layer]);
+      setSelectedId(layer.id);
+      setStickerPickerOpen(false);
+    } catch (e) {
+      toast.error(e.message || "Couldn't load that image.");
+    } finally {
+      setUploadLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -410,6 +525,13 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
           <Btn small variant="ghost" onClick={addText}><Type className="size-3.5" /> Text</Btn>
           <Btn small variant="ghost" onClick={() => { setStickerPickerOpen((v) => !v); setGifUrlOpen(false); }}><Smile className="size-3.5" /> Emoji</Btn>
           <Btn small variant="ghost" onClick={() => { setGifUrlOpen((v) => !v); setStickerPickerOpen(false); }}><ImagePlus className="size-3.5" /> GIF / Image</Btn>
+          <Btn small variant="ghost" onClick={() => fileInputRef.current?.click()} disabled={uploadLoading} loading={uploadLoading}>
+            <Upload className="size-3.5" /> Upload
+          </Btn>
+          <input
+            ref={fileInputRef} type="file" accept="image/*" className="hidden"
+            onChange={(e) => addUploadedImage(e.target.files?.[0])}
+          />
         </div>
         {stickerPickerOpen && (
           // 6 columns, not 8 — at a real 44px touch target (down from
@@ -456,9 +578,64 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     </div>
   );
 
+  // This post's name + New Post/My Posts — sits above everything else
+  // regardless of phone/desktop layout, so it's always reachable without
+  // first having to finish or lose whatever's currently open.
+  const postHeader = (
+    <div className="flex items-center justify-between gap-2">
+      <p className="m-0 min-w-0 truncate text-[13px] font-bold text-foreground">{postName || "Post"}</p>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <Btn small variant="ghost" onClick={openPostsPanel}>
+          <Images className="size-3.5" /> My Posts
+        </Btn>
+        <Btn small variant="ghost" onClick={startNewPost}>
+          <FilePlus2 className="size-3.5" /> New
+        </Btn>
+      </div>
+    </div>
+  );
+
+  const postsPanel = (
+    <BottomSheet open={postsOpen} onClose={() => setPostsOpen(false)} title="My Posts">
+      <div className="grid gap-2 p-4">
+        {postsList.length === 0 ? (
+          <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
+            No other saved posts yet.
+          </p>
+        ) : (
+          postsList.map((p) => (
+            // A <div role="button">, not a real <button> — it wraps
+            // another real <button> (Delete) below, and nesting
+            // interactive elements inside a <button> is invalid HTML.
+            <div key={p.id} role="button" tabIndex={0} onClick={() => switchToPost(p.id)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); switchToPost(p.id); } }}
+              className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-left ${p.id === postId ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-card"}`}>
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <FileImage className="size-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="m-0 truncate text-[13px] font-bold text-foreground">
+                  {p.name}{p.id === postId ? " (current)" : ""}
+                </p>
+                <p className="m-0 text-[11px] text-muted-foreground">
+                  {p.layerCount} layer{p.layerCount === 1 ? "" : "s"} · {relativeTime(p.updatedAt)}
+                </p>
+              </div>
+              <button type="button" onClick={(e) => deletePost(p.id, e)} title="Delete"
+                className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive">
+                <Trash2 className="size-4" />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </BottomSheet>
+  );
+
   if (isPhone) {
     return (
       <div className="grid gap-4">
+        {postHeader}
         {/* Canvas as the base view, NOT sticky here — a tall preset
             (Story/Portrait) can make this box nearly the full viewport
             height on a phone, and pinning something that tall is what
@@ -481,28 +658,33 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
             {editControls}
           </div>
         </BottomSheet>
+        {postsPanel}
       </div>
     );
   }
 
   return (
-    <div className="grid gap-5 sm:grid-cols-[1fr_300px]">
-      {/* Sticky, not a plain grid item — without this, scrolling down
-          into the controls sidebar carries the canvas out of view along
-          with it, so a style change made down there has nothing on
-          screen to actually show its result until scrolling back up.
-          self-start is required alongside sticky: a grid item stretches
-          to its row's full height by default, which would make this
-          element as tall as its sibling and leave no room to visibly
-          "stick" as the page scrolls past it. */}
-      <div className="sticky top-4 flex min-w-0 w-full flex-col items-center gap-3 self-start rounded-2xl border border-border bg-card p-5">
-        {canvasBlock}
-      </div>
+    <div className="grid gap-5">
+      {postHeader}
+      <div className="grid gap-5 sm:grid-cols-[1fr_300px]">
+        {/* Sticky, not a plain grid item — without this, scrolling down
+            into the controls sidebar carries the canvas out of view along
+            with it, so a style change made down there has nothing on
+            screen to actually show its result until scrolling back up.
+            self-start is required alongside sticky: a grid item stretches
+            to its row's full height by default, which would make this
+            element as tall as its sibling and leave no room to visibly
+            "stick" as the page scrolls past it. */}
+        <div className="sticky top-4 flex min-w-0 w-full flex-col items-center gap-3 self-start rounded-2xl border border-border bg-card p-5">
+          {canvasBlock}
+        </div>
 
-      <div className="grid gap-4">
-        {editControls}
-        {downloadRow}
+        <div className="grid gap-4">
+          {editControls}
+          {downloadRow}
+        </div>
       </div>
+      {postsPanel}
     </div>
   );
 }

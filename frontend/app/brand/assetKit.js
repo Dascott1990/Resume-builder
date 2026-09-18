@@ -226,17 +226,89 @@ export function saveBrandUiState(state) {
   try { localStorage.setItem(UI_STATE_KEY, JSON.stringify(state)); } catch { /* best-effort */ }
 }
 
-// A refresh (or just closing the tab and coming back) used to lose an
-// entire in-progress post — every layer, every restyle. PostComposer's
-// layers/shape/platform are already plain JSON (image stickers are a
-// pasted URL, not an uploaded file — see makeStickerLayer's "kind:
-// image" path in PostComposer.js), so unlike Story's real uploaded clip
-// files (draftStore.js, IndexedDB) this is a normal localStorage
-// autosave, same pattern as everything else on this page.
-const POST_DRAFT_KEY = "noqeev_brand_post_draft";
-export function loadPostDraft() {
-  try { return JSON.parse(localStorage.getItem(POST_DRAFT_KEY) || "null"); } catch { return null; }
+// Every in-progress post is its own saved draft, not one single slot —
+// PostComposer.js's "New Post" saves whatever's currently open and
+// starts a blank one, "My Posts" lists every saved draft to switch back
+// to. Plain JSON in localStorage, not IndexedDB: layers stay plain data
+// even with an uploaded sticker/background image (resizeImageToDataUrl
+// below turns an upload into an inline data: URL string, not a File
+// object), so there's never a Blob to store — the same reason Story's
+// clips needed IndexedDB (draftStore.js) never applies here.
+const POST_DRAFTS_KEY = "noqeev_brand_post_drafts"; // { [id]: {id, name, updatedAt, shapeId, platformId, layers} }
+const POST_ACTIVE_KEY = "noqeev_brand_post_active_id";
+const LEGACY_POST_DRAFT_KEY = "noqeev_brand_post_draft"; // pre-multi-draft single slot, migrated below
+
+function loadAllPostDrafts() {
+  try { return JSON.parse(localStorage.getItem(POST_DRAFTS_KEY) || "{}"); } catch { return {}; }
 }
-export function savePostDraft(draft) {
-  try { localStorage.setItem(POST_DRAFT_KEY, JSON.stringify(draft)); } catch { /* best-effort */ }
+function saveAllPostDrafts(all) {
+  try { localStorage.setItem(POST_DRAFTS_KEY, JSON.stringify(all)); } catch { /* best-effort */ }
+}
+
+export function newPostId() {
+  return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `post_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+export function savePostDraft(id, data) {
+  const all = loadAllPostDrafts();
+  all[id] = { ...data, id, updatedAt: Date.now() };
+  saveAllPostDrafts(all);
+}
+export function loadPostDraft(id) {
+  return loadAllPostDrafts()[id] || null;
+}
+export function deletePostDraft(id) {
+  const all = loadAllPostDrafts();
+  delete all[id];
+  saveAllPostDrafts(all);
+}
+export function listPostDrafts() {
+  return Object.values(loadAllPostDrafts())
+    .map((d) => ({ id: d.id, name: d.name || "Untitled post", updatedAt: d.updatedAt || 0, layerCount: d.layers?.length || 0 }))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+export function getActivePostId() {
+  try { return localStorage.getItem(POST_ACTIVE_KEY); } catch { return null; }
+}
+export function setActivePostId(id) {
+  try { localStorage.setItem(POST_ACTIVE_KEY, id); } catch { /* best-effort */ }
+}
+// One-time upgrade for anyone who already had a draft saved under the
+// old single-slot scheme before "New Post"/"My Posts" existed.
+export function migrateLegacyPostDraft() {
+  try {
+    const raw = localStorage.getItem(LEGACY_POST_DRAFT_KEY);
+    if (!raw) return null;
+    const legacy = JSON.parse(raw);
+    if (!legacy?.layers?.length) { localStorage.removeItem(LEGACY_POST_DRAFT_KEY); return null; }
+    const id = newPostId();
+    savePostDraft(id, { ...legacy, name: "My post" });
+    localStorage.removeItem(LEGACY_POST_DRAFT_KEY);
+    return id;
+  } catch {
+    return null;
+  }
+}
+
+// An uploaded sticker/background image, turned into an inline data: URL
+// (not a File/object URL) so it stays plain JSON and survives a
+// localStorage round-trip — capped at maxDim on its longest side so one
+// upload can't blow through localStorage's ~5-10MB total quota on its
+// own. PNG, not JPEG: a sticker is as likely to need real transparency
+// (a logo, a cutout) as not, and getting that wrong silently loses it.
+export function resizeImageToDataUrl(file, maxDim = 800) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Couldn't read that image.")); };
+    img.src = url;
+  });
 }
