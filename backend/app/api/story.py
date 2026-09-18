@@ -167,6 +167,54 @@ def transcribe_clip():
     }}), 200
 
 
+@story_bp.route("/narration-preview", methods=["POST"])
+@limiter.limit("60 per hour")
+def narration_preview():
+    """Synthesizes just ONE clip's narration and returns the audio
+    directly — separate from /render entirely, so the editor can preview
+    "what will this sound like" instantly on every voice/speed/tone
+    tweak instead of only hearing it after a full ffmpeg render. Same
+    espeak-ng call _tts_wav makes inside /render, so preview and final
+    export always sound identical. Volume isn't applied here (it's an
+    ffmpeg filter at render time, not an espeak-ng flag) — the browser
+    applies it directly to the <audio> element instead."""
+    body = request.get_json(force=True) or {}
+    text = (body.get("text") or "").strip()
+    if not text:
+        raise APIError("text is required", 400)
+    if len(text) > MAX_NARRATION_CHARS:
+        raise APIError(f"text must be {MAX_NARRATION_CHARS} characters or fewer", 400)
+
+    voice = body.get("voice") or "neutral"
+    if voice not in NARRATION_VOICES:
+        raise APIError(f"voice must be one of {sorted(NARRATION_VOICES)}", 400)
+    try:
+        rate = int(body.get("rate", DEFAULT_NARRATION_RATE))
+    except (TypeError, ValueError):
+        raise APIError("rate must be a number", 400)
+    rate = max(MIN_NARRATION_RATE, min(MAX_NARRATION_RATE, rate))
+    try:
+        pitch = int(body.get("pitch", DEFAULT_NARRATION_PITCH))
+    except (TypeError, ValueError):
+        raise APIError("pitch must be a number", 400)
+    pitch = max(MIN_NARRATION_PITCH, min(MAX_NARRATION_PITCH, pitch))
+
+    workdir = tempfile.mkdtemp()
+    try:
+        wav_path = _tts_wav(workdir, text, 0, voice=voice, rate=rate, pitch=pitch)
+        with open(wav_path, "rb") as f:
+            data = f.read()
+    except (subprocess.TimeoutExpired, RuntimeError) as exc:
+        raise APIError(f"Narration preview failed: {exc}", 502)
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+    # (text, voice, rate, pitch) always produces the same audio — safe
+    # for the browser to cache, so scrubbing back to an already-heard
+    # value doesn't re-synthesize.
+    return send_file(io.BytesIO(data), mimetype="audio/wav", download_name="narration-preview.wav", max_age=3600)
+
+
 @story_bp.route("/render", methods=["POST"])
 @limiter.limit("20 per hour")
 def render_story():

@@ -20,6 +20,7 @@ import { renderPost } from "../postTemplates";
 import { ensureFontsReady } from "../assetKit";
 import { clipLengthSec } from "./clipModel";
 import { wordTimings, activeWordIndex as pickActiveWordIndex } from "./karaoke";
+import { getNarrationPreview, narrationContentKey } from "./narrationPreview";
 
 function drawContain(ctx, el, naturalW, naturalH, w, h) {
   ctx.fillStyle = "#000";
@@ -30,9 +31,27 @@ function drawContain(ctx, el, naturalW, naturalH, w, h) {
   ctx.drawImage(el, (w - dw) / 2, (h - dh) / 2, dw, dh);
 }
 
-function clipStarts(clips) {
+function hasNarration(clip) {
+  return !clip.narrationMuted && !!clip.narrationText?.trim();
+}
+
+// A clip with narrationFit "extend" holds open at least as long as its
+// own voice-over — same rule backend/app/api/story.py's /render applies
+// when it stretches duration_sec/trim_out to fit the synthesized audio
+// (see its narration_duration handling). knownDurations is keyed by
+// narrationContentKey, filled in as narration-preview.js's fetches
+// resolve — until a clip's own narration duration is known, this falls
+// back to its plain visual length, exactly like an unextended clip.
+function clipEffectiveLength(clip, knownDurations) {
+  const base = clipLengthSec(clip);
+  if (clip.narrationFit !== "extend" || !hasNarration(clip)) return base;
+  const known = knownDurations[narrationContentKey({ text: clip.narrationText, voice: clip.narrationVoice, rate: clip.narrationRate, pitch: clip.narrationPitch })];
+  return known ? Math.max(base, known) : base;
+}
+
+function clipStarts(clips, knownDurations) {
   let t = 0;
-  return clips.map((c) => { const start = t; t += clipLengthSec(c); return start; });
+  return clips.map((c) => { const start = t; t += clipEffectiveLength(c, knownDurations); return start; });
 }
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -42,17 +61,78 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
   const [playing, setPlaying] = useState(false);
   const [globalTime, setGlobalTime] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [narrationDurations, setNarrationDurations] = useState({}); // narrationContentKey -> seconds, filled in as previews resolve
   const fontsReadyRef = useRef(false);
   const rafRef = useRef(null);
   const lastFrameAtRef = useRef(0);
   const activeVideoRef = useRef(null); // the clip.el currently playing, if any
+  const narrationAudioRef = useRef(null); // one reusable <audio>, src swapped per active clip
+  const activeNarrationClipIdRef = useRef(null); // guards against a slow fetch resolving after playback already moved on
   const captionBoxRef = useRef(null); // last-drawn caption bbox, for drag hit-testing
   const dragRef = useRef(null);
 
-  const starts = clipStarts(clips);
-  const totalDuration = starts.length ? starts[starts.length - 1] + clipLengthSec(clips[clips.length - 1]) : 0;
+  const starts = clipStarts(clips, narrationDurations);
+  const totalDuration = starts.length ? starts[starts.length - 1] + clipEffectiveLength(clips[clips.length - 1], narrationDurations) : 0;
 
   useEffect(() => { ensureFontsReady().then(() => { fontsReadyRef.current = true; redraw(); }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // One reusable <audio> element for narration playback — created once,
+  // torn down on unmount. A plain DOM object, not JSX: nothing about it
+  // needs to be visible or part of the render tree.
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = "auto";
+    narrationAudioRef.current = audio;
+    return () => { audio.pause(); narrationAudioRef.current = null; };
+  }, []);
+
+  // Debounced narration-preview prefetch — re-synthesizing on every
+  // keystroke while someone's typing a script would hammer the backend.
+  // Keyed off a signature of every clip's own narration-relevant fields,
+  // not the whole `clips` array, so an unrelated edit (dragging a
+  // caption, reordering clips) never re-fires this.
+  const narrationSignature = clips
+    .map((c) => (hasNarration(c) ? narrationContentKey({ text: c.narrationText, voice: c.narrationVoice, rate: c.narrationRate, pitch: c.narrationPitch }) : ""))
+    .join("||");
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      clips.forEach((clip) => {
+        if (!hasNarration(clip)) return;
+        const key = narrationContentKey({ text: clip.narrationText, voice: clip.narrationVoice, rate: clip.narrationRate, pitch: clip.narrationPitch });
+        getNarrationPreview({ text: clip.narrationText, voice: clip.narrationVoice, rate: clip.narrationRate, pitch: clip.narrationPitch })
+          .then((entry) => {
+            if (!entry) return;
+            setNarrationDurations((prev) => (prev[key] === entry.duration ? prev : { ...prev, [key]: entry.duration }));
+          })
+          .catch(() => {}); // a failed synth just means this clip's timing falls back to its plain visual length
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [narrationSignature]);
+
+  // Starts (or stops) this clip's narration audio — called whenever
+  // playback enters a new clip. Bails via activeNarrationClipIdRef if
+  // playback has already moved on by the time a slow fetch resolves.
+  const playNarrationForClip = (clip) => {
+    const audio = narrationAudioRef.current;
+    if (!audio) return;
+    audio.pause();
+    activeNarrationClipIdRef.current = clip?.id ?? null;
+    if (!clip || !hasNarration(clip)) return;
+    getNarrationPreview({ text: clip.narrationText, voice: clip.narrationVoice, rate: clip.narrationRate, pitch: clip.narrationPitch })
+      .then((entry) => {
+        if (!entry || activeNarrationClipIdRef.current !== clip.id || narrationAudioRef.current !== audio) return;
+        audio.src = entry.url;
+        audio.currentTime = 0;
+        // HTMLMediaElement.volume tops out at 1 — narrationVolume can go
+        // to 2x for real gain at export time (an ffmpeg filter), which a
+        // plain <audio> element can't replicate; preview just clamps.
+        audio.volume = Math.min(1, Math.max(0, clip.narrationVolume ?? 1));
+        audio.play().catch(() => {}); // browser autoplay-policy rejection is fine here — silently no sound, nothing to surface as an error
+      })
+      .catch(() => {});
+  };
 
   // Jumping to a different clip in the timeline (while paused) previews
   // that clip's start, so editing its caption shows live feedback.
@@ -64,7 +144,7 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
 
   const locate = (t) => {
     if (!clips.length) return { index: 0, local: 0 };
-    let index = starts.findIndex((s, i) => t < s + clipLengthSec(clips[i]));
+    let index = starts.findIndex((s, i) => t < s + clipEffectiveLength(clips[i], narrationDurations));
     if (index === -1) index = clips.length - 1;
     const local = Math.max(0, t - starts[index]);
     return { index, local };
@@ -105,6 +185,8 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
   useEffect(() => {
     if (!playing) {
       activeVideoRef.current?.pause();
+      narrationAudioRef.current?.pause();
+      activeNarrationClipIdRef.current = null;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       return;
     }
@@ -112,6 +194,7 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
     const { index } = locate(globalTime);
     const startClip = clips[index];
     if (startClip?.kind === "video") { startClip.el.currentTime = startClip.trimIn; startClip.el.play(); activeVideoRef.current = startClip.el; }
+    playNarrationForClip(startClip);
 
     const tick = (now) => {
       const dt = (now - lastFrameAtRef.current) / 1000;
@@ -126,6 +209,7 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
           const nextClip = clips[after];
           if (nextClip?.kind === "video") { nextClip.el.currentTime = nextClip.trimIn; nextClip.el.play(); activeVideoRef.current = nextClip.el; }
           else activeVideoRef.current = null;
+          playNarrationForClip(nextClip);
         }
         return next;
       });
@@ -196,6 +280,8 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
   const seek = (t) => {
     setPlaying(false);
     activeVideoRef.current?.pause();
+    narrationAudioRef.current?.pause();
+    activeNarrationClipIdRef.current = null;
     setGlobalTime(Math.max(0, Math.min(totalDuration, t)));
   };
 
