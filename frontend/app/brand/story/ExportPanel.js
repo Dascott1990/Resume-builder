@@ -100,6 +100,13 @@ async function buildFormData(clips, platformId, outputFormat, accent) {
         formData.append(`caption_frames_${i}`, JSON.stringify(timings));
         blobs.forEach((blob, j) => formData.append(`caption_${i}_${j}`, blob, `caption_${i}_${j}.png`));
       }
+      // The plain caption STRING, not just its rendered PNG — this is
+      // what the post-render quality check (backend/app/utils/
+      // video_quality.py) compares against a transcription of the actual
+      // rendered audio, to catch a caption that's drifted from what's
+      // really said.
+      const captionText = (clip.captionLayers?.[0]?.text || "").trim();
+      if (captionText) formData.append(`caption_text_${i}`, captionText);
     }
   }
   formData.append("spec", JSON.stringify({ platform_id: platformId, output_format: outputFormat, clips: clipSpecs }));
@@ -148,7 +155,26 @@ async function submitRender(formData) {
   return res;
 }
 
-export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, setOutputFormat, accent }) {
+// The quality report (backend/app/utils/video_quality.py) rides in a
+// response header, base64'd, alongside the downloaded file itself — a
+// custom header value has to be ASCII, and a caption-mismatch message
+// can contain quotes or non-ASCII text a raw header can't safely carry.
+// Uint8Array + TextDecoder, not the classic atob()-only trick: atob()
+// alone decodes to a "binary string" one BYTE at a time, which mangles
+// any multi-byte UTF-8 character (an em dash, curly quotes — both show
+// up in these messages) instead of decoding it back to the real one.
+function decodeQualityHeader(res) {
+  const b64 = res.headers.get("X-Quality-Report");
+  if (!b64) return null;
+  try {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return null;
+  }
+}
+
+export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, setOutputFormat, accent, onQualityReport }) {
   const [downloading, setDownloading] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [email, setEmail] = useState(() => {
@@ -165,9 +191,11 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
     try {
       const formData = await buildFormData(clips, platformId, outputFormat, accent);
       const res = await submitRender(formData);
+      const report = decodeQualityHeader(res);
       const blob = await res.blob();
       const ext = outputFormat === "gif" ? "gif" : "mp4";
       downloadBlob(blob, `noqeev-story-${platformId}.${ext}`);
+      onQualityReport?.(report);
       toast.success("Downloaded.");
     } catch (e) {
       toast.error(e.message || "Try again.");
@@ -185,6 +213,7 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
       const res = await submitRender(formData);
       const data = await res.json();
       try { localStorage.setItem(LAST_EMAIL_KEY, email.trim()); } catch { /* best-effort */ }
+      onQualityReport?.(data.data?.quality_report || null);
       toast.success(data.data?.message || `Sent to ${email.trim()}`);
       setEmailOpen(false);
     } catch (e) {

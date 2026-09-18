@@ -37,7 +37,7 @@ function clipStarts(clips) {
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
-export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptionLive, onCaptionCommit, compact }) {
+export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptionLive, onCaptionCommit, compact, seekRequest }) {
   const canvasRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [globalTime, setGlobalTime] = useState(0);
@@ -198,6 +198,18 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
     activeVideoRef.current?.pause();
     setGlobalTime(Math.max(0, Math.min(totalDuration, t)));
   };
+
+  // An external "jump to this exact second" request — the quality
+  // report's issues each link to a timestamp; clicking one seeks the
+  // preview straight there in one click instead of scrubbing to find it.
+  // {time, nonce}, not just a bare number: clicking the SAME issue twice
+  // in a row is a real thing to support (re-check after fixing it), and
+  // a nonce is what makes the second click register as a new request
+  // even though `time` itself didn't change.
+  useEffect(() => {
+    if (seekRequest) seek(seekRequest.time);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seekRequest]);
 
   // compact (phone): height-driven instead of width-driven, so a 9:16
   // preset can't grow past ~40% of the viewport and push everything

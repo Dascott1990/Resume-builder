@@ -72,7 +72,15 @@ def create_app():
             # preflight and never actually reaching the server.
             "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id", "X-Edit-Token", "X-Artisan-Token"],
-            "supports_credentials": True
+            "supports_credentials": True,
+            # X-Quality-Report (api/story.py's render endpoint) rides
+            # alongside the downloaded video file as a response header —
+            # without this, the browser still receives it fine over the
+            # wire, but JS fetch() can't read ANY custom response header
+            # cross-origin unless it's explicitly exposed, so it'd be
+            # silently invisible to the frontend despite showing up in a
+            # raw network inspector.
+            "expose_headers": ["X-Quality-Report"],
         },
         # The "tailor for this job" bookmarklet runs on whatever job board
         # page it was clicked on — LinkedIn, Indeed, a company's own careers

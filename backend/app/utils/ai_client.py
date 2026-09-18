@@ -115,7 +115,7 @@ GROQ_TRANSCRIBE_MODEL = "whisper-large-v3-turbo"
 TRANSCRIBE_TIMEOUT_SEC = 60
 
 
-def groq_transcribe(file_bytes, filename, mimetype):
+def groq_transcribe(file_bytes, filename, mimetype, word_timestamps=False):
     """Speech-to-text via Groq's hosted Whisper — same GROQ_API_KEY this
     file already uses for text completion, not a new vendor/credential.
     Accepts video files directly (mp4/mov/webm/...); Groq extracts the
@@ -127,12 +127,22 @@ def groq_transcribe(file_bytes, filename, mimetype):
     api_key = os.environ.get("GROQ_API_KEY", "")
     if not api_key:
         raise APIError("GROQ_API_KEY not configured", 500)
+    data = {"model": GROQ_TRANSCRIBE_MODEL, "response_format": "verbose_json"}
+    if word_timestamps:
+        # Segment-level timestamps aren't tight enough for sync checking —
+        # verified directly: a segment can span an entire clip INCLUDING
+        # several seconds of leading silence before the words actually
+        # start, rather than starting where the audio actually starts.
+        # Word-level timing doesn't have that slack (confirmed: within
+        # ~0.1s of the real onset in the same test), which is what
+        # video_quality.py's sync-drift check actually needs.
+        data["timestamp_granularities[]"] = "word"
     try:
         res = requests.post(
             GROQ_TRANSCRIBE_URL,
             headers={"Authorization": f"Bearer {api_key}"},
             files={"file": (filename, file_bytes, mimetype)},
-            data={"model": GROQ_TRANSCRIBE_MODEL, "response_format": "verbose_json"},
+            data=data,
             timeout=TRANSCRIBE_TIMEOUT_SEC,
         )
         if not res.ok:

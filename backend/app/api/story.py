@@ -20,6 +20,7 @@ response returns.
 
 Same unauthenticated posture as the rest of api/brand.py.
 """
+import base64
 import io
 import json
 import os
@@ -34,6 +35,7 @@ from app import limiter
 from app.middleware.error_handlers import APIError
 from app.utils.mail import send_email
 from app.utils.ai_client import groq_transcribe
+from app.utils.video_quality import analyze_rendered_video
 
 story_bp = Blueprint("story", __name__)
 
@@ -282,6 +284,20 @@ def render_story():
                 raise APIError(f"caption_{i} must be a PNG", 400)
             caption_bytes[i] = cap_file.read()
 
+    # The plain caption STRING, not just its rendered PNG pixels — this is
+    # what the quality check (app/utils/video_quality.py) compares against
+    # a fresh transcription of the actual rendered audio. It's authoritative
+    # for "what text did we composite," since it's the exact string the PNG
+    # above was drawn from; the only thing that can have actually drifted
+    # is whether it still matches what's audibly said.
+    caption_text = {}
+    for i in range(len(clip_specs)):
+        if i not in caption_bytes and i not in caption_frame_bytes:
+            continue
+        text = (request.form.get(f"caption_text_{i}") or "").strip()
+        if text:
+            caption_text[i] = text[:1000]
+
     if output_format == "gif":
         total_duration = sum(_clip_duration(c["spec"]) for c in clip_bytes)
         if total_duration > MAX_GIF_DURATION_SEC:
@@ -291,8 +307,30 @@ def render_story():
             )
 
     workdir = tempfile.mkdtemp(prefix="story_")
+    quality_report = None
     try:
-        out_bytes, mime_type, ext = _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platform_id, output_format)
+        out_bytes, mime_type, ext, final_path, clip_windows = _render_story(
+            workdir, clip_bytes, caption_bytes, caption_frame_bytes, platform_id, output_format,
+        )
+        # Same instinct as the resume side's ATS score, applied to the
+        # actual finished video — a best-effort pass, never allowed to
+        # fail the render itself: this runs on the real output file
+        # before workdir gets cleaned up below, not on the edit-time
+        # settings that produced it (see video_quality.py's own
+        # docstring for why that distinction matters). GIF output is
+        # skipped — MAX_GIF_DURATION_SEC caps it at 10s of muted loop,
+        # none of these checks (caption/audio sync, dead air) meaningfully
+        # apply to it.
+        if output_format == "mp4":
+            try:
+                duration_sec = clip_windows[-1]["end"] if clip_windows else 0.0
+                captions_for_check = [
+                    {"text": caption_text[cw["index"]], "start": cw["start"], "end": cw["end"]}
+                    for cw in clip_windows if cw["index"] in caption_text
+                ]
+                quality_report = analyze_rendered_video(final_path, duration_sec, clip_windows, captions_for_check)
+            except Exception as qexc:
+                print(f"⚠️ Story quality check failed (render still succeeded): {qexc}")
     except subprocess.TimeoutExpired:
         raise APIError("Render timed out — try fewer or shorter clips", 504)
     except Exception as exc:
@@ -317,12 +355,18 @@ def render_story():
         except Exception as exc:
             print(f"❌ Failed to email story render to {email_to}: {exc}")
             raise APIError("Could not send this email — check the mail server configuration", 502)
-        return jsonify({"success": True, "data": {"message": f"Sent to {email_to}"}}), 200
+        return jsonify({"success": True, "data": {"message": f"Sent to {email_to}", "quality_report": quality_report}}), 200
 
-    return send_file(
+    response = send_file(
         io.BytesIO(out_bytes), mimetype=mime_type,
         as_attachment=True, download_name=filename, max_age=0,
     )
+    if quality_report:
+        # Base64'd rather than raw JSON in the header — a caption/audio
+        # mismatch message can contain quote characters or non-ASCII
+        # text, and HTTP header values aren't safely arbitrary bytes.
+        response.headers["X-Quality-Report"] = base64.b64encode(json.dumps(quality_report).encode("utf-8")).decode("ascii")
+    return response
 
 
 def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platform_id, output_format):
@@ -354,6 +398,11 @@ def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platf
     )
     has_audio = has_narration or any(has_original_audio.values())
     seg_paths = []
+    # One entry per clip, in the FINAL concatenated timeline — this is
+    # what app/utils/video_quality.py checks the rendered audio/video
+    # against (dead air, jump cuts) after everything below is done.
+    clip_windows = []
+    cumulative_start = 0.0
 
     for i, clip in enumerate(clip_bytes):
         src_path = src_paths[i]
@@ -469,14 +518,34 @@ def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platf
                 video_inputs += ["-f", "lavfi", "-t", str(duration), "-i", "anullsrc=r=44100:cl=stereo"]
                 filter_parts.append(f"[{next_idx}:a]anull[a]")
 
+            # -ar/-ac forced explicitly on EVERY segment, not left to the
+            # AAC encoder's own default (which follows whatever the INPUT
+            # happened to be) — an uploaded video's own audio can be
+            # anything (this one surfaced it at 22050Hz mono, espeak-ng's
+            # native TTS rate, against anullsrc's 44100Hz stereo
+            # elsewhere), and the concat step below is a pure stream
+            # COPY, not a re-encode: two segments with different
+            # sample-rate/channel AAC streams corrupt on concat instead
+            # of erroring, silently truncating the audio track relative
+            # to the video — caught by the render's own quality check
+            # (video_quality.py) turning up a false "dead air"/caption-
+            # mismatch flag on perfectly fine narration, not a case where
+            # it should be guessing; every segment must genuinely share
+            # the same audio format for stream-copy concat to be valid at
+            # all.
             args = [*video_inputs, "-filter_complex", ";".join(filter_parts), "-map", "[outv]", "-map", "[a]",
-                    "-t", str(duration), "-r", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", seg_path]
+                    "-t", str(duration), "-r", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "44100", "-ac", "2", "-shortest", seg_path]
         else:
             args = [*video_inputs, "-filter_complex", ";".join(filter_parts), "-map", "[outv]",
                     "-an", "-t", str(duration), "-r", "30", "-pix_fmt", "yuv420p", seg_path]
 
         _run_ffmpeg(args, workdir)
         seg_paths.append(seg_path)
+        clip_windows.append({
+            "index": i, "start": cumulative_start, "end": cumulative_start + duration,
+            "expected_audio": bool(narration_wav) or bool(has_original_audio.get(i)),
+        })
+        cumulative_start += duration
 
     concat_list = os.path.join(workdir, "concat_list.txt")
     with open(concat_list, "w") as f:
@@ -499,4 +568,4 @@ def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platf
         mime_type, ext = "image/gif", "gif"
 
     with open(final_path, "rb") as f:
-        return f.read(), mime_type, ext
+        return f.read(), mime_type, ext, final_path, clip_windows

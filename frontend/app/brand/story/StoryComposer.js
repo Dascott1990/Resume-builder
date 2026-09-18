@@ -36,7 +36,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo } from "lucide-react";
+import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -48,7 +48,7 @@ import { AiSuggestPanel } from "../AiSuggestPanel";
 import { ClipTimeline } from "./ClipTimeline";
 import { PreviewPlayer } from "./PreviewPlayer";
 import { ExportPanel } from "./ExportPanel";
-import { releaseClip, loadClipFromFile } from "./clipModel";
+import { releaseClip, loadClipFromFile, clipLengthSec } from "./clipModel";
 import { transcribeClip } from "./transcribe";
 import {
   saveStoryDraft, loadStoryDraft, deleteStoryDraft, listStoryDrafts,
@@ -118,6 +118,72 @@ function relativeTime(ts) {
   const diffHr = Math.round(diffMin / 60);
   if (diffHr < 24) return `${diffHr}h ago`;
   return `${Math.round(diffHr / 24)}d ago`;
+}
+
+// Same 0-100 scale as the resume side's ATS score — a warning, never a
+// gate: "Needs review" still downloads/emails exactly like "Ready to
+// post" does. The verdict/score/issues themselves are computed server-
+// side (backend/app/utils/video_quality.py) against the ACTUAL rendered
+// file, not what the editor was told to do.
+const SEVERITY_LABEL = { critical: "Critical", moderate: "Moderate", minor: "Minor" };
+const SEVERITY_STYLE = {
+  critical: "border-destructive/30 bg-destructive/[0.05] text-destructive",
+  moderate: "border-amber-500/30 bg-amber-500/[0.06] text-amber-600 dark:text-amber-400",
+  minor: "border-border bg-transparent text-muted-foreground",
+};
+
+function formatTimestamp(t) {
+  const total = Math.max(0, Math.round(t));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+// Which clip a global (whole-story) timestamp falls in — the same
+// cumulative-duration walk PreviewPlayer.js's own internal clipStarts
+// does, just exposed here so clicking an issue can also select the
+// right clip, not only seek the preview to the right second.
+function clipIndexAtTime(clips, t) {
+  let cursor = 0;
+  for (let i = 0; i < clips.length; i++) {
+    const len = clipLengthSec(clips[i]);
+    if (t < cursor + len || i === clips.length - 1) return i;
+    cursor += len;
+  }
+  return 0;
+}
+
+function QualityReportPanel({ report, onSeekTo }) {
+  if (!report) return null;
+  const { score, verdict, issues } = report;
+  const ready = verdict === "ready";
+  return (
+    <div className="grid gap-3 rounded-xl border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Quality check</span>
+        <div className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-bold ${ready ? "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-600 dark:text-emerald-400" : "border-amber-500/30 bg-amber-500/[0.08] text-amber-600 dark:text-amber-400"}`}>
+          {ready ? <CheckCircle2 className="size-3.5" /> : <AlertTriangle className="size-3.5" />}
+          {score}/100 — {ready ? "Ready to post" : "Needs review"}
+        </div>
+      </div>
+      {issues.length === 0 ? (
+        <p className="m-0 text-[11.5px] text-muted-foreground">Nothing to flag — captions, sync, cuts, and audio all check out.</p>
+      ) : (
+        <div className="grid gap-1.5">
+          {issues.map((issue, i) => (
+            <button key={i} type="button" onClick={() => onSeekTo(issue.timestamp)}
+              className={`flex items-start gap-2.5 rounded-lg border p-2.5 text-left ${SEVERITY_STYLE[issue.severity] || SEVERITY_STYLE.minor}`}>
+              <span className="mt-0.5 shrink-0 rounded-full border border-current/30 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase">
+                {SEVERITY_LABEL[issue.severity] || issue.severity}
+              </span>
+              <span className="min-w-0 flex-1 text-[11.5px] leading-snug text-foreground">{issue.message}</span>
+              <span className="shrink-0 font-mono text-[10.5px] font-bold">{formatTimestamp(issue.timestamp)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function VoiceOverField({ clip, onPatch, onApplyToAll }) {
@@ -290,6 +356,11 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   const [storyName, setStoryName] = useState(null);
   const [storiesOpen, setStoriesOpen] = useState(false);
   const [storiesList, setStoriesList] = useState([]);
+  // The automated post-render quality check (backend/app/utils/
+  // video_quality.py) and the "jump the preview to this exact second"
+  // request an issue's timestamp triggers — see QualityReportPanel above.
+  const [qualityReport, setQualityReport] = useState(null);
+  const [seekRequest, setSeekRequest] = useState(null);
 
   const historyRef = useRef([[]]);
   const historyIndexRef = useRef(0);
@@ -321,6 +392,14 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   }, []);
   const canUndo = historyIndexRef.current > 0;
   const canRedo = historyIndexRef.current < historyRef.current.length - 1;
+
+  // A quality report describes a SPECIFIC rendered file — if the story
+  // gets edited after seeing one (a caption fixed, a clip reordered),
+  // the old report no longer describes what's actually there anymore
+  // and shouldn't keep being shown as if it still does. Doesn't fire
+  // just from setQualityReport itself (that doesn't touch clips), only
+  // from an actual edit.
+  useEffect(() => { setQualityReport(null); }, [clips]);
 
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -539,6 +618,14 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     if (selectedIndex == null) return;
     handleUpdateClip(selectedIndex, patch);
   };
+  // A quality-report issue is one click from here to actually looking at
+  // it — select the clip it's in (so the caption/voice controls line up
+  // with it too, not just the preview frame) and seek the preview
+  // straight to that exact second.
+  const seekPreviewTo = (t) => {
+    setSelectedIndex(clipIndexAtTime(clips, t));
+    setSeekRequest({ time: t, nonce: Date.now() });
+  };
   // Voice/speed/tone/volume/fit only, not narrationText or narrationMuted
   // — the words spoken are per-clip content, and muting is a per-clip
   // decision (silencing clip 1 doesn't mean every other clip should go
@@ -615,8 +702,11 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     <ExportPanel
       clips={clips} platformId={platformId} setPlatformId={setPlatformId}
       outputFormat={outputFormat} setOutputFormat={setOutputFormat} accent={accent}
+      onQualityReport={setQualityReport}
     />
   );
+
+  const qualityReportPanel = <QualityReportPanel report={qualityReport} onSeekTo={seekPreviewTo} />;
 
   // Just the player + its header — deliberately NOT bundled with
   // ClipTimeline in the same box. Create's own sticky canvas (see
@@ -645,6 +735,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
       <PreviewPlayer
         clips={clips} platform={PLATFORMS[platformId]} accent={accent} selectedIndex={selectedIndex}
         onCaptionLive={updateCaptionLive} onCaptionCommit={updateCaption} compact={isPhone}
+        seekRequest={seekRequest}
       />
     </div>
   );
@@ -731,6 +822,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
             list, so the three action buttons read together as one group
             right where the preview controls leave off. */}
         {exportPanel}
+        {qualityReportPanel}
         {/* Hidden while the sheet itself is open — its own "Done" button
             (BottomSheet.js) is the way back, so having this trigger still
             sitting there too is a redundant second way to do the same
@@ -765,6 +857,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
         <div className="sticky top-4 grid gap-4 self-start">
           {controlsPanel}
           {exportPanel}
+          {qualityReportPanel}
         </div>
       </div>
       {clipTimeline}
