@@ -18,12 +18,20 @@
  * dragListener={false} on the sheet itself), not the whole sheet — a
  * naive drag="y" on the full container intercepts pointer events meant
  * for whatever controls live inside it, a well-known framer-motion trap.
+ *
+ * 64vh is only a DEFAULT cap, not a guarantee that a caller's own preview
+ * stays fully clear of the sheet — it was tuned against Guest Mode's own
+ * (shorter) preview. A caller with a taller preview (Story's, at ~38vh
+ * of screen height plus its own header rows above it) can pass
+ * `maxHeightPx` to size the sheet to however much room is ACTUALLY left
+ * below that preview, measured live, instead of guessing a fixed
+ * percentage and hoping it happens to clear whatever's above it.
  */
 import { useRef } from "react";
 import { motion, useDragControls, AnimatePresence } from "framer-motion";
 import { Check } from "lucide-react";
 
-export function BottomSheet({ open, onClose, title, children }) {
+export function BottomSheet({ open, onClose, title, children, maxHeightPx }) {
   const dragControls = useDragControls();
   const sheetRef = useRef(null);
 
@@ -46,8 +54,8 @@ export function BottomSheet({ open, onClose, title, children }) {
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", damping: 28, stiffness: 320 }}
-          className="fixed inset-x-0 bottom-0 z-50 flex max-h-[64vh] flex-col rounded-t-[22px] border border-b-0 border-white/[0.12] bg-card shadow-[0_-14px_50px_rgba(0,0,0,0.5)]"
-          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+          className={`fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-[22px] border border-b-0 border-white/[0.12] bg-card shadow-[0_-14px_50px_rgba(0,0,0,0.5)] ${maxHeightPx ? "" : "max-h-[64vh]"}`}
+          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)", ...(maxHeightPx ? { maxHeight: `${maxHeightPx}px` } : {}) }}
         >
           {/* Drag handle — the only part that starts the drag gesture */}
           <div

@@ -36,7 +36,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2, SlidersHorizontal, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Plus, Undo2, Redo2, Pencil, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -357,6 +357,11 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   const [outputFormat, setOutputFormat] = useState("mp4");
   const [historyTick, setHistoryTick] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // How tall the Edit sheet is allowed to be, measured fresh every time it
+  // opens (see openEditSheet below) — null until then, which falls back to
+  // BottomSheet's own default cap.
+  const [sheetMaxHeight, setSheetMaxHeight] = useState(null);
+  const previewBlockRef = useRef(null);
   const [controlTab, setControlTab] = useState("caption");
   // Which saved draft (draftStore.js) is currently open, and its own
   // display name — null until the mount effect below resolves which
@@ -637,6 +642,26 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     setSelectedIndex(clipIndexAtTime(clips, t));
     setSeekRequest({ time: t, nonce: Date.now() });
   };
+  // Opens the Edit sheet sized to whatever room is ACTUALLY left below the
+  // preview, measured live, instead of trusting BottomSheet's own default
+  // 64vh cap to happen to clear it — that default was tuned against Guest
+  // Mode's shorter preview, and Story's own (taller, ~38vh) preview plus
+  // its header rows leaves less than 36vh of screen below it. rect.bottom
+  // is viewport-relative, so + window.scrollY turns it into a fixed
+  // document position — correct regardless of scroll position at the
+  // moment this is called, no need to wait for the scroll-to-top below to
+  // actually finish animating before computing it. Floors at 280px so an
+  // unusually tall preview on a short device never squeezes the sheet
+  // down to something too cramped to actually use.
+  const openEditSheet = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    const rect = previewBlockRef.current?.getBoundingClientRect();
+    if (rect) {
+      const previewBottomInDocument = rect.bottom + window.scrollY;
+      setSheetMaxHeight(Math.max(280, window.innerHeight - previewBottomInDocument - 12));
+    }
+    setSheetOpen(true);
+  };
   // Voice/speed/tone/volume/fit only, not narrationText or narrationMuted
   // — the words spoken are per-clip content, and muting is a per-clip
   // decision (silencing clip 1 doesn't mean every other clip should go
@@ -729,7 +754,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   // Plain JSX value, not a component defined in here — same reasoning as
   // controlsPanel above.
   const preview = (
-    <div className="grid gap-2">
+    <div ref={previewBlockRef} className="grid gap-2">
       <div className="flex items-center justify-between">
         <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Preview</p>
         <div className="flex items-center gap-1">
@@ -827,24 +852,32 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
             it. Flowing normally lets the page scroll past it like any
             other block. */}
         {preview}
-        {/* Directly under the preview's play/pause row — same position
-            Create's canvas → Download/Email → Edit sequence uses
-            (PostComposer.js) — not further down the page past the clip
-            list, so the three action buttons read together as one group
-            right where the preview controls leave off. */}
         {exportPanel}
         {qualityReportPanel}
-        {/* Hidden while the sheet itself is open — its own "Done" button
-            (BottomSheet.js) is the way back, so having this trigger still
-            sitting there too is a redundant second way to do the same
-            thing while the sheet already covers it. */}
-        {!sheetOpen && (
-          <Btn variant="gold" onClick={() => setSheetOpen(true)}>
-            <SlidersHorizontal className="size-4" /> Edit content & style
-          </Btn>
-        )}
         {clipTimeline}
-        <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit">
+        {/* A FIXED floating button, not an in-flow one — an in-flow trigger
+            scrolls along with the page, so reaching it meant scrolling all
+            the way down past the clip list, at which point it landed right
+            behind the fixed BottomNav and was invisible until you scrolled
+            past that too. Pinned just above the nav instead, it's on screen
+            at a glance from anywhere in the tool, which is the actual point
+            of "edit here, see it there" — the trigger itself shouldn't need
+            hunting for. Hidden while the sheet is open (its own "Done"
+            button, BottomSheet.js, is the way back) so there's never a
+            redundant second way to do the same thing on screen at once. */}
+        {!sheetOpen && (
+          <button
+            type="button"
+            onClick={openEditSheet}
+            aria-label="Edit content & style"
+            title="Edit content & style"
+            className="fixed right-4 z-40 flex size-14 items-center justify-center rounded-full border border-white/[0.14] bg-primary text-primary-foreground shadow-[0_14px_36px_rgba(0,0,0,0.45),0_1px_0_rgba(255,255,255,0.15)_inset] [-webkit-tap-highlight-color:transparent] active:scale-95"
+            style={{ bottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}
+          >
+            <Pencil className="size-5" />
+          </button>
+        )}
+        <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit" maxHeightPx={sheetMaxHeight}>
           <div className="p-4">
             {controlsPanel}
           </div>
