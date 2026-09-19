@@ -16,7 +16,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Play, Pause, RotateCcw, SkipBack, SkipForward, ChevronsLeft, ChevronsRight, Volume2, VolumeX } from "lucide-react";
+import { Play, Pause, RotateCcw, SkipBack, SkipForward, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight, Volume2, VolumeX } from "lucide-react";
 import { renderPost } from "../postTemplates";
 import { ensureFontsReady } from "../assetKit";
 import { clipLengthSec } from "./clipModel";
@@ -59,47 +59,76 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const SEEK_STEP_SEC = 10; // double-tap / skip buttons / arrow keys all agree on one increment
 const DOUBLE_TAP_MS = 350;
 
+// One clip's own thumbnail, cover-cropped into a fixed internal canvas
+// resolution and CSS-stretched to whatever proportional width the
+// filmstrip below gives it — drawn once when the clip's media is ready,
+// same "draw once, don't keep redrawing per frame" precedent
+// ClipTimeline.js's own ClipThumb already sets for this codebase.
+const THUMB_W = 120, THUMB_H = 56;
+function FilmstripThumb({ clip, widthPct }) {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !clip?.el) return;
+    canvas.width = THUMB_W;
+    canvas.height = THUMB_H;
+    const draw = () => {
+      const ctx = canvas.getContext("2d");
+      const naturalW = clip.naturalW || THUMB_W, naturalH = clip.naturalH || THUMB_H;
+      // Cover, not contain — a filmstrip thumbnail fills its box
+      // completely (no letterbox bars), matching every reference video
+      // trimmer's own filmstrip.
+      const scale = Math.max(THUMB_W / naturalW, THUMB_H / naturalH);
+      const dw = naturalW * scale, dh = naturalH * scale;
+      ctx.drawImage(clip.el, (THUMB_W - dw) / 2, (THUMB_H - dh) / 2, dw, dh);
+    };
+    if (clip.kind === "image") {
+      if (clip.el.complete) draw(); else clip.el.onload = draw;
+    } else if (clip.el.readyState >= 2) draw();
+    else clip.el.addEventListener("loadeddata", draw, { once: true });
+  }, [clip]);
+  return (
+    <canvas
+      ref={canvasRef}
+      className="block h-full shrink-0"
+      style={{ width: `${widthPct}%` }}
+    />
+  );
+}
+
 /**
- * Scrubber — the seek bar: a real filled progress track (not a bare
- * native <input type="range">, which has no way to also show a filled
- * portion and clip markers on the same track without fighting its own
- * cross-browser thumb/track styling), clip-boundary ticks baked into the
- * same track so they read as part of the timeline rather than a
- * decoration floating over it, a thumb that grows on hover/drag, and a
- * hover tooltip showing exactly where a click would land — the same
- * "confirm before you commit" affordance a real video player's scrubber
- * gives you.
+ * FilmstripScrubber — the seek bar, redesigned as an actual filmstrip
+ * (thumbnails from every clip, sized to that clip's own share of the
+ * total runtime) instead of a bare progress track, closer to what a
+ * real video-trimming UI's scrubber looks like than a generic <input
+ * type="range"> ever could — a plain range input can't show per-clip
+ * content on its own track at all.
  */
-function Scrubber({ time, duration, tickFractions, onScrub }) {
+function FilmstripScrubber({ clips, effectiveLengths, time, duration, onScrub }) {
   const trackRef = useRef(null);
-  const [hoverFrac, setHoverFrac] = useState(null);
-  const draggingRef = useRef(false);
+  const [dragging, setDragging] = useState(false);
 
   const fracFromEvent = (e) => {
     const rect = trackRef.current.getBoundingClientRect();
     if (!rect.width) return 0;
     return clamp01((e.clientX - rect.left) / rect.width);
   };
-
   const onPointerDown = (e) => {
     if (!duration) return;
-    draggingRef.current = true;
+    setDragging(true);
     trackRef.current.setPointerCapture(e.pointerId);
-    const frac = fracFromEvent(e);
-    setHoverFrac(frac);
-    onScrub(frac * duration);
+    onScrub(fracFromEvent(e) * duration);
   };
   const onPointerMove = (e) => {
-    if (!duration) return;
-    const frac = fracFromEvent(e);
-    setHoverFrac(frac);
-    if (draggingRef.current) onScrub(frac * duration);
+    if (!dragging || !duration) return;
+    onScrub(fracFromEvent(e) * duration);
   };
   const onPointerUp = (e) => {
-    draggingRef.current = false;
+    setDragging(false);
     try { trackRef.current.releasePointerCapture(e.pointerId); } catch { /* already released */ }
   };
 
+  const empty = clips.length === 0;
   const progressFrac = duration > 0 ? clamp01(time / duration) : 0;
 
   return (
@@ -108,37 +137,46 @@ function Scrubber({ time, duration, tickFractions, onScrub }) {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerLeave={() => !draggingRef.current && setHoverFrac(null)}
-      className="group relative h-5 min-w-[80px] flex-1 cursor-pointer touch-none select-none"
       role="slider"
       aria-label="Seek"
       aria-valuemin={0}
       aria-valuemax={duration || 0}
       aria-valuenow={time}
+      aria-disabled={empty}
+      // touch-action: none, exactly like the canvas's own caption-drag
+      // handling above — without it, dragging the handle on a touch
+      // device also scrolls the page underneath it.
+      style={{ touchAction: "none" }}
+      className={`relative h-14 w-full select-none overflow-hidden rounded-full border border-border bg-[#0a0a0a] ${empty ? "opacity-60" : "cursor-pointer"}`}
     >
-      {/* Track + filled progress, one element each, same rounded pill —
-          this is what a plain range input can't give both at once. */}
-      <div className="absolute inset-x-0 top-1/2 h-[5px] -translate-y-1/2 overflow-hidden rounded-full bg-white/10">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${progressFrac * 100}%` }} />
-      </div>
-      {/* Clip-boundary ticks, drawn on top of the fill so they stay
-          visible whether they land in the played or unplayed portion. */}
-      {tickFractions.map((frac, i) => (
-        <span key={i} className="pointer-events-none absolute top-1/2 h-2 w-px -translate-y-1/2 bg-background/80"
-          style={{ left: `${frac * 100}%` }} />
-      ))}
-      {/* Thumb — always present (touch has no hover), grows slightly on
-          hover/drag as the one bit of "this is interactive" feedback. */}
-      <div
-        className={`pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow-[0_1px_4px_rgba(0,0,0,0.5)] transition-[width,height] duration-100 ${hoverFrac != null ? "size-3.5" : "size-2.5"}`}
-        style={{ left: `${progressFrac * 100}%` }}
-      />
-      {/* Hover/drag tooltip — exactly where a click lands, before it's committed. */}
-      {hoverFrac != null && duration > 0 && (
-        <div className="pointer-events-none absolute -top-7 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/85 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white"
-          style={{ left: `${clamp01(hoverFrac) * 100}%` }}>
-          {(hoverFrac * duration).toFixed(1)}s
+      {empty ? (
+        <div className="flex h-full items-center justify-center px-4">
+          <span className="text-center text-[11px] text-muted-foreground">Add images or short clips to start your sequence.</span>
         </div>
+      ) : (
+        <>
+          {/* Thumbnails, edge to edge — the strip's own rounding comes
+              from this container's overflow-hidden, not per-thumbnail,
+              so it reads as one continuous shape. */}
+          <div className="flex h-full w-full">
+            {clips.map((clip, i) => (
+              <FilmstripThumb key={clip.id} clip={clip} widthPct={duration > 0 ? (effectiveLengths[i] / duration) * 100 : 0} />
+            ))}
+          </div>
+          {/* End-cap chevrons — a visual hint that the strip is a
+              timeline, not a separate prev/next-clip control (that
+              already exists as its own button above). */}
+          <ChevronLeft className="pointer-events-none absolute left-1.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <ChevronRight className="pointer-events-none absolute right-1.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          {/* Scrub handle — position (left %) is NEVER transitioned, so
+              it tracks the pointer/playhead with zero lag; only the
+              inner circle's scale eases, on drag start/end. */}
+          <div className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: `${progressFrac * 100}%` }}>
+            <div
+              className={`size-[30px] rounded-full bg-white shadow-md transition-transform duration-100 ${dragging ? "scale-110 shadow-lg" : ""}`}
+            />
+          </div>
+        </>
       )}
     </div>
   );
@@ -679,7 +717,9 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
           </div>
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">
+      {/* Transport row — Play/pause sits here, above the filmstrip
+          capsule below, never inside it. */}
+      <div className="flex flex-wrap items-center justify-center gap-1.5">
         <button type="button" onClick={goToPreviousClip} disabled={!clips.length} title="Previous clip"
           className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
           <ChevronsLeft className="size-4" />
@@ -708,16 +748,20 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
           className={`flex size-9 shrink-0 items-center justify-center rounded-full disabled:opacity-30 ${muted ? "text-destructive" : "text-muted-foreground enabled:hover:bg-muted enabled:hover:text-foreground"}`}>
           {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
         </button>
-        <Scrubber
-          time={Math.min(globalTime, totalDuration || 0)}
-          duration={totalDuration}
-          tickFractions={totalDuration > 0 ? starts.slice(1).map((start) => clamp01(start / totalDuration)) : []}
-          onScrub={seek}
-        />
-        <span className="w-16 shrink-0 text-right font-mono text-[11px] text-muted-foreground">
-          {globalTime.toFixed(1)}s / {totalDuration.toFixed(1)}s
-        </span>
       </div>
+
+      {/* Filmstrip scrub bar, timecode directly under it — same type
+          treatment as before, just repositioned. */}
+      <FilmstripScrubber
+        clips={clips}
+        effectiveLengths={clips.map((c) => clipEffectiveLength(c, narrationDurations))}
+        time={Math.min(globalTime, totalDuration || 0)}
+        duration={totalDuration}
+        onScrub={seek}
+      />
+      <p className="m-0 text-center font-mono text-[11px] text-muted-foreground">
+        {globalTime.toFixed(1)}s / {totalDuration.toFixed(1)}s
+      </p>
     </div>
   );
 }
