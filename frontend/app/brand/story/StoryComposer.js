@@ -36,7 +36,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2, Pencil, Upload, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo, CheckCircle2, AlertTriangle, Play, Pause, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Undo2, Redo2, Pencil, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo, CheckCircle2, AlertTriangle, Play, Pause, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -963,7 +963,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
           type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} title="Add clip" aria-label="Add clip"
           className="flex size-11 shrink-0 items-center justify-center rounded-[10px] text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground"
         >
-          {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+          {uploading ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
         </button>
         <input
           ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden"
