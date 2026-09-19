@@ -59,6 +59,91 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const SEEK_STEP_SEC = 10; // double-tap / skip buttons / arrow keys all agree on one increment
 const DOUBLE_TAP_MS = 350;
 
+/**
+ * Scrubber — the seek bar: a real filled progress track (not a bare
+ * native <input type="range">, which has no way to also show a filled
+ * portion and clip markers on the same track without fighting its own
+ * cross-browser thumb/track styling), clip-boundary ticks baked into the
+ * same track so they read as part of the timeline rather than a
+ * decoration floating over it, a thumb that grows on hover/drag, and a
+ * hover tooltip showing exactly where a click would land — the same
+ * "confirm before you commit" affordance a real video player's scrubber
+ * gives you.
+ */
+function Scrubber({ time, duration, tickFractions, onScrub }) {
+  const trackRef = useRef(null);
+  const [hoverFrac, setHoverFrac] = useState(null);
+  const draggingRef = useRef(false);
+
+  const fracFromEvent = (e) => {
+    const rect = trackRef.current.getBoundingClientRect();
+    if (!rect.width) return 0;
+    return clamp01((e.clientX - rect.left) / rect.width);
+  };
+
+  const onPointerDown = (e) => {
+    if (!duration) return;
+    draggingRef.current = true;
+    trackRef.current.setPointerCapture(e.pointerId);
+    const frac = fracFromEvent(e);
+    setHoverFrac(frac);
+    onScrub(frac * duration);
+  };
+  const onPointerMove = (e) => {
+    if (!duration) return;
+    const frac = fracFromEvent(e);
+    setHoverFrac(frac);
+    if (draggingRef.current) onScrub(frac * duration);
+  };
+  const onPointerUp = (e) => {
+    draggingRef.current = false;
+    try { trackRef.current.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+  };
+
+  const progressFrac = duration > 0 ? clamp01(time / duration) : 0;
+
+  return (
+    <div
+      ref={trackRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerLeave={() => !draggingRef.current && setHoverFrac(null)}
+      className="group relative h-5 min-w-[80px] flex-1 cursor-pointer touch-none select-none"
+      role="slider"
+      aria-label="Seek"
+      aria-valuemin={0}
+      aria-valuemax={duration || 0}
+      aria-valuenow={time}
+    >
+      {/* Track + filled progress, one element each, same rounded pill —
+          this is what a plain range input can't give both at once. */}
+      <div className="absolute inset-x-0 top-1/2 h-[5px] -translate-y-1/2 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full rounded-full bg-primary" style={{ width: `${progressFrac * 100}%` }} />
+      </div>
+      {/* Clip-boundary ticks, drawn on top of the fill so they stay
+          visible whether they land in the played or unplayed portion. */}
+      {tickFractions.map((frac, i) => (
+        <span key={i} className="pointer-events-none absolute top-1/2 h-2 w-px -translate-y-1/2 bg-background/80"
+          style={{ left: `${frac * 100}%` }} />
+      ))}
+      {/* Thumb — always present (touch has no hover), grows slightly on
+          hover/drag as the one bit of "this is interactive" feedback. */}
+      <div
+        className={`pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow-[0_1px_4px_rgba(0,0,0,0.5)] transition-[width,height] duration-100 ${hoverFrac != null ? "size-3.5" : "size-2.5"}`}
+        style={{ left: `${progressFrac * 100}%` }}
+      />
+      {/* Hover/drag tooltip — exactly where a click lands, before it's committed. */}
+      {hoverFrac != null && duration > 0 && (
+        <div className="pointer-events-none absolute -top-7 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/85 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white"
+          style={{ left: `${clamp01(hoverFrac) * 100}%` }}>
+          {(hoverFrac * duration).toFixed(1)}s
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptionLive, onCaptionCommit, compact, seekRequest }) {
   const canvasRef = useRef(null);
   const [playing, setPlaying] = useState(false);
@@ -623,27 +708,12 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
           className={`flex size-9 shrink-0 items-center justify-center rounded-full disabled:opacity-30 ${muted ? "text-destructive" : "text-muted-foreground enabled:hover:bg-muted enabled:hover:text-foreground"}`}>
           {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
         </button>
-        {/* Scrubber with clip-boundary tick marks overlaid — a plain
-            range input has no native way to show them, so this is a
-            second, pointer-events-none layer positioned by percentage
-            of totalDuration, one tick per clip start (skipping 0%,
-            which the scrubber's own left edge already marks). */}
-        <div className="relative min-w-[80px] flex-1">
-          <input
-            type="range" min="0" max={totalDuration || 1} step="0.05" value={Math.min(globalTime, totalDuration || 1)}
-            onChange={(e) => seek(Number(e.target.value))}
-            disabled={!clips.length}
-            className="w-full accent-primary"
-          />
-          {totalDuration > 0 && (
-            <div className="pointer-events-none absolute inset-x-0 top-1/2 h-2.5 -translate-y-1/2">
-              {starts.slice(1).map((start, i) => (
-                <span key={clips[i + 1]?.id ?? i} className="absolute top-0 h-full w-px bg-background/70"
-                  style={{ left: `${clamp01(start / totalDuration) * 100}%` }} />
-              ))}
-            </div>
-          )}
-        </div>
+        <Scrubber
+          time={Math.min(globalTime, totalDuration || 0)}
+          duration={totalDuration}
+          tickFractions={totalDuration > 0 ? starts.slice(1).map((start) => clamp01(start / totalDuration)) : []}
+          onScrub={seek}
+        />
         <span className="w-16 shrink-0 text-right font-mono text-[11px] text-muted-foreground">
           {globalTime.toFixed(1)}s / {totalDuration.toFixed(1)}s
         </span>
