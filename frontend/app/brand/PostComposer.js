@@ -24,7 +24,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
-  Download, Loader2, Type, Smile, ImagePlus, Undo2, Redo2, SlidersHorizontal,
+  Download, Loader2, Type, Smile, ImagePlus, Undo2, Redo2, Pencil,
   FilePlus2, Images, FileImage, Trash2, Upload,
 } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -78,6 +78,14 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const { isPhone } = useViewport();
   const [sheetOpen, setSheetOpen] = useState(false);
+  // How tall the Edit sheet is allowed to be, measured fresh every time it
+  // opens (see openEditSheet below) — null until then, which falls back to
+  // BottomSheet's own default cap. Same fix as StoryComposer.js's own
+  // sheetMaxHeight: BottomSheet's 64vh default was tuned against Guest
+  // Mode's shorter preview, and this canvas (up to 560px wide, full-height
+  // on a portrait/story shape) is often taller than that leaves room for.
+  const [sheetMaxHeight, setSheetMaxHeight] = useState(null);
+  const canvasBlockRef = useRef(null);
   const [shapeId, setShapeId] = useState("tip");
   const [platformId, setPlatformId] = useState("square");
   const [layers, setLayersRaw] = useState(() => INITIAL_LAYOUTS.tip(SHAPE_DEFAULTS.tip));
@@ -256,6 +264,23 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
 
   const refreshPostsList = () => setPostsList(listPostDrafts());
   const openPostsPanel = () => { refreshPostsList(); setPostsOpen(true); };
+
+  // Opens the Edit sheet sized to whatever room is ACTUALLY left below the
+  // canvas, measured live — same fix as StoryComposer.js's openEditSheet.
+  // rect.bottom is viewport-relative; + window.scrollY turns it into a
+  // fixed document position, correct regardless of scroll position when
+  // this is called. Floored at 280px so an unusually tall canvas (a
+  // portrait/story shape) on a short device never squeezes the sheet down
+  // to something too cramped to actually use.
+  const openEditSheet = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    const rect = canvasBlockRef.current?.getBoundingClientRect();
+    if (rect) {
+      const canvasBottomInDocument = rect.bottom + window.scrollY;
+      setSheetMaxHeight(Math.max(280, window.innerHeight - canvasBottomInDocument - 12));
+    }
+    setSheetOpen(true);
+  };
 
   const switchToPost = (id) => {
     if (id === postId) { setPostsOpen(false); return; }
@@ -640,20 +665,32 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
             (Story/Portrait) can make this box nearly the full viewport
             height on a phone, and pinning something that tall is what
             pushed Download/Email out of easy reach in the first place. */}
-        <div className="flex min-w-0 w-full flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5">
+        <div ref={canvasBlockRef} className="flex min-w-0 w-full flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5">
           {canvasBlock}
         </div>
         {downloadRow}
-        {/* Hidden while the sheet itself is open — its own "Done" button
-            (BottomSheet.js) is the way back, so having this trigger still
-            sitting there too is a redundant second way to do the same
-            thing while the sheet already covers it. */}
+        {/* A FIXED floating button, not an in-flow one — same fix as
+            StoryComposer.js's own Edit trigger: an in-flow trigger scrolls
+            with the page and can land behind the fixed BottomNav once
+            there's enough content above it to push it down there. Pinned
+            just above the nav instead, it's on screen at a glance from
+            anywhere in the tool. Hidden while the sheet is open (its own
+            "Done" button, BottomSheet.js, is the way back), so there's
+            never a redundant second way to do the same thing on screen at
+            once. */}
         {!sheetOpen && (
-          <Btn variant="ghost" onClick={() => setSheetOpen(true)}>
-            <SlidersHorizontal className="size-4" /> Edit content & style
-          </Btn>
+          <button
+            type="button"
+            onClick={openEditSheet}
+            aria-label="Edit content & style"
+            title="Edit content & style"
+            className="fixed right-4 z-40 flex size-14 items-center justify-center rounded-full border border-white/[0.14] bg-primary text-primary-foreground shadow-[0_14px_36px_rgba(0,0,0,0.45),0_1px_0_rgba(255,255,255,0.15)_inset] [-webkit-tap-highlight-color:transparent] active:scale-95"
+            style={{ bottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}
+          >
+            <Pencil className="size-5" />
+          </button>
         )}
-        <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit">
+        <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit" maxHeightPx={sheetMaxHeight}>
           <div className="p-4">
             {editControls}
           </div>
