@@ -368,8 +368,13 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
               onChange={(e) => onPatch({ narrationPitch: Number(e.target.value) })} className="w-full accent-primary" />
           </div>
           <div>
+            {/* "Voice volume", not bare "Volume" — this card already has
+                a second, unrelated volume slider above (the clip's own
+                original sound), and two sliders both just labeled
+                "Volume" read as duplicates of each other at a glance
+                instead of the two genuinely different things they are. */}
             <label className="mb-1.5 block text-[11px] font-bold text-foreground">
-              Volume <span className="block font-mono text-[9.5px] font-normal text-muted-foreground">{Math.round(volume * 100)}%</span>
+              Voice volume <span className="block font-mono text-[9.5px] font-normal text-muted-foreground">{Math.round(volume * 100)}%</span>
             </label>
             <input type="range" min="0" max="2" step="0.05" value={volume}
               onChange={(e) => onPatch({ narrationVolume: Number(e.target.value) })} className="w-full accent-primary" />
