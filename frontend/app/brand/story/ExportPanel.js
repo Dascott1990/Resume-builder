@@ -67,11 +67,10 @@ async function buildCaptionFrames(clip, w, h, accent) {
 
 async function buildFormData(clips, platformId, outputFormat, accent) {
   const { w, h } = PLATFORMS[platformId];
-  const formData = new FormData();
   const clipSpecs = [];
+  const captionFields = []; // [{ index, blobs, timings }] — the actual PNG/JSON captions, appended in a second pass below
   for (let i = 0; i < clips.length; i++) {
     const clip = clips[i];
-    formData.append("clips", clip.file, clip.file.name);
     const hasCaption = clip.captionLayers?.length > 0;
     const narrationText = (clip.narrationText || "").trim() || undefined;
     clipSpecs.push(
@@ -95,22 +94,40 @@ async function buildFormData(clips, platformId, outputFormat, accent) {
     }
     if (hasCaption) {
       const { blobs, timings } = await buildCaptionFrames(clip, w, h, accent);
-      if (blobs.length === 1) {
-        formData.append(`caption_${i}`, blobs[0], `caption_${i}.png`);
-      } else {
-        formData.append(`caption_frames_${i}`, JSON.stringify(timings));
-        blobs.forEach((blob, j) => formData.append(`caption_${i}_${j}`, blob, `caption_${i}_${j}.png`));
-      }
-      // The plain caption STRING, not just its rendered PNG — this is
-      // what the post-render quality check (backend/app/utils/
-      // video_quality.py) compares against a transcription of the actual
-      // rendered audio, to catch a caption that's drifted from what's
-      // really said.
       const captionText = (clip.captionLayers?.[0]?.text || "").trim();
-      if (captionText) formData.append(`caption_text_${i}`, captionText);
+      captionFields.push({ index: i, blobs, timings, captionText });
     }
   }
+
+  const formData = new FormData();
+  // spec goes in FIRST, before a single byte of any clip's actual file —
+  // a FormData's own field order is exactly append order, and the clip/
+  // caption files appended below can add up to a genuinely large
+  // multipart body for a multi-clip video story. If that body is ever
+  // truncated in transit (a platform-level request size limit, a dropped
+  // connection), whatever's appended LAST is what goes missing — and
+  // spec used to BE last, so a partial upload surfaced as the least
+  // helpful possible error ("spec is required", confirmed live in
+  // production) instead of something that at least names which clip
+  // didn't make it through. Small, critical metadata first; large binary
+  // payloads last — the standard shape for exactly this failure mode.
   formData.append("spec", JSON.stringify({ platform_id: platformId, output_format: outputFormat, clips: clipSpecs }));
+  for (let i = 0; i < clips.length; i++) {
+    formData.append("clips", clips[i].file, clips[i].file.name);
+  }
+  for (const { index: i, blobs, timings, captionText } of captionFields) {
+    if (blobs.length === 1) {
+      formData.append(`caption_${i}`, blobs[0], `caption_${i}.png`);
+    } else {
+      formData.append(`caption_frames_${i}`, JSON.stringify(timings));
+      blobs.forEach((blob, j) => formData.append(`caption_${i}_${j}`, blob, `caption_${i}_${j}.png`));
+    }
+    // The plain caption STRING, not just its rendered PNG — this is what
+    // the post-render quality check (backend/app/utils/video_quality.py)
+    // compares against a transcription of the actual rendered audio, to
+    // catch a caption that's drifted from what's really said.
+    if (captionText) formData.append(`caption_text_${i}`, captionText);
+  }
   return formData;
 }
 
