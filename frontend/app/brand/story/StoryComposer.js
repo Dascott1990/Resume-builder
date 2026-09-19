@@ -36,7 +36,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2, Pencil, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Plus, Undo2, Redo2, Pencil, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo, CheckCircle2, AlertTriangle, Play, Pause, Loader2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -50,6 +50,7 @@ import { PreviewPlayer } from "./PreviewPlayer";
 import { ExportPanel } from "./ExportPanel";
 import { releaseClip, loadClipFromFile, clipLengthSec } from "./clipModel";
 import { transcribeClip } from "./transcribe";
+import { getNarrationPreview } from "./narrationPreview";
 import {
   saveStoryDraft, loadStoryDraft, deleteStoryDraft, listStoryDrafts,
   getActiveStoryId, setActiveStoryId, newStoryId, migrateLegacyDraft,
@@ -63,6 +64,10 @@ const MAX_NARRATION_CHARS = 400; // mirrors backend/app/api/story.py's cap
 let hasShownStoryDraftToast = false;
 const MIN_NARRATION_RATE = 80; // mirrors backend/app/api/story.py's MIN/MAX_NARRATION_RATE
 const MAX_NARRATION_RATE = 320;
+// What a voice preview reads when the clip doesn't have any narration
+// script typed in yet — previewing how a voice sounds shouldn't require
+// writing the real script first.
+const VOICE_PREVIEW_SAMPLE_TEXT = "This is a quick preview of this voice.";
 
 const VOICE_OPTIONS = [
   { id: "neutral", label: "Neutral" },
@@ -195,6 +200,63 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
   const volume = clip.narrationVolume ?? 1;
   const muted = !!clip.narrationMuted;
 
+  // Lets someone hear how each voice option actually sounds — reading
+  // THIS clip's own typed script, at its own speed/tone, so the preview
+  // matches what would really render — before committing to it, instead
+  // of only finding out after switching narrationVoice and re-listening
+  // to the whole clip. { voiceId, status } rather than two separate
+  // booleans: only one voice can ever be mid-preview at a time (one
+  // shared <audio> element below), so there's only ever one true state to
+  // track, not "is neutral loading" AND "is woman loading" independently.
+  const previewAudioRef = useRef(null);
+  const [preview, setPreview] = useState({ voiceId: null, status: null }); // status: "loading" | "playing"
+
+  useEffect(() => {
+    const audio = new Audio();
+    previewAudioRef.current = audio;
+    const onEnded = () => setPreview({ voiceId: null, status: null });
+    audio.addEventListener("ended", onEnded);
+    return () => {
+      audio.pause();
+      audio.removeEventListener("ended", onEnded);
+      previewAudioRef.current = null;
+    };
+  }, []);
+
+  // Switching to a different clip (or its script changing under a preview
+  // that's already playing) shouldn't leave a stale preview quietly
+  // playing on screen for a clip you've since moved on from.
+  useEffect(() => {
+    previewAudioRef.current?.pause();
+    setPreview({ voiceId: null, status: null });
+  }, [clip.id]);
+
+  const previewVoice = async (voiceId) => {
+    const audio = previewAudioRef.current;
+    if (!audio) return;
+    if (preview.voiceId === voiceId) { // tap the same voice again — stop, don't restart
+      audio.pause();
+      audio.currentTime = 0;
+      setPreview({ voiceId: null, status: null });
+      return;
+    }
+    audio.pause();
+    setPreview({ voiceId, status: "loading" });
+    try {
+      const entry = await getNarrationPreview({
+        text: (clip.narrationText || "").trim() || VOICE_PREVIEW_SAMPLE_TEXT,
+        voice: voiceId, rate, pitch,
+      });
+      if (!entry) throw new Error("no preview entry");
+      audio.src = entry.url;
+      await audio.play();
+      setPreview({ voiceId, status: "playing" });
+    } catch {
+      toast.error("Couldn't preview that voice right now.");
+      setPreview({ voiceId: null, status: null });
+    }
+  };
+
   return (
     <div className="grid gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex items-center justify-between">
@@ -257,13 +319,35 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
       <div className={`grid gap-3 ${muted ? "pointer-events-none opacity-40" : ""}`}>
         <div>
           <p className="m-0 mb-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Voice</p>
+          {/* Two separate hit targets per option, not one button — tapping
+              the label SELECTS the voice for this clip (unchanged
+              behavior); the small play icon PREVIEWS it without touching
+              the selection, so trying out Woman or Man doesn't commit to
+              either until you actually tap its label. */}
           <div className="flex flex-wrap gap-1.5">
-            {VOICE_OPTIONS.map((v) => (
-              <button key={v.id} type="button" onClick={() => onPatch({ narrationVoice: v.id })} aria-pressed={voice === v.id}
-                className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${voice === v.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-                {v.label}
-              </button>
-            ))}
+            {VOICE_OPTIONS.map((v) => {
+              const selected = voice === v.id;
+              const isThis = preview.voiceId === v.id;
+              return (
+                <div key={v.id}
+                  className={`flex items-center gap-0.5 rounded-full border py-1 pr-1 pl-3 ${selected ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+                  <button type="button" onClick={() => onPatch({ narrationVoice: v.id })} aria-pressed={selected} className="text-[11.5px] font-bold">
+                    {v.label}
+                  </button>
+                  <button type="button" onClick={() => previewVoice(v.id)}
+                    title={isThis && preview.status === "playing" ? `Stop previewing ${v.label.toLowerCase()}` : `Preview the ${v.label.toLowerCase()} voice`}
+                    className="flex size-6 shrink-0 items-center justify-center rounded-full hover:bg-white/10">
+                    {isThis && preview.status === "loading" ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : isThis && preview.status === "playing" ? (
+                      <Pause className="size-3 fill-current" />
+                    ) : (
+                      <Play className="size-3 fill-current" />
+                    )}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
 
