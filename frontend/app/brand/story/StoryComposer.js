@@ -480,6 +480,13 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   const [outputFormat, setOutputFormat] = useState("mp4");
   const [historyTick, setHistoryTick] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Whether a clip row's delete icon is currently swiped open
+  // (ClipTimeline.js) — the floating Edit button below hides while this
+  // is true, since it's fixed at a constant screen position a clip row
+  // can scroll directly underneath, blocking the exact icon a swipe just
+  // revealed. See openEditSheet's own comment for the same class of
+  // problem this session already fixed for the sheet's own height.
+  const [clipSwipeOpen, setClipSwipeOpen] = useState(false);
   // How tall the Edit sheet is allowed to be, measured fresh every time it
   // opens (see openEditSheet below) — null until then, which falls back to
   // BottomSheet's own default cap.
@@ -903,6 +910,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     <ClipTimeline
       clips={clips} selectedIndex={selectedIndex} onSelect={setSelectedIndex}
       onAdd={handleAdd} onRemove={handleRemove} onReorder={handleReorder} onUpdateClip={handleUpdateClip}
+      onAnyOpenChange={setClipSwipeOpen}
     />
   );
 
@@ -987,8 +995,11 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
             of "edit here, see it there" — the trigger itself shouldn't need
             hunting for. Hidden while the sheet is open (its own "Done"
             button, BottomSheet.js, is the way back) so there's never a
-            redundant second way to do the same thing on screen at once. */}
-        {!sheetOpen && (
+            redundant second way to do the same thing on screen at once —
+            and hidden while a clip row's delete icon is swiped open, so
+            that icon always has clear space to be tapped in, regardless
+            of which clip row it happens to be (see clipSwipeOpen above). */}
+        {!sheetOpen && !clipSwipeOpen && (
           <button
             type="button"
             onClick={openEditSheet}

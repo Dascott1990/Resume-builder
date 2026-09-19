@@ -10,22 +10,19 @@
  * impossible on every phone/tablet this tool needs to work on. Buttons
  * work identically everywhere — mouse, touch, and keyboard.
  *
- * Deleting a clip is swipe-to-delete, not the plain always-visible "X"
- * button this used to be. That wasn't just a style choice: on phone, the
- * floating Edit button (StoryComposer.js) is FIXED at a constant screen
- * position, and a clip row's own on-page position depends on how far the
- * page happens to be scrolled — for some scroll position there's always
- * SOME clip row whose right edge (where a plain tap target would live)
- * lands directly under that fixed button. Confirmed live: elementFromPoint
- * at the old X button's exact center returned the Edit button, not the X
- * — the tap never reached it. A plain onClick is judged solely by
- * whatever's topmost AT THE MOMENT the click fires, so it's inherently
- * vulnerable to that. A pointer-captured swipe isn't: once onPointerDown
- * below calls setPointerCapture, every later event for that same gesture
- * (move, up) is delivered back to the row that started it, regardless of
- * what's visually on top of the pointer's current position when it ends
- * — the same reason this codebase's caption-dragging and scrubber already
- * use pointer capture instead of plain click handlers.
+ * Deleting a clip is swipe-to-reveal (swipe the row left, tap the trash
+ * icon that appears — the same interaction WhatsApp/Mail-style contact
+ * and message lists use), not the plain always-visible "X" button this
+ * used to be. On phone, the floating Edit button (StoryComposer.js) is
+ * FIXED at a constant screen position, and a clip row's own on-page
+ * position depends on how far the page happens to be scrolled — for some
+ * scroll position there was always SOME clip row whose right edge (where
+ * the old X lived) landed directly under that fixed button. The swipe
+ * gesture itself is immune to that: onPointerDown below calls
+ * setPointerCapture, so every later event for that same gesture (move,
+ * up) is delivered back to the row regardless of what's visually on top
+ * of the pointer's position — the same reason this codebase's caption-
+ * dragging and scrubber already use pointer capture over plain clicks.
  */
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -40,31 +37,28 @@ function ClipThumb({ clip }) {
   return <canvas ref={canvasRef} className="size-16 shrink-0 rounded-lg bg-black object-cover" />;
 }
 
-// Delete commits on RELEASE past this drag distance — there's
-// deliberately no intermediate "revealed, now tap the trash icon to
-// confirm" step. An earlier version worked that way, and it turned out
-// to just move the FAB-collision problem rather than fix it: the
-// revealed button was a plain, statically-positioned tap target at the
-// row's right edge — the exact same screen real estate the floating Edit
-// button occupies — so it was just as blockable as the old X button was.
-// Committing directly on release means the ENTIRE delete action, start
-// to finish, happens inside the one pointer-captured gesture that proved
-// immune to that (see this file's header comment) — nothing left over
-// that needs a second, separate tap to land correctly.
-const DELETE_PX = 140;
+const REVEAL_PX = 76; // width of the revealed delete icon's own tap zone
+const OPEN_THRESHOLD = REVEAL_PX * 0.4; // drag past this and releasing snaps the row open, not closed
 const TAP_SLOP = 8; // px of movement that's still a tap/press, not the start of a swipe
 
-function ClipRow({ clip, index, clips, selectedIndex, onSelect, onReorder, onRemove, onUpdateClip }) {
-  const [dragX, setDragX] = useState(0);
-  const gestureRef = useRef(null); // { startClientX, startClientY, isSwipe } while a pointer is down
+function ClipRow({ clip, index, selectedIndex, onSelect, onReorder, onRemove, onUpdateClip, clipsLength, isOpen, onOpenChange }) {
+  const [dragX, setDragX] = useState(isOpen ? -REVEAL_PX : 0);
+  const gestureRef = useRef(null); // { startClientX, startClientY, baseX, isSwipe } while a pointer is down
+
+  // Another row opened (or this one was closed by a select/remove
+  // elsewhere) — follow that external state, same as any other
+  // swipe-to-delete list where only one row stays open at a time.
+  useEffect(() => { if (!gestureRef.current) setDragX(isOpen ? -REVEAL_PX : 0); }, [isOpen]);
 
   const onPointerDown = (e) => {
-    // Let a button/input/label/anchor handle its own interaction — the
-    // up/down reorder buttons and the duration/trim range sliders live
-    // inside this same row and need their native pointer behavior intact,
-    // not hijacked by the swipe tracking below.
+    // Let a button/input/label handle its own interaction — the up/down
+    // reorder buttons and the duration/trim range sliders live inside
+    // this same row and need their native pointer behavior intact, not
+    // hijacked by the swipe tracking below. (Their own onClick already
+    // stops propagation too — this is the belt to that suspenders, since
+    // pointerdown/move aren't click events and wouldn't be caught by it.)
     if (e.target.closest("button, input, a, label")) return;
-    gestureRef.current = { startClientX: e.clientX, startClientY: e.clientY, isSwipe: false };
+    gestureRef.current = { startClientX: e.clientX, startClientY: e.clientY, baseX: dragX, isSwipe: false };
   };
   const onPointerMove = (e) => {
     const g = gestureRef.current;
@@ -73,19 +67,22 @@ function ClipRow({ clip, index, clips, selectedIndex, onSelect, onReorder, onRem
     const dy = e.clientY - g.startClientY;
     if (!g.isSwipe) {
       if (Math.abs(dx) < TAP_SLOP && Math.abs(dy) < TAP_SLOP) return; // not enough movement to classify yet
-      if (Math.abs(dy) > Math.abs(dx)) { gestureRef.current = null; return; } // a vertical scroll, not a swipe — bail and let the page/list scroll normally
+      if (Math.abs(dy) > Math.abs(dx)) { gestureRef.current = null; return; } // a vertical scroll, not a swipe — bail and let the list scroll normally
       g.isSwipe = true;
       e.currentTarget.setPointerCapture(e.pointerId);
     }
-    setDragX(Math.max(-DELETE_PX, Math.min(0, dx)));
+    setDragX(Math.max(-REVEAL_PX, Math.min(0, g.baseX + dx)));
   };
   const onPointerUp = (e) => {
     const g = gestureRef.current;
     if (!g) return;
     if (g.isSwipe) {
       try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* already released */ }
-      if (dragX <= -DELETE_PX) { onRemove(); return; } // still mid-animation-out; no need to reset dragX, this row is gone
-      setDragX(0);
+      const opensNow = dragX <= -OPEN_THRESHOLD;
+      setDragX(opensNow ? -REVEAL_PX : 0);
+      onOpenChange(opensNow);
+    } else if (isOpen) {
+      onOpenChange(false); // a plain tap while open just closes it, same as tapping any other open swipe row
     } else {
       onSelect();
     }
@@ -94,27 +91,39 @@ function ClipRow({ clip, index, clips, selectedIndex, onSelect, onReorder, onRem
 
   return (
     <div className="relative overflow-hidden rounded-xl">
-      {/* Red backdrop, revealed underneath as the row's own translateX
-          opens a gap above it — purely visual feedback for how close the
-          drag is to committing, not itself a tap target (see the DELETE_PX
-          comment above for why). */}
-      <div aria-hidden="true" className="absolute inset-0 flex items-center justify-end bg-destructive pr-6 text-destructive-foreground">
-        <Trash2 className="size-5" />
-      </div>
+      {/* The delete icon — sits underneath at all times, only ever
+          visible/tappable through the gap the row's own translateX opens
+          up above it. Width tracks the CURRENT drag distance (0 when
+          closed) rather than a fixed REVEAL_PX — a selected row's own
+          background is intentionally near-transparent (bg-primary/[0.04]
+          below), which let a fixed-width backdrop show faintly through
+          even while fully closed. Zero width when closed means there's
+          nothing back there to show through, regardless of the row's own
+          opacity, and it's naturally un-tappable until actually open. */}
+      <button
+        type="button"
+        onClick={() => onRemove()}
+        title="Delete clip"
+        aria-label="Delete clip"
+        className="absolute inset-y-0 right-0 flex items-center justify-center overflow-hidden bg-destructive text-destructive-foreground"
+        style={{ width: Math.max(0, -dragX) }}
+      >
+        <Trash2 className="size-5 shrink-0" />
+      </button>
 
       <div
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={() => { gestureRef.current = null; setDragX(0); }}
+        onPointerCancel={() => { gestureRef.current = null; setDragX(isOpen ? -REVEAL_PX : 0); }}
         style={{
           transform: `translateX(${dragX}px)`,
           transition: gestureRef.current ? "none" : "transform 200ms ease",
           touchAction: "pan-y", // horizontal swipes are ours to interpret; vertical scroll still passes through untouched
         }}
-        className={`relative flex cursor-pointer items-center gap-2 rounded-xl border bg-card p-2 ${selectedIndex === index ? "border-primary/30 bg-primary/[0.04]" : "border-border"}`}
+        className={`relative flex items-center gap-2 rounded-xl border p-2 cursor-pointer ${selectedIndex === index ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-card"}`}
       >
-        <div className="flex shrink-0 flex-col gap-0.5" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="flex shrink-0 flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
           <button
             type="button" onClick={() => index > 0 && onReorder(index, index - 1)} disabled={index === 0} title="Move up"
             className="flex size-9 items-center justify-center rounded-md text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground"
@@ -122,7 +131,7 @@ function ClipRow({ clip, index, clips, selectedIndex, onSelect, onReorder, onRem
             <ChevronUp className="size-4" />
           </button>
           <button
-            type="button" onClick={() => index < clips.length - 1 && onReorder(index, index + 1)} disabled={index === clips.length - 1} title="Move down"
+            type="button" onClick={() => index < clipsLength - 1 && onReorder(index, index + 1)} disabled={index === clipsLength - 1} title="Move down"
             className="flex size-9 items-center justify-center rounded-md text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground"
           >
             <ChevronDown className="size-4" />
@@ -134,7 +143,7 @@ function ClipRow({ clip, index, clips, selectedIndex, onSelect, onReorder, onRem
             {index + 1}. {clip.kind === "video" ? "Video" : "Image"} · {clipLengthSec(clip).toFixed(1)}s
           </p>
           {clip.kind === "image" ? (
-            <div className="mt-1 flex items-center gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
+            <div className="mt-1 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
               <Clock className="size-3 text-muted-foreground" />
               <input
                 type="range" min="0.5" max="8" step="0.1" value={clip.durationSec}
@@ -143,7 +152,7 @@ function ClipRow({ clip, index, clips, selectedIndex, onSelect, onReorder, onRem
               />
             </div>
           ) : (
-            <div className="mt-1 grid grid-cols-2 gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
+            <div className="mt-1 grid grid-cols-2 gap-1.5" onClick={(e) => e.stopPropagation()}>
               <label className="text-[10px] text-muted-foreground">
                 In {clip.trimIn.toFixed(1)}s
                 <input
@@ -168,9 +177,19 @@ function ClipRow({ clip, index, clips, selectedIndex, onSelect, onReorder, onRem
   );
 }
 
-export function ClipTimeline({ clips, selectedIndex, onSelect, onAdd, onRemove, onReorder, onUpdateClip }) {
+export function ClipTimeline({ clips, selectedIndex, onSelect, onAdd, onRemove, onReorder, onUpdateClip, onAnyOpenChange }) {
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
+  // Only one row's delete icon revealed at a time — swiping a second row
+  // (or selecting/removing a clip) closes whichever one was already
+  // open, same as every other swipe-to-delete list.
+  const [openIndex, setOpenIndexRaw] = useState(null);
+  // onAnyOpenChange is how StoryComposer.js knows to hide its own
+  // floating Edit button while a row is revealed — without it, a clip
+  // near the bottom of a short list reveals its delete icon directly
+  // under that fixed button, same collision class as the old X button
+  // (confirmed live: the tap doesn't reach the revealed icon either).
+  const setOpenIndex = (next) => { setOpenIndexRaw(next); onAnyOpenChange?.(next !== null); };
 
   const handleFiles = async (fileList) => {
     const files = Array.from(fileList || []);
@@ -220,8 +239,13 @@ export function ClipTimeline({ clips, selectedIndex, onSelect, onAdd, onRemove, 
           {clips.map((clip, i) => (
             <ClipRow
               key={clip.id}
-              clip={clip} index={i} clips={clips} selectedIndex={selectedIndex}
-              onSelect={() => onSelect(i)} onReorder={onReorder} onRemove={() => onRemove(i)} onUpdateClip={onUpdateClip}
+              clip={clip} index={i} clipsLength={clips.length} selectedIndex={selectedIndex}
+              onSelect={() => { setOpenIndex(null); onSelect(i); }}
+              onReorder={onReorder}
+              onRemove={() => { setOpenIndex(null); onRemove(i); }}
+              onUpdateClip={onUpdateClip}
+              isOpen={openIndex === i}
+              onOpenChange={(open) => setOpenIndex(open ? i : null)}
             />
           ))}
         </div>
