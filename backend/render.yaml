@@ -23,15 +23,25 @@ services:
     # free/offline TTS, chosen over a paid neural voice API to avoid a
     # new vendor credential — synthetic-sounding is the accepted tradeoff.
     buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium && apt-get update && apt-get install -y ffmpeg espeak-ng
-    # --timeout 120: POST /api/v1/brand/story/render (api/story.py) does its
-    # ffmpeg encoding synchronously inside the request — deliberately, so it
-    # never depends on the database (see that file's module docstring) —
-    # rather than gunicorn's sync-worker default of 30s, which a multi-clip
-    # render could plausibly exceed. Render's own reverse proxy may still
-    # impose a shorter hard ceiling this setting can't override; if large
-    # story renders start timing out in production, that's the sign this
-    # needs to become an async job again.
-    startCommand: gunicorn run:app --timeout 120
+    # That prediction came true: a real production render took 30+
+    # seconds and got cut off by Render's own platform-level reverse
+    # proxy before this --timeout 120 ever applied, surfacing as an
+    # opaque 502 with an empty body. POST /api/v1/brand/story/render
+    # (api/story.py) is async now — the request just starts a background
+    # job and returns almost immediately, so this --timeout is no longer
+    # load-bearing for the render itself (kept anyway as a sane ceiling
+    # for any request).
+    #
+    # --workers 2, not gunicorn's default of 1: with one worker, ANY slow
+    # request — not just a render, though that was the one that actually
+    # surfaced it — blocks every other request on this service, including
+    # completely unrelated traffic, until it finishes or the platform
+    # gives up on it. Two is a deliberately modest bump (not 4+): each
+    # worker is a full process carrying this app's own import weight
+    # (SQLAlchemy, Playwright, etc.), and this service's actual RAM
+    # budget isn't something this file can see — revisit upward only
+    # after confirming headroom on the real instance.
+    startCommand: gunicorn run:app --timeout 120 --workers 2
     envVars:
       - key: DATABASE_URL
         fromDatabase:

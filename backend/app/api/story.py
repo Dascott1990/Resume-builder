@@ -3,20 +3,36 @@ app/api/story.py — /brand's story-assembly tool: multiple image/video
 clips, sequenced with straight cuts, each optionally captioned, rendered
 server-side to MP4 or GIF via ffmpeg.
 
-POST /api/v1/brand/story/render — renders synchronously in the request
-and either returns the file directly, or (if email_to is given) emails
-it as an attachment and returns a plain success message instead.
+POST /api/v1/brand/story/render validates the upload synchronously (fast
+— just parsing/checking, no ffmpeg) and hands the actual render off to a
+background thread, returning a job_id almost immediately. The client
+polls GET .../render/<job_id>/status until state is "done", then either
+reads quality_report straight off that response (email_to case) or hits
+GET .../render/<job_id>/download once (no email_to case).
 
-Deliberately NOT an async job with a database-backed status row. Unlike
-Apply-with-AI's browser-automation runs (which can take many minutes), a
-straight-cut ffmpeg render of a handful of short clips finishes in
-seconds — well inside one HTTP request. Skipping a StoryRun/Media row
-entirely means this keeps working even when the database itself is
-down (see this session's own recurring Neon outage) — the exact same
-"never touches the database" shape brand.py's email_asset already uses.
-Everything here is ephemeral: clips and every intermediate ffmpeg file
-live in a tempfile.mkdtemp() working directory, deleted before the
-response returns.
+This was originally fully synchronous — a single request that ran ffmpeg
+inline and returned the finished file. That assumed a render "finishes
+in seconds — well inside one HTTP request," which real production
+traffic didn't bear out: a render observed taking 30+ seconds got cut
+off by Render's own platform-level reverse proxy before gunicorn's own
+--timeout 120 (render.yaml) even applied, surfacing as an opaque 502
+with an empty body. Worse, gunicorn's default of ONE worker (no
+--workers flag was ever set) meant that single slow request blocked
+every OTHER request — including totally unrelated app traffic — until
+it finished or the platform gave up on it.
+
+Async fixes both: the client-facing request is now cheap regardless of
+how long the actual ffmpeg work takes, and a slow render no longer holds
+a worker hostage for other requests. Still deliberately NOT a database-
+backed job (see this session's own recurring Neon outage) — job status/
+result live as plain files under a temp directory instead, which is
+also what makes this work correctly across MULTIPLE gunicorn workers
+without any shared state beyond the filesystem they already share:
+whichever worker happens to service a later status/download request can
+read what a DIFFERENT worker's background thread already wrote.
+Abandoned jobs (started but never polled to completion) are swept by
+age, piggybacked on normal job-creation traffic rather than needing a
+separate scheduler thread.
 
 Same unauthenticated posture as the rest of api/brand.py.
 """
@@ -28,6 +44,9 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
+import time
+import uuid
 
 from flask import Blueprint, request, jsonify, send_file
 
@@ -157,11 +176,139 @@ def _has_audio_stream(path):
     'video/*', but only one of them has anything to preserve. Checked
     per-clip rather than assumed, since compositing a non-existent
     [0:a] stream would just fail the whole segment's ffmpeg call."""
-    result = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=codec_type", "-of", "csv=p=0", path],
-        capture_output=True, timeout=15,
-    )
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=codec_type", "-of", "csv=p=0", path],
+            capture_output=True, timeout=15,
+        )
+    except FileNotFoundError:
+        raise RuntimeError("ffprobe is not installed on this server (see render.yaml's buildCommand).")
     return bool(result.stdout.decode().strip())
+
+
+# ── Async render jobs — see this module's own docstring for why. Status/
+# result live as plain files, not a process-memory dict: this file gets
+# read/written by whichever gunicorn worker happens to handle a given
+# request, and a dict in one worker's memory is invisible to another
+# worker's process entirely. The filesystem is the one thing every
+# worker on this machine already shares.
+JOBS_ROOT = os.path.join(tempfile.gettempdir(), "noqeev_story_jobs")
+os.makedirs(JOBS_ROOT, exist_ok=True)
+JOB_TTL_SEC = 30 * 60  # an abandoned job (started, never polled to completion) older than this gets swept
+
+
+def _job_dir(job_id):
+    return os.path.join(JOBS_ROOT, job_id)
+
+
+def _write_job_status(job_id, status):
+    # Written to a temp file then moved into place — os.replace is atomic
+    # on the same filesystem, so a status GET arriving mid-write always
+    # sees either the complete old contents or the complete new ones,
+    # never a half-written file.
+    path = os.path.join(_job_dir(job_id), "status.json")
+    tmp_path = path + ".tmp"
+    with open(tmp_path, "w") as f:
+        json.dump(status, f)
+    os.replace(tmp_path, path)
+
+
+def _read_job_status(job_id):
+    try:
+        with open(os.path.join(_job_dir(job_id), "status.json")) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def _sweep_old_jobs():
+    now = time.time()
+    try:
+        entries = os.listdir(JOBS_ROOT)
+    except OSError:
+        return
+    for name in entries:
+        path = os.path.join(JOBS_ROOT, name)
+        try:
+            if now - os.path.getmtime(path) > JOB_TTL_SEC:
+                shutil.rmtree(path, ignore_errors=True)
+        except OSError:
+            continue
+
+
+def _create_job():
+    _sweep_old_jobs()  # piggybacked on normal job-creation traffic, not a separate scheduler
+    job_id = uuid.uuid4().hex
+    os.makedirs(_job_dir(job_id), exist_ok=True)
+    _write_job_status(job_id, {"state": "pending"})
+    return job_id
+
+
+def _run_render_job(job_id, clip_bytes, caption_bytes, caption_frame_bytes, caption_text, platform_id, output_format, email_to):
+    """Runs entirely in a background thread — everything it touches
+    (clip_bytes etc.) is already plain Python data read fully into memory
+    by render_story() below before this ever starts, not a live Flask
+    request object, which wouldn't survive past the original request
+    returning anyway."""
+    workdir = tempfile.mkdtemp(prefix="story_")
+    quality_report = None
+    try:
+        out_bytes, mime_type, ext, final_path, clip_windows = _render_story(
+            workdir, clip_bytes, caption_bytes, caption_frame_bytes, platform_id, output_format,
+        )
+        # Same instinct as the resume side's ATS score, applied to the
+        # actual finished video — a best-effort pass, never allowed to
+        # fail the render itself. GIF output is skipped — MAX_GIF_DURATION_SEC
+        # caps it at 10s of muted loop, none of these checks meaningfully apply.
+        if output_format == "mp4":
+            try:
+                duration_sec = clip_windows[-1]["end"] if clip_windows else 0.0
+                captions_for_check = [
+                    {"text": caption_text[cw["index"]], "start": cw["start"], "end": cw["end"]}
+                    for cw in clip_windows if cw["index"] in caption_text
+                ]
+                quality_report = analyze_rendered_video(final_path, duration_sec, clip_windows, captions_for_check)
+            except Exception as qexc:
+                print(f"⚠️ Story quality check failed (render still succeeded): {qexc}")
+    except subprocess.TimeoutExpired:
+        _write_job_status(job_id, {"state": "error", "error": "Render timed out — try fewer or shorter clips"})
+        shutil.rmtree(workdir, ignore_errors=True)
+        return
+    except Exception as exc:
+        print(f"❌ Story render failed: {exc}")
+        _write_job_status(job_id, {"state": "error", "error": f"Render failed: {str(exc)[:300]}"})
+        shutil.rmtree(workdir, ignore_errors=True)
+        return
+
+    filename = f"noqeev-story-{platform_id}.{ext}"
+
+    if email_to:
+        try:
+            send_email(
+                email_to, "Noqeev — your story is ready",
+                f"""<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
+                  <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
+                  <h2 style="color:#111;margin:0 0 12px;">Your story is ready</h2>
+                  <p style="color:#444;line-height:1.6;margin:0 0 4px;">Attached — ready to post.</p>
+                </div>""",
+                attachment=(filename, out_bytes, ext),
+            )
+        except Exception as exc:
+            print(f"❌ Failed to email story render to {email_to}: {exc}")
+            _write_job_status(job_id, {"state": "error", "error": "Could not send this email — check the mail server configuration"})
+            shutil.rmtree(workdir, ignore_errors=True)
+            return
+        _write_job_status(job_id, {"state": "done", "email_sent_to": email_to, "quality_report": quality_report})
+        shutil.rmtree(workdir, ignore_errors=True)
+        return
+
+    # No email — the client downloads the actual file next via GET
+    # .../render/<job_id>/download. Copy it out of workdir (about to be
+    # deleted) into the job's own directory, which sticks around until
+    # that download happens (or the TTL sweep above, if it never does).
+    shutil.copyfile(final_path, os.path.join(_job_dir(job_id), "result"))
+    shutil.rmtree(workdir, ignore_errors=True)
+    _write_job_status(job_id, {"state": "done", "filename": filename, "mime_type": mime_type, "quality_report": quality_report})
 
 
 @story_bp.route("/transcribe", methods=["POST"])
@@ -388,66 +535,66 @@ def render_story():
                 400,
             )
 
-    workdir = tempfile.mkdtemp(prefix="story_")
-    quality_report = None
-    try:
-        out_bytes, mime_type, ext, final_path, clip_windows = _render_story(
-            workdir, clip_bytes, caption_bytes, caption_frame_bytes, platform_id, output_format,
-        )
-        # Same instinct as the resume side's ATS score, applied to the
-        # actual finished video — a best-effort pass, never allowed to
-        # fail the render itself: this runs on the real output file
-        # before workdir gets cleaned up below, not on the edit-time
-        # settings that produced it (see video_quality.py's own
-        # docstring for why that distinction matters). GIF output is
-        # skipped — MAX_GIF_DURATION_SEC caps it at 10s of muted loop,
-        # none of these checks (caption/audio sync, dead air) meaningfully
-        # apply to it.
-        if output_format == "mp4":
-            try:
-                duration_sec = clip_windows[-1]["end"] if clip_windows else 0.0
-                captions_for_check = [
-                    {"text": caption_text[cw["index"]], "start": cw["start"], "end": cw["end"]}
-                    for cw in clip_windows if cw["index"] in caption_text
-                ]
-                quality_report = analyze_rendered_video(final_path, duration_sec, clip_windows, captions_for_check)
-            except Exception as qexc:
-                print(f"⚠️ Story quality check failed (render still succeeded): {qexc}")
-    except subprocess.TimeoutExpired:
-        raise APIError("Render timed out — try fewer or shorter clips", 504)
-    except Exception as exc:
-        print(f"❌ Story render failed: {exc}")
-        raise APIError(f"Render failed: {str(exc)[:300]}", 502)
-    finally:
-        shutil.rmtree(workdir, ignore_errors=True)
+    # Validation above is all synchronous (cheap — no ffmpeg touched yet).
+    # The actual render runs in a background thread from here — see this
+    # module's own docstring for why: a slow render used to hold the
+    # entire request (and, with gunicorn's default single worker, every
+    # OTHER request too) hostage until it finished or Render's own
+    # platform-level proxy gave up on it first.
+    job_id = _create_job()
+    threading.Thread(
+        target=_run_render_job,
+        args=(job_id, clip_bytes, caption_bytes, caption_frame_bytes, caption_text, platform_id, output_format, email_to),
+        daemon=True,
+    ).start()
+    return jsonify({"success": True, "data": {"job_id": job_id}}), 202
 
-    filename = f"noqeev-story-{platform_id}.{ext}"
 
-    if email_to:
-        try:
-            send_email(
-                email_to, "Noqeev — your story is ready",
-                f"""<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
-                  <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
-                  <h2 style="color:#111;margin:0 0 12px;">Your story is ready</h2>
-                  <p style="color:#444;line-height:1.6;margin:0 0 4px;">Attached — ready to post.</p>
-                </div>""",
-                attachment=(filename, out_bytes, ext),
-            )
-        except Exception as exc:
-            print(f"❌ Failed to email story render to {email_to}: {exc}")
-            raise APIError("Could not send this email — check the mail server configuration", 502)
-        return jsonify({"success": True, "data": {"message": f"Sent to {email_to}", "quality_report": quality_report}}), 200
+@story_bp.route("/render/<job_id>/status", methods=["GET"])
+def render_status(job_id):
+    status = _read_job_status(job_id)
+    if status is None:
+        raise APIError("Unknown or expired render job", 404)
+    return jsonify({"success": True, "data": status})
 
+
+@story_bp.route("/render/<job_id>/download", methods=["GET"])
+def render_download(job_id):
+    status = _read_job_status(job_id)
+    if status is None:
+        raise APIError("Unknown or expired render job", 404)
+    if status.get("state") == "error":
+        raise APIError(status.get("error") or "Render failed", 502)
+    if status.get("state") != "done":
+        raise APIError("Render is not finished yet", 409)
+    if "filename" not in status:
+        raise APIError("This job was emailed, not downloaded — there's nothing to fetch here", 400)
+    result_path = os.path.join(_job_dir(job_id), "result")
+    if not os.path.exists(result_path):
+        raise APIError("This result has already been downloaded, or the job expired", 410)
+    # Read fully into memory and delete the job dir immediately, rather
+    # than streaming straight from disk and cleaning up via
+    # response.call_on_close — tried that first; confirmed live it never
+    # actually fires (a debug print inside it never appeared, even though
+    # the download itself completed successfully every time) on this
+    # WSGI setup. Reading into memory first is exactly what the original
+    # synchronous version of this endpoint already did at the very end of
+    # _render_story (`return f.read()`), so this isn't a new tradeoff,
+    # just where the read happens now — and it means cleanup is
+    # synchronous and guaranteed instead of depending on a callback that
+    # doesn't reliably run.
+    with open(result_path, "rb") as f:
+        data = f.read()
+    shutil.rmtree(_job_dir(job_id), ignore_errors=True)
     response = send_file(
-        io.BytesIO(out_bytes), mimetype=mime_type,
-        as_attachment=True, download_name=filename, max_age=0,
+        io.BytesIO(data), mimetype=status["mime_type"],
+        as_attachment=True, download_name=status["filename"], max_age=0,
     )
-    if quality_report:
+    if status.get("quality_report"):
         # Base64'd rather than raw JSON in the header — a caption/audio
         # mismatch message can contain quote characters or non-ASCII
         # text, and HTTP header values aren't safely arbitrary bytes.
-        response.headers["X-Quality-Report"] = base64.b64encode(json.dumps(quality_report).encode("utf-8")).decode("ascii")
+        response.headers["X-Quality-Report"] = base64.b64encode(json.dumps(status["quality_report"]).encode("utf-8")).decode("ascii")
     return response
 
 

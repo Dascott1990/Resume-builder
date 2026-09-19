@@ -3,13 +3,18 @@
  * ExportPanel.js — platform + MP4/GIF choice, and the actual export flow:
  * render each captioned clip's transparent overlay PNG client-side (reuse
  * renderPost, skipBackground+skipStamp — see postTemplates.js), then POST
- * everything to POST /api/v1/brand/story/render, which renders
- * synchronously and returns the file directly — no job to poll, no
- * database row anywhere in this flow (see api/story.py's module
- * docstring) — same reasoning as PostComposer's "email this" button
- * never touching the database either. Nothing auto-publishes: export
- * only happens when Download or Email is pressed, and the result is
- * either a local download or an email the user reviews themselves.
+ * everything to POST /api/v1/brand/story/render, which now hands the
+ * actual ffmpeg work to a background job and returns a job_id almost
+ * immediately (see api/story.py's module docstring for why — a slow
+ * render was getting cut off by Render's own platform-level proxy before
+ * ever finishing). This panel polls GET .../render/<job_id>/status until
+ * it's done, then either reads the result off that response (email_to
+ * case) or fetches GET .../render/<job_id>/download once (download
+ * case). Still no database row anywhere in this flow — job status/result
+ * live as plain files on the backend, not a DB-backed run. Nothing auto-
+ * publishes: export only happens when Download or Email is pressed, and
+ * the result is either a local download or an email the user reviews
+ * themselves.
  *
  * Download and Email are the same render, two different deliveries —
  * mirroring PostComposer's Download button + EmailAssetButton pair,
@@ -131,10 +136,18 @@ async function buildFormData(clips, platformId, outputFormat, accent) {
   return formData;
 }
 
-// Deliberately plain fetch, not apiRequest — apiRequest always parses the
-// response as JSON, but a successful render here comes back as raw file
-// bytes (or, with email_to set, a JSON success message) — two different
-// shapes from the one endpoint depending on what was submitted.
+function authHeaders() {
+  const headers = { "X-Guest-Id": getGuestId() };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+// Starts the render job — the actual ffmpeg work happens in a background
+// thread server-side (see api/story.py's module docstring); this just
+// submits the upload and gets back a job_id almost immediately, well
+// before any encoding has even started. pollJobStatus below is what
+// actually waits for the render to finish.
 async function submitRender(formData) {
   if (!BASE) {
     // Same check apiRequest (shared/api.js) does, and the same reason:
@@ -142,54 +155,65 @@ async function submitRender(formData) {
     // ITS OWN localhost:5002, where nothing is listening.
     throw new Error("NEXT_PUBLIC_API_URL is not set — set it in Vercel → Project Settings → Environment Variables to the Render backend URL, then redeploy.");
   }
-  const headers = { "X-Guest-Id": getGuestId() };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-
   let res;
   try {
-    res = await fetch(`${BASE}/api/v1/brand/story/render`, { method: "POST", headers, body: formData });
+    res = await fetch(`${BASE}/api/v1/brand/story/render`, { method: "POST", headers: authHeaders(), body: formData });
   } catch {
     // fetch() itself throwing (as opposed to resolving with a non-2xx
-    // status) means the request never got a response at all — most
-    // likely this render (video encoding + voice-over synthesis, all
-    // synchronous inside one request — see backend/app/api/story.py's
-    // module docstring) ran long enough that Render's platform-level
-    // proxy cut the connection before gunicorn's own --timeout 120 in
-    // render.yaml even applied; a raw CORS/DNS failure is possible too,
-    // but this is the one that scales with story length/narration and
-    // wouldn't reproduce locally (no such proxy in front of a dev
-    // server) — matching "works on localhost, fails in production."
-    const err = new Error("The render didn't finish in time — try a shorter story, fewer clips, or without voice-over, and try again.");
+    // status) means the request never got a response at all — this
+    // submit is now cheap (upload + kick off a background job, no ffmpeg
+    // in the request path), so a raw network/CORS/DNS failure is the
+    // likely cause rather than a slow render — that used to be able to
+    // trigger this same catch block when rendering was synchronous, but
+    // can't anymore.
+    const err = new Error("Couldn't reach the server to start the render — check your connection and try again.");
     err.code = "STORY_RENDER_NETWORK_ERROR";
     throw err;
   }
-
   if (!res.ok) {
     let message = `Render failed (${res.status})`;
     try { message = (await res.json()).error || message; } catch { /* non-JSON error body */ }
     throw new Error(message);
   }
-  return res;
+  const body = await res.json();
+  return body.data.job_id;
 }
 
-// The quality report (backend/app/utils/video_quality.py) rides in a
-// response header, base64'd, alongside the downloaded file itself — a
-// custom header value has to be ASCII, and a caption-mismatch message
-// can contain quotes or non-ASCII text a raw header can't safely carry.
-// Uint8Array + TextDecoder, not the classic atob()-only trick: atob()
-// alone decodes to a "binary string" one BYTE at a time, which mangles
-// any multi-byte UTF-8 character (an em dash, curly quotes — both show
-// up in these messages) instead of decoding it back to the real one.
-function decodeQualityHeader(res) {
-  const b64 = res.headers.get("X-Quality-Report");
-  if (!b64) return null;
-  try {
-    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes));
-  } catch {
-    return null;
+const POLL_INTERVAL_MS = 2000;
+// Generous ceiling matching FFMPEG_TIMEOUT_SEC (120s, api/story.py) plus
+// real margin — this is now purely a CLIENT-side "give up and stop
+// polling" bound, not tied to any request-level timeout the way the old
+// synchronous fetch was, so it can afford to be patient.
+const POLL_TIMEOUT_MS = 4 * 60 * 1000;
+
+// Polls GET .../render/<job_id>/status until it's done or errored.
+// Resolves with the final status payload ({ state: "done", ... }); throws
+// on state "error" or if POLL_TIMEOUT_MS is exceeded without either.
+async function pollJobStatus(jobId) {
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const res = await fetch(`${BASE}/api/v1/brand/story/render/${jobId}/status`, { headers: authHeaders() });
+    if (!res.ok) {
+      let message = `Couldn't check render status (${res.status})`;
+      try { message = (await res.json()).error || message; } catch { /* non-JSON error body */ }
+      throw new Error(message);
+    }
+    const { data: status } = await res.json();
+    if (status.state === "done") return status;
+    if (status.state === "error") throw new Error(status.error || "Render failed");
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
+  throw new Error("The render is taking longer than expected — try fewer or shorter clips, or without voice-over.");
+}
+
+async function downloadJobResult(jobId) {
+  const res = await fetch(`${BASE}/api/v1/brand/story/render/${jobId}/download`, { headers: authHeaders() });
+  if (!res.ok) {
+    let message = `Download failed (${res.status})`;
+    try { message = (await res.json()).error || message; } catch { /* non-JSON error body */ }
+    throw new Error(message);
+  }
+  return res.blob();
 }
 
 export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, setOutputFormat, accent, onQualityReport }) {
@@ -208,12 +232,12 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
     setDownloading(true);
     try {
       const formData = await buildFormData(clips, platformId, outputFormat, accent);
-      const res = await submitRender(formData);
-      const report = decodeQualityHeader(res);
-      const blob = await res.blob();
+      const jobId = await submitRender(formData);
+      const status = await pollJobStatus(jobId);
+      const blob = await downloadJobResult(jobId);
       const ext = outputFormat === "gif" ? "gif" : "mp4";
       downloadBlob(blob, `noqeev-story-${platformId}.${ext}`);
-      onQualityReport?.(report);
+      onQualityReport?.(status.quality_report || null);
       toast.success("Downloaded.");
     } catch (e) {
       toast.error(e.message || "Try again.");
@@ -228,11 +252,11 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
     try {
       const formData = await buildFormData(clips, platformId, outputFormat, accent);
       formData.append("email_to", email.trim());
-      const res = await submitRender(formData);
-      const data = await res.json();
+      const jobId = await submitRender(formData);
+      const status = await pollJobStatus(jobId);
       try { localStorage.setItem(LAST_EMAIL_KEY, email.trim()); } catch { /* best-effort */ }
-      onQualityReport?.(data.data?.quality_report || null);
-      toast.success(data.data?.message || `Sent to ${email.trim()}`);
+      onQualityReport?.(status.quality_report || null);
+      toast.success(`Sent to ${status.email_sent_to || email.trim()}`);
       setEmailOpen(false);
     } catch (e) {
       toast.error(e.message || "Send failed.");
