@@ -121,7 +121,7 @@ function ClipRow({ clip, index, selectedIndex, onSelect, onReorder, onRemove, on
           transition: gestureRef.current ? "none" : "transform 200ms ease",
           touchAction: "pan-y", // horizontal swipes are ours to interpret; vertical scroll still passes through untouched
         }}
-        className={`relative flex items-center gap-2 rounded-xl border p-2 cursor-pointer ${selectedIndex === index ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-card"}`}
+        className={`relative flex items-center gap-3 rounded-xl border p-3 cursor-pointer ${selectedIndex === index ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-card"}`}
       >
         <div className="flex shrink-0 flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
           <button
@@ -139,7 +139,7 @@ function ClipRow({ clip, index, selectedIndex, onSelect, onReorder, onRemove, on
         </div>
         <ClipThumb clip={clip} />
         <div className="min-w-0 flex-1">
-          <p className="m-0 truncate text-[11.5px] font-semibold text-foreground">
+          <p className="m-0 truncate text-[12.5px] font-bold text-foreground">
             {index + 1}. {clip.kind === "video" ? "Video" : "Image"} · {clipLengthSec(clip).toFixed(1)}s
           </p>
           {clip.kind === "image" ? (
@@ -235,7 +235,18 @@ export function ClipTimeline({ clips, selectedIndex, onSelect, onAdd, onRemove, 
         // whole page instead of staying a fixed part of "one page, one
         // screen." 5 rows (~72px each) is enough to see what's next
         // without scrolling for a typical hook/feature/CTA sequence.
-        <div className="grid max-h-[360px] gap-1.5 overflow-y-auto overscroll-contain pr-0.5">
+        //
+        // auto-rows-min is load-bearing, not decorative: a CSS grid's
+        // default auto-sized rows get COMPRESSED to fit inside a
+        // height-constrained + overflow:auto container instead of
+        // overflowing it — confirmed live, every row silently shrank
+        // from ~100px to ~52px once there were enough clips to exceed
+        // 360px, and scrollHeight stayed equal to clientHeight (nothing
+        // to scroll, because nothing had actually overflowed — the
+        // "separate scroll" this container exists for was never firing).
+        // min-content row sizing keeps each row at its natural height and
+        // lets the container overflow (and thus actually scroll) instead.
+        <div className="grid auto-rows-min max-h-[360px] gap-2.5 overflow-y-auto overscroll-contain pr-0.5">
           {clips.map((clip, i) => (
             <ClipRow
               key={clip.id}
