@@ -15,7 +15,7 @@
  * is what gets rendered.
  */
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause } from "lucide-react";
+import { Play, Pause, RotateCcw, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
 import { renderPost } from "../postTemplates";
 import { ensureFontsReady } from "../assetKit";
 import { clipLengthSec } from "./clipModel";
@@ -55,6 +55,8 @@ function clipStarts(clips, knownDurations) {
 }
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const SEEK_STEP_SEC = 10; // double-tap / skip buttons / arrow keys all agree on one increment
+const DOUBLE_TAP_MS = 350;
 
 export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptionLive, onCaptionCommit, compact, seekRequest }) {
   const canvasRef = useRef(null);
@@ -83,6 +85,14 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
   const narrationSourceNodeRef = useRef(null); // MediaElementAudioSourceNode for narrationAudioRef — created once, reused forever
   const videoSourceNodesRef = useRef(new Map()); // clip.id -> MediaElementAudioSourceNode; createMediaElementSource can only be called ONCE per element ever, so each is cached permanently
   const activeVideoSourceNodeRef = useRef(null); // whichever video source node is currently connected to originalGainRef, if any
+  const activeClipRef = useRef(null); // whichever clip is currently playing — read by applyMuteState() to know what gain to restore on unmute
+
+  // ── Transport controls — restart/skip/double-tap-seek/mute, the same
+  // "quick" set a real video player (YouTube included) ships with.
+  const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(false); // read inside audio callbacks, which close over stale state otherwise
+  const [seekFlash, setSeekFlash] = useState(null); // { side: "back" | "forward", nonce } — the brief "«10/10»" flash on double-tap
+  const lastTapRef = useRef({ time: 0, side: null }); // for double-tap detection on the canvas itself
 
   const starts = clipStarts(clips, narrationDurations);
   const totalDuration = starts.length ? starts[starts.length - 1] + clipEffectiveLength(clips[clips.length - 1], narrationDurations) : 0;
@@ -172,8 +182,29 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
     const node = getVideoSourceNode(clip);
     if (!node) return;
     node.connect(gain);
-    gain.gain.value = Math.min(2, Math.max(0, clip.originalAudioVolume ?? 1));
     activeVideoSourceNodeRef.current = node;
+    applyMuteState();
+  };
+
+  // Re-applies both gain values from activeClipRef's own configured
+  // volumes, or 0 for both if the master Mute button is on — the single
+  // place that actually writes to the AudioParams, so toggling mute
+  // doesn't need to know anything about narration vs. original audio,
+  // just "recompute what should be audible right now."
+  const applyMuteState = () => {
+    const clip = activeClipRef.current;
+    if (narrationGainRef.current) {
+      narrationGainRef.current.gain.value = mutedRef.current ? 0 : Math.min(2, Math.max(0, clip?.narrationVolume ?? 1));
+    }
+    if (originalGainRef.current) {
+      originalGainRef.current.gain.value = mutedRef.current ? 0 : Math.min(2, Math.max(0, clip?.originalAudioVolume ?? 1));
+    }
+  };
+
+  const toggleMute = () => {
+    mutedRef.current = !mutedRef.current;
+    setMuted(mutedRef.current);
+    applyMuteState();
   };
 
   // Debounced narration-preview prefetch — re-synthesizing on every
@@ -217,8 +248,10 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
         audio.currentTime = 0;
         // Real gain via the Web Audio graph (0-2x, same range/filter
         // ffmpeg applies at render) — not audio.volume, which tops out
-        // at 1 and can't represent anything past 100%.
-        if (narrationGainRef.current) narrationGainRef.current.gain.value = Math.min(2, Math.max(0, clip.narrationVolume ?? 1));
+        // at 1 and can't represent anything past 100%. Routed through
+        // applyMuteState() so the master Mute button (below) overrides
+        // it without needing to know anything about narration itself.
+        applyMuteState();
         audio.play().catch(() => {}); // browser autoplay-policy rejection is fine here — silently no sound, nothing to surface as an error
       })
       .catch(() => {});
@@ -277,6 +310,7 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
       activeVideoRef.current?.pause();
       narrationAudioRef.current?.pause();
       activeNarrationClipIdRef.current = null;
+      activeClipRef.current = null;
       setActiveOriginalAudio(null);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       return;
@@ -286,6 +320,7 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
     const { index } = locate(globalTime);
     const startClip = clips[index];
     if (startClip?.kind === "video") { startClip.el.currentTime = startClip.trimIn; startClip.el.play(); activeVideoRef.current = startClip.el; }
+    activeClipRef.current = startClip;
     playNarrationForClip(startClip);
     setActiveOriginalAudio(startClip);
 
@@ -302,6 +337,7 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
           const nextClip = clips[after];
           if (nextClip?.kind === "video") { nextClip.el.currentTime = nextClip.trimIn; nextClip.el.play(); activeVideoRef.current = nextClip.el; }
           else activeVideoRef.current = null;
+          activeClipRef.current = nextClip;
           playNarrationForClip(nextClip);
           setActiveOriginalAudio(nextClip);
         }
@@ -376,9 +412,88 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
     activeVideoRef.current?.pause();
     narrationAudioRef.current?.pause();
     activeNarrationClipIdRef.current = null;
+    activeClipRef.current = null;
     setActiveOriginalAudio(null);
     setGlobalTime(Math.max(0, Math.min(totalDuration, t)));
   };
+
+  // Seeks by a relative offset WITHOUT stopping playback if it's already
+  // playing — a plain toggle-off-then-on re-triggers the `playing` effect
+  // above, which already knows how to resolve whatever clip the new
+  // position lands in and wire up its video/narration/original-audio;
+  // reusing that instead of duplicating the same setup here.
+  const seekRelative = (deltaSeconds) => {
+    if (!clips.length) return;
+    const target = Math.max(0, Math.min(totalDuration, globalTime + deltaSeconds));
+    setGlobalTime(target);
+    if (playing) {
+      setPlaying(false);
+      requestAnimationFrame(() => setPlaying(true));
+    }
+  };
+
+  // "Start playing from the beginning" — resets position AND starts
+  // playback even if paused, matching what a restart button implies.
+  const restart = () => {
+    if (!clips.length) return;
+    setGlobalTime(0);
+    if (playing) {
+      setPlaying(false);
+      requestAnimationFrame(() => setPlaying(true));
+    } else {
+      setPlaying(true);
+    }
+  };
+
+  // Double-tap (or double-click) either half of the preview to seek —
+  // tap the left half to go back, the right half to go forward, the
+  // same YouTube-mobile gesture. A single tap does nothing here (no
+  // tap-to-pause layered on top, to avoid fighting with the caption
+  // drag handling below, which already owns single-press behavior).
+  const onCanvasClick = (e) => {
+    if (!clips.length) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const side = (e.clientX - rect.left) / rect.width < 0.5 ? "back" : "forward";
+    const now = performance.now();
+    const isDoubleTap = lastTapRef.current.side === side && now - lastTapRef.current.time < DOUBLE_TAP_MS;
+    if (isDoubleTap) {
+      lastTapRef.current = { time: 0, side: null }; // consumed — a 3rd rapid tap starts a fresh pair, not a chained triple-seek
+      seekRelative(side === "forward" ? SEEK_STEP_SEC : -SEEK_STEP_SEC);
+      setSeekFlash({ side, nonce: now });
+    } else {
+      lastTapRef.current = { time: now, side };
+    }
+  };
+
+  // Clears the "«10 / 10»" flash a beat after it appears — CSS can't
+  // animate an unmount on its own without a library already in play
+  // here, so a plain timeout is the quick version.
+  useEffect(() => {
+    if (!seekFlash) return;
+    const timer = setTimeout(() => setSeekFlash(null), 550);
+    return () => clearTimeout(timer);
+  }, [seekFlash]);
+
+  // Space = play/pause, arrows = seek, Home/0 = restart, M = mute — the
+  // standard set, skipped entirely while typing anywhere else on the
+  // page (narration script, caption text) so this never steals a
+  // keystroke mid-sentence.
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.isContentEditable) return;
+      if (e.key === " ") { e.preventDefault(); togglePlay(); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); seekRelative(SEEK_STEP_SEC); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); seekRelative(-SEEK_STEP_SEC); }
+      else if (e.key === "Home" || e.key === "0") { e.preventDefault(); restart(); }
+      else if (e.key === "m" || e.key === "M") { e.preventDefault(); toggleMute(); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, globalTime, totalDuration, clips]);
 
   // An external "jump to this exact second" request — the quality
   // report's issues each link to a timestamp; clicking one seeks the
@@ -414,23 +529,54 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
+          onClick={onCanvasClick}
           className="block h-full w-full"
           style={{
             cursor: dragging ? "grabbing" : (!playing && locate(globalTime).index === selectedIndex && captionBoxRef.current) ? "grab" : "default",
             touchAction: "none",
           }}
         />
+        {/* The double-tap "«10 / 10»" flash — YouTube's own confirmation
+            that the tap registered as a seek, not a miss. Half-width,
+            pinned to whichever side was actually tapped. */}
+        {seekFlash && (
+          <div
+            className={`pointer-events-none absolute inset-y-0 flex w-1/2 items-center justify-center ${seekFlash.side === "forward" ? "right-0" : "left-0"}`}
+          >
+            <span className="flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-[13px] font-bold text-white">
+              {seekFlash.side === "back" && <SkipBack className="size-3.5" />}
+              {SEEK_STEP_SEC}s
+              {seekFlash.side === "forward" && <SkipForward className="size-3.5" />}
+            </span>
+          </div>
+        )}
       </div>
-      <div className="flex items-center gap-2.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button type="button" onClick={restart} disabled={!clips.length} title="Restart from the beginning"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+          <RotateCcw className="size-4" />
+        </button>
+        <button type="button" onClick={() => seekRelative(-SEEK_STEP_SEC)} disabled={!clips.length} title={`Back ${SEEK_STEP_SEC}s`}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+          <SkipBack className="size-4" />
+        </button>
         <button type="button" onClick={togglePlay} disabled={!clips.length}
           className="flex size-11 shrink-0 items-center justify-center rounded-full border border-border text-foreground disabled:opacity-40">
           {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+        </button>
+        <button type="button" onClick={() => seekRelative(SEEK_STEP_SEC)} disabled={!clips.length} title={`Forward ${SEEK_STEP_SEC}s`}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+          <SkipForward className="size-4" />
+        </button>
+        <button type="button" onClick={toggleMute} disabled={!clips.length} aria-pressed={muted} title={muted ? "Unmute" : "Mute"}
+          className={`flex size-9 shrink-0 items-center justify-center rounded-full disabled:opacity-30 ${muted ? "text-destructive" : "text-muted-foreground enabled:hover:bg-muted enabled:hover:text-foreground"}`}>
+          {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
         </button>
         <input
           type="range" min="0" max={totalDuration || 1} step="0.05" value={Math.min(globalTime, totalDuration || 1)}
           onChange={(e) => seek(Number(e.target.value))}
           disabled={!clips.length}
-          className="w-full accent-primary"
+          className="w-full min-w-[80px] flex-1 accent-primary"
         />
         <span className="w-16 shrink-0 text-right font-mono text-[11px] text-muted-foreground">
           {globalTime.toFixed(1)}s / {totalDuration.toFixed(1)}s
