@@ -15,28 +15,11 @@ import { toast } from "sonner";
 import { Upload, X, ChevronUp, ChevronDown, Clock } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { loadClipFromFile, makeClip, clipLengthSec } from "./clipModel";
+import { drawClipThumbnail } from "./clipThumbnail";
 
 function ClipThumb({ clip }) {
   const canvasRef = useRef(null);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !clip.el) return;
-    const ctx = canvas.getContext("2d");
-    const draw = () => {
-      canvas.width = 96; canvas.height = 96;
-      const scale = Math.max(96 / clip.naturalW, 96 / clip.naturalH);
-      const w = clip.naturalW * scale, h = clip.naturalH * scale;
-      ctx.drawImage(clip.el, (96 - w) / 2, (96 - h) / 2, w, h);
-    };
-    if (clip.kind === "image") {
-      if (clip.el.complete) draw(); else clip.el.onload = draw;
-    } else {
-      // A freshly-loaded <video> already has its frame at currentTime=0
-      // decoded once "loadeddata" fires — no need to seek first.
-      if (clip.el.readyState >= 2) draw();
-      else clip.el.addEventListener("loadeddata", draw, { once: true });
-    }
-  }, [clip]);
+  useEffect(() => { drawClipThumbnail(clip, canvasRef.current, 96, 96); }, [clip]);
   return <canvas ref={canvasRef} className="size-16 shrink-0 rounded-lg bg-black object-cover" />;
 }
 

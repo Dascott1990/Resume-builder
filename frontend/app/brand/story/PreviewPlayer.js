@@ -22,6 +22,7 @@ import { ensureFontsReady } from "../assetKit";
 import { clipLengthSec } from "./clipModel";
 import { wordTimings, activeWordIndex as pickActiveWordIndex } from "./karaoke";
 import { getNarrationPreview, narrationContentKey } from "./narrationPreview";
+import { drawClipThumbnail } from "./clipThumbnail";
 
 function drawContain(ctx, el, naturalW, naturalH, w, h) {
   ctx.fillStyle = "#000";
@@ -62,31 +63,12 @@ const DOUBLE_TAP_MS = 350;
 // One clip's own thumbnail, cover-cropped into a fixed internal canvas
 // resolution and CSS-stretched to whatever proportional width the
 // filmstrip below gives it — drawn once when the clip's media is ready,
-// same "draw once, don't keep redrawing per frame" precedent
-// ClipTimeline.js's own ClipThumb already sets for this codebase.
+// via the same drawClipThumbnail() ClipTimeline.js's own ClipThumb uses,
+// not a second copy of that logic.
 const THUMB_W = 120, THUMB_H = 56;
 function FilmstripThumb({ clip, widthPct }) {
   const canvasRef = useRef(null);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !clip?.el) return;
-    canvas.width = THUMB_W;
-    canvas.height = THUMB_H;
-    const draw = () => {
-      const ctx = canvas.getContext("2d");
-      const naturalW = clip.naturalW || THUMB_W, naturalH = clip.naturalH || THUMB_H;
-      // Cover, not contain — a filmstrip thumbnail fills its box
-      // completely (no letterbox bars), matching every reference video
-      // trimmer's own filmstrip.
-      const scale = Math.max(THUMB_W / naturalW, THUMB_H / naturalH);
-      const dw = naturalW * scale, dh = naturalH * scale;
-      ctx.drawImage(clip.el, (THUMB_W - dw) / 2, (THUMB_H - dh) / 2, dw, dh);
-    };
-    if (clip.kind === "image") {
-      if (clip.el.complete) draw(); else clip.el.onload = draw;
-    } else if (clip.el.readyState >= 2) draw();
-    else clip.el.addEventListener("loadeddata", draw, { once: true });
-  }, [clip]);
+  useEffect(() => { drawClipThumbnail(clip, canvasRef.current, THUMB_W, THUMB_H); }, [clip]);
   return (
     <canvas
       ref={canvasRef}
@@ -102,9 +84,11 @@ function FilmstripThumb({ clip, widthPct }) {
  * total runtime) instead of a bare progress track, closer to what a
  * real video-trimming UI's scrubber looks like than a generic <input
  * type="range"> ever could — a plain range input can't show per-clip
- * content on its own track at all.
+ * content on its own track at all. Styled as glass over video (backdrop-
+ * blur + translucent fill), not a boxed panel — it lives inside the
+ * playback overlay now, not as separate chrome below the canvas.
  */
-function FilmstripScrubber({ clips, effectiveLengths, time, duration, onScrub }) {
+function FilmstripScrubber({ clips, effectiveLengths, time, duration, onScrub, onDragStart, onDragEnd }) {
   const trackRef = useRef(null);
   const [dragging, setDragging] = useState(false);
 
@@ -116,6 +100,7 @@ function FilmstripScrubber({ clips, effectiveLengths, time, duration, onScrub })
   const onPointerDown = (e) => {
     if (!duration) return;
     setDragging(true);
+    onDragStart?.();
     trackRef.current.setPointerCapture(e.pointerId);
     onScrub(fracFromEvent(e) * duration);
   };
@@ -125,6 +110,7 @@ function FilmstripScrubber({ clips, effectiveLengths, time, duration, onScrub })
   };
   const onPointerUp = (e) => {
     setDragging(false);
+    onDragEnd?.();
     try { trackRef.current.releasePointerCapture(e.pointerId); } catch { /* already released */ }
   };
 
@@ -147,11 +133,11 @@ function FilmstripScrubber({ clips, effectiveLengths, time, duration, onScrub })
       // handling above — without it, dragging the handle on a touch
       // device also scrolls the page underneath it.
       style={{ touchAction: "none" }}
-      className={`relative h-14 w-full select-none overflow-hidden rounded-full border border-border bg-[#0a0a0a] ${empty ? "opacity-60" : "cursor-pointer"}`}
+      className={`relative h-14 w-full select-none overflow-hidden rounded-full backdrop-blur-sm ${empty ? "bg-white/10 opacity-70" : "cursor-pointer bg-black/40"}`}
     >
       {empty ? (
         <div className="flex h-full items-center justify-center px-4">
-          <span className="text-center text-[11px] text-muted-foreground">Add images or short clips to start your sequence.</span>
+          <span className="text-center text-[11px] text-white/70">Add images or short clips to start your sequence.</span>
         </div>
       ) : (
         <>
@@ -163,14 +149,20 @@ function FilmstripScrubber({ clips, effectiveLengths, time, duration, onScrub })
               <FilmstripThumb key={clip.id} clip={clip} widthPct={duration > 0 ? (effectiveLengths[i] / duration) * 100 : 0} />
             ))}
           </div>
+          {/* A soft dark wash over the thumbnails so the (fully solid,
+              never translucent) white handle and the end-cap chevrons
+              stay readable against any bright frame underneath. */}
+          <div className="pointer-events-none absolute inset-0 bg-black/15" />
           {/* End-cap chevrons — a visual hint that the strip is a
               timeline, not a separate prev/next-clip control (that
-              already exists as its own button above). */}
-          <ChevronLeft className="pointer-events-none absolute left-1.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <ChevronRight className="pointer-events-none absolute right-1.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              already exists as its own button in the transport row). */}
+          <ChevronLeft className="pointer-events-none absolute left-1.5 top-1/2 size-4 -translate-y-1/2 text-white/70" />
+          <ChevronRight className="pointer-events-none absolute right-1.5 top-1/2 size-4 -translate-y-1/2 text-white/70" />
           {/* Scrub handle — position (left %) is NEVER transitioned, so
               it tracks the pointer/playhead with zero lag; only the
-              inner circle's scale eases, on drag start/end. */}
+              inner circle's scale eases, on drag start/end. Always
+              fully solid white — the one element that must stay crisply
+              visible against any frame behind it. */}
           <div className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: `${progressFrac * 100}%` }}>
             <div
               className={`size-[30px] rounded-full bg-white shadow-md transition-transform duration-100 ${dragging ? "scale-110 shadow-lg" : ""}`}
@@ -218,6 +210,53 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
   const mutedRef = useRef(false); // read inside audio callbacks, which close over stale state otherwise
   const [seekFlash, setSeekFlash] = useState(null); // { side: "back" | "forward", nonce } — the brief "«10/10»" flash on double-tap
   const lastTapRef = useRef({ time: 0, side: null }); // for double-tap detection on the canvas itself
+
+  // ── Playback-overlay visibility — YouTube/iOS-style: visible by
+  // default, auto-hides a couple seconds into uninterrupted playback,
+  // and a tap on the video (that isn't a caption drag) toggles it. Paused
+  // never auto-hides — someone actively working a frame shouldn't have
+  // the controls vanish under them.
+  const [overlayVisible, setOverlayVisible] = useState(true);
+  const hideTimerRef = useRef(null);
+  const pendingSingleTapTimerRef = useRef(null); // delays acting on a single tap until sure a 2nd tap isn't completing a double-tap seek
+  const tapCandidateRef = useRef(false); // true for the span of one pointerdown->up that didn't start a caption drag or a swipe
+  const pointerDownPosRef = useRef(null);
+
+  const scheduleAutoHide = () => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setOverlayVisible(false), 2500);
+  };
+  // Ensures the overlay is showing (never toggles it away) — the
+  // response to a drag or a pause, per the "any tap, drag, or pause
+  // brings it back" rule; only re-arms the auto-hide timer if actually
+  // playing, since paused should just stay visible indefinitely.
+  const bumpOverlay = () => {
+    setOverlayVisible(true);
+    if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+    if (playing) scheduleAutoHide();
+  };
+  // The canvas-tap response specifically — toggles, rather than always
+  // showing, matching "tap the canvas to show/hide."
+  const toggleOverlay = () => {
+    setOverlayVisible((v) => {
+      const next = !v;
+      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+      if (next && playing) scheduleAutoHide();
+      return next;
+    });
+  };
+
+  // Pausing always brings the overlay back and cancels any pending
+  // auto-hide; resuming playback starts a fresh auto-hide countdown.
+  useEffect(() => {
+    if (playing) scheduleAutoHide();
+    else {
+      setOverlayVisible(true);
+      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+    }
+    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing]);
 
   const starts = clipStarts(clips, narrationDurations);
   const totalDuration = starts.length ? starts[starts.length - 1] + clipEffectiveLength(clips[clips.length - 1], narrationDurations) : 0;
@@ -496,8 +535,16 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
     return { x: (e.clientX - rect.left) * (canvas.width / rect.width), y: (e.clientY - rect.top) * (canvas.height / rect.height) };
   };
 
+  // tapCandidateRef starts true on every press; the caption-drag hit-test
+  // below clears it the moment a press actually claims the caption, and
+  // onPointerMove clears it if the press turns into a swipe instead of a
+  // tap. Whatever's left true by pointerup is a genuine tap, handled by
+  // handleCanvasTap — this is the ONLY place tap detection lives now, so
+  // it can never compete with caption dragging for the same gesture.
   const onPointerDown = (e) => {
-    if (playing) return;
+    tapCandidateRef.current = true;
+    pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
+    if (playing) return; // no caption drag while playing; tap handling still happens on pointerup below
     const { index } = locate(globalTime);
     if (index !== selectedIndex) return;
     const box = captionBoxRef.current;
@@ -511,29 +558,42 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
     // platform, not a fixed px count, so the grab margin scales the same
     // way the caption itself does across every preset/display size.
     const pad = Math.max(platform.w, platform.h) * 0.045;
-    if (p.x < box.x - pad || p.x > box.x + box.w + pad || p.y < box.y - pad || p.y > box.y + box.h + pad) return;
+    if (p.x < box.x - pad || p.x > box.x + box.w + pad || p.y < box.y - pad || p.y > box.y + box.h + pad) return; // a miss — stays a tap candidate
+    tapCandidateRef.current = false; // a real caption drag claims this press, it's not a tap
     e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = { dx: p.x / platform.w - layer.x, dy: p.y / platform.h - layer.y };
     setDragging(true);
   };
   const onPointerMove = (e) => {
-    if (!dragRef.current || !platform) return;
-    const { index } = locate(globalTime);
-    const layer = clips[index]?.captionLayers?.[0];
-    if (!layer) return;
-    const p = pointFromEvent(e);
-    const nx = clamp01(p.x / platform.w - dragRef.current.dx);
-    const ny = clamp01(p.y / platform.h - dragRef.current.dy);
-    onCaptionLive?.({ ...layer, x: nx, y: ny });
+    if (dragRef.current) {
+      if (!platform) return;
+      const { index } = locate(globalTime);
+      const layer = clips[index]?.captionLayers?.[0];
+      if (!layer) return;
+      const p = pointFromEvent(e);
+      const nx = clamp01(p.x / platform.w - dragRef.current.dx);
+      const ny = clamp01(p.y / platform.h - dragRef.current.dy);
+      onCaptionLive?.({ ...layer, x: nx, y: ny });
+      return;
+    }
+    // Moved far enough to read as a swipe, not a tap — don't toggle the
+    // overlay out from under a gesture that wasn't actually a press.
+    if (tapCandidateRef.current && pointerDownPosRef.current) {
+      const dx = e.clientX - pointerDownPosRef.current.x;
+      const dy = e.clientY - pointerDownPosRef.current.y;
+      if (Math.hypot(dx, dy) > 10) tapCandidateRef.current = false;
+    }
   };
-  const onPointerUp = () => {
+  const onPointerUp = (e) => {
     if (dragRef.current) {
       const { index } = locate(globalTime);
       const layer = clips[index]?.captionLayers?.[0];
       if (layer) onCaptionCommit?.(layer);
+      dragRef.current = null;
+      setDragging(false);
+      return;
     }
-    dragRef.current = null;
-    setDragging(false);
+    if (tapCandidateRef.current) handleCanvasTap(e);
   };
 
   const togglePlay = () => {
@@ -613,10 +673,11 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
 
   // Double-tap (or double-click) either half of the preview to seek —
   // tap the left half to go back, the right half to go forward, the
-  // same YouTube-mobile gesture. A single tap does nothing here (no
-  // tap-to-pause layered on top, to avoid fighting with the caption
-  // drag handling below, which already owns single-press behavior).
-  const onCanvasClick = (e) => {
+  // same YouTube-mobile gesture. A genuine SINGLE tap (confirmed by
+  // waiting out the double-tap window with nothing following) instead
+  // toggles the playback overlay — the two share one detector so a
+  // double-tap's first tap never also flickers the overlay open first.
+  const handleCanvasTap = (e) => {
     if (!clips.length) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -626,10 +687,16 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
     const isDoubleTap = lastTapRef.current.side === side && now - lastTapRef.current.time < DOUBLE_TAP_MS;
     if (isDoubleTap) {
       lastTapRef.current = { time: 0, side: null }; // consumed — a 3rd rapid tap starts a fresh pair, not a chained triple-seek
+      if (pendingSingleTapTimerRef.current) { clearTimeout(pendingSingleTapTimerRef.current); pendingSingleTapTimerRef.current = null; }
       seekRelative(side === "forward" ? SEEK_STEP_SEC : -SEEK_STEP_SEC);
       setSeekFlash({ side, nonce: now });
+      bumpOverlay(); // so the new position is visible on the filmstrip/timecode even if the overlay had auto-hidden
     } else {
       lastTapRef.current = { time: now, side };
+      pendingSingleTapTimerRef.current = setTimeout(() => {
+        pendingSingleTapTimerRef.current = null;
+        toggleOverlay();
+      }, DOUBLE_TAP_MS);
     }
   };
 
@@ -681,87 +748,99 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
   // under 40vh) for a wide preset like Landscape, so nothing distorts
   // or overflows the screen either way.
   const aspect = platform ? platform.w / platform.h : 1;
+  // One shared class string for every transport button in the overlay —
+  // monochrome white, no border/shadow (the gradient backdrop is what
+  // separates them from the video), a real 44px touch target regardless
+  // of how the icon inside is sized.
+  const overlayBtnClass = "flex size-11 shrink-0 items-center justify-center rounded-full text-white/80 disabled:opacity-30 enabled:hover:bg-white/10 enabled:hover:text-white";
   return (
-    <div className="grid gap-2">
-      <div
-        className={`relative mx-auto flex items-center justify-center overflow-hidden rounded-xl bg-[#0a0a0a] ${compact ? "" : "w-full max-w-[420px]"}`}
+    <div
+      className={`relative mx-auto flex items-center justify-center overflow-hidden rounded-xl bg-[#0a0a0a] ${compact ? "" : "w-full max-w-[420px]"}`}
+      style={{
+        aspectRatio: platform ? `${platform.w} / ${platform.h}` : "1 / 1",
+        ...(compact ? { maxHeight: "40vh", width: `min(100%, calc(40vh * ${aspect}))` } : {}),
+      }}
+    >
+      <canvas
+        ref={canvasRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        className="block h-full w-full"
         style={{
-          aspectRatio: platform ? `${platform.w} / ${platform.h}` : "1 / 1",
-          ...(compact ? { maxHeight: "40vh", width: `min(100%, calc(40vh * ${aspect}))` } : {}),
+          cursor: dragging ? "grabbing" : (!playing && locate(globalTime).index === selectedIndex && captionBoxRef.current) ? "grab" : "default",
+          touchAction: "none",
         }}
-      >
-        <canvas
-          ref={canvasRef}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onClick={onCanvasClick}
-          className="block h-full w-full"
-          style={{
-            cursor: dragging ? "grabbing" : (!playing && locate(globalTime).index === selectedIndex && captionBoxRef.current) ? "grab" : "default",
-            touchAction: "none",
-          }}
-        />
-        {/* The double-tap "«10 / 10»" flash — YouTube's own confirmation
-            that the tap registered as a seek, not a miss. Half-width,
-            pinned to whichever side was actually tapped. */}
-        {seekFlash && (
-          <div
-            className={`pointer-events-none absolute inset-y-0 flex w-1/2 items-center justify-center ${seekFlash.side === "forward" ? "right-0" : "left-0"}`}
-          >
-            <span className="flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-[13px] font-bold text-white">
-              {seekFlash.side === "back" && <SkipBack className="size-3.5" />}
-              {SEEK_STEP_SEC}s
-              {seekFlash.side === "forward" && <SkipForward className="size-3.5" />}
-            </span>
-          </div>
-        )}
-      </div>
-      {/* Transport row — Play/pause sits here, above the filmstrip
-          capsule below, never inside it. */}
-      <div className="flex flex-wrap items-center justify-center gap-1.5">
-        <button type="button" onClick={goToPreviousClip} disabled={!clips.length} title="Previous clip"
-          className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
-          <ChevronsLeft className="size-4" />
-        </button>
-        <button type="button" onClick={restart} disabled={!clips.length} title="Restart from the beginning"
-          className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
-          <RotateCcw className="size-4" />
-        </button>
-        <button type="button" onClick={() => seekRelative(-SEEK_STEP_SEC)} disabled={!clips.length} title={`Back ${SEEK_STEP_SEC}s`}
-          className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
-          <SkipBack className="size-4" />
-        </button>
-        <button type="button" onClick={togglePlay} disabled={!clips.length}
-          className="flex size-11 shrink-0 items-center justify-center rounded-full border border-border text-foreground disabled:opacity-40">
-          {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
-        </button>
-        <button type="button" onClick={() => seekRelative(SEEK_STEP_SEC)} disabled={!clips.length} title={`Forward ${SEEK_STEP_SEC}s`}
-          className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
-          <SkipForward className="size-4" />
-        </button>
-        <button type="button" onClick={goToNextClip} disabled={!clips.length} title="Next clip"
-          className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
-          <ChevronsRight className="size-4" />
-        </button>
-        <button type="button" onClick={toggleMute} disabled={!clips.length} aria-pressed={muted} title={muted ? "Unmute" : "Mute"}
-          className={`flex size-9 shrink-0 items-center justify-center rounded-full disabled:opacity-30 ${muted ? "text-destructive" : "text-muted-foreground enabled:hover:bg-muted enabled:hover:text-foreground"}`}>
-          {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
-        </button>
-      </div>
-
-      {/* Filmstrip scrub bar, timecode directly under it — same type
-          treatment as before, just repositioned. */}
-      <FilmstripScrubber
-        clips={clips}
-        effectiveLengths={clips.map((c) => clipEffectiveLength(c, narrationDurations))}
-        time={Math.min(globalTime, totalDuration || 0)}
-        duration={totalDuration}
-        onScrub={seek}
       />
-      <p className="m-0 text-center font-mono text-[11px] text-muted-foreground">
-        {globalTime.toFixed(1)}s / {totalDuration.toFixed(1)}s
-      </p>
+      {/* The double-tap "«10 / 10»" flash — YouTube's own confirmation
+          that the tap registered as a seek, not a miss. Half-width,
+          pinned to whichever side was actually tapped. */}
+      {seekFlash && (
+        <div
+          className={`pointer-events-none absolute inset-y-0 flex w-1/2 items-center justify-center ${seekFlash.side === "forward" ? "right-0" : "left-0"}`}
+        >
+          <span className="flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-[13px] font-bold text-white">
+            {seekFlash.side === "back" && <SkipBack className="size-3.5" />}
+            {SEEK_STEP_SEC}s
+            {seekFlash.side === "forward" && <SkipForward className="size-3.5" />}
+          </span>
+        </div>
+      )}
+
+      {/* Playback overlay — gradient only (transparent at the top of this
+          zone, fading to black toward the bottom edge), no solid panel,
+          so the video stays visible through it. The outer layer is
+          pointer-events-none so a tap in its empty space still reaches
+          the canvas underneath (that's what toggles this open/closed);
+          only the actual controls re-enable pointer events, and only
+          while visible — while hidden they don't ghost-intercept taps
+          meant for the canvas. */}
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/35 to-transparent transition-opacity duration-200 ${overlayVisible ? "opacity-100" : "opacity-0"}`}
+      >
+        <div className={`flex flex-col gap-1.5 px-2 pb-2 pt-10 ${overlayVisible ? "pointer-events-auto" : "pointer-events-none"}`}>
+          <div className="flex flex-wrap items-center justify-center gap-1">
+            <button type="button" onClick={goToPreviousClip} disabled={!clips.length} title="Previous clip" className={overlayBtnClass}>
+              <ChevronsLeft className="size-4" />
+            </button>
+            <button type="button" onClick={restart} disabled={!clips.length} title="Restart from the beginning" className={overlayBtnClass}>
+              <RotateCcw className="size-4" />
+            </button>
+            <button type="button" onClick={() => seekRelative(-SEEK_STEP_SEC)} disabled={!clips.length} title={`Back ${SEEK_STEP_SEC}s`} className={overlayBtnClass}>
+              <SkipBack className="size-4" />
+            </button>
+            <button type="button" onClick={togglePlay} disabled={!clips.length} className={overlayBtnClass}>
+              {playing ? <Pause className="size-5" /> : <Play className="size-5" />}
+            </button>
+            <button type="button" onClick={() => seekRelative(SEEK_STEP_SEC)} disabled={!clips.length} title={`Forward ${SEEK_STEP_SEC}s`} className={overlayBtnClass}>
+              <SkipForward className="size-4" />
+            </button>
+            <button type="button" onClick={goToNextClip} disabled={!clips.length} title="Next clip" className={overlayBtnClass}>
+              <ChevronsRight className="size-4" />
+            </button>
+            {/* Muted state reads via a translucent white fill, never a
+                color — this chrome stays monochrome regardless of the
+                mute state. */}
+            <button type="button" onClick={toggleMute} disabled={!clips.length} aria-pressed={muted} title={muted ? "Unmute" : "Mute"}
+              className={`${overlayBtnClass} ${muted ? "bg-white/15 text-white" : ""}`}>
+              {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+            </button>
+          </div>
+
+          <FilmstripScrubber
+            clips={clips}
+            effectiveLengths={clips.map((c) => clipEffectiveLength(c, narrationDurations))}
+            time={Math.min(globalTime, totalDuration || 0)}
+            duration={totalDuration}
+            onScrub={seek}
+            onDragStart={bumpOverlay}
+            onDragEnd={() => { if (playing) scheduleAutoHide(); }}
+          />
+          <p className="m-0 text-center font-mono text-[11px] text-white/80">
+            {globalTime.toFixed(1)}s / {totalDuration.toFixed(1)}s
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
