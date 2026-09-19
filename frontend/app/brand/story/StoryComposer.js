@@ -36,7 +36,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2, Pencil, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo, CheckCircle2, AlertTriangle, Play, Pause, Loader2 } from "lucide-react";
+import { Plus, Undo2, Redo2, Pencil, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo, CheckCircle2, AlertTriangle, Play, Pause, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -51,6 +51,7 @@ import { ExportPanel } from "./ExportPanel";
 import { releaseClip, loadClipFromFile, clipLengthSec } from "./clipModel";
 import { transcribeClip } from "./transcribe";
 import { getNarrationPreview } from "./narrationPreview";
+import { drawClipThumbnail } from "./clipThumbnail";
 import {
   saveStoryDraft, loadStoryDraft, deleteStoryDraft, listStoryDrafts,
   getActiveStoryId, setActiveStoryId, newStoryId, migrateLegacyDraft,
@@ -430,6 +431,39 @@ function TranscribeButton({ clip, onTranscribed }) {
     <Btn small variant="ghost" onClick={run} disabled={loading} loading={loading}>
       <Captions className="size-3.5" /> Transcribe this clip's speech
     </Btn>
+  );
+}
+
+// Lets someone move between clips FROM INSIDE the Edit sheet — without
+// this, captioning several clips in a row meant Done -> tap the next clip
+// in the timeline (behind the sheet) -> reopen Edit, every single time.
+// Lives at the top of the sheet, above the Caption/Voice tabs, so it
+// applies regardless of which tab is open. The thumbnail (same
+// drawClipThumbnail ClipTimeline.js's own ClipThumb and PreviewPlayer.js's
+// FilmstripThumb already use) answers "which clip am I even on" at a
+// glance — with several similar-looking clips, "Clip 3 of 6" alone isn't
+// always enough to be sure.
+function EditClipNav({ clips, selectedIndex, onSelect }) {
+  const index = selectedIndex ?? 0;
+  const clip = clips[index];
+  const canvasRef = useRef(null);
+  useEffect(() => { if (clip) drawClipThumbnail(clip, canvasRef.current, 72, 72); }, [clip]);
+
+  if (!clips.length) return null;
+  const navBtnClass = "flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground";
+  return (
+    <div className="mb-3 flex items-center gap-2 rounded-xl border border-border bg-card p-2">
+      <button type="button" onClick={() => onSelect(Math.max(0, index - 1))} disabled={index <= 0} title="Previous clip" className={navBtnClass}>
+        <ChevronLeft className="size-4" />
+      </button>
+      <canvas ref={canvasRef} className="size-9 shrink-0 rounded-md bg-muted object-cover" />
+      <span className="min-w-0 flex-1 text-center text-[12px] font-bold text-foreground">
+        Clip {index + 1} <span className="font-normal text-muted-foreground">of {clips.length}</span>
+      </span>
+      <button type="button" onClick={() => onSelect(Math.min(clips.length - 1, index + 1))} disabled={index >= clips.length - 1} title="Next clip" className={navBtnClass}>
+        <ChevronRight className="size-4" />
+      </button>
+    </div>
   );
 }
 
@@ -963,6 +997,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
         )}
         <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit" maxHeightPx={sheetMaxHeight}>
           <div className="p-4">
+            <EditClipNav clips={clips} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />
             {controlsPanel}
           </div>
         </BottomSheet>
