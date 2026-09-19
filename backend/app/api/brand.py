@@ -25,16 +25,27 @@ DELETE /api/v1/brand/tasks/<id>     — remove one
 GET  /api/v1/brand/tasks/<id>/ics   — a calendar file for one task (Google/
                                        Apple/Outlook can all import it)
 
-Entirely unauthenticated on purpose, no auth, no guest_id scoping — this
-is a tool for whoever's running the brand, not a customer-facing feature
-(same "no identity to scope by" reasoning as api/capture.py's bookmarklet
-endpoint), and deliberately standalone from the separate admin-panel auth
-system (see api/admin.py) rather than gated behind it: the two are
-unrelated concerns that happened to share a login for a while, and
-tying /brand's availability to whether the admin database is reachable
-turned out to be exactly the wrong coupling — an internal tool going
-down because Postgres is having a bad day serves nobody. What keeps this
-from customers is staying unlinked from product nav, not a login wall.
+Mostly unauthenticated on purpose — the AI tools (suggest-post/-theme,
+email-asset), news/world-feed reads, and push subscribe/unsubscribe are
+genuine anonymous-visitor features (news/world-feed reads back
+frontend/app/brand/news/page.js, a real public page), same "no identity
+to scope by" reasoning as api/capture.py's bookmarklet endpoint, and
+deliberately standalone from the separate admin-panel auth system (see
+api/admin.py) rather than gated behind it — tying /brand's availability
+to whether the admin database is reachable turned out to be exactly the
+wrong coupling. All of it stays rate-limited, not identity-gated.
+
+BrandNews/BrandTask are different: both are genuinely admin-authored,
+globally-shared content (see their own docstrings in models.py), not
+per-visitor data — posting a news item fans a real push notification out
+to every subscriber, and tasks are the team's own to-do list, not
+anyone's personal one. Those writes (and all of tasks, reads included —
+an internal to-do list has no business being world-readable) require
+require_brand_key(request): an X-Brand-Key header checked against
+BRAND_INTERNAL_KEY, fails closed if that env var isn't set. This used to
+rely on "unlinked from product nav" as its only protection, which stopped
+being true the moment /brand/news shipped as a real linked page — a URL
+being unlinked was never actual access control.
 """
 import base64
 import json
@@ -47,6 +58,7 @@ from app import db, limiter
 from app.middleware.error_handlers import APIError
 from app.models import BrandNews, BrandTask, PushSubscription, WorldFeedItem
 from app.utils.ai_client import ai_complete
+from app.utils.auth import require_brand_key
 from app.utils.mail import send_email
 from app.utils.push import VAPID_PUBLIC_KEY, push_configured, send_push_to_all
 from app.utils.task_reminders import build_ics, next_occurrence
@@ -268,6 +280,7 @@ def list_news():
 @brand_bp.route("/news", methods=["POST"])
 @limiter.limit("30 per hour")
 def post_news():
+    require_brand_key(request)
     body = request.get_json(force=True) or {}
     title = _clean_str(body.get("title"), 140)
     news_body = _clean_str(body.get("body"), 500)
@@ -300,6 +313,7 @@ def post_news():
 @brand_bp.route("/news/<news_id>", methods=["PATCH"])
 @limiter.limit("60 per hour")
 def update_news(news_id):
+    require_brand_key(request)
     item = db.session.get(BrandNews, news_id)
     if not item:
         raise APIError("Not found", 404)
@@ -331,6 +345,7 @@ def update_news(news_id):
 @brand_bp.route("/news/<news_id>", methods=["DELETE"])
 @limiter.limit("30 per hour")
 def delete_news(news_id):
+    require_brand_key(request)
     item = db.session.get(BrandNews, news_id)
     if not item:
         raise APIError("Not found", 404)
@@ -356,6 +371,7 @@ def list_world_feed():
 @brand_bp.route("/world-feed/<item_id>", methods=["DELETE"])
 @limiter.limit("60 per hour")
 def dismiss_world_feed_item(item_id):
+    require_brand_key(request)
     item = db.session.get(WorldFeedItem, item_id)
     if not item:
         raise APIError("Not found", 404)
@@ -428,6 +444,7 @@ def _parse_due_at(value):
 @brand_bp.route("/tasks", methods=["GET"])
 @limiter.limit("120 per hour")
 def list_tasks():
+    require_brand_key(request)
     # Open tasks (any due date, including none) plus the 10 most recently
     # completed — enough to undo an accidental check-off without the list
     # growing forever with done items nobody needs to see again.
@@ -444,6 +461,7 @@ def list_tasks():
 @brand_bp.route("/tasks", methods=["POST"])
 @limiter.limit("60 per hour")
 def create_task():
+    require_brand_key(request)
     body = request.get_json(force=True) or {}
     title = _clean_str(body.get("title"), 140)
     if not title:
@@ -463,6 +481,7 @@ def create_task():
 @brand_bp.route("/tasks/<task_id>", methods=["PATCH"])
 @limiter.limit("120 per hour")
 def update_task(task_id):
+    require_brand_key(request)
     task = db.session.get(BrandTask, task_id)
     if not task:
         raise APIError("Not found", 404)
@@ -512,6 +531,7 @@ def update_task(task_id):
 @brand_bp.route("/tasks/<task_id>", methods=["DELETE"])
 @limiter.limit("60 per hour")
 def delete_task(task_id):
+    require_brand_key(request)
     task = db.session.get(BrandTask, task_id)
     if not task:
         raise APIError("Not found", 404)
@@ -522,6 +542,7 @@ def delete_task(task_id):
 
 @brand_bp.route("/tasks/<task_id>/ics", methods=["GET"])
 def task_ics(task_id):
+    require_brand_key(request)
     task = db.session.get(BrandTask, task_id)
     if not task:
         raise APIError("Not found", 404)

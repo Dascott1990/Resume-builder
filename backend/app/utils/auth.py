@@ -276,3 +276,28 @@ def require_workspace(request):
     if not ws:
         raise APIError("Invalid or missing workspace token", 401)
     return ws
+
+
+def require_brand_key(request):
+    """Gates the handful of /brand routes that are genuinely internal-only
+    — BrandNews/BrandTask are admin-authored content (their own docstrings
+    in models.py say so), not per-visitor data, and posting a news item
+    fans a real push notification out to every subscriber. Everything
+    else in api/brand.py (news/world-feed reads, push subscribe, the AI
+    suggest/render tools) stays open on purpose — those have real
+    anonymous callers and are already rate-limited, matching the rest of
+    this app's "anonymous but rate-limited" posture; only the actual
+    admin-write surface needed a real gate.
+
+    Same shared-secret shape as api/cron.py's own X-Cron-Secret check —
+    fails CLOSED: BRAND_INTERNAL_KEY unset means every gated route 503s,
+    not 200s, so this is secure the moment it deploys, before anyone
+    remembers to configure the env var."""
+    from app.middleware.error_handlers import APIError
+
+    secret = os.environ.get("BRAND_INTERNAL_KEY")
+    if not secret:
+        raise APIError("BRAND_INTERNAL_KEY is not configured", 503)
+    provided = request.headers.get("X-Brand-Key") or ""
+    if not provided or not hmac.compare_digest(provided.encode(), secret.encode()):
+        raise APIError("Invalid or missing brand key", 401)
