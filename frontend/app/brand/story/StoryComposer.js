@@ -36,7 +36,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Undo2, Redo2, Pencil, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo, CheckCircle2, AlertTriangle, Play, Pause, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Undo2, Redo2, Pencil, Upload, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo, CheckCircle2, AlertTriangle, Play, Pause, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Btn } from "@/components/premium/guest/components/primitives";
@@ -48,7 +48,7 @@ import { AiSuggestPanel } from "../AiSuggestPanel";
 import { ClipTimeline } from "./ClipTimeline";
 import { PreviewPlayer } from "./PreviewPlayer";
 import { ExportPanel } from "./ExportPanel";
-import { releaseClip, loadClipFromFile, clipLengthSec } from "./clipModel";
+import { releaseClip, loadClipFromFile, makeClip, clipLengthSec } from "./clipModel";
 import { transcribeClip } from "./transcribe";
 import { getNarrationPreview } from "./narrationPreview";
 import { drawClipThumbnail } from "./clipThumbnail";
@@ -699,6 +699,34 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     setClips((cs) => [...cs, clip]);
     setSelectedIndex(clips.length); // select the newly-added clip (index before this add)
   };
+  // Uploading lives here, not in ClipTimeline.js — the trigger sits in
+  // this component's own top header now (beside My Stories), same
+  // reasoning as the Edit button: the thing you reach for belongs at the
+  // top, not buried past the preview where you'd have to scroll to find
+  // it. handleFiles itself is unchanged from what used to live in
+  // ClipTimeline.js, just relocated alongside its own trigger.
+  const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const handleFiles = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      for (const file of files) {
+        if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+          toast.error(`${file.name}: not an image or video.`);
+          continue;
+        }
+        const loaded = await loadClipFromFile(file);
+        handleAdd(makeClip(loaded));
+      }
+    } catch (e) {
+      toast.error(e.message || "Couldn't read that file.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
   const handleRemove = (index) => {
     const removed = clips[index];
     setClips((cs) => cs.filter((_, i) => i !== index));
@@ -909,7 +937,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   const clipTimeline = (
     <ClipTimeline
       clips={clips} selectedIndex={selectedIndex} onSelect={setSelectedIndex}
-      onAdd={handleAdd} onRemove={handleRemove} onReorder={handleReorder} onUpdateClip={handleUpdateClip}
+      onRemove={handleRemove} onReorder={handleReorder} onUpdateClip={handleUpdateClip}
       onAnyOpenChange={setClipSwipeOpen}
     />
   );
@@ -922,12 +950,34 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     <div className="flex items-center justify-between gap-2">
       <p className="m-0 min-w-0 truncate text-[13px] font-bold text-foreground">{storyName || "Story"}</p>
       <div className="flex shrink-0 items-center gap-1.5">
+        {/* Add clip lives here now, not down by the clip list — easier to
+            find/reach than scrolling past the preview to get to it.
+            Starting it icon-only (matching PostComposer.js's own Edit
+            button) still overflowed the header on a narrow phone with
+            "My Stories" + "New" both full icon+label — confirmed live
+            (header measured 367.77px wide against a 342px budget). "My
+            Stories" is the more load-bearing action of the two (it's how
+            you get back to a DIFFERENT story at all, vs. New which just
+            starts a blank one), so New gives up its label instead. */}
+        <button
+          type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} title="Add clip" aria-label="Add clip"
+          className="flex size-11 shrink-0 items-center justify-center rounded-[10px] text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground"
+        >
+          {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+        </button>
+        <input
+          ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden"
+          onChange={(e) => handleFiles(e.target.files)}
+        />
         <Btn small variant="ghost" onClick={openStoriesPanel}>
           <ListVideo className="size-3.5" /> My Stories
         </Btn>
-        <Btn small variant="ghost" onClick={startNewStory}>
-          <FilePlus2 className="size-3.5" /> New
-        </Btn>
+        <button
+          type="button" onClick={startNewStory} title="New story" aria-label="New story"
+          className="flex size-11 shrink-0 items-center justify-center rounded-[10px] text-muted-foreground enabled:hover:bg-muted enabled:hover:text-foreground"
+        >
+          <FilePlus2 className="size-4" />
+        </button>
       </div>
     </div>
   );

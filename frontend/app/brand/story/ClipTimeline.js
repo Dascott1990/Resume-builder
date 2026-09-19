@@ -25,10 +25,8 @@
  * dragging and scrubber already use pointer capture over plain clicks.
  */
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-import { Upload, ChevronUp, ChevronDown, Clock, Trash2 } from "lucide-react";
-import { Btn } from "@/components/premium/guest/components/primitives";
-import { loadClipFromFile, makeClip, clipLengthSec } from "./clipModel";
+import { ChevronUp, ChevronDown, Clock, Trash2 } from "lucide-react";
+import { clipLengthSec } from "./clipModel";
 import { drawClipThumbnail } from "./clipThumbnail";
 
 function ClipThumb({ clip }) {
@@ -177,9 +175,7 @@ function ClipRow({ clip, index, selectedIndex, onSelect, onReorder, onRemove, on
   );
 }
 
-export function ClipTimeline({ clips, selectedIndex, onSelect, onAdd, onRemove, onReorder, onUpdateClip, onAnyOpenChange }) {
-  const fileInputRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
+export function ClipTimeline({ clips, selectedIndex, onSelect, onRemove, onReorder, onUpdateClip, onAnyOpenChange }) {
   // Only one row's delete icon revealed at a time — swiping a second row
   // (or selecting/removing a clip) closes whichever one was already
   // open, same as every other swipe-to-delete list.
@@ -191,39 +187,15 @@ export function ClipTimeline({ clips, selectedIndex, onSelect, onAdd, onRemove, 
   // (confirmed live: the tap doesn't reach the revealed icon either).
   const setOpenIndex = (next) => { setOpenIndexRaw(next); onAnyOpenChange?.(next !== null); };
 
-  const handleFiles = async (fileList) => {
-    const files = Array.from(fileList || []);
-    if (!files.length) return;
-    setUploading(true);
-    try {
-      for (const file of files) {
-        if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
-          toast.error(`${file.name}: not an image or video.`);
-          continue;
-        }
-        const loaded = await loadClipFromFile(file);
-        onAdd(makeClip(loaded));
-      }
-    } catch (e) {
-      toast.error(e.message || "Couldn't read that file.");
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
   return (
     <div className="grid gap-2.5">
-      <div className="flex items-center justify-between">
-        <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Clips</p>
-        <Btn small variant="ghost" onClick={() => fileInputRef.current?.click()} disabled={uploading} loading={uploading}>
-          <Upload className="size-3.5" /> Add clip
-        </Btn>
-        <input
-          ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
-        />
-      </div>
+      {/* Uploading itself moved to StoryComposer.js's own top header,
+          beside My Stories — easier to find/reach than down here past
+          the preview, and it's the SAME class of fix as Story's own
+          Edit button (StoryComposer.js): the thing you actually reach
+          for belongs at the top, not buried in whatever section happens
+          to need it internally. */}
+      <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Clips</p>
 
       {clips.length === 0 ? (
         <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
