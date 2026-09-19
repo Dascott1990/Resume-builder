@@ -707,18 +707,25 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seekRequest]);
 
-  // Both zones share the exact same width formula so they align edge to
-  // edge as one visual unit even though they're separate elements — width
-  // driven by height (aspect * capped-height), the same "height-driven
-  // instead of width-driven" reasoning the old compact-only sizing used,
-  // now applied everywhere so the layout holds identically on a phone, a
-  // tablet, a foldable, or a desktop window, not just the phone case.
-  // ~38vh keeps the preview roughly the "35-40% of the screen" a hero
-  // preview should get without it ever being able to crowd the control
-  // strip below off screen, on the shortest realistic viewport.
+  // The preview's own width is height-driven (aspect * capped-height) so
+  // a portrait platform (9:16) renders as a narrow column, exactly as it
+  // should. The control strip does NOT reuse that same narrow width —
+  // that was the actual cause of the button row looking broken: cramming
+  // 7 buttons into a ~160px-wide column (a portrait preview's own width)
+  // left no room for a single row, so they wrapped onto three uneven
+  // lines. The control strip gets the full available column width
+  // instead (capped to match the desktop grid's own 320px control
+  // column), independent of however narrow or wide the preview itself
+  // is — the two zones stay visually grouped by being stacked directly
+  // on top of each other, not by matching widths. ~38vh keeps the
+  // preview roughly the "35-40% of the screen" a hero preview should
+  // get without it ever being able to crowd the control strip below off
+  // screen, on the shortest realistic viewport.
   const aspect = platform ? platform.w / platform.h : 1;
-  const zoneWidthStyle = { width: `min(100%, calc(38vh * ${aspect})${compact ? "" : ", 420px"})` };
-  const transportBtnClass = "flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground";
+  const previewWidthStyle = { width: `min(100%, calc(38vh * ${aspect})${compact ? "" : ", 420px"})` };
+  const controlWidthStyle = { width: "min(100%, 420px)" };
+  const primaryBtnClass = "flex size-12 shrink-0 items-center justify-center rounded-full border border-border text-foreground disabled:opacity-30 enabled:hover:bg-muted";
+  const secondaryBtnClass = "flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground";
   return (
     <div className="grid gap-2">
       {/* PREVIEW — the canvas alone, nothing layered on top of it besides
@@ -726,7 +733,7 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
           here can ever claim a pointer event meant for a caption drag. */}
       <div
         className="relative mx-auto flex items-center justify-center overflow-hidden rounded-xl bg-[#0a0a0a]"
-        style={{ aspectRatio: platform ? `${platform.w} / ${platform.h}` : "1 / 1", maxHeight: "38vh", ...zoneWidthStyle }}
+        style={{ aspectRatio: platform ? `${platform.w} / ${platform.h}` : "1 / 1", maxHeight: "38vh", ...previewWidthStyle }}
       >
         <canvas
           ref={canvasRef}
@@ -759,30 +766,46 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
           on top of it. Sized by its own content (button row + filmstrip
           + timecode), not a forced height, so it can't clip or leave
           dead padding depending on the device. */}
-      <div className="mx-auto flex w-full flex-col gap-1.5 rounded-xl border border-border bg-[#0a0a0a] p-2" style={zoneWidthStyle}>
-        <div className="flex flex-wrap items-center justify-center gap-1">
-          <button type="button" onClick={goToPreviousClip} disabled={!clips.length} title="Previous clip" className={transportBtnClass}>
-            <ChevronsLeft className="size-4" />
-          </button>
-          <button type="button" onClick={restart} disabled={!clips.length} title="Restart from the beginning" className={transportBtnClass}>
-            <RotateCcw className="size-4" />
-          </button>
-          <button type="button" onClick={() => seekRelative(-SEEK_STEP_SEC)} disabled={!clips.length} title={`Back ${SEEK_STEP_SEC}s`} className={transportBtnClass}>
-            <SkipBack className="size-4" />
-          </button>
-          <button type="button" onClick={togglePlay} disabled={!clips.length} className={`${transportBtnClass} border border-border text-foreground`}>
-            {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
-          </button>
-          <button type="button" onClick={() => seekRelative(SEEK_STEP_SEC)} disabled={!clips.length} title={`Forward ${SEEK_STEP_SEC}s`} className={transportBtnClass}>
-            <SkipForward className="size-4" />
-          </button>
-          <button type="button" onClick={goToNextClip} disabled={!clips.length} title="Next clip" className={transportBtnClass}>
-            <ChevronsRight className="size-4" />
-          </button>
-          <button type="button" onClick={toggleMute} disabled={!clips.length} aria-pressed={muted} title={muted ? "Unmute" : "Mute"}
-            className={`${transportBtnClass} ${muted ? "text-destructive" : ""}`}>
-            {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
-          </button>
+      <div className="mx-auto flex w-full flex-col gap-1.5 rounded-xl border border-border bg-[#0a0a0a] p-2" style={controlWidthStyle}>
+        {/* Three clusters spread by justify-between, not 7 identical icons
+            crammed into one centered group — secondary actions (clip nav,
+            mute) sit at the row's own edges, primary transport (the actual
+            scrubbing controls) stays grouped in the middle with Play given
+            real visual weight. This is what gave the row room to be a
+            single line at all — a flat justify-center/flex-wrap row has no
+            natural place to put 7 same-size buttons without either
+            wrapping or feeling like a random cluster. */}
+        <div className="flex w-full items-center justify-between">
+          <div className="flex items-center gap-0.5">
+            <button type="button" onClick={goToPreviousClip} disabled={!clips.length} title="Previous clip" className={secondaryBtnClass}>
+              <ChevronsLeft className="size-4" />
+            </button>
+            <button type="button" onClick={restart} disabled={!clips.length} title="Restart from the beginning" className={secondaryBtnClass}>
+              <RotateCcw className="size-4" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <button type="button" onClick={() => seekRelative(-SEEK_STEP_SEC)} disabled={!clips.length} title={`Back ${SEEK_STEP_SEC}s`} className={secondaryBtnClass}>
+              <SkipBack className="size-4" />
+            </button>
+            <button type="button" onClick={togglePlay} disabled={!clips.length} className={primaryBtnClass}>
+              {playing ? <Pause className="size-5" /> : <Play className="size-5" />}
+            </button>
+            <button type="button" onClick={() => seekRelative(SEEK_STEP_SEC)} disabled={!clips.length} title={`Forward ${SEEK_STEP_SEC}s`} className={secondaryBtnClass}>
+              <SkipForward className="size-4" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-0.5">
+            <button type="button" onClick={goToNextClip} disabled={!clips.length} title="Next clip" className={secondaryBtnClass}>
+              <ChevronsRight className="size-4" />
+            </button>
+            <button type="button" onClick={toggleMute} disabled={!clips.length} aria-pressed={muted} title={muted ? "Unmute" : "Mute"}
+              className={`${secondaryBtnClass} ${muted ? "text-destructive" : ""}`}>
+              {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+            </button>
+          </div>
         </div>
 
         <FilmstripScrubber

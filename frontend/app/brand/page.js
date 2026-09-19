@@ -111,7 +111,7 @@ function TurningPointPreview() {
 // above, so repeating them here would just be the same thing twice.
 function AtAGlanceStrip() {
   return (
-    <div className="mt-5 flex items-center gap-1.5">
+    <div className="mt-3 flex items-center gap-1.5">
       {["#F6E6B3", "#f59e0b", "#5C4419"].map((hex) => (
         <span key={hex} className="size-3.5 rounded-full border border-border" style={{ background: hex }} />
       ))}
@@ -161,8 +161,13 @@ export default function BrandPage() {
 
   return (
     <div className="min-h-[100dvh] w-full bg-background font-sans text-foreground">
+      {/* padding-bottom is set inline below (clearance for the fixed
+          BottomNav), which overrides any pb-* class here — so only pt-*
+          is meaningful in this className. Kept intentionally small: this
+          top padding is pure dead space before any zone's actual content
+          starts. */}
       <div
-        className="mx-auto w-full max-w-4xl px-6 py-14 sm:px-10 sm:py-20"
+        className="mx-auto w-full max-w-4xl px-6 pt-6 sm:px-10 sm:pt-10"
         style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}
       >
         <div className="flex items-center justify-between">
@@ -185,32 +190,32 @@ export default function BrandPage() {
         <AtAGlanceStrip />
 
         {zone === "assets" && (
-          <div className="mt-6 grid gap-6">
+          <div className="mt-4 grid gap-6">
             <SignatureTheme onLockIn={setAccent} />
             <LogoDownloads />
           </div>
         )}
 
         {zone === "create" && (
-          <div className="mt-6">
+          <div className="mt-4">
             <PostComposer accent={accent} />
           </div>
         )}
 
         {zone === "story" && (
-          <div className="mt-6">
+          <div className="mt-4">
             <StoryComposer accent={accent} />
           </div>
         )}
 
         {zone === "capture" && (
-          <div className="mt-6">
+          <div className="mt-4">
             <ScreenshotStudio />
           </div>
         )}
 
         {zone === "reference" && (
-          <div className="mt-6 grid gap-6">
+          <div className="mt-4 grid gap-6">
             {/* ── Shipped mark ── */}
             <Section
               icon={Sparkles}
