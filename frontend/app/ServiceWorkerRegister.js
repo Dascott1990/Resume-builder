@@ -33,6 +33,32 @@ export function ServiceWorkerRegister() {
       return;
     }
 
+    // A browser that registered an OLDER sw.js before some past fix (see
+    // this file's own history — a stale offline.html served instead of
+    // the real page was exactly this class of bug once already) doesn't
+    // self-replace it just because the file on the server changed. The
+    // browser only CHECKS for a new version on navigation, and even once
+    // it finds one, the new worker stays in the background — the OLD one
+    // keeps controlling the CURRENT page load regardless. That's a
+    // plausible root cause for "loads broken, only a hard refresh (which
+    // bypasses the active worker for that one load) fixes it": whatever
+    // the old worker does differently is still running.
+    //
+    // hadControllerBefore gates this to a genuine UPDATE (an already-
+    // active worker got replaced by a newer one), not first-ever
+    // activation — sw.js's own clients.claim() means a first-time visitor
+    // also fires "controllerchange" once, and reloading THEM mid-visit
+    // for no reason would be the exact kind of silent surprise this
+    // codebase's own registration timing (after window.load, so it never
+    // competes with the page's first real work) was written to avoid.
+    const hadControllerBefore = !!navigator.serviceWorker.controller;
+    let reloadedForUpdate = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (reloadedForUpdate || !hadControllerBefore) return;
+      reloadedForUpdate = true;
+      window.location.reload();
+    });
+
     const register = () => navigator.serviceWorker.register("/sw.js").catch(() => {});
     if (document.readyState === "complete") {
       register();
