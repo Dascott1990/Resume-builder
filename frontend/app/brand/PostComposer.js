@@ -499,10 +499,24 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
           blow past a narrow screen the way a fixed px width did. Wider
           cap than before (560px, matching the resume preview's own
           "as large as the layout can spare" treatment) — easier to see
-          exactly where a drag lands at real editing precision. */}
+          exactly where a drag lands at real editing precision.
+
+          On phone specifically, that width-driven sizing is capped by
+          HEIGHT instead (same reasoning as PreviewPlayer.js's own preview
+          box) — without it, a portrait/story shape's canvas grows to the
+          full screen width and derives a ~600px-tall box from that, which
+          pushes the Download/Email row far enough down the page that it
+          landed UNDER the fixed BottomNav (confirmed live: the Download
+          button was half-covered by the nav on Portrait, nothing to do
+          with any control on top of it — the canvas itself was simply too
+          tall). Desktop keeps the original width-driven sizing; there's
+          no competing fixed bottom chrome there to collide with. */}
       <div
         className="relative mx-auto flex w-full max-w-[560px] items-center justify-center overflow-hidden rounded-xl bg-[#0a0a0a] shadow-[0_8px_28px_rgba(0,0,0,0.25)]"
-        style={{ aspectRatio: `${platform.w} / ${platform.h}` }}
+        style={{
+          aspectRatio: `${platform.w} / ${platform.h}`,
+          ...(isPhone ? { maxHeight: "34vh", width: `min(100%, calc(34vh * ${platform.w / platform.h}), 560px)` } : {}),
+        }}
       >
         {!ready ? (
           <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -684,10 +698,20 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
             onClick={openEditSheet}
             aria-label="Edit content & style"
             title="Edit content & style"
-            className="fixed right-4 z-40 flex size-14 items-center justify-center rounded-full border border-white/[0.14] bg-primary text-primary-foreground shadow-[0_14px_36px_rgba(0,0,0,0.45),0_1px_0_rgba(255,255,255,0.15)_inset] [-webkit-tap-highlight-color:transparent] active:scale-95"
-            style={{ bottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}
+            // Unlike StoryComposer.js's own FAB (96px clears the BottomNav
+            // with room to spare — nothing else sits that low there),
+            // Create also has the Download/Email row directly above that
+            // same zone. On the shortest canvas (Square) that row's own
+            // bottom edge sits only ~64px above the BottomNav — not enough
+            // room for a 56px FAB with any real margin on either side, so
+            // moving it up/down within that gap just trades one overlap
+            // for the other. Sized down to 48px and centered in that
+            // measured 64px gap instead of guessing at a bigger circle's
+            // offset — still clears the 44px touch-target guideline.
+            className="fixed right-4 z-40 flex size-12 items-center justify-center rounded-full border border-white/[0.14] bg-primary text-primary-foreground shadow-[0_14px_36px_rgba(0,0,0,0.45),0_1px_0_rgba(255,255,255,0.15)_inset] [-webkit-tap-highlight-color:transparent] active:scale-95"
+            style={{ bottom: "calc(88px + env(safe-area-inset-bottom, 0px))" }}
           >
-            <Pencil className="size-5" />
+            <Pencil className="size-4" />
           </button>
         )}
         <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit" maxHeightPx={sheetMaxHeight}>
