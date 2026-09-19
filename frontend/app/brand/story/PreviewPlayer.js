@@ -15,7 +15,8 @@
  * is what gets rendered.
  */
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, RotateCcw, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
+import { toast } from "sonner";
+import { Play, Pause, RotateCcw, SkipBack, SkipForward, ChevronsLeft, ChevronsRight, Volume2, VolumeX } from "lucide-react";
 import { renderPost } from "../postTemplates";
 import { ensureFontsReady } from "../assetKit";
 import { clipLengthSec } from "./clipModel";
@@ -70,6 +71,7 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
   const activeVideoRef = useRef(null); // the clip.el currently playing, if any
   const narrationAudioRef = useRef(null); // one reusable <audio>, src swapped per active clip
   const activeNarrationClipIdRef = useRef(null); // guards against a slow fetch resolving after playback already moved on
+  const narrationErrorShownRef = useRef(false); // caps the "voice-over preview unavailable" toast at once per playback session, not once per failing clip
   const captionBoxRef = useRef(null); // last-drawn caption bbox, for drag hit-testing
   const dragRef = useRef(null);
 
@@ -252,9 +254,19 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
         // applyMuteState() so the master Mute button (below) overrides
         // it without needing to know anything about narration itself.
         applyMuteState();
+        narrationErrorShownRef.current = false; // a later clip succeeding means a later failure is worth a fresh toast again
         audio.play().catch(() => {}); // browser autoplay-policy rejection is fine here — silently no sound, nothing to surface as an error
       })
-      .catch(() => {});
+      .catch(() => {
+        // A real backend/network failure, not just "this clip has no
+        // narration" (that path returns early above and never reaches
+        // here) — surfaced once per playback session, not once per
+        // failing clip, so a whole story with narration doesn't fire a
+        // toast for every single clip while the backend's unreachable.
+        if (narrationErrorShownRef.current) return;
+        narrationErrorShownRef.current = true;
+        toast.error("Voice-over preview unavailable right now — playback continues without it.");
+      });
   };
 
   // Jumping to a different clip in the timeline (while paused) previews
@@ -403,7 +415,14 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
 
   const togglePlay = () => {
     if (!clips.length) return;
-    if (!playing && globalTime >= totalDuration) setGlobalTime(0);
+    if (!playing) {
+      // A fresh Play press deserves its own chance at the narration-
+      // failure toast, even if a PREVIOUS playthrough already showed
+      // it once — only seekRelative's internal off/on flicker (a
+      // continuation of the SAME playthrough) should stay suppressed.
+      narrationErrorShownRef.current = false;
+      if (globalTime >= totalDuration) setGlobalTime(0);
+    }
     setPlaying((p) => !p);
   };
 
@@ -441,8 +460,32 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
       setPlaying(false);
       requestAnimationFrame(() => setPlaying(true));
     } else {
+      narrationErrorShownRef.current = false; // starting a new playthrough from paused, same reasoning as togglePlay
       setPlaying(true);
     }
+  };
+
+  // Chapter-style navigation — jump straight to a clip's own start
+  // rather than scrubbing by seconds. Keeps playing if it already was,
+  // same re-trigger-the-playing-effect approach as seekRelative.
+  const jumpToClip = (index) => {
+    if (index < 0 || index >= clips.length) return;
+    setGlobalTime(starts[index]);
+    if (playing) {
+      setPlaying(false);
+      requestAnimationFrame(() => setPlaying(true));
+    }
+  };
+  const goToPreviousClip = () => {
+    const { index, local } = locate(globalTime);
+    // More than ~1s into the current clip: "previous" restarts THIS
+    // clip first (the Spotify/YouTube convention) — only steps back an
+    // extra clip once already sitting near its own start.
+    jumpToClip(local > 1 ? index : index - 1);
+  };
+  const goToNextClip = () => {
+    const { index } = locate(globalTime);
+    jumpToClip(index + 1);
   };
 
   // Double-tap (or double-click) either half of the preview to seek —
@@ -552,6 +595,10 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
         )}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
+        <button type="button" onClick={goToPreviousClip} disabled={!clips.length} title="Previous clip"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+          <ChevronsLeft className="size-4" />
+        </button>
         <button type="button" onClick={restart} disabled={!clips.length} title="Restart from the beginning"
           className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
           <RotateCcw className="size-4" />
@@ -568,16 +615,35 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
           className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
           <SkipForward className="size-4" />
         </button>
+        <button type="button" onClick={goToNextClip} disabled={!clips.length} title="Next clip"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
+          <ChevronsRight className="size-4" />
+        </button>
         <button type="button" onClick={toggleMute} disabled={!clips.length} aria-pressed={muted} title={muted ? "Unmute" : "Mute"}
           className={`flex size-9 shrink-0 items-center justify-center rounded-full disabled:opacity-30 ${muted ? "text-destructive" : "text-muted-foreground enabled:hover:bg-muted enabled:hover:text-foreground"}`}>
           {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
         </button>
-        <input
-          type="range" min="0" max={totalDuration || 1} step="0.05" value={Math.min(globalTime, totalDuration || 1)}
-          onChange={(e) => seek(Number(e.target.value))}
-          disabled={!clips.length}
-          className="w-full min-w-[80px] flex-1 accent-primary"
-        />
+        {/* Scrubber with clip-boundary tick marks overlaid — a plain
+            range input has no native way to show them, so this is a
+            second, pointer-events-none layer positioned by percentage
+            of totalDuration, one tick per clip start (skipping 0%,
+            which the scrubber's own left edge already marks). */}
+        <div className="relative min-w-[80px] flex-1">
+          <input
+            type="range" min="0" max={totalDuration || 1} step="0.05" value={Math.min(globalTime, totalDuration || 1)}
+            onChange={(e) => seek(Number(e.target.value))}
+            disabled={!clips.length}
+            className="w-full accent-primary"
+          />
+          {totalDuration > 0 && (
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 h-2.5 -translate-y-1/2">
+              {starts.slice(1).map((start, i) => (
+                <span key={clips[i + 1]?.id ?? i} className="absolute top-0 h-full w-px bg-background/70"
+                  style={{ left: `${clamp01(start / totalDuration) * 100}%` }} />
+              ))}
+            </div>
+          )}
+        </div>
         <span className="w-16 shrink-0 text-right font-mono text-[11px] text-muted-foreground">
           {globalTime.toFixed(1)}s / {totalDuration.toFixed(1)}s
         </span>
