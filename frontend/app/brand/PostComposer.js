@@ -624,6 +624,22 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     <div className="flex items-center justify-between gap-2">
       <p className="m-0 min-w-0 truncate text-[13px] font-bold text-foreground">{postName || "Post"}</p>
       <div className="flex shrink-0 items-center gap-1.5">
+        {/* On phone, Edit sits right here next to My Posts — the same
+            "editing tools live at the top of the content, not floating
+            over it" placement Snapchat uses — instead of the fixed
+            bottom-right button this used to be. Icon-only: with My Posts
+            and New already in this row, a third full icon+label button
+            overflowed the header on a narrow phone (confirmed live — New
+            was clipped off the right edge) — dropping just this one's
+            label was enough to fit all three again. */}
+        {isPhone && (
+          <button
+            type="button" onClick={openEditSheet} title="Edit content & style" aria-label="Edit content & style"
+            className="flex size-11 shrink-0 items-center justify-center rounded-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <Pencil className="size-4" />
+          </button>
+        )}
         <Btn small variant="ghost" onClick={openPostsPanel}>
           <Images className="size-3.5" /> My Posts
         </Btn>
@@ -683,37 +699,6 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
           {canvasBlock}
         </div>
         {downloadRow}
-        {/* A FIXED floating button, not an in-flow one — same fix as
-            StoryComposer.js's own Edit trigger: an in-flow trigger scrolls
-            with the page and can land behind the fixed BottomNav once
-            there's enough content above it to push it down there. Pinned
-            just above the nav instead, it's on screen at a glance from
-            anywhere in the tool. Hidden while the sheet is open (its own
-            "Done" button, BottomSheet.js, is the way back), so there's
-            never a redundant second way to do the same thing on screen at
-            once. */}
-        {!sheetOpen && (
-          <button
-            type="button"
-            onClick={openEditSheet}
-            aria-label="Edit content & style"
-            title="Edit content & style"
-            // Unlike StoryComposer.js's own FAB (96px clears the BottomNav
-            // with room to spare — nothing else sits that low there),
-            // Create also has the Download/Email row directly above that
-            // same zone. On the shortest canvas (Square) that row's own
-            // bottom edge sits only ~64px above the BottomNav — not enough
-            // room for a 56px FAB with any real margin on either side, so
-            // moving it up/down within that gap just trades one overlap
-            // for the other. Sized down to 48px and centered in that
-            // measured 64px gap instead of guessing at a bigger circle's
-            // offset — still clears the 44px touch-target guideline.
-            className="fixed right-4 z-40 flex size-12 items-center justify-center rounded-full border border-white/[0.14] bg-primary text-primary-foreground shadow-[0_14px_36px_rgba(0,0,0,0.45),0_1px_0_rgba(255,255,255,0.15)_inset] [-webkit-tap-highlight-color:transparent] active:scale-95"
-            style={{ bottom: "calc(88px + env(safe-area-inset-bottom, 0px))" }}
-          >
-            <Pencil className="size-4" />
-          </button>
-        )}
         <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit" maxHeightPx={sheetMaxHeight}>
           <div className="p-4">
             {editControls}
