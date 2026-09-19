@@ -89,10 +89,21 @@ def _clip_duration(clip_spec):
 
 
 def _run_ffmpeg(args, cwd):
-    result = subprocess.run(
-        ["ffmpeg", "-y", *args], cwd=cwd, timeout=FFMPEG_TIMEOUT_SEC,
-        capture_output=True,
-    )
+    # A missing ffmpeg binary raises FileNotFoundError, not a non-zero
+    # exit code — caught here and re-raised as RuntimeError (which every
+    # caller of this function already catches) specifically so it reads
+    # as "ffmpeg isn't installed on this server," not a generic 500. Real
+    # production incident this fixes: the error that actually reached the
+    # client was "An unexpected error occurred" with no indication
+    # ffmpeg/espeak-ng were the problem — this exact ambiguity is why it
+    # took a live Render deploy-cache issue days to pin down.
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-y", *args], cwd=cwd, timeout=FFMPEG_TIMEOUT_SEC,
+            capture_output=True,
+        )
+    except FileNotFoundError:
+        raise RuntimeError("ffmpeg is not installed on this server (see render.yaml's buildCommand).")
     if result.returncode != 0:
         raise RuntimeError(result.stderr.decode(errors="replace")[-800:])
 
@@ -104,20 +115,36 @@ def _tts_wav(workdir, text, index, voice="neutral", rate=DEFAULT_NARRATION_RATE,
     via apt in render.yaml's buildCommand, same mechanism as ffmpeg."""
     wav_path = os.path.join(workdir, f"narration_{index}.wav")
     voice_flag = NARRATION_VOICES.get(voice, NARRATION_VOICES["neutral"])
-    result = subprocess.run(
-        ["espeak-ng", "-v", voice_flag, "-s", str(rate), "-p", str(pitch), "-w", wav_path, text],
-        cwd=workdir, timeout=TTS_TIMEOUT_SEC, capture_output=True,
-    )
+    # Same FileNotFoundError -> clear RuntimeError translation as
+    # _run_ffmpeg above, and for the same reason — a missing espeak-ng
+    # binary otherwise surfaces to the client as an unhelpful generic
+    # error instead of naming the actual problem.
+    try:
+        result = subprocess.run(
+            ["espeak-ng", "-v", voice_flag, "-s", str(rate), "-p", str(pitch), "-w", wav_path, text],
+            cwd=workdir, timeout=TTS_TIMEOUT_SEC, capture_output=True,
+        )
+    except FileNotFoundError:
+        raise RuntimeError("espeak-ng is not installed on this server (see render.yaml's buildCommand).")
     if result.returncode != 0:
         raise RuntimeError(result.stderr.decode(errors="replace")[-500:])
     return wav_path
 
 
 def _probe_duration(path):
-    result = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path],
-        capture_output=True, timeout=15,
-    )
+    # Already degrades gracefully on a parse failure (ValueError below) —
+    # a missing ffprobe binary is the same "not actually fatal, this is
+    # advisory" situation (ffprobe ships in the same apt package as
+    # ffmpeg, so if this ever fires, ffmpeg itself is also missing and
+    # _run_ffmpeg's own clear error is what the caller will actually see
+    # first), not a reason to crash the whole render over a duration probe.
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path],
+            capture_output=True, timeout=15,
+        )
+    except FileNotFoundError:
+        return 0.0
     try:
         return float(result.stdout.decode().strip())
     except ValueError:
