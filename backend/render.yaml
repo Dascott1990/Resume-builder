@@ -22,7 +22,22 @@ services:
     # runtime by the Playwright line above it. espeak-ng specifically:
     # free/offline TTS, chosen over a paid neural voice API to avoid a
     # new vendor credential — synthetic-sounding is the accepted tradeoff.
-    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium && apt-get update && apt-get install -y ffmpeg espeak-ng
+    #
+    # --reinstall + a `command -v` check at the end, not just a plain
+    # `apt-get install -y`: a real production incident showed ffmpeg
+    # working fine while espeak-ng silently wasn't, with the build still
+    # reporting "Build successful" the whole time — meaning something
+    # (very likely a stale cached build layer from before espeak-ng was
+    # added here) let this deploy claim success without the binary
+    # actually ending up on PATH, and there was nothing in the build log
+    # to catch it. --reinstall forces apt to genuinely (re)do the install
+    # instead of trusting a possibly-stale "already satisfied" cache
+    # entry; the trailing `command -v` check makes the build itself FAIL
+    # loudly if either binary still isn't there, instead of shipping a
+    # broken deploy that only surfaces as a confusing runtime error days
+    # later. If this build ever fails on the `command -v` line, that's
+    # apt-get's own real error output above it — read that, don't guess.
+    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium && apt-get update && apt-get install -y --reinstall ffmpeg espeak-ng && command -v ffmpeg && command -v espeak-ng
     # That prediction came true: a real production render took 30+
     # seconds and got cut off by Render's own platform-level reverse
     # proxy before this --timeout 120 ever applied, surfacing as an

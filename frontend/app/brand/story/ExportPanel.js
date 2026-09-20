@@ -195,18 +195,41 @@ const POLL_INTERVAL_MS = 2000;
 // synchronous fetch was, so it can afford to be patient.
 const POLL_TIMEOUT_MS = 4 * 60 * 1000;
 
+// A single poll can transiently fail for reasons that have nothing to do
+// with the render itself — observed live: Render's edge occasionally
+// serves an anti-bot challenge page instead of the real API response for
+// a rapid, identical-looking polling request, which the browser reports
+// as a blocked CORS preflight (the challenge page has no CORS headers).
+// One bad poll shouldn't throw away an otherwise-fine render, so a plain
+// fetch() rejection (network error, blocked preflight) is tolerated up to
+// this many times *in a row* before actually giving up — any successful
+// poll in between resets the count back to zero.
+const MAX_CONSECUTIVE_POLL_FAILURES = 4;
+
 // Polls GET .../render/<job_id>/status until it's done or errored.
 // Resolves with the final status payload ({ state: "done", ... }); throws
 // on state "error" or if POLL_TIMEOUT_MS is exceeded without either.
 async function pollJobStatus(jobId) {
   const deadline = Date.now() + POLL_TIMEOUT_MS;
+  let consecutiveFailures = 0;
   while (Date.now() < deadline) {
-    const res = await fetch(`${BASE}/api/v1/brand/story/render/${jobId}/status`, { headers: authHeaders() });
+    let res;
+    try {
+      res = await fetch(`${BASE}/api/v1/brand/story/render/${jobId}/status`, { headers: authHeaders() });
+    } catch (networkErr) {
+      consecutiveFailures += 1;
+      if (consecutiveFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+        throw new Error("Lost the connection while checking render status — check your connection and try again.");
+      }
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      continue;
+    }
     if (!res.ok) {
       let message = `Couldn't check render status (${res.status})`;
       try { message = (await res.json()).error || message; } catch { /* non-JSON error body */ }
       throw new Error(message);
     }
+    consecutiveFailures = 0;
     const { data: status } = await res.json();
     if (status.state === "done") return status;
     if (status.state === "error") throw new Error(status.error || "Render failed");
