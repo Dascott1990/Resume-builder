@@ -62,7 +62,7 @@ services:
       - key: GROQ_API_KEY
         sync: false
       - key: ALLOWED_ORIGINS
-        value: https://resume-builder-orpin-theta.vercel.app,https://resume-builder-c6l75mdzi-dascott1990s-projects.vercel.app,http://localhost:3000
+        value: https://noqeev.com,https://www.noqeev.com,https://resume-builder-orpin-theta.vercel.app,https://resume-builder-c6l75mdzi-dascott1990s-projects.vercel.app,http://localhost:3000
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: PLAYWRIGHT_BROWSERS_PATH

@@ -15,7 +15,7 @@
  * noisy raw text — same trick CV Scan already relies on for resumes.
  */
 const API_URL = "https://resume-builder-blfc.onrender.com";
-const APP_URL = "https://resume-builder-orpin-theta.vercel.app";
+const APP_URL = "https://www.noqeev.com";
 
 const SOURCE = `(function(){
   var API='${API_URL}';
