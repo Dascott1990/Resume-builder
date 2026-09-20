@@ -32,16 +32,26 @@ services:
     # load-bearing for the render itself (kept anyway as a sane ceiling
     # for any request).
     #
-    # --workers 2, not gunicorn's default of 1: with one worker, ANY slow
-    # request — not just a render, though that was the one that actually
-    # surfaced it — blocks every other request on this service, including
-    # completely unrelated traffic, until it finishes or the platform
-    # gives up on it. Two is a deliberately modest bump (not 4+): each
-    # worker is a full process carrying this app's own import weight
-    # (SQLAlchemy, Playwright, etc.), and this service's actual RAM
-    # budget isn't something this file can see — revisit upward only
-    # after confirming headroom on the real instance.
-    startCommand: gunicorn run:app --timeout 120 --workers 2
+    # Back down to gunicorn's default of 1 worker (was bumped to 2 when
+    # /render was still synchronous, specifically so one slow render
+    # request couldn't block all other traffic on this service). That's
+    # no longer the reason to carry a second worker: /render now starts
+    # a background thread and returns almost immediately (see
+    # api/story.py), so the request handler itself is never the thing
+    # sitting there slow — a single worker stays free to serve other
+    # requests while a render's background thread does its own work.
+    # What a second worker actually costs is a full extra copy of this
+    # app's own import weight (SQLAlchemy, Playwright, etc.) sitting in
+    # RAM at all times — a real production render was observed getting
+    # silently killed mid-encode (the render job's status got stuck at
+    # "pending" forever, with none of its own — otherwise broad —
+    # exception handlers ever firing, meaning the whole process died
+    # under it, not just the ffmpeg subprocess), most likely an
+    # out-of-memory kill on this instance's tier. Halving the fixed
+    # baseline gives ffmpeg's transient encode spike more headroom
+    # before hitting that ceiling. Revisit upward only after confirming
+    # real memory headroom on the instance (or moving to a bigger tier).
+    startCommand: gunicorn run:app --timeout 120 --workers 1
     envVars:
       - key: DATABASE_URL
         fromDatabase:

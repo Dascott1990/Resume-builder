@@ -16,23 +16,32 @@
  * the result is either a local download or an email the user reviews
  * themselves.
  *
- * Download and Email are the same render, two different deliveries —
- * mirroring PostComposer's Download button + EmailAssetButton pair,
- * just built into one panel since both need the exact same multipart
- * payload (re-uploading clips a second time for email would be wasteful).
+ * Download, Email, and Share are the same render, three different
+ * deliveries — mirroring PostComposer's Download button + EmailAssetButton
+ * pair, just built into one panel since all three need the exact same
+ * multipart payload (re-uploading clips a second time for each would be
+ * wasteful). Share reuses assetKit.js's shareOrDownloadBlob — the OS
+ * share sheet (AirDrop, Messages, WhatsApp, Nearby Share, etc.) when the
+ * browser actually supports sharing a real file, falling back to a plain
+ * download anywhere it doesn't — so it's only ever a bonus, never a dead
+ * end. The button itself is feature-detected out entirely on browsers
+ * with no navigator.share at all (most desktop browsers), rather than
+ * shown everywhere and quietly behaving like a second Download button.
  */
 import { useState } from "react";
 import { toast } from "sonner";
-import { Download, Mail, Loader2 } from "lucide-react";
+import { Download, Mail, Share2, Loader2 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { getGuestId } from "@/lib/guestId";
 import { getToken } from "@/lib/authToken";
 import { PLATFORMS, renderPost } from "../postTemplates";
-import { canvasToPngBlob, downloadBlob } from "../assetKit";
+import { canvasToPngBlob, downloadBlob, shareOrDownloadBlob } from "../assetKit";
 import { clipLengthSec } from "./clipModel";
 import { wordTimings } from "./karaoke";
+
+const CAN_SHARE_FILES = typeof navigator !== "undefined" && !!navigator.share;
 
 const BASE = process.env.NEXT_PUBLIC_API_URL;
 const MAX_GIF_DURATION_SEC = 10; // mirrors backend/app/api/story.py's cap
@@ -223,6 +232,7 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
     try { return localStorage.getItem(LAST_EMAIL_KEY) || ""; } catch { return ""; }
   });
   const [emailing, setEmailing] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const totalDuration = clips.reduce((sum, c) => sum + clipLengthSec(c), 0);
   const gifTooLong = totalDuration > MAX_GIF_DURATION_SEC;
@@ -243,6 +253,27 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
       toast.error(e.message || "Try again.");
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!clips.length) { toast.error("Add at least one clip first."); return; }
+    setSharing(true);
+    try {
+      const formData = await buildFormData(clips, platformId, outputFormat, transition, accent);
+      const jobId = await submitRender(formData);
+      const status = await pollJobStatus(jobId);
+      const blob = await downloadJobResult(jobId);
+      const ext = outputFormat === "gif" ? "gif" : "mp4";
+      const result = await shareOrDownloadBlob(blob, `noqeev-story-${platformId}.${ext}`, "My story, made with Noqeev");
+      onQualityReport?.(status.quality_report || null);
+      if (result === "downloaded") toast.success("Sharing wasn't available here — downloaded instead.");
+      else if (result === "shared") toast.success("Shared.");
+      // "cancelled" — they backed out of the share sheet on purpose, no toast needed
+    } catch (e) {
+      toast.error(e.message || "Try again.");
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -320,10 +351,15 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
           of buttons rather than two of them being tucked behind platform/
           format pills. */}
       <div className="flex gap-2">
-        <Btn variant="gold" onClick={handleDownload} disabled={downloading || emailing || !clips.length} loading={downloading} className="flex-1">
+        <Btn variant="gold" onClick={handleDownload} disabled={downloading || emailing || sharing || !clips.length} loading={downloading} className="flex-1">
           <Download className="size-4" /> {downloading ? "Rendering…" : "Download"}
         </Btn>
-        <Btn small variant="ghost" onClick={() => setEmailOpen(true)} disabled={downloading || emailing || !clips.length} aria-label="Email this">
+        {CAN_SHARE_FILES && (
+          <Btn small variant="ghost" onClick={handleShare} disabled={downloading || emailing || sharing || !clips.length} loading={sharing} aria-label="Share to another device">
+            <Share2 className="size-4" />
+          </Btn>
+        )}
+        <Btn small variant="ghost" onClick={() => setEmailOpen(true)} disabled={downloading || emailing || sharing || !clips.length} aria-label="Email this">
           <Mail className="size-4" />
         </Btn>
       </div>

@@ -81,6 +81,20 @@ MAX_NARRATION_CHARS = 400  # ~30-40s of speech at espeak's default rate — boun
 MAX_KARAOKE_FRAMES = 60  # mirrors frontend/app/brand/story/ExportPanel.js's MAX_KARAOKE_WORDS
 FFMPEG_TIMEOUT_SEC = 120
 TTS_TIMEOUT_SEC = 30
+# Comfortably past every internal per-subprocess timeout this pipeline
+# enforces (FFMPEG_TIMEOUT_SEC per ffmpeg call, TTS_TIMEOUT_SEC per
+# narrated clip) but still short of the frontend's own POLL_TIMEOUT_MS
+# (4 minutes, ExportPanel.js) — a job stuck at "pending" past this point
+# gets healed to a clear "error" the next time anyone reads its status
+# (see _read_job_status), instead of the client waiting out its own
+# timeout and showing a vague "taking longer than expected." A live
+# production render was observed stuck at "pending" for 4+ minutes with
+# none of _run_render_job's own (broad) exception handlers ever firing —
+# the most likely explanation is the whole worker process getting killed
+# mid-render (e.g. an out-of-memory kill), which takes the thread with
+# it before it can write its own error status. Nothing server-side
+# survives that to report it, so the fix has to live on the READ side.
+JOB_STALE_SEC = 210
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 # Voice/tone/speed controls for the narration — all just espeak-ng flags,
@@ -222,9 +236,16 @@ def _write_job_status(job_id, status):
 def _read_job_status(job_id):
     try:
         with open(os.path.join(_job_dir(job_id), "status.json")) as f:
-            return json.load(f)
+            status = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return None
+    if status.get("state") == "pending" and time.time() - status.get("started_at", 0) > JOB_STALE_SEC:
+        status = {
+            "state": "error",
+            "error": "The render didn't finish — the server likely ran out of memory partway through. Try fewer or shorter clips, or turn off voice-over.",
+        }
+        _write_job_status(job_id, status)
+    return status
 
 
 def _sweep_old_jobs():
@@ -246,7 +267,7 @@ def _create_job():
     _sweep_old_jobs()  # piggybacked on normal job-creation traffic, not a separate scheduler
     job_id = uuid.uuid4().hex
     os.makedirs(_job_dir(job_id), exist_ok=True)
-    _write_job_status(job_id, {"state": "pending"})
+    _write_job_status(job_id, {"state": "pending", "started_at": time.time()})
     return job_id
 
 
