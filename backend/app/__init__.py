@@ -58,15 +58,17 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-    # CORS configuration - allow all origins for Render
+    # CORS configuration. Reads ALLOWED_ORIGINS (render.yaml/Render's
+    # Environment tab) instead of a hardcoded list — this used to be a
+    # fixed list here, silently ignoring ALLOWED_ORIGINS entirely, so
+    # editing that env var (repeatedly, live, in production) never had
+    # any effect at all. The hardcoded defaults below are just the
+    # fallback for local dev when ALLOWED_ORIGINS isn't set.
+    _default_origins = "https://resume-builder-orpin-theta.vercel.app,https://resume-builder-c6l75mdzi-dascott1990s-projects.vercel.app,http://localhost:3000,http://localhost:3001"
+    allowed_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()]
     CORS(app, resources={
         r"/api/*": {
-            "origins": [
-                "https://resume-builder-orpin-theta.vercel.app",
-                "https://resume-builder-c6l75mdzi-dascott1990s-projects.vercel.app",
-                "http://localhost:3000",
-                "http://localhost:3001"
-            ],
+            "origins": allowed_origins,
             # PATCH was missing here — every PATCH endpoint in the app (this
             # one included, Artisan listing edits too) was failing its CORS
             # preflight and never actually reaching the server.
