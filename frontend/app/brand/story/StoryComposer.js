@@ -478,6 +478,10 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [platformId, setPlatformId] = useState("story");
   const [outputFormat, setOutputFormat] = useState("mp4");
+  // "cut" (straight concat, unchanged default) or "fade" (a short
+  // crossfade at every clip boundary — see backend/app/api/story.py's
+  // _crossfade_join for how "smooth" actually gets built).
+  const [transition, setTransition] = useState("cut");
   const [historyTick, setHistoryTick] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
   // Whether a clip row's delete icon is currently swiped open
@@ -598,6 +602,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
         setSelectedIndex(0);
         if (draft.platformId) setPlatformId(draft.platformId);
         if (draft.outputFormat) setOutputFormat(draft.outputFormat);
+        if (draft.transition) setTransition(draft.transition);
         // Restoring itself has to run every mount — switching to another
         // /brand zone and back unmounts this component (page.js only
         // renders it while zone === "story"), wiping its React state, so
@@ -634,15 +639,15 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   useEffect(() => {
     if (!restoredRef.current || !storyId) return;
     const timer = setTimeout(() => {
-      saveStoryDraft(storyId, { name: storyName, platformId, outputFormat, clips: clips.map(snapshotClip) });
+      saveStoryDraft(storyId, { name: storyName, platformId, outputFormat, transition, clips: clips.map(snapshotClip) });
     }, 600);
     return () => clearTimeout(timer);
-  }, [clips, platformId, outputFormat, storyId, storyName]);
+  }, [clips, platformId, outputFormat, transition, storyId, storyName]);
 
   // Resets every piece of story-specific state to blank, without
   // touching storage — the shared tail of New Story, switching to
   // another draft, and deleting the one currently open.
-  const resetComposerState = (nextId, nextName, restoredClips = [], nextPlatformId = "story", nextOutputFormat = "mp4") => {
+  const resetComposerState = (nextId, nextName, restoredClips = [], nextPlatformId = "story", nextOutputFormat = "mp4", nextTransition = "cut") => {
     clips.forEach(releaseClip);
     setActiveStoryId(nextId);
     setStoryId(nextId);
@@ -654,6 +659,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     setSelectedIndex(restoredClips.length ? 0 : null);
     setPlatformId(nextPlatformId);
     setOutputFormat(nextOutputFormat);
+    setTransition(nextTransition);
   };
 
   // Saves whatever's open right now under its OWN id immediately (not
@@ -661,7 +667,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   // switching away from it, so nothing from it can be lost in the gap.
   const persistCurrentStory = () => {
     if (!storyId) return Promise.resolve();
-    return saveStoryDraft(storyId, { name: storyName, platformId, outputFormat, clips: clips.map(snapshotClip) });
+    return saveStoryDraft(storyId, { name: storyName, platformId, outputFormat, transition, clips: clips.map(snapshotClip) });
   };
 
   const startNewStory = async () => {
@@ -682,7 +688,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     await persistCurrentStory();
     const draft = await loadStoryDraft(id);
     const restored = draft?.clips?.length ? await hydrateClips(draft.clips) : [];
-    resetComposerState(id, draft?.name || "Untitled story", restored, draft?.platformId || "story", draft?.outputFormat || "mp4");
+    resetComposerState(id, draft?.name || "Untitled story", restored, draft?.platformId || "story", draft?.outputFormat || "mp4", draft?.transition || "cut");
     setStoriesOpen(false);
     toast.success(`Switched to "${draft?.name || "Untitled story"}".`);
   };
@@ -895,7 +901,8 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   const exportPanel = (
     <ExportPanel
       clips={clips} platformId={platformId} setPlatformId={setPlatformId}
-      outputFormat={outputFormat} setOutputFormat={setOutputFormat} accent={accent}
+      outputFormat={outputFormat} setOutputFormat={setOutputFormat}
+      transition={transition} setTransition={setTransition} accent={accent}
       onQualityReport={setQualityReport}
     />
   );

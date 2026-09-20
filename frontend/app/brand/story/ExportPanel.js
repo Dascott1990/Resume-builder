@@ -70,7 +70,7 @@ async function buildCaptionFrames(clip, w, h, accent) {
   return { blobs, timings: timings.map((t) => ({ start: t.start, end: t.end === Infinity ? 99999 : t.end })) };
 }
 
-async function buildFormData(clips, platformId, outputFormat, accent) {
+async function buildFormData(clips, platformId, outputFormat, transition, accent) {
   const { w, h } = PLATFORMS[platformId];
   const clipSpecs = [];
   const captionFields = []; // [{ index, blobs, timings }] — the actual PNG/JSON captions, appended in a second pass below
@@ -116,7 +116,7 @@ async function buildFormData(clips, platformId, outputFormat, accent) {
   // production) instead of something that at least names which clip
   // didn't make it through. Small, critical metadata first; large binary
   // payloads last — the standard shape for exactly this failure mode.
-  formData.append("spec", JSON.stringify({ platform_id: platformId, output_format: outputFormat, clips: clipSpecs }));
+  formData.append("spec", JSON.stringify({ platform_id: platformId, output_format: outputFormat, transition, clips: clipSpecs }));
   for (let i = 0; i < clips.length; i++) {
     formData.append("clips", clips[i].file, clips[i].file.name);
   }
@@ -216,7 +216,7 @@ async function downloadJobResult(jobId) {
   return res.blob();
 }
 
-export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, setOutputFormat, accent, onQualityReport }) {
+export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, setOutputFormat, transition, setTransition, accent, onQualityReport }) {
   const [downloading, setDownloading] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [email, setEmail] = useState(() => {
@@ -231,7 +231,7 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
     if (!clips.length) { toast.error("Add at least one clip first."); return; }
     setDownloading(true);
     try {
-      const formData = await buildFormData(clips, platformId, outputFormat, accent);
+      const formData = await buildFormData(clips, platformId, outputFormat, transition, accent);
       const jobId = await submitRender(formData);
       const status = await pollJobStatus(jobId);
       const blob = await downloadJobResult(jobId);
@@ -250,7 +250,7 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
     if (!EMAIL_RE.test(email.trim())) { toast.error("Invalid email."); return; }
     setEmailing(true);
     try {
-      const formData = await buildFormData(clips, platformId, outputFormat, accent);
+      const formData = await buildFormData(clips, platformId, outputFormat, transition, accent);
       formData.append("email_to", email.trim());
       const jobId = await submitRender(formData);
       const status = await pollJobStatus(jobId);
@@ -292,6 +292,22 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
               disabled={gifTooLong} title={gifTooLong ? `GIF is limited to ${MAX_GIF_DURATION_SEC}s total` : undefined}
               className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold disabled:opacity-40 ${outputFormat === "gif" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
               GIF
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Transition</p>
+          <div className="flex gap-1.5">
+            <button type="button" onClick={() => setTransition("cut")} aria-pressed={transition === "cut"}
+              title="Hard cut between clips"
+              className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${transition === "cut" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+              Cut
+            </button>
+            <button type="button" onClick={() => setTransition("fade")} aria-pressed={transition === "fade"}
+              title="Crossfade between clips so the join is hard to spot"
+              className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${transition === "fade" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+              Smooth
             </button>
           </div>
         </div>

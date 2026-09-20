@@ -67,6 +67,12 @@ PLATFORMS = {
 }
 VALID_KINDS = ("image", "video")
 VALID_FORMATS = ("mp4", "gif")
+VALID_TRANSITIONS = ("cut", "fade")
+# "Quick join" — short enough to read as a smooth blend between clips
+# rather than a slow, dramatic dissolve. Clamped per-junction (see
+# _crossfade_join below) for a short clip so the transition itself can
+# never eat more of either clip than it actually has to give.
+TRANSITION_DURATION_SEC = 0.4
 MAX_CLIPS = 20
 MAX_CLIP_BYTES = 60 * 1024 * 1024
 MAX_TOTAL_UPLOAD_BYTES = 250 * 1024 * 1024
@@ -244,7 +250,7 @@ def _create_job():
     return job_id
 
 
-def _run_render_job(job_id, clip_bytes, caption_bytes, caption_frame_bytes, caption_text, platform_id, output_format, email_to):
+def _run_render_job(job_id, clip_bytes, caption_bytes, caption_frame_bytes, caption_text, platform_id, output_format, transition, email_to):
     """Runs entirely in a background thread — everything it touches
     (clip_bytes etc.) is already plain Python data read fully into memory
     by render_story() below before this ever starts, not a live Flask
@@ -254,7 +260,7 @@ def _run_render_job(job_id, clip_bytes, caption_bytes, caption_frame_bytes, capt
     quality_report = None
     try:
         out_bytes, mime_type, ext, final_path, clip_windows = _render_story(
-            workdir, clip_bytes, caption_bytes, caption_frame_bytes, platform_id, output_format,
+            workdir, clip_bytes, caption_bytes, caption_frame_bytes, platform_id, output_format, transition,
         )
         # Same instinct as the resume side's ATS score, applied to the
         # actual finished video — a best-effort pass, never allowed to
@@ -411,6 +417,12 @@ def render_story():
     output_format = spec.get("output_format")
     if output_format not in VALID_FORMATS:
         raise APIError(f"output_format must be one of {VALID_FORMATS}", 400)
+    # Defaults to "cut" (today's straight concat, unchanged) rather than
+    # requiring every existing caller to start passing this — "fade" is
+    # opt-in, not a behavior change for anyone not asking for it.
+    transition = spec.get("transition") or "cut"
+    if transition not in VALID_TRANSITIONS:
+        raise APIError(f"transition must be one of {VALID_TRANSITIONS}", 400)
 
     email_to = (request.form.get("email_to") or "").strip()
     if email_to and not _EMAIL_RE.match(email_to):
@@ -544,7 +556,7 @@ def render_story():
     job_id = _create_job()
     threading.Thread(
         target=_run_render_job,
-        args=(job_id, clip_bytes, caption_bytes, caption_frame_bytes, caption_text, platform_id, output_format, email_to),
+        args=(job_id, clip_bytes, caption_bytes, caption_frame_bytes, caption_text, platform_id, output_format, transition, email_to),
         daemon=True,
     ).start()
     return jsonify({"success": True, "data": {"job_id": job_id}}), 202
@@ -598,7 +610,68 @@ def render_download(job_id):
     return response
 
 
-def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platform_id, output_format):
+def _crossfade_join(seg_paths, seg_durations, has_audio, workdir):
+    """Blends consecutive segments with a short xfade/acrossfade instead
+    of the usual stream-copy concat — replaces concat.mp4's creation with
+    a genuinely re-encoded, overlapping join, "quick join" style: each
+    clip dissolves into the next over a fraction of a second instead of
+    cutting hard. This is the one part of the render that CAN'T be a
+    plain stream copy (xfade blends real pixel data, concat's -c copy
+    can't), so it costs real encode time relative to the "cut" path.
+
+    Every segment already carries a uniform audio layout by this point
+    (either real audio or anullsrc-padded silence, decided once via
+    has_audio before the per-segment loop even started — see
+    _render_story's own comment on why that has to happen up front) — so
+    acrossfade can treat every [i:a] identically here with no branching
+    on which specific segments happen to have real sound.
+
+    Returns the list of per-junction transition durations actually used
+    (n-1 values for n segments) — the caller adjusts clip_windows'
+    advisory timestamps to match the resulting shorter, overlapped
+    timeline.
+    """
+    n = len(seg_paths)
+    inputs = []
+    for p in seg_paths:
+        inputs += ["-i", p]
+
+    filter_parts = []
+    prev_v, prev_a = "0:v", "0:a"
+    cumulative = seg_durations[0]
+    used_durations = []
+    for i in range(1, n):
+        # Never eat more than 40% of EITHER neighboring segment's own
+        # duration — a quick cutaway next to a much longer clip shouldn't
+        # have its entire visible time consumed by the blend into it.
+        # Floored at 0.05s so this never hits zero/negative on a
+        # pathologically short clip.
+        d = max(0.05, min(TRANSITION_DURATION_SEC, seg_durations[i - 1] * 0.4, seg_durations[i] * 0.4))
+        used_durations.append(d)
+        offset = max(0.0, cumulative - d)
+        is_last = i == n - 1
+        out_v = "outv" if is_last else f"v{i}"
+        filter_parts.append(f"[{prev_v}][{i}:v]xfade=transition=fade:duration={d:.3f}:offset={offset:.3f}[{out_v}]")
+        prev_v = out_v
+        if has_audio:
+            out_a = "outa" if is_last else f"a{i}"
+            filter_parts.append(f"[{prev_a}][{i}:a]acrossfade=d={d:.3f}[{out_a}]")
+            prev_a = out_a
+        cumulative = cumulative + seg_durations[i] - d
+
+    maps = ["-map", f"[{prev_v}]"]
+    codec_args = ["-r", "30", "-pix_fmt", "yuv420p"]
+    if has_audio:
+        maps += ["-map", f"[{prev_a}]"]
+        codec_args += ["-c:a", "aac", "-ar", "44100", "-ac", "2"]
+    else:
+        codec_args += ["-an"]
+
+    _run_ffmpeg([*inputs, "-filter_complex", ";".join(filter_parts), *maps, *codec_args, "concat.mp4"], workdir)
+    return used_durations
+
+
+def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platform_id, output_format, transition="cut"):
     w, h = PLATFORMS[platform_id]
 
     # Every source file is written up front, not inside the main loop
@@ -627,6 +700,7 @@ def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platf
     )
     has_audio = has_narration or any(has_original_audio.values())
     seg_paths = []
+    seg_durations = []  # parallel to seg_paths — each segment's own duration, needed to build the crossfade chain below
     # One entry per clip, in the FINAL concatenated timeline — this is
     # what app/utils/video_quality.py checks the rendered audio/video
     # against (dead air, jump cuts) after everything below is done.
@@ -771,17 +845,38 @@ def _render_story(workdir, clip_bytes, caption_bytes, caption_frame_bytes, platf
 
         _run_ffmpeg(args, workdir)
         seg_paths.append(seg_path)
+        seg_durations.append(duration)
         clip_windows.append({
             "index": i, "start": cumulative_start, "end": cumulative_start + duration,
             "expected_audio": bool(narration_wav) or bool(has_original_audio.get(i)),
         })
         cumulative_start += duration
 
-    concat_list = os.path.join(workdir, "concat_list.txt")
-    with open(concat_list, "w") as f:
-        for p in seg_paths:
-            f.write(f"file '{os.path.basename(p)}'\n")
-    _run_ffmpeg(["-f", "concat", "-safe", "0", "-i", "concat_list.txt", "-c", "copy", "concat.mp4"], workdir)
+    if transition == "fade" and len(seg_paths) > 1:
+        # Per-junction, not a single global value — _crossfade_join
+        # clamps each blend to fit whichever of its two neighboring
+        # segments is shorter, so a quick cutaway next to a longer clip
+        # doesn't get its own duration eaten by the transition.
+        used_durations = _crossfade_join(seg_paths, seg_durations, has_audio, workdir)
+        # clip_windows above assumed a hard concat (no overlap) — each
+        # crossfade junction's own overlap compresses the real timeline,
+        # so clip i's actual start/end in the rendered file is shifted
+        # earlier by however much overlap happened at every junction
+        # before it. Only cosmetic for the quality check's own advisory
+        # timestamps (never a gate) — not used by the render itself,
+        # already fully baked by this point.
+        shift = 0.0
+        for i, win in enumerate(clip_windows):
+            win["start"] = max(0.0, win["start"] - shift)
+            if i < len(used_durations):
+                shift += used_durations[i]
+            win["end"] = max(win["start"], win["end"] - shift)
+    else:
+        concat_list = os.path.join(workdir, "concat_list.txt")
+        with open(concat_list, "w") as f:
+            for p in seg_paths:
+                f.write(f"file '{os.path.basename(p)}'\n")
+        _run_ffmpeg(["-f", "concat", "-safe", "0", "-i", "concat_list.txt", "-c", "copy", "concat.mp4"], workdir)
 
     if output_format == "mp4":
         final_path = os.path.join(workdir, "final.mp4")
