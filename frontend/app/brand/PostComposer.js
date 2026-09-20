@@ -25,14 +25,14 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Download, Loader2, Type, Smile, ImagePlus, Undo2, Redo2, Pencil,
-  FilePlus2, Images, FileImage, Trash2, Upload,
+  FilePlus2, Images, FileImage, Trash2, Upload, Share2,
 } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
 import { BottomSheet } from "@/components/premium/shared/BottomSheet";
 import { useViewport } from "@/lib/useViewport";
 import {
-  loadMarkImage, ensureFontsReady, canvasToPngBlob, downloadBlob, resizeImageToDataUrl,
+  loadMarkImage, ensureFontsReady, canvasToPngBlob, downloadBlob, shareOrDownloadBlob, resizeImageToDataUrl,
   loadHandle, saveHandle,
   savePostDraft, loadPostDraft, deletePostDraft, listPostDrafts,
   getActivePostId, setActivePostId, newPostId, migrateLegacyPostDraft,
@@ -46,6 +46,12 @@ import { LayerPanel } from "./LayerPanel";
 import { AiSuggestPanel } from "./AiSuggestPanel";
 
 const STICKER_EMOJI = ["✨", "🔥", "🎉", "💪", "🙌", "👀", "✅", "📈", "💼", "🎯", "☕", "⚡", "🚀", "💡", "🏆", "⏳"];
+
+// Feature-detected out entirely on browsers with no navigator.share
+// (most desktop browsers) rather than shown everywhere and quietly
+// behaving like a second Download button — same guard Story's
+// ExportPanel.js uses for its own Share button.
+const CAN_SHARE_FILES = typeof navigator !== "undefined" && !!navigator.share;
 
 // Module-scope, not React state — only resets on an actual page load, so
 // the "picked up your draft" toast fires once per visit to the site, not
@@ -93,6 +99,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const [handle, setHandle] = useState("");
   const [ready, setReady] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [gifUrlOpen, setGifUrlOpen] = useState(false);
   const [gifUrl, setGifUrl] = useState("");
@@ -469,6 +476,15 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     catch { toast.error("Try again."); }
     finally { setDownloading(false); }
   };
+  const handleShare = async () => {
+    setSharing(true);
+    try {
+      const result = await shareOrDownloadBlob(await exportBlob(), exportFilename(), `My ${shapeId} post, made with Noqeev`);
+      if (result === "downloaded") toast.success("Sharing wasn't available here — downloaded instead.");
+      else if (result === "shared") toast.success("Shared.");
+    } catch { toast.error("Try again."); }
+    finally { setSharing(false); }
+  };
 
   const platform = PLATFORMS[platformId];
   const selectedLayer = layers.find((l) => l.id === selectedId) || null;
@@ -610,9 +626,14 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
 
   const downloadRow = (
     <div className="flex gap-2">
-      <Btn variant="gold" onClick={handleDownload} disabled={!ready || downloading} loading={downloading} className="flex-1">
+      <Btn variant="gold" onClick={handleDownload} disabled={!ready || downloading || sharing} loading={downloading} className="flex-1">
         <Download className="size-4" /> {downloading ? "Preparing…" : "Download"}
       </Btn>
+      {CAN_SHARE_FILES && (
+        <Btn small variant="ghost" onClick={handleShare} disabled={!ready || downloading || sharing} loading={sharing} aria-label="Share to another device">
+          <Share2 className="size-4" />
+        </Btn>
+      )}
       <EmailAssetButton getBlob={exportBlob} filename={exportFilename()} label={shapeId} />
     </div>
   );
