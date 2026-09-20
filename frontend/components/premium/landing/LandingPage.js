@@ -14,7 +14,7 @@ import { Hero } from "./Hero";
 import { SeeItHappenSection } from "./SeeItHappenSection";
 import { WhyNoqeev } from "./WhyNoqeev";
 import { HowItWorks } from "./HowItWorks";
-import { CareerSection } from "./CareerSection";
+import { BrandTeaser } from "./BrandTeaser";
 import { ArtisanTeaser } from "./ArtisanTeaser";
 import { FAQ } from "./FAQ";
 import { FinalCTA } from "./FinalCTA";
@@ -32,7 +32,7 @@ export default function LandingPage({ onOpen, onOpenArtisans, onOpenDashboard })
         <SeeItHappenSection />
         <WhyNoqeev />
         <HowItWorks />
-        <CareerSection />
+        <BrandTeaser onOpenDashboard={onOpenDashboard} />
         <ArtisanTeaser onOpenArtisans={onOpenArtisans} />
         <FAQ />
         <FinalCTA onOpen={onOpen} onOpenDashboard={onOpenDashboard} />

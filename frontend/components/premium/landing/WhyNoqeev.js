@@ -1,7 +1,7 @@
 "use client";
 import { useRef } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { Sparkles, ShieldOff, FileCheck2, Hammer, LayoutDashboard } from "lucide-react";
+import { Sparkles, ShieldOff, FileCheck2, Hammer, LayoutDashboard, Clapperboard } from "lucide-react";
 import { Reveal, SECTION_WRAP, EYEBROW } from "./shared";
 
 const FEATURES = [
@@ -10,6 +10,7 @@ const FEATURES = [
   { Icon: ShieldOff, title: "Anonymous by default. Account optional." },
   { Icon: FileCheck2, title: "Real files, not a locked preview" },
   { Icon: Hammer, title: "A real trade directory too" },
+  { Icon: Clapperboard, title: "A posts-and-video studio for your search" },
 ];
 
 // Subtle pointer-tracked tilt on desktop only (a mouse is required for the
@@ -56,26 +57,31 @@ export function WhyNoqeev() {
           </h2>
         </Reveal>
 
-        {/* 5 cards in a 2-column grid — an odd count would otherwise leave
-            the last card alone in a mostly-empty row on every width from
-            sm up (this is what iPad landing/dashboard were both actually
-            hitting). The last card spans both columns and self-centers
-            instead, reading as a deliberate closing card, not a leftover. */}
+        {/* 2-column grid — an ODD count would otherwise leave the last card
+            alone in a mostly-empty row on every width from sm up (this is
+            what iPad landing/dashboard were both actually hitting), so an
+            odd-length FEATURES spans that last card across both columns
+            and self-centers it instead, reading as a deliberate closing
+            card rather than a leftover. Even-length FEATURES (as of this
+            writing) fills every row already, so this is a no-op today. */}
         <div className="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2">
-          {FEATURES.map((f, i) => (
+          {FEATURES.map((f, i) => {
+            const isDanglingLast = FEATURES.length % 2 === 1 && i === FEATURES.length - 1;
+            return (
             <TiltCard
               key={f.title}
               delay={i * 0.08}
-              className={i === FEATURES.length - 1 ? "sm:col-span-2" : ""}
+              className={isDanglingLast ? "sm:col-span-2" : ""}
             >
-              <div className={i === FEATURES.length - 1 ? "sm:mx-auto sm:max-w-md" : ""}>
+              <div className={isDanglingLast ? "sm:mx-auto sm:max-w-md" : ""}>
                 <div className="flex size-11 items-center justify-center rounded-xl border border-primary/25 bg-primary/10">
                   <f.Icon className="size-5 text-primary" />
                 </div>
                 <h3 className="m-0 mt-4 text-[16.5px] font-bold text-foreground">{f.title}</h3>
               </div>
             </TiltCard>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
