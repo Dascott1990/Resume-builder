@@ -25,12 +25,14 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Download, Loader2, Type, Smile, ImagePlus, Undo2, Redo2, Pencil,
-  FilePlus2, Images, FileImage, Trash2, Upload, Share2,
+  FilePlus2, Images, FileImage, Trash2, Upload, Share2, Check, Sparkles,
 } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { BottomSheet } from "@/components/premium/shared/BottomSheet";
 import { useViewport } from "@/lib/useViewport";
+import { apiRequest } from "@/components/premium/shared/api";
 import {
   loadMarkImage, ensureFontsReady, canvasToPngBlob, downloadBlob, shareOrDownloadBlob, resizeImageToDataUrl,
   loadHandle, saveHandle,
@@ -43,7 +45,7 @@ import {
 } from "./postTemplates";
 import { EmailAssetButton } from "./EmailAssetButton";
 import { LayerPanel } from "./LayerPanel";
-import { AiSuggestPanel } from "./AiSuggestPanel";
+import { AiSuggestPanel, timeOfDay } from "./AiSuggestPanel";
 
 const STICKER_EMOJI = ["✨", "🔥", "🎉", "💪", "🙌", "👀", "✅", "📈", "💼", "🎯", "☕", "⚡", "🚀", "💡", "🏆", "⏳"];
 
@@ -98,8 +100,23 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const [selectedId, setSelectedId] = useState(null);
   const [handle, setHandle] = useState("");
   const [ready, setReady] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // Download preview: clicking Download shows all 3 shapes (Tip/Quote/
+  // Stat) rendered with the SAME current content side by side, so
+  // "download" means "download whichever of these you actually want" —
+  // not just whatever shape happens to be open right now. shapePreviews
+  // is {tip: dataUrl, quote: dataUrl, stat: dataUrl}; selectedShapeIds is
+  // which of those are checked for the actual download.
+  const [downloadPreviewOpen, setDownloadPreviewOpen] = useState(false);
+  const [shapePreviews, setShapePreviews] = useState(null);
+  const [selectedShapeIds, setSelectedShapeIds] = useState(() => new Set());
+  const [downloadingSelected, setDownloadingSelected] = useState(false);
+  // AI posting plan — advisory only (see suggest_posting_plan, api/brand.py):
+  // when/where/how to post the 3 variants. Fetched alongside the preview,
+  // not blocking it — the previews render immediately, the plan fills in
+  // a moment later.
+  const [postingPlan, setPostingPlan] = useState(null);
+  const [postingPlanLoading, setPostingPlanLoading] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [gifUrlOpen, setGifUrlOpen] = useState(false);
   const [gifUrl, setGifUrl] = useState("");
@@ -470,12 +487,6 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
 
   const exportBlob = () => canvasToPngBlob(canvasRef.current);
   const exportFilename = () => `noqeev-${shapeId}-${platformId}.png`;
-  const handleDownload = async () => {
-    setDownloading(true);
-    try { downloadBlob(await exportBlob(), exportFilename()); }
-    catch { toast.error("Try again."); }
-    finally { setDownloading(false); }
-  };
   const handleShare = async () => {
     setSharing(true);
     try {
@@ -484,6 +495,105 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
       else if (result === "shared") toast.success("Shared.");
     } catch { toast.error("Try again."); }
     finally { setSharing(false); }
+  };
+
+  // Pull the actual current text back out of `layers` by role (see
+  // INITIAL_LAYOUTS, postTemplates.js — every text layer it seeds carries
+  // a role: "eyebrow"/"headline"/"subtext") rather than tracking a
+  // separate copy of the content — this stays correct even after the
+  // user hand-edits a layer's text via LayerPanel, no second source of
+  // truth to keep in sync. "quote"'s own layout wraps its headline in
+  // literal quote marks; stripped back off here so re-deriving the other
+  // two shapes from this content doesn't carry that mark into a shape
+  // that never used it.
+  const currentContent = () => {
+    const get = (role) => layers.find((l) => l.role === role)?.text || "";
+    let headline = get("headline");
+    if (shapeId === "quote") headline = headline.replace(/^"|"$/g, "");
+    return { eyebrow: get("eyebrow"), headline, subtext: get("subtext") };
+  };
+
+  const shapeFilename = (id) => `noqeev-${id}-${platformId}.png`;
+
+  // Renders one shape into its OWN offscreen canvas — the currently
+  // active shape uses its real `layers` (whatever the user's actually
+  // dragged/added), the other two are freshly seeded from the same
+  // content via INITIAL_LAYOUTS, since there's no hand-tuned layer data
+  // for a shape nobody's opened yet.
+  const renderShapeCanvas = (id, content) => {
+    const { w, h } = platform;
+    const off = document.createElement("canvas");
+    off.width = w; off.height = h;
+    const ctx = off.getContext("2d");
+    const shapeLayers = id === shapeId ? layers : INITIAL_LAYOUTS[id](content);
+    renderPost(ctx, w, h, shapeLayers, markImgRef.current, accent, handle, stickerImagesRef.current);
+    return off;
+  };
+
+  const fetchPostingPlan = async (content) => {
+    setPostingPlanLoading(true);
+    try {
+      const data = await apiRequest("/api/v1/brand/suggest-posting-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...content,
+          time_of_day: timeOfDay(new Date().getHours()),
+          day_of_week: new Date().toLocaleDateString(undefined, { weekday: "long" }),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
+      });
+      setPostingPlan(data.plan || []);
+    } catch {
+      // Advisory-only feature — a failed suggestion shouldn't block the
+      // actual download, so this fails silently into an empty plan
+      // rather than a toast the user didn't ask for.
+      setPostingPlan([]);
+    } finally {
+      setPostingPlanLoading(false);
+    }
+  };
+
+  const openDownloadPreview = () => {
+    const content = currentContent();
+    const previews = {};
+    for (const s of SHAPES) previews[s.id] = renderShapeCanvas(s.id, content).toDataURL("image/png");
+    setShapePreviews(previews);
+    setSelectedShapeIds(new Set([shapeId]));
+    setPostingPlan(null);
+    setDownloadPreviewOpen(true);
+    fetchPostingPlan(content);
+  };
+
+  const toggleShapeSelected = (id) => {
+    setSelectedShapeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleDownloadSelected = async () => {
+    if (!selectedShapeIds.size) return;
+    setDownloadingSelected(true);
+    try {
+      // Staggered, not fired all at once — rapid concurrent downloads can
+      // trip a browser's own popup/multi-download guard, which would
+      // silently drop everything after the first.
+      let i = 0;
+      for (const id of selectedShapeIds) {
+        const blob = await (await fetch(shapePreviews[id])).blob();
+        downloadBlob(blob, shapeFilename(id));
+        i += 1;
+        if (i < selectedShapeIds.size) await new Promise((r) => setTimeout(r, 350));
+      }
+      toast.success(selectedShapeIds.size === 1 ? "Downloaded." : `Downloaded ${selectedShapeIds.size} images.`);
+      setDownloadPreviewOpen(false);
+    } catch {
+      toast.error("Try again.");
+    } finally {
+      setDownloadingSelected(false);
+    }
   };
 
   const platform = PLATFORMS[platformId];
@@ -626,15 +736,86 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
 
   const downloadRow = (
     <div className="flex gap-2">
-      <Btn variant="gold" onClick={handleDownload} disabled={!ready || downloading || sharing} loading={downloading} className="flex-1">
-        <Download className="size-4" /> {downloading ? "Preparing…" : "Download"}
+      <Btn variant="gold" onClick={openDownloadPreview} disabled={!ready || sharing} className="flex-1">
+        <Download className="size-4" /> Download
       </Btn>
       {CAN_SHARE_FILES && (
-        <Btn small variant="ghost" onClick={handleShare} disabled={!ready || downloading || sharing} loading={sharing} aria-label="Share to another device">
+        <Btn small variant="ghost" onClick={handleShare} disabled={!ready || sharing} loading={sharing} aria-label="Share to another device">
           <Share2 className="size-4" />
         </Btn>
       )}
       <EmailAssetButton getBlob={exportBlob} filename={exportFilename()} label={shapeId} />
+
+      <Dialog open={downloadPreviewOpen} onOpenChange={setDownloadPreviewOpen}>
+        <DialogContent showCloseButton className="w-full max-w-[440px] gap-0 p-0">
+          <div className="max-h-[85vh] overflow-y-auto p-5">
+            <p className="m-0 mb-1 text-[14px] font-bold text-foreground">Choose what to download</p>
+            <p className="m-0 mb-4 text-[12.5px] text-muted-foreground">
+              Same content, three ready-made variants — pick any or all.
+            </p>
+
+            <div className="grid grid-cols-3 gap-2.5">
+              {SHAPES.map((s) => {
+                const selected = selectedShapeIds.has(s.id);
+                return (
+                  <button
+                    key={s.id} type="button" onClick={() => toggleShapeSelected(s.id)} aria-pressed={selected}
+                    className={`relative overflow-hidden rounded-lg border text-left ${selected ? "border-primary" : "border-border"}`}
+                  >
+                    {shapePreviews?.[s.id] && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={shapePreviews[s.id]} alt={s.label} className="aspect-square w-full object-cover" />
+                    )}
+                    <div className={`absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full border ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background/80"}`}>
+                      {selected && <Check className="size-3" strokeWidth={3} />}
+                    </div>
+                    <p className="m-0 border-t border-border bg-card px-1.5 py-1 text-center text-[11px] font-bold text-foreground">{s.label}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            <Btn
+              variant="gold" className="mt-4 w-full" onClick={handleDownloadSelected}
+              disabled={!selectedShapeIds.size || downloadingSelected} loading={downloadingSelected}
+            >
+              <Download className="size-4" />
+              {downloadingSelected ? "Downloading…" : selectedShapeIds.size ? `Download (${selectedShapeIds.size})` : "Select at least one"}
+            </Btn>
+
+            {/* Advisory only — see suggest_posting_plan, api/brand.py. Never
+                connects to a real handle or schedules anything; just tells
+                someone what to do with the file(s) they just downloaded. */}
+            <div className="mt-5 border-t border-border pt-4">
+              <p className="m-0 mb-2.5 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em] text-muted-foreground/70 uppercase">
+                <Sparkles className="size-3.5 text-primary" /> Suggested posting plan
+              </p>
+              {postingPlanLoading && (
+                <div className="grid gap-2">
+                  {[0, 1, 2].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-muted" />)}
+                </div>
+              )}
+              {!postingPlanLoading && postingPlan?.length > 0 && (
+                <div className="grid gap-2">
+                  {postingPlan.map((entry, i) => (
+                    <div key={i} className="rounded-lg border border-border bg-card p-2.5">
+                      <p className="m-0 text-[12.5px] font-bold text-foreground">{entry.platform}</p>
+                      <p className="m-0 mt-0.5 text-[12px] leading-snug text-muted-foreground">{entry.action}</p>
+                      {entry.timing && <p className="m-0 mt-1 font-mono text-[10.5px] text-primary">{entry.timing}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!postingPlanLoading && postingPlan?.length === 0 && (
+                <p className="m-0 text-[12px] text-muted-foreground">Couldn't get a suggestion right now — the download still works fine.</p>
+              )}
+              <p className="m-0 mt-3 text-[11px] leading-snug text-muted-foreground/70">
+                Guidance only — nothing is scheduled or posted automatically.
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 

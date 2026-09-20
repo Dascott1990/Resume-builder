@@ -4,6 +4,10 @@ app/api/brand.py — internal marketing tooling behind the /brand page:
 POST /api/v1/brand/suggest-post     — AI drafts one post (shape + copy),
                                        grounded in what Noqeev actually does
 POST /api/v1/brand/suggest-theme    — AI proposes this month's signature accent
+POST /api/v1/brand/suggest-posting-plan — AI suggests when/where/how to post a
+                                       finished Tip/Quote/Stat asset — advisory
+                                       text only, doesn't touch any real handle
+                                       or scheduler
 POST /api/v1/brand/email-asset      — emails a generated image to whoever's
                                        shipping it to a given platform
 GET  /api/v1/brand/news             — recent team-posted updates
@@ -135,6 +139,81 @@ Rules:
 - headline and subtext must each work standing alone in the shape described above — no
   placeholders, no brackets.
 - Return ONLY the JSON object."""
+
+
+SUGGEST_POSTING_PLAN_SYSTEM = f"""You are Noqeev's own social media strategist, giving quick,
+concrete posting advice for a piece of content that already exists as three ready-made image
+variants of the same message — a Tip card, a Quote card, and a Stat card (same underlying
+eyebrow/headline/subtext, three different visual treatments). {PRODUCT_CONTEXT}
+You always respond with ONLY valid JSON — no markdown fences, no explanation, no preamble."""
+
+SUGGEST_POSTING_PLAN_PROMPT = """The content (same message, three ready-made variants already exist):
+Eyebrow: {eyebrow}
+Headline: {headline}
+Subtext: {subtext}
+
+Right now it's {day_of_week}, {time_of_day}, timezone {timezone}.
+
+Give a short posting plan across platforms — concrete, not generic. For each platform, say
+exactly what to post (which variant(s) — tip/quote/stat — and whether to post it as a single
+image, a multi-slide carousel, or a Story) and roughly when. It's fine to say a platform isn't a
+good fit for this asset at all (e.g. TikTok usually wants video, not a static image) — don't
+force every platform to have a real suggestion.
+
+Return this exact JSON (no other text), 2-4 entries, most useful platform first:
+{{
+  "plan": [
+    {{
+      "platform": "e.g. Instagram, X, TikTok, LinkedIn, Instagram Story",
+      "action": "exactly what to post — which variant(s), and single image vs. carousel vs. Story",
+      "timing": "roughly when, grounded in the {day_of_week} {time_of_day} given above — empty
+                 string if this platform isn't a good fit for this asset at all"
+    }}
+  ]
+}}
+
+Return ONLY the JSON object."""
+
+
+@brand_bp.route("/suggest-posting-plan", methods=["POST"])
+@limiter.limit("20 per hour")
+def suggest_posting_plan():
+    body = request.get_json(force=True) or {}
+    eyebrow = _clean_str(body.get("eyebrow"), 200)
+    headline = _clean_str(body.get("headline"), 200)
+    subtext = _clean_str(body.get("subtext"), 400)
+    if not headline:
+        raise APIError("headline is required", 400)
+    time_of_day = _clean_str(body.get("time_of_day"), 40) or "afternoon"
+    day_of_week = _clean_str(body.get("day_of_week"), 40) or "today"
+    tz_label = _clean_str(body.get("timezone"), 60) or "unspecified"
+
+    prompt = SUGGEST_POSTING_PLAN_PROMPT.format(
+        eyebrow=eyebrow or "(none)", headline=headline, subtext=subtext or "(none)",
+        day_of_week=day_of_week, time_of_day=time_of_day, timezone=tz_label,
+    )
+    raw = ai_complete(system=SUGGEST_POSTING_PLAN_SYSTEM, prompt=prompt, effort="medium", max_tokens=500, groq_temperature=0.6)
+    clean = raw.replace("```json", "").replace("```", "").strip()
+
+    try:
+        parsed = json.loads(clean)
+    except json.JSONDecodeError as e:
+        raise APIError(f"AI returned invalid JSON: {e}", 502)
+
+    plan = parsed.get("plan")
+    if not isinstance(plan, list):
+        raise APIError("AI response missing a plan list", 502)
+    cleaned_plan = []
+    for entry in plan[:6]:
+        if not isinstance(entry, dict):
+            continue
+        cleaned_plan.append({
+            "platform": _clean_str(entry.get("platform"), 40),
+            "action": _clean_str(entry.get("action"), 300),
+            "timing": _clean_str(entry.get("timing"), 100),
+        })
+
+    return jsonify({"success": True, "data": {"plan": cleaned_plan}}), 200
 
 
 def _clean_str(value, max_len):
