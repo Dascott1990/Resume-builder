@@ -76,6 +76,15 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+      # Resend (app/utils/mail.py) — replaced raw Gmail SMTP, which
+      # Render's outbound network kept timing out on. sync: false the
+      # same way the AI keys above are: this file declares the var
+      # exists, the actual value is set once in Render's dashboard, never
+      # committed here.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        value: Noqeev <noreply@noqeev.com>
       - key: ALLOWED_ORIGINS
         value: https://noqeev.com,https://www.noqeev.com,https://resume-builder-orpin-theta.vercel.app,https://resume-builder-c6l75mdzi-dascott1990s-projects.vercel.app,http://localhost:3000
       - key: PYTHON_VERSION
