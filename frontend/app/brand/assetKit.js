@@ -178,6 +178,26 @@ export function saveHandle(handle) {
   try { localStorage.setItem(HANDLE_KEY, handle); } catch { /* best-effort */ }
 }
 
+// A small rolling memory of recent AI-generated text (suggest-post
+// headlines, suggest-captions captions) — sent back to the backend as
+// `avoid` on every AI call (see api/brand.py's _avoid_block) so
+// "generate again" can't just hand back the same post/caption. Nothing
+// server-side remembers past requests between calls, so this client-side
+// history is the only thing that actually makes repeats avoidable.
+// Capped and FIFO — old entries age out as new ones get generated, never
+// close to threatening localStorage's quota.
+const AI_HISTORY_KEY = "noqeev_ai_history";
+const AI_HISTORY_MAX = 20;
+export function loadAiHistory() {
+  try { return JSON.parse(localStorage.getItem(AI_HISTORY_KEY) || "[]"); } catch { return []; }
+}
+export function pushAiHistory(...items) {
+  try {
+    const next = [...loadAiHistory(), ...items.filter(Boolean)].slice(-AI_HISTORY_MAX);
+    localStorage.setItem(AI_HISTORY_KEY, JSON.stringify(next));
+  } catch { /* best-effort */ }
+}
+
 // The signature theme is deliberately keyed by calendar month ("2026-03")
 // rather than stored bare — reopening this page in a new month should
 // surface the "generate this month's theme" prompt again instead of

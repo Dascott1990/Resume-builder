@@ -25,7 +25,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Download, Loader2, Type, Smile, ImagePlus, Undo2, Redo2, Pencil,
-  FilePlus2, Images, FileImage, Trash2, Upload, Share2, Check, Sparkles,
+  FilePlus2, Images, FileImage, Trash2, Upload, Share2, Check, Sparkles, Copy,
 } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
@@ -35,7 +35,7 @@ import { useViewport } from "@/lib/useViewport";
 import { apiRequest } from "@/components/premium/shared/api";
 import {
   loadMarkImage, ensureFontsReady, canvasToPngBlob, downloadBlob, shareOrDownloadBlob, resizeImageToDataUrl,
-  loadHandle, saveHandle,
+  loadHandle, saveHandle, loadAiHistory, pushAiHistory,
   savePostDraft, loadPostDraft, deletePostDraft, listPostDrafts,
   getActivePostId, setActivePostId, newPostId, migrateLegacyPostDraft,
 } from "./assetKit";
@@ -97,26 +97,45 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const [shapeId, setShapeId] = useState("tip");
   const [platformId, setPlatformId] = useState("square");
   const [layers, setLayersRaw] = useState(() => INITIAL_LAYOUTS.tip(SHAPE_DEFAULTS.tip));
+  // Every shape's own last-edited content, keyed by shape id — NOT
+  // derived from `layers` on demand. Before this existed, switchShape
+  // threw away whatever was typed the moment you looked at another
+  // shape (always reset to canned SHAPE_DEFAULTS), and the download
+  // preview had to fake the other two shapes' content by blindly
+  // reformatting the ACTIVE shape's raw text through their layout
+  // functions — which is exactly why a Stat preview could end up
+  // showing a full sentence crammed into its one-number slot, or a
+  // Quote preview showing recruiter-advice text where an attribution
+  // belongs: it was never that shape's real content to begin with. Kept
+  // in sync with `layers` below, and persisted in the post draft
+  // (savePostDraft/loadPostDraft) so it survives a reload too.
+  const [layersByShape, setLayersByShape] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [handle, setHandle] = useState("");
   const [ready, setReady] = useState(false);
   const [sharing, setSharing] = useState(false);
   // Download preview: clicking Download shows all 3 shapes (Tip/Quote/
-  // Stat) rendered with the SAME current content side by side, so
-  // "download" means "download whichever of these you actually want" —
-  // not just whatever shape happens to be open right now. shapePreviews
-  // is {tip: dataUrl, quote: dataUrl, stat: dataUrl}; selectedShapeIds is
-  // which of those are checked for the actual download.
+  // Stat) side by side, each with its OWN real content (layersByShape),
+  // so "download" means "download whichever of these actual posts you
+  // want" — not just whatever shape happens to be open right now.
+  // shapePreviews is {tip: dataUrl, quote: dataUrl, stat: dataUrl};
+  // selectedShapeIds is which of those are checked for the actual
+  // download.
   const [downloadPreviewOpen, setDownloadPreviewOpen] = useState(false);
   const [shapePreviews, setShapePreviews] = useState(null);
   const [selectedShapeIds, setSelectedShapeIds] = useState(() => new Set());
   const [downloadingSelected, setDownloadingSelected] = useState(false);
   // AI posting plan — advisory only (see suggest_posting_plan, api/brand.py):
-  // when/where/how to post the 3 variants. Fetched alongside the preview,
-  // not blocking it — the previews render immediately, the plan fills in
-  // a moment later.
+  // when/where/how to post each of the 3 posts. Fetched alongside the
+  // preview, not blocking it — the previews render immediately, the plan
+  // fills in a moment later.
   const [postingPlan, setPostingPlan] = useState(null);
   const [postingPlanLoading, setPostingPlanLoading] = useState(false);
+  // Per-post captions — the text that goes IN the caption box when
+  // actually publishing (see suggest_captions, api/brand.py), distinct
+  // from the fixed on-image text. {tip: "...", quote: "...", stat: "..."}
+  const [captions, setCaptions] = useState(null);
+  const [captionsLoading, setCaptionsLoading] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [gifUrlOpen, setGifUrlOpen] = useState(false);
   const [gifUrl, setGifUrl] = useState("");
@@ -223,6 +242,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
       setHistoryTick((t) => t + 1);
       if (draft.shapeId) setShapeId(draft.shapeId);
       if (draft.platformId) setPlatformId(draft.platformId);
+      if (draft.layersByShape) setLayersByShape(draft.layersByShape);
       // Restoring itself has to run every mount — switching to another
       // /brand zone and back unmounts this component entirely (page.js
       // only renders it while zone === "create"), wiping its React state,
@@ -251,19 +271,20 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   // never clobbers another draft's save.
   useEffect(() => {
     if (!restoredRef.current || !postId) return;
-    const timer = setTimeout(() => savePostDraft(postId, { name: postName, shapeId, platformId, layers }), 600);
+    const timer = setTimeout(() => savePostDraft(postId, { name: postName, shapeId, platformId, layers, layersByShape }), 600);
     return () => clearTimeout(timer);
-  }, [layers, shapeId, platformId, postId, postName]);
+  }, [layers, shapeId, platformId, postId, postName, layersByShape]);
 
   // Resets every piece of post-specific state to blank, without touching
   // storage — the shared tail of New Post, switching to another draft,
   // and deleting the one currently open.
-  const resetComposerState = (nextId, nextName, restoredLayers, restoredShapeId = "tip", restoredPlatformId = "square") => {
+  const resetComposerState = (nextId, nextName, restoredLayers, restoredShapeId = "tip", restoredPlatformId = "square", restoredLayersByShape = {}) => {
     const nextLayers = restoredLayers?.length ? restoredLayers : INITIAL_LAYOUTS[restoredShapeId](SHAPE_DEFAULTS[restoredShapeId]);
     setActivePostId(nextId);
     setPostId(nextId);
     setPostName(nextName);
     setLayersRaw(nextLayers);
+    setLayersByShape({ ...restoredLayersByShape, [restoredShapeId]: nextLayers });
     historyRef.current = [nextLayers];
     historyIndexRef.current = 0;
     setHistoryTick((t) => t + 1);
@@ -277,7 +298,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   // switching away from it, so nothing from it can be lost in the gap.
   const persistCurrentPost = () => {
     if (!postId) return;
-    savePostDraft(postId, { name: postName, shapeId, platformId, layers });
+    savePostDraft(postId, { name: postName, shapeId, platformId, layers, layersByShape });
   };
 
   const startNewPost = () => {
@@ -310,7 +331,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     if (id === postId) { setPostsOpen(false); return; }
     persistCurrentPost();
     const draft = loadPostDraft(id);
-    resetComposerState(id, draft?.name || "Untitled post", draft?.layers, draft?.shapeId || "tip", draft?.platformId || "square");
+    resetComposerState(id, draft?.name || "Untitled post", draft?.layers, draft?.shapeId || "tip", draft?.platformId || "square", draft?.layersByShape);
     setPostsOpen(false);
     toast.success(`Switched to "${draft?.name || "Untitled post"}".`);
   };
@@ -327,7 +348,11 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
 
   const switchShape = (id) => {
     setShapeId(id);
-    setLayers(INITIAL_LAYOUTS[id](SHAPE_DEFAULTS[id]));
+    // Restore that shape's own last-edited content if it has any —
+    // only a shape that's genuinely never been visited falls back to
+    // canned defaults. Switching Tip -> Quote -> back to Tip no longer
+    // wipes whatever was typed into Tip.
+    setLayers(layersByShape[id] || INITIAL_LAYOUTS[id](SHAPE_DEFAULTS[id]));
     setSelectedId(null);
   };
 
@@ -442,6 +467,11 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     boxesRef.current = renderPost(ctx, w, h, layers, markImgRef.current, accent, handle, stickerImagesRef.current);
   };
   useEffect(() => { if (ready) draw(); }, [ready, layers, platformId, accent, handle]);
+  // Mirrors whatever's currently being edited into layersByShape under
+  // its OWN shape id, on every change — this is what makes "each shape
+  // keeps its own real content" true without switchShape or the download
+  // preview having to special-case anything: they just read this cache.
+  useEffect(() => { setLayersByShape((prev) => ({ ...prev, [shapeId]: layers })); }, [layers, shapeId]);
 
   // ── Drag-to-reposition — hit-test the last-rendered boxes (topmost
   // layer first), then track the pointer's offset from the layer's own
@@ -497,51 +527,59 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     finally { setSharing(false); }
   };
 
-  // Pull the actual current text back out of `layers` by role (see
-  // INITIAL_LAYOUTS, postTemplates.js — every text layer it seeds carries
-  // a role: "eyebrow"/"headline"/"subtext") rather than tracking a
-  // separate copy of the content — this stays correct even after the
-  // user hand-edits a layer's text via LayerPanel, no second source of
-  // truth to keep in sync. "quote"'s own layout wraps its headline in
-  // literal quote marks; stripped back off here so re-deriving the other
-  // two shapes from this content doesn't carry that mark into a shape
-  // that never used it.
-  const currentContent = () => {
-    const get = (role) => layers.find((l) => l.role === role)?.text || "";
+  // Pull a shape's actual content back out of ITS OWN layersByShape entry
+  // by role (see INITIAL_LAYOUTS, postTemplates.js — every text layer it
+  // seeds carries a role: "eyebrow"/"headline"/"subtext"), falling back
+  // to SHAPE_DEFAULTS only for a shape that's never actually been
+  // visited. This is the fix for downloads not matching each post
+  // card's real words: there used to be no such thing as "Quote's own
+  // content" or "Stat's own content" — only the currently active shape's
+  // raw text, blindly reformatted through the other two shapes' layout
+  // functions on the fly, which is exactly how a Stat preview could end
+  // up with a full sentence crammed into its one-number slot. Now every
+  // shape genuinely has its own stored content (layersByShape), so this
+  // is just reading it back, never guessing at it.
+  const shapeContent = (id) => {
+    const shapeLayers = layersByShape[id] || INITIAL_LAYOUTS[id](SHAPE_DEFAULTS[id]);
+    const get = (role) => shapeLayers.find((l) => l.role === role)?.text || "";
     let headline = get("headline");
-    if (shapeId === "quote") headline = headline.replace(/^"|"$/g, "");
+    if (id === "quote") headline = headline.replace(/^"|"$/g, "");
     return { eyebrow: get("eyebrow"), headline, subtext: get("subtext") };
+  };
+
+  const allShapesContent = () => {
+    const out = {};
+    for (const s of SHAPES) out[s.id] = shapeContent(s.id);
+    return out;
   };
 
   const shapeFilename = (id) => `noqeev-${id}-${platformId}.png`;
 
-  // Renders one shape into its OWN offscreen canvas — the currently
-  // active shape uses its real `layers` (whatever the user's actually
-  // dragged/added), the other two are freshly seeded from the same
-  // content via INITIAL_LAYOUTS, since there's no hand-tuned layer data
-  // for a shape nobody's opened yet.
-  const renderShapeCanvas = (id, content) => {
+  // Renders one shape into its OWN offscreen canvas, straight from ITS
+  // OWN stored layers — no more deriving from a different shape's text.
+  const renderShapeCanvas = (id) => {
     const { w, h } = platform;
     const off = document.createElement("canvas");
     off.width = w; off.height = h;
     const ctx = off.getContext("2d");
-    const shapeLayers = id === shapeId ? layers : INITIAL_LAYOUTS[id](content);
+    const shapeLayers = layersByShape[id] || INITIAL_LAYOUTS[id](SHAPE_DEFAULTS[id]);
     renderPost(ctx, w, h, shapeLayers, markImgRef.current, accent, handle, stickerImagesRef.current);
     return off;
   };
 
-  const fetchPostingPlan = async (content) => {
+  const nowContext = () => ({
+    time_of_day: timeOfDay(new Date().getHours()),
+    day_of_week: new Date().toLocaleDateString(undefined, { weekday: "long" }),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
+
+  const fetchPostingPlan = async (shapesContent) => {
     setPostingPlanLoading(true);
     try {
       const data = await apiRequest("/api/v1/brand/suggest-posting-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...content,
-          time_of_day: timeOfDay(new Date().getHours()),
-          day_of_week: new Date().toLocaleDateString(undefined, { weekday: "long" }),
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        }),
+        body: JSON.stringify({ ...shapesContent, ...nowContext() }),
       });
       setPostingPlan(data.plan || []);
     } catch {
@@ -554,15 +592,44 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     }
   };
 
+  const fetchCaptions = async (shapesContent) => {
+    setCaptionsLoading(true);
+    try {
+      const data = await apiRequest("/api/v1/brand/suggest-captions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...shapesContent, avoid: loadAiHistory() }),
+      });
+      setCaptions(data);
+      pushAiHistory(data.tip, data.quote, data.stat);
+    } catch {
+      // Advisory-only feature — same reasoning as fetchPostingPlan above.
+      setCaptions({});
+    } finally {
+      setCaptionsLoading(false);
+    }
+  };
+
   const openDownloadPreview = () => {
-    const content = currentContent();
     const previews = {};
-    for (const s of SHAPES) previews[s.id] = renderShapeCanvas(s.id, content).toDataURL("image/png");
+    for (const s of SHAPES) previews[s.id] = renderShapeCanvas(s.id).toDataURL("image/png");
     setShapePreviews(previews);
     setSelectedShapeIds(new Set([shapeId]));
     setPostingPlan(null);
+    setCaptions(null);
     setDownloadPreviewOpen(true);
-    fetchPostingPlan(content);
+    const shapesContent = allShapesContent();
+    fetchPostingPlan(shapesContent);
+    fetchCaptions(shapesContent);
+  };
+
+  const copyCaption = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Caption copied.");
+    } catch {
+      toast.error("Couldn't copy — select and copy the text manually.");
+    }
   };
 
   const toggleShapeSelected = (id) => {
@@ -782,6 +849,42 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
               <Download className="size-4" />
               {downloadingSelected ? "Downloading…" : selectedShapeIds.size ? `Download (${selectedShapeIds.size})` : "Select at least one"}
             </Btn>
+
+            {/* Captions — the text that goes IN the caption box when
+                actually publishing, distinct from each post's fixed
+                on-image text. One per shape, each grounded in THAT
+                shape's own real content (see suggest_captions,
+                api/brand.py) — never a generic line reused across all
+                three. */}
+            <div className="mt-5 border-t border-border pt-4">
+              <p className="m-0 mb-2.5 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em] text-muted-foreground/70 uppercase">
+                <Sparkles className="size-3.5 text-primary" /> Captions
+              </p>
+              {captionsLoading && (
+                <div className="grid gap-2">
+                  {[0, 1, 2].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />)}
+                </div>
+              )}
+              {!captionsLoading && captions && Object.values(captions).some(Boolean) && (
+                <div className="grid gap-2">
+                  {SHAPES.filter((s) => captions[s.id]).map((s) => (
+                    <div key={s.id} className="rounded-lg border border-border bg-card p-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="m-0 text-[11px] font-bold text-primary">{s.label}</p>
+                        <button type="button" onClick={() => copyCaption(captions[s.id])} aria-label={`Copy ${s.label} caption`}
+                          className="shrink-0 text-muted-foreground hover:text-foreground">
+                          <Copy className="size-3.5" />
+                        </button>
+                      </div>
+                      <p className="m-0 mt-0.5 text-[12px] leading-snug text-foreground">{captions[s.id]}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!captionsLoading && captions && !Object.values(captions).some(Boolean) && (
+                <p className="m-0 text-[12px] text-muted-foreground">Couldn't write captions right now — the download still works fine.</p>
+              )}
+            </div>
 
             {/* Advisory only — see suggest_posting_plan, api/brand.py. Never
                 connects to a real handle or schedules anything; just tells

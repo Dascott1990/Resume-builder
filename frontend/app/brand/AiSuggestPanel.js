@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { apiRequest } from "@/components/premium/shared/api";
+import { loadAiHistory, pushAiHistory } from "./assetKit";
 
 export const MOODS = ["Motivational", "Practical", "Celebratory", "Urgent", "Playful"];
 
@@ -43,8 +44,9 @@ export function AiSuggestPanel({ onSuggestion }) {
       const data = await apiRequest("/api/v1/brand/suggest-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mood: mood.toLowerCase(), ...context }),
+        body: JSON.stringify({ mood: mood.toLowerCase(), ...context, avoid: loadAiHistory() }),
       });
+      pushAiHistory(data.headline);
       onSuggestion(data);
     } catch (e) {
       toast.error(e.message || "Try again.");

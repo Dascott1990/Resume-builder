@@ -4,6 +4,9 @@ app/api/brand.py — internal marketing tooling behind the /brand page:
 POST /api/v1/brand/suggest-post     — AI drafts one post (shape + copy),
                                        grounded in what Noqeev actually does
 POST /api/v1/brand/suggest-theme    — AI proposes this month's signature accent
+POST /api/v1/brand/suggest-captions — AI writes a caption per Tip/Quote/Stat
+                                       post, grounded in that post's own fixed
+                                       on-image text
 POST /api/v1/brand/suggest-posting-plan — AI suggests when/where/how to post a
                                        finished Tip/Quote/Stat asset — advisory
                                        text only, doesn't touch any real handle
@@ -133,6 +136,8 @@ Return this exact JSON (no other text):
   "rationale": "one sentence on why this shape/angle fits {mood} on a {day_of_week} {time_of_day}"
 }}
 
+{avoid_block}
+
 Rules:
 - Ground the content in something Noqeev ACTUALLY does, from the context above — never a made-up
   feature.
@@ -142,32 +147,35 @@ Rules:
 
 
 SUGGEST_POSTING_PLAN_SYSTEM = f"""You are Noqeev's own social media strategist, giving quick,
-concrete posting advice for a piece of content that already exists as three ready-made image
-variants of the same message — a Tip card, a Quote card, and a Stat card (same underlying
-eyebrow/headline/subtext, three different visual treatments). {PRODUCT_CONTEXT}
+concrete posting advice for three finished, independent image posts — a Tip card, a Quote card,
+and a Stat card, each with its OWN content (they are not the same message reformatted three
+times). {PRODUCT_CONTEXT}
 You always respond with ONLY valid JSON — no markdown fences, no explanation, no preamble."""
 
-SUGGEST_POSTING_PLAN_PROMPT = """The content (same message, three ready-made variants already exist):
-Eyebrow: {eyebrow}
-Headline: {headline}
-Subtext: {subtext}
+SUGGEST_POSTING_PLAN_PROMPT = """Three finished, independent posts already exist:
+
+Tip post — eyebrow: {tip_eyebrow} | headline: {tip_headline} | subtext: {tip_subtext}
+Quote post — headline: {quote_headline} | subtext: {quote_subtext}
+Stat post — eyebrow: {stat_eyebrow} | headline: {stat_headline} | subtext: {stat_subtext}
 
 Right now it's {day_of_week}, {time_of_day}, timezone {timezone}.
 
 Give a short posting plan across platforms — concrete, not generic. For each platform, say
-exactly what to post (which variant(s) — tip/quote/stat — and whether to post it as a single
-image, a multi-slide carousel, or a Story) and roughly when. It's fine to say a platform isn't a
-good fit for this asset at all (e.g. TikTok usually wants video, not a static image) — don't
-force every platform to have a real suggestion.
+exactly what to post (which post(s) by name — Tip/Quote/Stat — and whether as a single image, a
+multi-slide carousel, or a Story) and roughly when. A carousel only makes sense if grouping posts
+together actually reads coherently — don't force all three together just because three exist. It's
+fine to say a platform isn't a good fit at all for what's available (e.g. TikTok usually wants
+video, not a static image) — don't force every platform to have a real suggestion. Skip any post
+above whose fields are all "(none)" — treat it as not existing.
 
 Return this exact JSON (no other text), 2-4 entries, most useful platform first:
 {{
   "plan": [
     {{
       "platform": "e.g. Instagram, X, TikTok, LinkedIn, Instagram Story",
-      "action": "exactly what to post — which variant(s), and single image vs. carousel vs. Story",
+      "action": "exactly what to post — which post(s) by name, and single image vs. carousel vs. Story",
       "timing": "roughly when, grounded in the {day_of_week} {time_of_day} given above — empty
-                 string if this platform isn't a good fit for this asset at all"
+                 string if nothing available is a good fit for this platform"
     }}
   ]
 }}
@@ -179,17 +187,17 @@ Return ONLY the JSON object."""
 @limiter.limit("20 per hour")
 def suggest_posting_plan():
     body = request.get_json(force=True) or {}
-    eyebrow = _clean_str(body.get("eyebrow"), 200)
-    headline = _clean_str(body.get("headline"), 200)
-    subtext = _clean_str(body.get("subtext"), 400)
-    if not headline:
-        raise APIError("headline is required", 400)
+    tip, quote, stat = _read_shapes(body)
+    if not (tip["headline"] or quote["headline"] or stat["headline"]):
+        raise APIError("at least one shape's headline is required", 400)
     time_of_day = _clean_str(body.get("time_of_day"), 40) or "afternoon"
     day_of_week = _clean_str(body.get("day_of_week"), 40) or "today"
     tz_label = _clean_str(body.get("timezone"), 60) or "unspecified"
 
     prompt = SUGGEST_POSTING_PLAN_PROMPT.format(
-        eyebrow=eyebrow or "(none)", headline=headline, subtext=subtext or "(none)",
+        tip_eyebrow=tip["eyebrow"] or "(none)", tip_headline=tip["headline"] or "(none)", tip_subtext=tip["subtext"] or "(none)",
+        quote_headline=quote["headline"] or "(none)", quote_subtext=quote["subtext"] or "(none)",
+        stat_eyebrow=stat["eyebrow"] or "(none)", stat_headline=stat["headline"] or "(none)", stat_subtext=stat["subtext"] or "(none)",
         day_of_week=day_of_week, time_of_day=time_of_day, timezone=tz_label,
     )
     raw = ai_complete(system=SUGGEST_POSTING_PLAN_SYSTEM, prompt=prompt, effort="medium", max_tokens=500, groq_temperature=0.6)
@@ -223,6 +231,38 @@ def _clean_str(value, max_len):
     return str(value if value is not None else "").strip()[:max_len]
 
 
+def _read_shapes(body):
+    # Shared by suggest_captions and suggest_posting_plan — both take the
+    # SAME three-shape input now that each of Tip/Quote/Stat holds its own
+    # genuinely independent content (frontend: PostComposer.js's
+    # layersByShape), not one shared message reformatted three ways.
+    def shape(key):
+        d = body.get(key) or {}
+        return {
+            "eyebrow": _clean_str(d.get("eyebrow"), 200),
+            "headline": _clean_str(d.get("headline"), 200),
+            "subtext": _clean_str(d.get("subtext"), 400),
+        }
+    return shape("tip"), shape("quote"), shape("stat")
+
+
+def _avoid_block(body, noun="posts", limit=20):
+    # Shared by suggest_post and suggest_captions — the frontend keeps a
+    # small rolling localStorage history of recent AI output (assetKit.js's
+    # loadAiHistory/pushAiHistory) and sends it back as `avoid` on every
+    # call, so "generate again" can't just hand back the same thing:
+    # nothing server-side remembers past requests between calls, so this
+    # is the only way the model even knows what it already said.
+    avoid = body.get("avoid")
+    if not isinstance(avoid, list) or not avoid:
+        return ""
+    cleaned = [_clean_str(a, 200) for a in avoid[:limit]]
+    cleaned = [a for a in cleaned if a]
+    if not cleaned:
+        return ""
+    return f"Do NOT repeat, or closely rephrase, any of these already-used {noun}:\n" + "\n".join(f"- {a}" for a in cleaned)
+
+
 @brand_bp.route("/suggest-post", methods=["POST"])
 @limiter.limit("20 per hour")
 def suggest_post():
@@ -232,7 +272,10 @@ def suggest_post():
     day_of_week = _clean_str(body.get("day_of_week"), 40) or "today"
     tz_label = _clean_str(body.get("timezone"), 60) or "unspecified"
 
-    prompt = SUGGEST_POST_PROMPT.format(day_of_week=day_of_week, time_of_day=time_of_day, timezone=tz_label, mood=mood)
+    prompt = SUGGEST_POST_PROMPT.format(
+        day_of_week=day_of_week, time_of_day=time_of_day, timezone=tz_label, mood=mood,
+        avoid_block=_avoid_block(body, "posts"),
+    )
     raw = ai_complete(system=SUGGEST_POST_SYSTEM, prompt=prompt, effort="medium", max_tokens=500, groq_temperature=0.7)
     clean = raw.replace("```json", "").replace("```", "").strip()
 
@@ -247,6 +290,61 @@ def suggest_post():
         parsed[key] = _clean_str(parsed.get(key), 500)
 
     return jsonify({"success": True, "data": parsed}), 200
+
+
+SUGGEST_CAPTIONS_SYSTEM = f"""You are Noqeev's own social media copywriter, writing the actual
+caption text that goes UNDER a post when it's published — not the on-image text itself, which
+already exists and is fixed. {PRODUCT_CONTEXT}
+You always respond with ONLY valid JSON — no markdown fences, no explanation, no preamble."""
+
+SUGGEST_CAPTIONS_PROMPT = """Three finished image posts already exist (their on-image text is
+fixed — don't rewrite it, just write what goes in the caption box when each is published). Write
+ONE caption per post. Each caption must read as its OWN post — not three variations of one
+sentence, and never reference "the other two" or "this series".
+
+Tip post — eyebrow: {tip_eyebrow} | headline: {tip_headline} | subtext: {tip_subtext}
+Quote post — headline: {quote_headline} | subtext: {quote_subtext}
+Stat post — eyebrow: {stat_eyebrow} | headline: {stat_headline} | subtext: {stat_subtext}
+
+{avoid_block}
+
+Return this exact JSON (no other text):
+{{
+  "tip": "caption for the Tip post — 1-3 sentences, may include 1-3 relevant hashtags",
+  "quote": "caption for the Quote post",
+  "stat": "caption for the Stat post"
+}}
+
+Rules:
+- Never invent a Noqeev feature that isn't in the context above.
+- Skip a shape entirely (empty string) only if that post's own fields above are all "(none)".
+- Return ONLY the JSON object."""
+
+
+@brand_bp.route("/suggest-captions", methods=["POST"])
+@limiter.limit("20 per hour")
+def suggest_captions():
+    body = request.get_json(force=True) or {}
+    tip, quote, stat = _read_shapes(body)
+    if not (tip["headline"] or quote["headline"] or stat["headline"]):
+        raise APIError("at least one shape's headline is required", 400)
+
+    prompt = SUGGEST_CAPTIONS_PROMPT.format(
+        tip_eyebrow=tip["eyebrow"] or "(none)", tip_headline=tip["headline"] or "(none)", tip_subtext=tip["subtext"] or "(none)",
+        quote_headline=quote["headline"] or "(none)", quote_subtext=quote["subtext"] or "(none)",
+        stat_eyebrow=stat["eyebrow"] or "(none)", stat_headline=stat["headline"] or "(none)", stat_subtext=stat["subtext"] or "(none)",
+        avoid_block=_avoid_block(body, "captions"),
+    )
+    raw = ai_complete(system=SUGGEST_CAPTIONS_SYSTEM, prompt=prompt, effort="medium", max_tokens=500, groq_temperature=0.8)
+    clean = raw.replace("```json", "").replace("```", "").strip()
+
+    try:
+        parsed = json.loads(clean)
+    except json.JSONDecodeError as e:
+        raise APIError(f"AI returned invalid JSON: {e}", 502)
+
+    result = {key: _clean_str(parsed.get(key), 400) for key in ("tip", "quote", "stat")}
+    return jsonify({"success": True, "data": result}), 200
 
 
 SUGGEST_THEME_SYSTEM = f"""You are Noqeev's brand designer, choosing this month's signature accent
