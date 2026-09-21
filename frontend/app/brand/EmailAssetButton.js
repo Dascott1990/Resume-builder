@@ -20,7 +20,7 @@ import { Btn } from "@/components/premium/guest/components/primitives";
 import { apiRequest } from "@/components/premium/shared/api";
 import { blobToDataUrl } from "./assetKit";
 
-const LAST_EMAIL_KEY = "noqeev_brand_last_email";
+export const LAST_EMAIL_KEY = "noqeev_brand_last_email";
 
 export function EmailAssetButton({ getBlob, filename, label }) {
   const [open, setOpen] = useState(false);

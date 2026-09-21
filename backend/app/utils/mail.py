@@ -38,13 +38,15 @@ def mail_configured():
 
 
 def send_email(to, subject, html_body, attachment=None):
-    """attachment, if given, is (filename, bytes, mime_subtype) e.g.
-    ("post.png", b"...", "png") — kept optional and additive: every
-    existing call site (auth verification/reset, job-request/message
-    notifications) passes nothing here. Only when an attachment IS given
-    does the request body include it — Resend accepts attachment content
-    as plain base64, no MIME subtype distinction needed the way the old
-    smtplib version required (MIMEImage vs MIMEBase)."""
+    """attachment, if given, is either ONE (filename, bytes, mime_subtype)
+    tuple e.g. ("post.png", b"...", "png") — every existing call site
+    (auth verification/reset, job-request/message notifications, single-
+    image "email this post") passes it this way — or a LIST of such
+    tuples, for sending several attachments in one email (multi-select
+    "email these posts"). Kept optional and additive: nothing existing
+    changes shape. Resend accepts attachment content as plain base64, no
+    MIME subtype distinction needed the way the old smtplib version
+    required (MIMEImage vs MIMEBase)."""
     if not RESEND_API_KEY:
         raise RuntimeError("RESEND_API_KEY is not configured")
 
@@ -55,11 +57,11 @@ def send_email(to, subject, html_body, attachment=None):
         "html": html_body,
     }
     if attachment:
-        filename, file_bytes, _mime_subtype = attachment
-        payload["attachments"] = [{
-            "filename": filename,
-            "content": base64.b64encode(file_bytes).decode("ascii"),
-        }]
+        attachments = attachment if isinstance(attachment, list) else [attachment]
+        payload["attachments"] = [
+            {"filename": filename, "content": base64.b64encode(file_bytes).decode("ascii")}
+            for filename, file_bytes, _mime_subtype in attachments
+        ]
 
     res = requests.post(
         RESEND_API_URL,

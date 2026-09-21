@@ -398,44 +398,72 @@ _DATA_URL_RE = re.compile(r"^data:image/(png|jpeg|jpg);base64,")
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
 
-@brand_bp.route("/email-asset", methods=["POST"])
-@limiter.limit("15 per hour")
-def email_asset():
-    """The image never touches the database — it's decoded straight from
-    the request and handed to send_email as an attachment, same
-    "ephemeral unless explicitly saved" default the rest of this app uses
-    for anything that isn't a resume/listing/job record."""
-    body = request.get_json(force=True) or {}
-    to_email = (body.get("to_email") or "").strip()
-    filename = _clean_str(body.get("filename"), 120) or "noqeev-post.png"
-    note = _clean_str(body.get("note"), 500)
-    data_url = body.get("image_data_url") or ""
-
-    if not _EMAIL_RE.match(to_email):
-        raise APIError("Enter a valid email address", 400)
-    match = _DATA_URL_RE.match(data_url)
+def _decode_image_data_url(data_url, index=None):
+    label = f"images[{index}]" if index is not None else "image_data_url"
+    match = _DATA_URL_RE.match(data_url or "")
     if not match:
-        raise APIError("image_data_url must be a base64 PNG/JPEG data URL", 400)
+        raise APIError(f"{label} must be a base64 PNG/JPEG data URL", 400)
     try:
         image_bytes = base64.b64decode(data_url[match.end():])
     except Exception:
-        raise APIError("Could not decode the image data", 400)
+        raise APIError(f"Could not decode {label}", 400)
     if not image_bytes:
-        raise APIError("The image data was empty", 400)
+        raise APIError(f"{label} was empty", 400)
     if len(image_bytes) > MAX_IMAGE_BYTES:
-        raise APIError("Image is too large to email (8MB max)", 400)
-
+        raise APIError(f"{label} is too large to email (8MB max per image)", 400)
     mime_subtype = "jpeg" if match.group(1) in ("jpeg", "jpg") else "png"
+    return image_bytes, mime_subtype
+
+
+@brand_bp.route("/email-asset", methods=["POST"])
+@limiter.limit("15 per hour")
+def email_asset():
+    """The image(s) never touch the database — decoded straight from the
+    request and handed to send_email as attachment(s), same "ephemeral
+    unless explicitly saved" default the rest of this app uses for
+    anything that isn't a resume/listing/job record.
+
+    Two shapes accepted: the original single-image one (filename +
+    image_data_url — still what EmailAssetButton.js sends, used by both
+    PostComposer.js's single-shape Email button and ScreenshotStudio.js),
+    and a newer `images: [{filename, image_data_url}, ...]` list for
+    "email these" on multiple selected posts at once — one email, several
+    attachments, not one email per image."""
+    body = request.get_json(force=True) or {}
+    to_email = (body.get("to_email") or "").strip()
+    note = _clean_str(body.get("note"), 500)
+
+    if not _EMAIL_RE.match(to_email):
+        raise APIError("Enter a valid email address", 400)
+
+    images = body.get("images")
+    if isinstance(images, list) and images:
+        if len(images) > 6:
+            raise APIError("Attach at most 6 images to one email", 400)
+        attachments = []
+        for i, item in enumerate(images):
+            if not isinstance(item, dict):
+                raise APIError(f"images[{i}] must be an object", 400)
+            filename = _clean_str(item.get("filename"), 120) or f"noqeev-post-{i + 1}.png"
+            image_bytes, mime_subtype = _decode_image_data_url(item.get("image_data_url"), i)
+            attachments.append((filename, image_bytes, mime_subtype))
+        attach_count_note = f"{len(attachments)} posts attached and ready to ship." if len(attachments) > 1 else "A post's attached and ready to ship."
+    else:
+        filename = _clean_str(body.get("filename"), 120) or "noqeev-post.png"
+        image_bytes, mime_subtype = _decode_image_data_url(body.get("image_data_url") or "")
+        attachments = (filename, image_bytes, mime_subtype)
+        attach_count_note = "A post's attached and ready to ship."
+
     body_html = f"""
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
       <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
       <h2 style="color:#111;margin:0 0 12px;">Ready to post</h2>
-      <p style="color:#444;line-height:1.6;margin:0 0 4px;">{note or "A post's attached and ready to ship."}</p>
+      <p style="color:#444;line-height:1.6;margin:0 0 4px;">{note or attach_count_note}</p>
       <p style="color:#888;font-size:12.5px;line-height:1.5;">Generated from /brand.</p>
     </div>
     """
     try:
-        send_email(to_email, "Noqeev — ready to post", body_html, attachment=(filename, image_bytes, mime_subtype))
+        send_email(to_email, "Noqeev — ready to post", body_html, attachment=attachments)
     except Exception as exc:
         print(f"❌ Failed to email brand asset to {to_email}: {exc}")
         raise APIError("Could not send this email — check the mail server configuration", 502)

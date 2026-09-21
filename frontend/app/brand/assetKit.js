@@ -166,6 +166,25 @@ export async function shareOrDownloadBlob(blob, filename, shareText) {
   return "downloaded";
 }
 
+// Plural version — one share-sheet invocation for several files at once
+// (e.g. "share the posts I selected"), same fallback shape: any file
+// canShare rejects, or a platform that doesn't support multi-file share
+// at all, falls back to downloading each one individually rather than
+// silently dropping the rest.
+export async function shareOrDownloadBlobs(items, shareText) {
+  const files = items.map(({ blob, filename }) => new File([blob], filename, { type: blob.type }));
+  if (navigator.canShare?.({ files })) {
+    try {
+      await navigator.share({ files, text: shareText, title: "Noqeev" });
+      return "shared";
+    } catch (e) {
+      if (e?.name === "AbortError") return "cancelled";
+    }
+  }
+  items.forEach(({ blob, filename }) => downloadBlob(blob, filename));
+  return "downloaded";
+}
+
 // ── Small persisted bits — same plain try/catch localStorage pattern as
 // lib/guestId.js and friends elsewhere in this app, just scoped to this
 // page. Neither is account data; both are purely "remember what I set

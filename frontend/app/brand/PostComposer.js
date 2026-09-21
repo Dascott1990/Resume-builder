@@ -25,7 +25,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Download, Loader2, Type, Smile, ImagePlus, Undo2, Redo2, Pencil,
-  FilePlus2, Images, FileImage, Trash2, Upload, Share2, Check, Sparkles, Copy,
+  FilePlus2, Images, FileImage, Trash2, Upload, Share2, Check, Sparkles, Copy, Mail,
 } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
@@ -34,7 +34,7 @@ import { BottomSheet } from "@/components/premium/shared/BottomSheet";
 import { useViewport } from "@/lib/useViewport";
 import { apiRequest } from "@/components/premium/shared/api";
 import {
-  loadMarkImage, ensureFontsReady, canvasToPngBlob, downloadBlob, shareOrDownloadBlob, resizeImageToDataUrl,
+  loadMarkImage, ensureFontsReady, downloadBlob, shareOrDownloadBlobs, resizeImageToDataUrl,
   loadHandle, saveHandle, loadAiHistory, pushAiHistory,
   savePostDraft, loadPostDraft, deletePostDraft, listPostDrafts,
   getActivePostId, setActivePostId, newPostId, migrateLegacyPostDraft,
@@ -43,7 +43,7 @@ import {
   renderPost, PLATFORMS, DEFAULT_ACCENT, SHAPES, INITIAL_LAYOUTS,
   makeTextLayer, makeStickerLayer,
 } from "./postTemplates";
-import { EmailAssetButton } from "./EmailAssetButton";
+import { LAST_EMAIL_KEY } from "./EmailAssetButton";
 import { LayerPanel } from "./LayerPanel";
 import { AiSuggestPanel, timeOfDay } from "./AiSuggestPanel";
 
@@ -113,7 +113,6 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const [selectedId, setSelectedId] = useState(null);
   const [handle, setHandle] = useState("");
   const [ready, setReady] = useState(false);
-  const [sharing, setSharing] = useState(false);
   // Download preview: clicking Download shows all 3 shapes (Tip/Quote/
   // Stat) side by side, each with its OWN real content (layersByShape),
   // so "download" means "download whichever of these actual posts you
@@ -125,6 +124,16 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const [shapePreviews, setShapePreviews] = useState(null);
   const [selectedShapeIds, setSelectedShapeIds] = useState(() => new Set());
   const [downloadingSelected, setDownloadingSelected] = useState(false);
+  // Share and Email act on the SAME selection as Download — one modal,
+  // one selection, three destinations, instead of Share/Email only ever
+  // working on whatever single shape happened to be open (the asymmetry
+  // this was built to fix).
+  const [sharingSelected, setSharingSelected] = useState(false);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailAddress, setEmailAddress] = useState(() => {
+    try { return localStorage.getItem(LAST_EMAIL_KEY) || ""; } catch { return ""; }
+  });
+  const [sendingEmail, setSendingEmail] = useState(false);
   // AI posting plan — advisory only (see suggest_posting_plan, api/brand.py):
   // when/where/how to post each of the 3 posts. Fetched alongside the
   // preview, not blocking it — the previews render immediately, the plan
@@ -515,18 +524,6 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     dragRef.current = null;
   };
 
-  const exportBlob = () => canvasToPngBlob(canvasRef.current);
-  const exportFilename = () => `noqeev-${shapeId}-${platformId}.png`;
-  const handleShare = async () => {
-    setSharing(true);
-    try {
-      const result = await shareOrDownloadBlob(await exportBlob(), exportFilename(), `My ${shapeId} post, made with Noqeev`);
-      if (result === "downloaded") toast.success("Sharing wasn't available here — downloaded instead.");
-      else if (result === "shared") toast.success("Shared.");
-    } catch { toast.error("Try again."); }
-    finally { setSharing(false); }
-  };
-
   // Pull a shape's actual content back out of ITS OWN layersByShape entry
   // by role (see INITIAL_LAYOUTS, postTemplates.js — every text layer it
   // seeds carries a role: "eyebrow"/"headline"/"subtext"), falling back
@@ -660,6 +657,48 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
       toast.error("Try again.");
     } finally {
       setDownloadingSelected(false);
+    }
+  };
+
+  const handleShareSelected = async () => {
+    if (!selectedShapeIds.size) return;
+    setSharingSelected(true);
+    try {
+      const items = [];
+      for (const id of selectedShapeIds) {
+        const blob = await (await fetch(shapePreviews[id])).blob();
+        items.push({ blob, filename: shapeFilename(id) });
+      }
+      const shareText = selectedShapeIds.size > 1 ? "My posts, made with Noqeev" : "My post, made with Noqeev";
+      const result = await shareOrDownloadBlobs(items, shareText);
+      if (result === "downloaded") toast.success("Sharing wasn't available here — downloaded instead.");
+      else if (result === "shared") { toast.success("Shared."); setDownloadPreviewOpen(false); }
+    } catch {
+      toast.error("Try again.");
+    } finally {
+      setSharingSelected(false);
+    }
+  };
+
+  const sendSelectedEmail = async () => {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailAddress.trim())) { toast.error("Invalid email."); return; }
+    if (!selectedShapeIds.size) return;
+    setSendingEmail(true);
+    try {
+      const images = [...selectedShapeIds].map((id) => ({ filename: shapeFilename(id), image_data_url: shapePreviews[id] }));
+      await apiRequest("/api/v1/brand/email-asset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to_email: emailAddress.trim(), images }),
+      });
+      try { localStorage.setItem(LAST_EMAIL_KEY, emailAddress.trim()); } catch { /* best-effort */ }
+      toast.success(`Sent to ${emailAddress.trim()}`);
+      setEmailDialogOpen(false);
+      setDownloadPreviewOpen(false);
+    } catch (e) {
+      toast.error(e.message || "Send failed.");
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -803,22 +842,20 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
 
   const downloadRow = (
     <div className="flex gap-2">
-      <Btn variant="gold" onClick={openDownloadPreview} disabled={!ready || sharing} className="flex-1">
-        <Download className="size-4" /> Download
+      {/* Download, Share, and Email all open the SAME preview — one
+          selection, three destinations — instead of Share/Email only
+          ever acting on whichever single shape happened to be open
+          while Download got the full pick-and-choose treatment. */}
+      <Btn variant="gold" onClick={openDownloadPreview} disabled={!ready} className="flex-1">
+        <Download className="size-4" /> Export
       </Btn>
-      {CAN_SHARE_FILES && (
-        <Btn small variant="ghost" onClick={handleShare} disabled={!ready || sharing} loading={sharing} aria-label="Share to another device">
-          <Share2 className="size-4" />
-        </Btn>
-      )}
-      <EmailAssetButton getBlob={exportBlob} filename={exportFilename()} label={shapeId} />
 
       <Dialog open={downloadPreviewOpen} onOpenChange={setDownloadPreviewOpen}>
         <DialogContent showCloseButton className="w-full max-w-[440px] gap-0 p-0">
           <div className="max-h-[85vh] overflow-y-auto p-5">
-            <p className="m-0 mb-1 text-[14px] font-bold text-foreground">Choose what to download</p>
+            <p className="m-0 mb-1 text-[14px] font-bold text-foreground">Choose which posts</p>
             <p className="m-0 mb-4 text-[12.5px] text-muted-foreground">
-              Same content, three ready-made variants — pick any or all.
+              Three independent posts — pick any or all, then download, share, or email them.
             </p>
 
             <div className="grid grid-cols-3 gap-2.5">
@@ -842,13 +879,41 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
               })}
             </div>
 
-            <Btn
-              variant="gold" className="mt-4 w-full" onClick={handleDownloadSelected}
-              disabled={!selectedShapeIds.size || downloadingSelected} loading={downloadingSelected}
-            >
-              <Download className="size-4" />
-              {downloadingSelected ? "Downloading…" : selectedShapeIds.size ? `Download (${selectedShapeIds.size})` : "Select at least one"}
-            </Btn>
+            <div className="mt-4 flex gap-2">
+              <Btn
+                variant="gold" className="flex-1" onClick={handleDownloadSelected}
+                disabled={!selectedShapeIds.size || downloadingSelected || sharingSelected} loading={downloadingSelected}
+              >
+                <Download className="size-4" />
+                {downloadingSelected ? "…" : selectedShapeIds.size ? `Download (${selectedShapeIds.size})` : "Select at least one"}
+              </Btn>
+              {CAN_SHARE_FILES && (
+                <Btn small variant="ghost" onClick={handleShareSelected} disabled={!selectedShapeIds.size || downloadingSelected || sharingSelected} loading={sharingSelected} aria-label="Share selected posts">
+                  <Share2 className="size-4" />
+                </Btn>
+              )}
+              <Btn small variant="ghost" onClick={() => setEmailDialogOpen(true)} disabled={!selectedShapeIds.size || downloadingSelected || sharingSelected} aria-label="Email selected posts">
+                <Mail className="size-4" />
+              </Btn>
+            </div>
+
+            <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+              <DialogContent showCloseButton className="w-full max-w-[380px] gap-0 p-0 sm:max-w-[380px]">
+                <div className="p-5">
+                  <p className="m-0 mb-3 flex items-center gap-2 text-[14px] font-bold text-foreground">
+                    <Mail className="size-4 text-primary" /> Email {selectedShapeIds.size > 1 ? `${selectedShapeIds.size} posts` : "this post"}
+                  </p>
+                  <Input
+                    type="email" value={emailAddress} onChange={(e) => setEmailAddress(e.target.value)}
+                    placeholder="you@example.com" className="h-11 rounded-[10px]" autoFocus
+                    onKeyDown={(e) => { if (e.key === "Enter") sendSelectedEmail(); }}
+                  />
+                  <Btn variant="gold" className="mt-3 w-full" onClick={sendSelectedEmail} disabled={sendingEmail} loading={sendingEmail}>
+                    {sendingEmail ? <Loader2 className="size-4 animate-spin" /> : "Send"}
+                  </Btn>
+                </div>
+              </DialogContent>
+            </Dialog>
 
             {/* Captions — the text that goes IN the caption box when
                 actually publishing, distinct from each post's fixed
