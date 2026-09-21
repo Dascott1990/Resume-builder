@@ -33,10 +33,21 @@ def fetch_and_store_snapshot(app):
             # today itself would just come back empty.
             yesterday = (today - timedelta(days=1)).isoformat()
             analytics = seo_client.fetch_search_analytics(access_token, yesterday, yesterday)
-            cwv = seo_client.fetch_crux_history() if seo_client.crux_configured() else {}
         except Exception as exc:
-            print(f"❌ SEO snapshot fetch failed: {exc}")
+            print(f"❌ SEO snapshot fetch failed (Search Console): {exc}")
             return None
+
+        # A separate try/except on purpose: CrUX 404s below its own
+        # real-user-traffic threshold (common for a newer/smaller site —
+        # see SeoSnapshot's own docstring in models.py), and that
+        # shouldn't throw away Search Console numbers that DID come back
+        # fine. Missing CWV just means those three fields stay None.
+        cwv = {}
+        if seo_client.crux_configured():
+            try:
+                cwv = seo_client.fetch_crux_history()
+            except Exception as exc:
+                print(f"⚠️ CrUX fetch failed, storing snapshot without CWV: {exc}")
 
         snapshot = SeoSnapshot.query.filter_by(snapshot_date=today).first()
         if not snapshot:
