@@ -801,14 +801,16 @@ class BrandAsset(db.Model):
     """
     A stored media file's KEY/URL only — the actual bytes live in
     whatever utils/storage.py's active backend is (local disk in dev,
-    Cloudflare R2 in prod), never in this database. Covers everything
-    the branding workspace produces or works from: the brand mark/logo
-    source image, an exported post PNG, a rendered story video/GIF.
+    Cloudflare R2 in prod), never in this database. Covers what the
+    branding workspace produces: an exported post PNG, a rendered story
+    video/GIF. The brand mark/logo itself is never stored here — it's
+    rendered client-side on demand (see app/brand/LogoDownloads.js),
+    identical for every workspace, so there's nothing to persist.
     """
     __tablename__ = "brand_assets"
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
     workspace_id = db.Column(db.String(32), db.ForeignKey("brand_workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
-    kind = db.Column(db.String(30), nullable=False)  # "logo_source" | "post_export" | "story_export"
+    kind = db.Column(db.String(30), nullable=False)  # "post_export" | "story_export"
     storage_key = db.Column(db.String(500), nullable=False)
     content_type = db.Column(db.String(80), nullable=True)
     filename = db.Column(db.String(255), nullable=True)

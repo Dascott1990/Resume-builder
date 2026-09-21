@@ -20,7 +20,7 @@ import { Section } from "@/app/brand/BrandSection";
 import { apiRequest } from "@/components/premium/shared/api";
 import { WORKSPACE_TOKEN_HEADER, workspaceFetch } from "./workspaceApi";
 import { ComposerTool } from "./ComposerTool";
-import { DownloadsTool } from "./DownloadsTool";
+import { LogoDownloads } from "@/app/brand/LogoDownloads";
 import { StoryTool } from "./StoryTool";
 import { SchedulerTool } from "./SchedulerTool";
 
@@ -122,7 +122,7 @@ function ToolsZone({ token, workspace }) {
         <StoryTool token={token} />
       </Section>
       <Section icon={Sparkles} eyebrow="Assets" title="Download & share" open={open.downloads} onOpenChange={() => toggle("downloads")}>
-        <DownloadsTool token={token} />
+        <LogoDownloads />
       </Section>
       <Section icon={Wrench} eyebrow="Plan" title="Scheduler" open={open.scheduler} onOpenChange={() => toggle("scheduler")}>
         <SchedulerTool token={token} workspace={workspace} />
