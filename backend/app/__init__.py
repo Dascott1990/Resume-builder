@@ -210,10 +210,12 @@ def create_app():
         from app.utils.task_reminders import start_scheduler
         from app.utils.world_feed import start_world_feed_scheduler
         from app.utils.vendors import start_vendor_news_scheduler
+        from app.utils.seo_scheduler import start_seo_scheduler
         scheduler = start_scheduler(app)
         if scheduler:
             start_world_feed_scheduler(scheduler, app)
             start_vendor_news_scheduler(scheduler, app)
+            start_seo_scheduler(scheduler, app)
         # Scheduled-post reminders are deliberately NOT wired into this
         # in-process scheduler — driven by an external ping instead
         # (api/cron.py's /api/v1/cron/due-reminders, called by a scheduled

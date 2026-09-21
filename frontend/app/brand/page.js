@@ -26,7 +26,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Logo, { LogoMark, MARK_PATH, MARK_STROKE } from "@/components/premium/Logo";
 import { BottomNav } from "@/components/premium/shared/BottomNav";
-import { Sparkles, Type, Clapperboard, Camera, Archive, ArrowLeft } from "lucide-react";
+import { Sparkles, Type, Clapperboard, Camera, Archive, ArrowLeft, TrendingUp } from "lucide-react";
 import { Section } from "./BrandSection";
 import { LogoDownloads } from "./LogoDownloads";
 import { PostComposer } from "./PostComposer";
@@ -34,6 +34,7 @@ import { StoryComposer } from "./story/StoryComposer";
 import { SignatureTheme } from "./SignatureTheme";
 import { ScreenshotStudio } from "./ScreenshotStudio";
 import { NotificationBell } from "./NotificationBell";
+import { SeoStatus } from "@/components/premium/brand/SeoStatus";
 import { DEFAULT_ACCENT } from "./postTemplates";
 import { loadBrandUiState, saveBrandUiState } from "./assetKit";
 
@@ -124,6 +125,7 @@ const ZONES = [
   { id: "create", Icon: Type, label: "Create" },
   { id: "story", Icon: Clapperboard, label: "Story" },
   { id: "capture", Icon: Camera, label: "Capture" },
+  { id: "seo", Icon: TrendingUp, label: "SEO" },
   { id: "reference", Icon: Archive, label: "Reference" },
 ];
 
@@ -211,6 +213,12 @@ export default function BrandPage() {
         {zone === "capture" && (
           <div className="mt-4">
             <ScreenshotStudio />
+          </div>
+        )}
+
+        {zone === "seo" && (
+          <div className="mt-4">
+            <SeoStatus />
           </div>
         )}
 

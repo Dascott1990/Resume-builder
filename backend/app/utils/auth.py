@@ -214,17 +214,24 @@ def get_admin_user(request):
     branch never reaches the database — the one auth path built specifically
     to survive Postgres being unreachable. A normal user token still goes
     through the User row lookup below, deliberately — that's what lets
-    revoking someone's is_admin flag actually take effect immediately."""
+    revoking someone's is_admin flag actually take effect immediately.
+
+    Also accepts the token via ?token= query string, not just the
+    Authorization header — same "fetch header OR query string" shape
+    get_workspace already uses. Needed for routes an admin reaches via a
+    real browser navigation rather than a fetch() call (the Search
+    Console OAuth start redirect, api/admin.py's /seo/oauth/start —
+    a top-level navigation can't attach a custom header the way a
+    fetch() request can)."""
     auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        token = auth_header[len("Bearer "):].strip()
-        if _decode_break_glass_token(token):
-            return BreakGlassAdmin()
+    token = auth_header[len("Bearer "):].strip() if auth_header.startswith("Bearer ") else request.args.get("token")
+    if token and _decode_break_glass_token(token):
+        return BreakGlassAdmin()
 
     from app import db
     from app.models import User
 
-    user_id, _ = get_scope(request)
+    user_id = verify_token(token, expected_role="user") if token else None
     if not user_id:
         return None
     user = db.session.get(User, user_id)

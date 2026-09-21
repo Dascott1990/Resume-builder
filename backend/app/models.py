@@ -916,3 +916,68 @@ class ScheduledPostHandle(db.Model):
             "label": self.handle.label if self.handle else None,
             "posted": bool(self.posted), "posted_at": _iso_utc(self.posted_at),
         }
+
+
+class GoogleSearchConsoleCredential(db.Model):
+    """The app's own noqeev.com Search Console OAuth connection — not
+    per-user, per-workspace, or per-anything-else, since there's exactly
+    one site this tracks. One row in practice; a reconnect upserts the
+    existing row rather than creating a second one (see
+    utils/seo_client.py's exchange_code_for_tokens caller in api/admin.py).
+
+    refresh_token is what actually matters here — Search Console's API
+    needs a fresh access token per call, and the refresh token is the
+    only thing Google gives out once that can mint new ones indefinitely
+    without the admin re-approving the OAuth consent screen every time.
+    """
+    __tablename__ = "google_search_console_credentials"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    refresh_token = db.Column(db.String(512), nullable=False)
+    connected_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    connected_by = db.Column(db.String(120), nullable=True)  # admin identifier, display-only
+
+    def to_dict(self):
+        return {
+            "id": self.id, "connected_at": _iso_utc(self.connected_at),
+            "connected_by": self.connected_by,
+        }
+
+
+class SeoSnapshot(db.Model):
+    """One row per day: noqeev.com's real Search Console + Core Web
+    Vitals numbers, so the SEO dashboard (/brand's SEO zone) can chart a
+    trend instead of only ever showing "right now." snapshot_date is a
+    plain date (not datetime) since these are daily buckets, not
+    point-in-time events like everything else in this file — a unique
+    constraint on it means a re-run of the same day's fetch overwrites
+    that day's row instead of duplicating it.
+
+    cwv_* fields are CrUX's own p75 (75th percentile) field-data values,
+    the same statistic Google's own ranking systems and Search Console's
+    UI use — not an average, and not a single Lighthouse lab run (this
+    app's own Lighthouse numbers bounced 51-82 run to run on identical
+    code during the SEO pass that preceded this dashboard, which is
+    exactly why CrUX's stable field data was chosen over re-running PSI
+    on a schedule — see the plan's design-decisions section).
+    """
+    __tablename__ = "seo_snapshots"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    snapshot_date = db.Column(db.Date, nullable=False, unique=True, index=True)
+    clicks = db.Column(db.Integer, nullable=True)
+    impressions = db.Column(db.Integer, nullable=True)
+    avg_position = db.Column(db.Float, nullable=True)
+    cwv_lcp_p75 = db.Column(db.Float, nullable=True)  # milliseconds
+    cwv_cls_p75 = db.Column(db.Float, nullable=True)  # unitless
+    cwv_inp_p75 = db.Column(db.Float, nullable=True)  # milliseconds
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "snapshot_date": self.snapshot_date.isoformat() if self.snapshot_date else None,
+            "clicks": self.clicks, "impressions": self.impressions,
+            "avg_position": self.avg_position,
+            "cwv_lcp_p75": self.cwv_lcp_p75, "cwv_cls_p75": self.cwv_cls_p75,
+            "cwv_inp_p75": self.cwv_inp_p75,
+            "created_at": _iso_utc(self.created_at),
+        }

@@ -63,19 +63,23 @@ listing regardless of who created it or whether its token was ever kept.
 """
 import json
 import re
-from datetime import datetime, timezone
+import jwt
+from datetime import date, datetime, timedelta, timezone
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, redirect
 
 from app import db
 from app.models import (
     User, Media, Artisan, Review, JobApplication, JdCapture, CareerProfile,
-    ApplicationRun, Vendor, VendorNewsItem,
+    ApplicationRun, Vendor, VendorNewsItem, GoogleSearchConsoleCredential, SeoSnapshot,
 )
 from app.middleware.error_handlers import APIError
-from app.utils.auth import require_admin
+from app.utils.auth import require_admin, JWT_SECRET, JWT_ALGORITHM
 from app.utils.ratings import recompute_rating
 from app.utils.vendors import sync_vendor_catalog
+from app.utils import seo_client
+from app.utils.seo_scheduler import fetch_and_store_snapshot
+from app.utils.stripe_client import FRONTEND_URL
 from app.api.resume import _ai_complete
 
 admin_bp = Blueprint("admin", __name__)
@@ -494,4 +498,121 @@ def vendor_news(vendor_id):
         .all()
     )
     return jsonify({"success": True, "data": [i.to_dict() for i in items]}), 200
+
+
+# --- SEO dashboard (noqeev.com's own Search Console + Core Web Vitals) ---
+# oauth/start and oauth/callback are real browser navigations (Google's
+# consent screen has to redirect the top-level page, not a fetch()), so
+# require_admin's ?token= query-string fallback (see utils/auth.py) is what
+# gates /start. /callback itself can't carry that same token — Google's
+# redirect only appends `code` and `state` — so its authorization comes from
+# the signed `state` value /start minted, verified below instead.
+
+def _issue_seo_oauth_state(admin_id):
+    payload = {
+        "purpose": "seo_oauth_state", "sub": admin_id,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=10),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def _verify_seo_oauth_state(state):
+    try:
+        payload = jwt.decode(state, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.PyJWTError:
+        return None
+    if payload.get("purpose") != "seo_oauth_state":
+        return None
+    return payload.get("sub")
+
+
+@admin_bp.route("/seo/oauth/start", methods=["GET"])
+def seo_oauth_start():
+    if not seo_client.google_oauth_configured():
+        raise APIError("GOOGLE_OAUTH_CLIENT_ID/SECRET are not configured", 503)
+    admin = require_admin(request)
+    state = _issue_seo_oauth_state(admin.id)
+    return redirect(seo_client.build_oauth_url(state))
+
+
+@admin_bp.route("/seo/oauth/callback", methods=["GET"])
+def seo_oauth_callback():
+    error = request.args.get("error")
+    if error:
+        return redirect(f"{FRONTEND_URL}/brand?seo=error&reason={error}")
+
+    state = request.args.get("state") or ""
+    admin_id = _verify_seo_oauth_state(state)
+    if not admin_id:
+        return redirect(f"{FRONTEND_URL}/brand?seo=error&reason=invalid_state")
+
+    code = request.args.get("code")
+    if not code:
+        return redirect(f"{FRONTEND_URL}/brand?seo=error&reason=missing_code")
+
+    try:
+        tokens = seo_client.exchange_code_for_tokens(code)
+        refresh_token = tokens.get("refresh_token")
+    except Exception:
+        return redirect(f"{FRONTEND_URL}/brand?seo=error&reason=token_exchange_failed")
+
+    if not refresh_token:
+        # Happens if this admin already connected once before and Google
+        # didn't consider it a fresh consent — access_type=offline plus
+        # prompt=consent in build_oauth_url() is specifically there to
+        # avoid this, but a stale row is still better kept than dropped.
+        return redirect(f"{FRONTEND_URL}/brand?seo=error&reason=no_refresh_token")
+
+    admin = db.session.get(User, admin_id)
+    credential = GoogleSearchConsoleCredential.query.first()
+    if not credential:
+        credential = GoogleSearchConsoleCredential()
+        db.session.add(credential)
+    credential.refresh_token = refresh_token
+    credential.connected_at = datetime.now(timezone.utc)
+    credential.connected_by = admin.email if admin else admin_id
+    db.session.commit()
+
+    return redirect(f"{FRONTEND_URL}/brand?seo=connected")
+
+
+@admin_bp.route("/seo/status", methods=["GET"])
+def seo_status():
+    require_admin(request)
+    credential = GoogleSearchConsoleCredential.query.first()
+    return jsonify({"success": True, "data": {
+        "connected": bool(credential),
+        "credential": credential.to_dict() if credential else None,
+        "crux_configured": seo_client.crux_configured(),
+    }}), 200
+
+
+@admin_bp.route("/seo/snapshots", methods=["GET"])
+def seo_snapshots():
+    require_admin(request)
+    try:
+        days = int(request.args.get("days", 90))
+    except (TypeError, ValueError):
+        raise APIError("days must be a whole number", 400)
+    days = max(1, min(days, 365))
+    since = date.today() - timedelta(days=days)
+    items = (
+        SeoSnapshot.query.filter(SeoSnapshot.snapshot_date >= since)
+        .order_by(SeoSnapshot.snapshot_date.asc())
+        .all()
+    )
+    return jsonify({"success": True, "data": [s.to_dict() for s in items]}), 200
+
+
+@admin_bp.route("/seo/refresh-now", methods=["POST"])
+def seo_refresh_now():
+    from flask import current_app
+
+    require_admin(request)
+    if not GoogleSearchConsoleCredential.query.first():
+        raise APIError("Search Console is not connected yet", 400)
+    snapshot = fetch_and_store_snapshot(current_app._get_current_object())
+    if not snapshot:
+        raise APIError("Snapshot fetch failed — check server logs", 502)
+    return jsonify({"success": True, "data": snapshot.to_dict()}), 200
 
