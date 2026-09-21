@@ -37,6 +37,12 @@ const BANNER_FORMATS = [
 export function DownloadsTool({ token }) {
   const [busy, setBusy] = useState(null); // format id currently downloading/sharing, or null
   const [error, setError] = useState("");
+  // Which platform's banner is currently previewed/actioned below the
+  // picker row — picking one auto-downloads it immediately (see
+  // handleSelectPlatform), so someone posting doesn't have to hunt
+  // through a grid of four lookalike cards for the right size.
+  const [selectedPlatform, setSelectedPlatform] = useState(BANNER_FORMATS[0].id);
+  const selectedFormat = BANNER_FORMATS.find((f) => f.id === selectedPlatform);
 
   async function getBlob(fmt) {
     const res = await workspaceFetch(token, `/api/v1/workspace/downloads/${fmt}`);
@@ -67,6 +73,11 @@ export function DownloadsTool({ token }) {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function handleSelectPlatform(format) {
+    setSelectedPlatform(format.id);
+    await handleDownload(format);
   }
 
   function renderCard(format) {
@@ -116,8 +127,66 @@ export function DownloadsTool({ token }) {
         <div className="grid grid-cols-2 gap-3">{MARK_FORMATS.map(renderCard)}</div>
       </div>
       <div className="flex flex-col gap-3">
-        <p className="m-0 text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase">Platform banners</p>
-        <div className="grid grid-cols-2 gap-3">{BANNER_FORMATS.map(renderCard)}</div>
+        <div>
+          <p className="m-0 text-[13px] font-medium text-foreground">Which platform are you posting to?</p>
+          <p className="m-0 text-[11.5px] text-muted-foreground">Pick one — the right size downloads instantly.</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {BANNER_FORMATS.map((format) => (
+            <button
+              key={format.id}
+              type="button"
+              onClick={() => handleSelectPlatform(format)}
+              disabled={busy === format.id}
+              className={`rounded-full border px-3.5 py-1.5 text-[12.5px] font-semibold transition disabled:opacity-60 ${
+                selectedPlatform === format.id
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-foreground hover:bg-accent"
+              }`}
+            >
+              {busy === format.id ? <Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> : null}
+              {format.label.replace(" banner", "").replace(" header", "").replace(" cover", "")}
+            </button>
+          ))}
+        </div>
+
+        {selectedFormat && (
+          <div className="flex flex-col gap-2 rounded-xl border border-border bg-card/40 p-3">
+            <div className="flex h-28 items-center justify-center rounded-lg bg-[#17181c]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                key={selectedFormat.id}
+                src={`${BASE}/api/v1/workspace/downloads/${selectedFormat.id}?token=${encodeURIComponent(token)}`}
+                alt={selectedFormat.label}
+                className="max-h-24 max-w-[92%] object-contain"
+              />
+            </div>
+            <div>
+              <p className="m-0 text-[13px] font-medium text-foreground">{selectedFormat.label}</p>
+              <p className="m-0 text-[11.5px] text-muted-foreground">{selectedFormat.detail}</p>
+            </div>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleDownload(selectedFormat)}
+                disabled={busy === selectedFormat.id}
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 text-[12px] font-medium text-foreground transition hover:bg-accent disabled:opacity-60"
+              >
+                {busy === selectedFormat.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                Download again
+              </button>
+              <button
+                type="button"
+                onClick={() => handleShare(selectedFormat)}
+                disabled={busy === `${selectedFormat.id}-share`}
+                aria-label={`Share ${selectedFormat.label}`}
+                className="flex items-center justify-center rounded-lg border border-border bg-background px-2 py-1.5 text-foreground transition hover:bg-accent disabled:opacity-60"
+              >
+                {busy === `${selectedFormat.id}-share` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
