@@ -7,9 +7,37 @@ import { BRIGHTNESS_INIT_SCRIPT } from "@/lib/brightness";
 import { ServiceWorkerRegister } from "./ServiceWorkerRegister";
 import { KeepAlive } from "./KeepAlive";
 
+const SITE_NAME = "Noqeev";
+const SITE_TITLE = "Noqeev — AI Resume Builder";
+const SITE_DESCRIPTION = "Tailored, ATS-ready resumes in minutes. Anonymous by default, account optional.";
+
 export const metadata = {
-  title: "Noqeev — AI Resume Builder",
-  description: "Tailored, ATS-ready resumes in minutes. Anonymous by default, account optional.",
+  metadataBase: new URL("https://www.noqeev.com"),
+  title: { default: SITE_TITLE, template: "%s — Noqeev" },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
+  // Root gets an explicit index:true rather than relying on default
+  // behavior, since every other route in the app now sets an explicit
+  // noindex (see app/brand/layout.js, app/admin/layout.js, etc.) — the
+  // root should say what it means too, not be the one implicit case.
+  robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large" } },
+  openGraph: {
+    type: "website",
+    url: "https://www.noqeev.com",
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    locale: "en_US",
+    // No `images` here on purpose — app/opengraph-image.js's file
+    // convention makes Next resolve this correctly on its own; hand-
+    // listing the URL here would be a second source of truth that can
+    // silently drift (wrong size/type) from the real generated image.
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -58,24 +86,59 @@ export default function RootLayout({ children }) {
             paint, so reopening the app at a saved dim/boost level doesn't
             flash neutral brightness first. */}
         <script dangerouslySetInnerHTML={{ __html: BRIGHTNESS_INIT_SCRIPT }} />
-        {/* Caveat — the handwriting font drawn onto the pen-writing 3D
-            scene's canvas textures (PaperTransformScene.js). Loaded as a
-            real stylesheet, not next/font, since it needs to be resolvable
-            by name from a plain 2D canvas context inside a dynamically
-            imported, ssr:false Three.js module.
-            Unbounded — the wordmark face (--font-wordmark in globals.css).
-            Everything else here is the text-layer font library for
-            /brand's post + story composers (see FONT_STACKS in
-            postTemplates.js) — a curated set spanning the registers a
-            real caption/video-editing tool offers (clean sans, geometric,
-            bold display, impact/condensed, script, marker, serif,
-            editorial serif, mono, rounded), not house taste, picked for
-            being genuinely common in the category. Same plain-stylesheet
-            loading, one request for all of them. */}
+        {/* Organization + WebSite structured data — static, app-authored
+            objects with no user input anywhere in them, so JSON.stringify
+            into dangerouslySetInnerHTML here has no injection surface (the
+            usual reason to avoid that API doesn't apply to a hardcoded
+            payload). No SearchAction/sitelinks-searchbox schema — there's
+            no real site-search endpoint, and fabricating one would just be
+            structured-data spam. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: SITE_NAME,
+              url: "https://www.noqeev.com",
+              logo: "https://www.noqeev.com/icon-512.png",
+              description: SITE_DESCRIPTION,
+            }),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: SITE_NAME,
+              url: "https://www.noqeev.com",
+            }),
+          }}
+        />
+        {/* Site-wide font need, loaded here — everything ELSE that used to
+            be bundled into this one request (Bebas Neue, Poppins, Anton,
+            Oswald, Montserrat, Space Mono, Baloo 2, Permanent Marker,
+            Playfair Display — /brand's composer-only text-layer library,
+            see FONT_STACKS in postTemplates.js) now loads scoped to
+            app/brand/layout.js instead. Real production measurement
+            (Lighthouse against the built landing page) found the combined
+            11-family request was THE single biggest render-blocking cost
+            on this page — ~846ms — for nine font families this page never
+            uses at all. Splitting it means the landing page (and every
+            other non-/brand route) only pays for what it actually needs.
+            Caveat — the handwriting font drawn onto the pen-writing 3D
+            scene's canvas textures (PaperTransformScene.js), used on THIS
+            page (Hero.js). Loaded as a real stylesheet, not next/font,
+            since it needs to be resolvable by name from a plain 2D canvas
+            context inside a dynamically imported, ssr:false Three.js
+            module. Unbounded — the wordmark face (--font-wordmark in
+            globals.css), rendered on every page via Logo.js. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Caveat:wght@600;700&family=Poppins:wght@400;600;700;800&family=Unbounded:wght@700;800&family=Anton&family=Oswald:wght@500;700&family=Montserrat:wght@700;800&family=Space+Mono:wght@400;700&family=Baloo+2:wght@600;700&family=Permanent+Marker&family=Playfair+Display:wght@700;800&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Unbounded:wght@700;800&display=swap"
           rel="stylesheet"
         />
       </head>

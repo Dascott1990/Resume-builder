@@ -47,10 +47,10 @@ export function Footer({ onOpen, onOpenDashboard }) {
         </div>
 
         <div className="flex flex-col-reverse items-start justify-between gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
-          <p className="m-0 text-[11.5px] text-muted-foreground/60">
+          <p className="m-0 text-[11.5px] text-muted-foreground/80">
             © {new Date().getFullYear()} Noqeev
           </p>
-          <p className="m-0 text-[11.5px] text-muted-foreground/60">
+          <p className="m-0 text-[11.5px] text-muted-foreground/80">
             Anonymous by design.
           </p>
         </div>

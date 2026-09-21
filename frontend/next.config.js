@@ -8,6 +8,22 @@ const nextConfig = {
   experimental: {
     instrumentationHook: true,
   },
+  // Vercel already force-redirects HTTP -> HTTPS on the verified custom
+  // domain by default; this is the explicit reinforcement at the app
+  // layer — tells browsers to never even attempt a plaintext request to
+  // this origin again, for the given duration, without waiting on that
+  // redirect. `preload` in the header value alone doesn't submit the
+  // domain to browsers' built-in HSTS preload lists — that's a separate,
+  // much-harder-to-reverse step (removal takes a long time to propagate)
+  // and isn't done here.
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" }],
+      },
+    ];
+  },
 };
 
 // @sentry/nextjs is pinned to ^8 in package.json, not latest — v9 and v10

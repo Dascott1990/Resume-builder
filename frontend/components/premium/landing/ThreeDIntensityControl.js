@@ -48,13 +48,30 @@ export function ThreeDIntensityControl({ intensity, setIntensity }) {
       <motion.button
         onClick={() => setOpen((v) => !v)}
         whileTap={{ scale: 0.92 }}
-        aria-label="Adjust 3D effect intensity"
+        // Must contain the button's own visible text ("3D" then the
+        // percent, e.g. "3D 100%") as a literal CONTIGUOUS substring, not
+        // just both words present somewhere — a screen reader's
+        // accessible name entirely REPLACES visible text rather than
+        // supplementing it, and axe's label-content-name-mismatch check
+        // (confirmed live: a first attempt with other words split between
+        // "3D" and the percent still failed this) wants the visible
+        // sequence intact so voice-control users can say what they see.
+        aria-label={`3D ${pct}% — adjust effect intensity`}
         aria-expanded={open}
         className="flex h-11 items-center gap-2 rounded-full border border-white/[0.12] bg-card/90 px-4 text-[12.5px] font-bold text-foreground shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl"
       >
         <Box className="size-4 text-primary" />
-        3D
-        <span className="font-mono text-[10.5px] font-normal text-muted-foreground">{pct}%</span>
+        {/* One wrapping span, not two direct flex-item children — "3D" and
+            the percent used to be separate flex items of this button, and
+            innerText inserts a line break at that boundary, which is why
+            the aria-label above (a literal space, not a newline, between
+            them) kept failing axe's exact-substring check even though it
+            "obviously" contained both pieces. Nested here as plain inline
+            content instead, matching how they already visually read as
+            one line. */}
+        <span>
+          3D <span className="font-mono text-[10.5px] font-normal text-muted-foreground">{pct}%</span>
+        </span>
       </motion.button>
     </div>
   );

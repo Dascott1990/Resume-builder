@@ -29,7 +29,7 @@
  * and it still holds at 16px in a browser tab.
  *
  * The exact same point list drives the 3D extrusion in markGeometry.js —
- * see MARK_POINTS below; nothing there is hand-duplicated.
+ * see MARK_POINTS in ./logoMarkPath.js; nothing there is hand-duplicated.
  *
  * Usage:
  *   import Logo, { LogoMark } from "./Logo";
@@ -45,26 +45,15 @@
 
 import React from "react";
 
-// The gesture: three sides of a bowl (bracket, open on the fourth) → the
-// line keeps going instead of closing → a tail that kicks out, then breaks
-// upward past the bowl's own height. One continuous stroked path, six
-// points, drawn as if it were a single structural beam bent at five
-// straight joints — flat caps so the two ends read as "resting on ground"
-// and "reaching into the air," not trailing off softly.
 // MARK_POINTS is the single source of truth: MARK_PATH (this file's flat
 // SVG) and markGeometry.js's 3D extrusion both derive from it, so the two
-// can never drift out of sync with each other.
-export const MARK_VIEWBOX   = "0 0 100 100";
-export const MARK_POINTS    = [
-  [22, 68],  // base of the bowl's left side — grounded, same role the old mark's short-pillar base played
-  [22, 16],  // top-left corner
-  [74, 16],  // top-right corner
-  [74, 68],  // bottom-right corner — the bowl would close here; instead the line keeps going
-  [88, 86],  // the tail kicks out, down and to the right
-  [97, 8],   // then breaks straight up, past the bowl's own top edge — the highest point in the mark
-];
-export const MARK_PATH      = MARK_POINTS.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ");
-export const MARK_STROKE    = 14;
+// can never drift out of sync with each other. Definitions live in
+// logoMarkPath.js (no "use client" there) — imported (not just re-exported)
+// since this file's own JSX below still references them directly, then
+// re-exported so every existing `import { MARK_PATH } from "./Logo"` keeps
+// working unchanged.
+import { MARK_VIEWBOX, MARK_POINTS, MARK_PATH, MARK_STROKE } from "./logoMarkPath";
+export { MARK_VIEWBOX, MARK_POINTS, MARK_PATH, MARK_STROKE };
 
 /**
  * LogoMark — the icon alone, nothing else. Use this directly when you only
