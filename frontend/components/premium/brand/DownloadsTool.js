@@ -17,11 +17,21 @@ import { downloadBlob, shareOrDownloadBlob } from "@/app/brand/assetKit";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL;
 
-const FORMATS = [
+const MARK_FORMATS = [
   { id: "icon", label: "App icon", detail: "1024×1024 PNG", filename: "noqeev-app-icon.png" },
   { id: "avatar", label: "Social avatar", detail: "1000×1000 PNG, circular-crop safe", filename: "noqeev-social-avatar.png" },
   { id: "lockup", label: "Full lockup", detail: "1600×500 PNG, transparent", filename: "noqeev-lockup.png" },
   { id: "svg", label: "Vector mark", detail: "Raw SVG", filename: "noqeev-mark.svg" },
+];
+
+// Every other platform (Instagram, TikTok, Pinterest, Threads, Reddit) is
+// profile-picture-only, no separate banner concept — MARK_FORMATS' own
+// "avatar" already covers those.
+const BANNER_FORMATS = [
+  { id: "youtube-banner", label: "YouTube banner", detail: "2560×1440 PNG, safe-area aware", filename: "noqeev-youtube-banner.png" },
+  { id: "x-header", label: "X header", detail: "1500×500 PNG", filename: "noqeev-x-header.png" },
+  { id: "linkedin-banner", label: "LinkedIn banner", detail: "1584×396 PNG", filename: "noqeev-linkedin-banner.png" },
+  { id: "facebook-cover", label: "Facebook cover", detail: "820×312 PNG", filename: "noqeev-facebook-cover.png" },
 ];
 
 export function DownloadsTool({ token }) {
@@ -59,46 +69,55 @@ export function DownloadsTool({ token }) {
     }
   }
 
+  function renderCard(format) {
+    return (
+      <div key={format.id} className="flex flex-col gap-2 rounded-xl border border-border bg-card/40 p-3">
+        <div className="flex h-20 items-center justify-center rounded-lg bg-[#17181c]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`${BASE}/api/v1/workspace/downloads/${format.id}?token=${encodeURIComponent(token)}`}
+            alt={format.label}
+            className="max-h-16 max-w-[90%] object-contain"
+          />
+        </div>
+        <div>
+          <p className="m-0 text-[13px] font-medium text-foreground">{format.label}</p>
+          <p className="m-0 text-[11.5px] text-muted-foreground">{format.detail}</p>
+        </div>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleDownload(format)}
+            disabled={busy === format.id}
+            className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 text-[12px] font-medium text-foreground transition hover:bg-accent disabled:opacity-60"
+          >
+            {busy === format.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            Download
+          </button>
+          <button
+            type="button"
+            onClick={() => handleShare(format)}
+            disabled={busy === `${format.id}-share`}
+            aria-label={`Share ${format.label}`}
+            className="flex items-center justify-center rounded-lg border border-border bg-background px-2 py-1.5 text-foreground transition hover:bg-accent disabled:opacity-60"
+          >
+            {busy === `${format.id}-share` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-5">
       {error && <p className="m-0 text-[12.5px] text-destructive">{error}</p>}
-      <div className="grid grid-cols-2 gap-3">
-        {FORMATS.map((format) => (
-          <div key={format.id} className="flex flex-col gap-2 rounded-xl border border-border bg-card/40 p-3">
-            <div className="flex h-20 items-center justify-center rounded-lg bg-[#17181c]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`${BASE}/api/v1/workspace/downloads/${format.id}?token=${encodeURIComponent(token)}`}
-                alt={format.label}
-                className="max-h-16 max-w-[90%] object-contain"
-              />
-            </div>
-            <div>
-              <p className="m-0 text-[13px] font-medium text-foreground">{format.label}</p>
-              <p className="m-0 text-[11.5px] text-muted-foreground">{format.detail}</p>
-            </div>
-            <div className="flex gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleDownload(format)}
-                disabled={busy === format.id}
-                className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 text-[12px] font-medium text-foreground transition hover:bg-accent disabled:opacity-60"
-              >
-                {busy === format.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                Download
-              </button>
-              <button
-                type="button"
-                onClick={() => handleShare(format)}
-                disabled={busy === `${format.id}-share`}
-                aria-label={`Share ${format.label}`}
-                className="flex items-center justify-center rounded-lg border border-border bg-background px-2 py-1.5 text-foreground transition hover:bg-accent disabled:opacity-60"
-              >
-                {busy === `${format.id}-share` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
-              </button>
-            </div>
-          </div>
-        ))}
+      <div className="flex flex-col gap-3">
+        <p className="m-0 text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase">Brand marks</p>
+        <div className="grid grid-cols-2 gap-3">{MARK_FORMATS.map(renderCard)}</div>
+      </div>
+      <div className="flex flex-col gap-3">
+        <p className="m-0 text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase">Platform banners</p>
+        <div className="grid grid-cols-2 gap-3">{BANNER_FORMATS.map(renderCard)}</div>
       </div>
     </div>
   );

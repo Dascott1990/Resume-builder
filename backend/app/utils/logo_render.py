@@ -186,3 +186,80 @@ def render_lockup(width=1600, height=500):
     draw.text((text_x, text_y), text, font=font, fill=(*WORDMARK_COLOR, 255))
 
     return _png_bytes(canvas)
+
+
+def _render_banner_canvas(width, height, content_max_width, bg_color=TILE_BG):
+    """Shared core for every platform cover/banner image below: mark +
+    wordmark, centered, scaled to fit inside content_max_width — NOT the
+    full canvas width. That distinction matters most for YouTube, whose
+    2560x1440 upload gets cropped down to a much narrower "safe area" on
+    phones/TVs (see render_youtube_banner) — sizing the logo to the safe
+    area, not the full canvas, keeps it from ever getting clipped there.
+    Solid background (unlike render_lockup's transparent one): a banner
+    that's mostly empty transparency looks broken on every platform that
+    uploads this directly, rather than compositing it onto something else.
+    """
+    canvas = Image.new("RGB", (width, height), bg_color)
+    icon_size = round(height * 0.6)
+    gap = round(icon_size * 0.36)
+    font_size = round(icon_size * 0.72)
+    font = ImageFont.truetype(_FONT_PATH, font_size)
+
+    draw = ImageDraw.Draw(canvas)
+    text = "NOQEEV"
+    bbox = draw.textbbox((0, 0), text, font=font)
+    text_w = bbox[2] - bbox[0]
+    content_w = icon_size + gap + text_w
+
+    if content_w > content_max_width:
+        scale = content_max_width / content_w
+        icon_size = round(icon_size * scale)
+        gap = round(gap * scale)
+        font_size = round(font_size * scale)
+        font = ImageFont.truetype(_FONT_PATH, font_size)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_w = bbox[2] - bbox[0]
+        content_w = icon_size + gap + text_w
+
+    text_h = bbox[3] - bbox[1]
+    start_x = (width - content_w) // 2
+    mid_y = height // 2
+
+    mark = _mark_rgba(icon_size)
+    canvas.paste(mark, (start_x, mid_y - icon_size // 2), mark)
+
+    text_x = start_x + icon_size + gap
+    text_y = mid_y - text_h // 2 - bbox[1]
+    draw.text((text_x, text_y), text, font=font, fill=(*WORDMARK_COLOR, 255))
+    return canvas
+
+
+def render_youtube_banner():
+    """2560x1440 — YouTube's official channel banner upload size. Only
+    the centered ~1546x423 "safe area" is guaranteed visible across every
+    device (desktop shows the full image; mobile and TV crop the sides),
+    so the logo is sized to comfortably fit inside THAT, not the full
+    canvas — the rest is pure brand-colored ground, exactly how a real
+    YouTube banner looks."""
+    canvas = _render_banner_canvas(2560, 1440, content_max_width=round(1546 * 0.8))
+    return _png_bytes(canvas)
+
+
+def render_x_header():
+    """1500x500 — X/Twitter's profile header image size."""
+    canvas = _render_banner_canvas(1500, 500, content_max_width=round(1500 * 0.84))
+    return _png_bytes(canvas)
+
+
+def render_linkedin_banner():
+    """1584x396 — LinkedIn's company Page cover image size."""
+    canvas = _render_banner_canvas(1584, 396, content_max_width=round(1584 * 0.84))
+    return _png_bytes(canvas)
+
+
+def render_facebook_cover():
+    """820x312 — Facebook's Page cover photo size (the desktop-display
+    size; Facebook itself rescales on upload, so exporting at this exact
+    size avoids any additional platform-side cropping surprises)."""
+    canvas = _render_banner_canvas(820, 312, content_max_width=round(820 * 0.84))
+    return _png_bytes(canvas)

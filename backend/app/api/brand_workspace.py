@@ -32,6 +32,14 @@ DOWNLOAD_FORMATS = {
     "avatar": ("image/png", "noqeev-social-avatar.png", lambda: logo_render.render_social_avatar()),
     "lockup": ("image/png", "noqeev-lockup.png", lambda: logo_render.render_lockup()),
     "svg": ("image/svg+xml", "noqeev-mark.svg", lambda: logo_render.render_svg().encode("utf-8")),
+    # Platform cover/banner sizes — see logo_render.py's own docstrings for
+    # each exact size and why. Every OTHER platform (Instagram, TikTok,
+    # Pinterest, Threads, Reddit) is profile-picture-only, no banner
+    # concept — the "avatar" format above already covers those.
+    "youtube-banner": ("image/png", "noqeev-youtube-banner.png", lambda: logo_render.render_youtube_banner()),
+    "x-header": ("image/png", "noqeev-x-header.png", lambda: logo_render.render_x_header()),
+    "linkedin-banner": ("image/png", "noqeev-linkedin-banner.png", lambda: logo_render.render_linkedin_banner()),
+    "facebook-cover": ("image/png", "noqeev-facebook-cover.png", lambda: logo_render.render_facebook_cover()),
 }
 
 
