@@ -24,7 +24,7 @@ export function timeOfDay(hour) {
   return "night";
 }
 
-export function AiSuggestPanel({ onSuggestion }) {
+export function AiSuggestPanel({ onSuggestion, lockedTemplate }) {
   const [mood, setMood] = useState("Motivational");
   const [loading, setLoading] = useState(false);
   const [context, setContext] = useState(null);
@@ -44,7 +44,7 @@ export function AiSuggestPanel({ onSuggestion }) {
       const data = await apiRequest("/api/v1/brand/suggest-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mood: mood.toLowerCase(), ...context, avoid: loadAiHistory() }),
+        body: JSON.stringify({ mood: mood.toLowerCase(), ...context, template: lockedTemplate, avoid: loadAiHistory() }),
       });
       pushAiHistory(data.headline);
       onSuggestion(data);

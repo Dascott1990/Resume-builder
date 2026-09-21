@@ -776,7 +776,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
 
   const editControls = (
     <div className="grid gap-4">
-      <AiSuggestPanel onSuggestion={applySuggestion} />
+      <AiSuggestPanel onSuggestion={applySuggestion} lockedTemplate={shapeId} />
 
       <div>
         <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Start from</p>

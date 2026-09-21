@@ -113,19 +113,45 @@ SUGGEST_POST_SYSTEM = f"""You are Noqeev's own social media writer — sharp, co
 {PRODUCT_CONTEXT}
 You always respond with ONLY valid JSON — no markdown fences, no explanation, no preamble."""
 
+# Used for the free-choice bullet list (no locked shape) as a natural
+# "- "tip": ..." list item.
+SHAPE_DESCRIPTIONS = {
+    "tip": '"tip": a short eyebrow label, a punchy headline (one practical, specific piece of advice), '
+           'a one-sentence supporting line.',
+    "quote": '"quote": a short (under 18 words) line in the brand\'s own voice — a belief, not a feature '
+             'list — plus a 2-4 word attribution (e.g. "— Noqeev"). No eyebrow — leave that field empty.',
+    "stat": '"stat": an eyebrow label, ONE short number/phrase as the headline (e.g. "3 minutes", "1 page"), '
+            'and a one-sentence caption explaining what it means. Only use this if you have a genuinely '
+            'plausible, specific number — never a vague or made-up-sounding stat.',
+}
+
+# Explicit per-output-field instructions for the LOCKED-shape case
+# (PostComposer.js, clicking Suggest while a specific shape is open) —
+# spelled out as "eyebrow = ...", "headline = ...", "subtext = ..." per
+# the actual JSON field names, not a "- "quote": a short line..." list
+# item the way SHAPE_DESCRIPTIONS reads. A real response under that
+# phrasing put the quote's actual text under an invented "quote" key
+# instead of "headline" — the model read the quoted shape NAME as a hint
+# to invent a matching field, since the shape list and the output schema
+# were phrased too similarly. This is deliberately worded so there's
+# nothing shaped like a JSON key in the instruction except the three real
+# field names.
+LOCKED_SHAPE_INSTRUCTIONS = {
+    "tip": 'Write a tip post. eyebrow = a short label. headline = one punchy, practical, specific piece '
+           'of advice. subtext = one supporting sentence.',
+    "quote": "Write a quote post. eyebrow = empty string (quote posts don't use one). headline = the "
+             "quote itself — a short (under 18 words) line in the brand's own voice, a belief, not a "
+             'feature list. subtext = a 2-4 word attribution (e.g. "— Noqeev").',
+    "stat": 'Write a stat post. eyebrow = a short label. headline = ONE short number/phrase (e.g. '
+            '"3 minutes", "1 page") — only if you have a genuinely plausible, specific number, never a '
+            'vague or made-up-sounding one. subtext = one sentence explaining what the number means.',
+}
+
 SUGGEST_POST_PROMPT = """Draft ONE social post for right now.
 
 Context: it's {day_of_week}, {time_of_day}, timezone {timezone}. Mood to write in: {mood}.
 
-Pick whichever of these three shapes actually fits best for this mood/moment — don't default to
-the same one every time:
-- "tip": a short eyebrow label, a punchy headline (one practical, specific piece of advice), a
-  one-sentence supporting line.
-- "quote": a short (under 18 words) line in the brand's own voice — a belief, not a feature list
-  — plus a 2-4 word attribution (e.g. "— Noqeev").
-- "stat": an eyebrow label, ONE short number/phrase as the headline (e.g. "3 minutes", "1 page"),
-  and a one-sentence caption explaining what it means. Only pick this if you have a genuinely
-  plausible, specific number to use — never a vague or made-up-sounding stat.
+{shape_instructions}
 
 Return this exact JSON (no other text):
 {{
@@ -298,9 +324,31 @@ def suggest_post():
     day_of_week = _clean_str(body.get("day_of_week"), 40) or "today"
     tz_label = _clean_str(body.get("timezone"), 60) or "unspecified"
 
+    # Optional `template` locks generation to ONE specific shape instead
+    # of letting the model pick freely — this is what PostComposer.js now
+    # sends (whichever shape is currently open), so clicking Suggest
+    # while on Quote writes into Quote instead of the model wandering off
+    # to whichever shape it happened to like best and silently switching
+    # you away from what you were working on. Left unset by callers that
+    # have no shape concept at all (StoryComposer.js's per-clip caption
+    # use of this same endpoint), which keeps today's free-choice
+    # behavior exactly as before.
+    locked_template = body.get("template")
+    if locked_template not in ("tip", "quote", "stat"):
+        locked_template = None
+
+    if locked_template:
+        shape_instructions = LOCKED_SHAPE_INSTRUCTIONS[locked_template]
+    else:
+        shape_instructions = (
+            "Pick whichever of these three shapes actually fits best for this mood/moment — don't "
+            "default to the same one every time:\n"
+            + "\n".join(f"- {desc}" for desc in SHAPE_DESCRIPTIONS.values())
+        )
+
     prompt = SUGGEST_POST_PROMPT.format(
         day_of_week=day_of_week, time_of_day=time_of_day, timezone=tz_label, mood=mood,
-        avoid_block=_avoid_block(body, "posts"),
+        shape_instructions=shape_instructions, avoid_block=_avoid_block(body, "posts"),
     )
     raw = ai_complete(system=SUGGEST_POST_SYSTEM, prompt=prompt, effort="medium", max_tokens=500, groq_temperature=0.7)
     clean = raw.replace("```json", "").replace("```", "").strip()
@@ -310,7 +358,12 @@ def suggest_post():
     except json.JSONDecodeError as e:
         raise APIError(f"AI returned invalid JSON: {e}", 502)
 
-    if parsed.get("template") not in ("tip", "quote", "stat"):
+    if locked_template:
+        # Force it regardless of what the model actually returned — a
+        # locked suggestion has to land on the shape that was asked for,
+        # not whatever the model's own "template" field happens to say.
+        parsed["template"] = locked_template
+    elif parsed.get("template") not in ("tip", "quote", "stat"):
         parsed["template"] = "tip"
     for key in ("eyebrow", "headline", "subtext", "rationale"):
         parsed[key] = _clean_str(parsed.get(key), 500)
