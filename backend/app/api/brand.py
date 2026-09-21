@@ -160,20 +160,37 @@ Stat post — eyebrow: {stat_eyebrow} | headline: {stat_headline} | subtext: {st
 
 Right now it's {day_of_week}, {time_of_day}, timezone {timezone}.
 
-Give a short posting plan across platforms — concrete, not generic. For each platform, say
-exactly what to post (which post(s) by name — Tip/Quote/Stat — and whether as a single image, a
-multi-slide carousel, or a Story) and roughly when. A carousel only makes sense if grouping posts
-together actually reads coherently — don't force all three together just because three exist. It's
-fine to say a platform isn't a good fit at all for what's available (e.g. TikTok usually wants
-video, not a static image) — don't force every platform to have a real suggestion. Skip any post
-above whose fields are all "(none)" — treat it as not existing.
+Give a posting plan that actually covers the ground worth covering for a job-search product's
+audience — don't default to the same 2-3 safe platforms every time. Consider the FULL realistic
+spread, each handled the right way for what it actually is:
+- Instagram (feed single image, multi-slide carousel, or Story)
+- TikTok — has a native photo/carousel post mode, not just video; a Tip or Stat card works fine
+  there framed with on-trend caption/sound conventions, don't skip it just because TikTok is
+  usually thought of as video-only
+- Reddit — post the image NATIVELY into a real, relevant subreddit (e.g. r/jobs, r/resumes,
+  r/ITCareerQuestions, r/careerguidance) with a genuine, non-promotional caption — Reddit
+  communities actively penalize anything that reads like an ad, so if you suggest Reddit, say
+  which specific kind of subreddit and frame it like a community member sharing something useful,
+  not a brand posting content
+- X/Twitter (single image, short caption)
+- LinkedIn (single image; this audience — job seekers, career changers — is genuinely native to
+  LinkedIn, weight it accordingly)
+- Threads, Pinterest (Stat/Tip cards specifically do well as saveable infographics there), or a
+  relevant Facebook Group, when one of these is genuinely the best fit for a specific post
+A carousel only makes sense if grouping posts together actually reads coherently — don't force all
+three together just because three exist. It's fine to skip a platform if nothing available is a
+genuinely good fit there — but that has to be a real judgment per post, not a blanket assumption
+about the platform. Skip any post above whose fields are all "(none)" — treat it as not existing.
 
-Return this exact JSON (no other text), 2-4 entries, most useful platform first:
+Return this exact JSON (no other text), 3-5 entries, most useful platform first — vary which
+platforms you pick based on what actually fits THIS content, not a fixed rotation:
 {{
   "plan": [
     {{
-      "platform": "e.g. Instagram, X, TikTok, LinkedIn, Instagram Story",
-      "action": "exactly what to post — which post(s) by name, and single image vs. carousel vs. Story",
+      "platform": "the platform name, e.g. Instagram, TikTok, Reddit, X, LinkedIn, Threads, Pinterest",
+      "action": "exactly what to post — which post(s) by name, the format (single image / carousel
+                 / Story / native subreddit post), and for Reddit specifically which kind of
+                 subreddit and how to frame the caption non-promotionally",
       "timing": "roughly when, grounded in the {day_of_week} {time_of_day} given above — empty
                  string if nothing available is a good fit for this platform"
     }}
@@ -200,7 +217,12 @@ def suggest_posting_plan():
         stat_eyebrow=stat["eyebrow"] or "(none)", stat_headline=stat["headline"] or "(none)", stat_subtext=stat["subtext"] or "(none)",
         day_of_week=day_of_week, time_of_day=time_of_day, timezone=tz_label,
     )
-    raw = ai_complete(system=SUGGEST_POSTING_PLAN_SYSTEM, prompt=prompt, effort="medium", max_tokens=500, groq_temperature=0.6)
+    # 900, not the 500 this started at — broadening the platform coverage
+    # (TikTok's photo mode, Reddit's per-subreddit framing, etc.) made
+    # real responses long enough to get cut off mid-JSON at 500, which
+    # surfaced as a confusing "AI returned invalid JSON" error rather
+    # than what was actually wrong (truncation, not malformed output).
+    raw = ai_complete(system=SUGGEST_POSTING_PLAN_SYSTEM, prompt=prompt, effort="medium", max_tokens=900, groq_temperature=0.6)
     clean = raw.replace("```json", "").replace("```", "").strip()
 
     try:
@@ -217,7 +239,11 @@ def suggest_posting_plan():
             continue
         cleaned_plan.append({
             "platform": _clean_str(entry.get("platform"), 40),
-            "action": _clean_str(entry.get("action"), 300),
+            # 600, not 300 — a real response got cut off mid-word (a
+            # Reddit suggestion's caption text truncated to "...polishi")
+            # once the prompt started asking for actual caption text and
+            # per-platform framing instead of a one-line summary.
+            "action": _clean_str(entry.get("action"), 600),
             "timing": _clean_str(entry.get("timing"), 100),
         })
 
