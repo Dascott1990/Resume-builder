@@ -122,6 +122,14 @@ export function fillTrackedText(ctx, text, x, y, trackingPx, align = "left") {
   ctx.textAlign = prevAlign;
 }
 
+// Same tracking math as fillTrackedText, but measuring only — lets a
+// caller fit tracked text into a fixed content width (see
+// LogoDownloads.js's buildBannerPng) before ever drawing it.
+export function trackedTextWidth(ctx, text, trackingPx) {
+  const widths = [...text].map((ch) => ctx.measureText(ch).width);
+  return widths.reduce((a, b) => a + b, 0) + trackingPx * Math.max(0, text.length - 1);
+}
+
 export function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
