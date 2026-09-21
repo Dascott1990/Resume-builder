@@ -10,11 +10,11 @@
  */
 import { useState } from "react";
 import { toast } from "sonner";
-import { Download, Share2, Loader2 } from "lucide-react";
+import { Download, Share2, Loader2, Check } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import {
   loadMarkImage, ensureFontsReady, markOnlySvg, fillTrackedText, trackedTextWidth,
-  canvasToPngBlob, downloadBlob, shareOrDownloadBlob,
+  canvasToPngBlob, downloadBlob, shareOrDownloadBlob, shareOrDownloadBlobs,
 } from "./assetKit";
 
 async function buildIconPng() {
@@ -258,77 +258,107 @@ function AssetRow({ asset }) {
   );
 }
 
+// Same multi-select shape PostComposer.js's own Download/Share flow
+// already uses (a Set of selected ids, a toggleable checkmark card per
+// option, one "Download (N)" action) — picking a platform here is a
+// selection, not a one-shot trigger, so posting to three platforms takes
+// one download pass instead of three separate clicks.
 function PlatformPicker() {
-  const [selectedId, setSelectedId] = useState(BANNER_ASSETS[0].id);
-  const [busy, setBusy] = useState(null); // asset id (auto-download), `${id}-again`, or `${id}-share`
-  const current = BANNER_ASSETS.find((a) => a.id === selectedId);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [downloading, setDownloading] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
-  const runBuild = async (asset, busyKey, after) => {
-    setBusy(busyKey);
+  const toggle = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleDownloadSelected = async () => {
+    if (!selectedIds.size) return;
+    setDownloading(true);
     try {
-      const blob = await asset.build();
-      await after(blob);
+      // Staggered, not fired all at once — rapid concurrent downloads can
+      // trip a browser's own popup/multi-download guard, which silently
+      // drops everything after the first (same reasoning PostComposer's
+      // own multi-select download uses).
+      let i = 0;
+      for (const id of selectedIds) {
+        const asset = BANNER_ASSETS.find((a) => a.id === id);
+        const blob = await asset.build();
+        downloadBlob(blob, asset.filename);
+        i += 1;
+        if (i < selectedIds.size) await new Promise((r) => setTimeout(r, 350));
+      }
+      toast.success(selectedIds.size === 1 ? "Downloaded." : `Downloaded ${selectedIds.size} banners.`);
     } catch {
       toast.error("Try again.");
     } finally {
-      setBusy(null);
+      setDownloading(false);
     }
   };
 
-  const handleSelect = (asset) => {
-    setSelectedId(asset.id);
-    runBuild(asset, asset.id, (blob) => downloadBlob(blob, asset.filename));
+  const handleShareSelected = async () => {
+    if (!selectedIds.size) return;
+    setSharing(true);
+    try {
+      const items = [];
+      for (const id of selectedIds) {
+        const asset = BANNER_ASSETS.find((a) => a.id === id);
+        const blob = await asset.build();
+        items.push({ blob, filename: asset.filename });
+      }
+      const result = await shareOrDownloadBlobs(items, "Our brand banners");
+      if (result === "downloaded") toast.info("Sharing wasn't available here — downloaded instead.");
+    } catch {
+      toast.error("Try again.");
+    } finally {
+      setSharing(false);
+    }
   };
-
-  const handleDownloadAgain = () => runBuild(current, `${current.id}-again`, (blob) => downloadBlob(blob, current.filename));
-
-  const handleShare = () => runBuild(current, `${current.id}-share`, async (blob) => {
-    const result = await shareOrDownloadBlob(blob, current.filename, "Noqeev");
-    if (result === "downloaded") toast.info("Downloaded.");
-  });
 
   return (
     <div className="grid gap-2.5">
       <div>
-        <p className="m-0 text-[13.5px] font-bold text-foreground">Which platform are you posting to?</p>
-        <p className="m-0 text-[11px] text-muted-foreground/70">Pick one — the right size downloads instantly.</p>
+        <p className="m-0 text-[13.5px] font-bold text-foreground">Which platforms are you posting to?</p>
+        <p className="m-0 text-[11px] text-muted-foreground/70">Pick any or all, then download.</p>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {BANNER_ASSETS.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            onClick={() => handleSelect(a)}
-            disabled={busy === a.id}
-            className={`rounded-full border px-3.5 py-1.5 text-[12.5px] font-bold transition disabled:opacity-60 ${
-              selectedId === a.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground"
-            }`}
-          >
-            {busy === a.id ? <Loader2 className="mr-1 inline size-3 animate-spin" /> : null}
-            {a.label.replace(" banner", "").replace(" header", "").replace(" cover", "")}
-          </button>
-        ))}
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        {BANNER_ASSETS.map((a) => {
+          const selected = selectedIds.has(a.id);
+          return (
+            <button
+              key={a.id} type="button" onClick={() => toggle(a.id)} aria-pressed={selected}
+              className={`relative flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center ${selected ? "border-primary" : "border-border bg-card"}`}
+            >
+              <div className={`absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full border ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background/80"}`}>
+                {selected && <Check className="size-3" strokeWidth={3} />}
+              </div>
+              <div className="flex h-10 w-16 items-center justify-center rounded-md bg-[#0a0a0a]">
+                <svg viewBox="0 0 100 100" width="16" height="16">
+                  <defs><linearGradient id={`pv-${a.id}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#F6E6B3" /><stop offset="38%" stopColor="#f59e0b" /><stop offset="100%" stopColor="#5C4419" /></linearGradient></defs>
+                  <path d="M 22 68 L 22 16 L 74 16 L 74 68 L 88 86 L 97 8" fill="none" stroke={`url(#pv-${a.id})`} strokeWidth="14" strokeLinecap="butt" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <p className="m-0 text-[11.5px] font-bold text-foreground">{a.label.replace(" banner", "").replace(" header", "").replace(" cover", "")}</p>
+              <p className="m-0 font-mono text-[9px] text-muted-foreground/70">{a.spec.split(" · ")[1]}</p>
+            </button>
+          );
+        })}
       </div>
-      <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-3.5">
-        <div className="flex h-14 w-24 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#0a0a0a] px-2">
-          <svg viewBox="0 0 100 100" width="18" height="18">
-            <defs><linearGradient id="pv-banner" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#F6E6B3" /><stop offset="38%" stopColor="#f59e0b" /><stop offset="100%" stopColor="#5C4419" /></linearGradient></defs>
-            <path d="M 22 68 L 22 16 L 74 16 L 74 68 L 88 86 L 97 8" fill="none" stroke="url(#pv-banner)" strokeWidth="14" strokeLinecap="butt" strokeLinejoin="round" />
-          </svg>
-          <span style={{ fontFamily: "var(--font-wordmark)" }} className="text-[8px] font-extrabold tracking-[0.03em] text-[#f5f0e6]">NOQEEV</span>
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="m-0 text-[13.5px] font-bold text-foreground">{current.label}</p>
-          <p className="m-0 font-mono text-[10.5px] text-muted-foreground/70">{current.spec}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <Btn small variant="ghost" onClick={handleShare} disabled={!!busy}>
-            {busy === `${current.id}-share` ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
-          </Btn>
-          <Btn small variant="gold" onClick={handleDownloadAgain} disabled={!!busy}>
-            {busy === `${current.id}-again` ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-          </Btn>
-        </div>
+      <div className="flex gap-1.5">
+        <Btn
+          variant="gold" className="flex-1" onClick={handleDownloadSelected}
+          disabled={!selectedIds.size || downloading || sharing} loading={downloading}
+        >
+          <Download className="size-4" />
+          {downloading ? "…" : selectedIds.size ? `Download (${selectedIds.size})` : "Select at least one"}
+        </Btn>
+        <Btn small variant="ghost" onClick={handleShareSelected} disabled={!selectedIds.size || downloading || sharing} loading={sharing} aria-label="Share selected banners">
+          <Share2 className="size-4" />
+        </Btn>
       </div>
     </div>
   );
