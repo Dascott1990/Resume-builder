@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { X, Wrench } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field, Btn } from "../guest/components/primitives";
+import { TermsConsent } from "@/components/shared/TermsConsent";
 import Logo3D from "../Logo3D";
 import { TRADES } from "../shared/trades";
 import { setArtisanToken } from "@/lib/artisanAuthToken";
@@ -29,6 +30,7 @@ export default function ArtisanAuth({ onClose, onSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [form, setForm] = useState(emptySignup);
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -60,6 +62,10 @@ export default function ArtisanAuth({ onClose, onSuccess }) {
     }
     if (form.password.length < 8) {
       setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (!agreed) {
+      setError("Please agree to the Terms & Conditions and Privacy Policy.");
       return;
     }
     setSubmitting(true);
@@ -159,13 +165,15 @@ export default function ArtisanAuth({ onClose, onSuccess }) {
             <Field label="Email" required type="email" value={form.email} onChange={set("email")} placeholder="you@example.com" />
             <Field label="Password" required type="password" value={form.password} onChange={set("password")} placeholder="At least 8 characters" />
 
+            <TermsConsent checked={agreed} onChange={setAgreed} id="artisan-terms-consent" />
+
             {error && (
               <div role="alert" className="mb-3 border-l-2 border-destructive py-0.5 pl-[11px] text-[12.5px] leading-relaxed text-destructive">
                 {error}
               </div>
             )}
 
-            <Btn variant="gold" type="submit" className="mt-1" disabled={submitting} loading={submitting}>
+            <Btn variant="gold" type="submit" className="mt-1" disabled={submitting || !agreed} loading={submitting}>
               {submitting ? "Creating account…" : "Create account"}
             </Btn>
           </motion.form>

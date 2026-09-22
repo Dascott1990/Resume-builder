@@ -12,6 +12,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ClipboardList } from "lucide-react";
 import { apiRequest } from "../shared/api";
 import { Field, Btn } from "../guest/components/primitives";
+import { TermsConsent } from "@/components/shared/TermsConsent";
 import { useAuth } from "@/lib/useAuth";
 import BookingAuthGate from "./BookingAuthGate";
 
@@ -21,6 +22,7 @@ export default function RequestJobModal({ open, onClose, targetArtisan }) {
   const { user, loading: authLoading } = useAuth();
   const [authGateOpen, setAuthGateOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -28,6 +30,7 @@ export default function RequestJobModal({ open, onClose, targetArtisan }) {
   useEffect(() => {
     if (!open) return;
     setForm({ ...emptyForm, city: targetArtisan?.city || "" });
+    setAgreed(false);
     setError("");
     setDone(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -50,6 +53,10 @@ export default function RequestJobModal({ open, onClose, targetArtisan }) {
     const amountNum = parseFloat(form.amount);
     if (!form.amount.trim() || !Number.isFinite(amountNum) || amountNum < 1 || amountNum > 50000) {
       setError("Enter what you're offering to pay — between $1 and $50,000.");
+      return false;
+    }
+    if (!agreed) {
+      setError("Please agree to the Terms & Conditions, Privacy Policy, and Refund Policy.");
       return false;
     }
     return true;
@@ -124,13 +131,15 @@ export default function RequestJobModal({ open, onClose, targetArtisan }) {
               <Field label="Your phone" required type="tel" placeholder="(xxx) xxx-xxxx" value={form.contact_phone} onChange={set("contact_phone")} />
               <Field label="Your email" hint="optional" type="email" placeholder="you@example.com" value={form.contact_email} onChange={set("contact_email")} />
 
+              <TermsConsent checked={agreed} onChange={setAgreed} id="request-job-terms-consent" refundPolicy />
+
               {error && (
                 <div role="alert" className="mb-3 border-l-2 border-destructive py-0.5 pl-[11px] text-[12.5px] leading-relaxed text-destructive">
                   {error}
                 </div>
               )}
 
-              <Btn variant="gold" type="submit" disabled={submitting || authLoading} loading={submitting}>
+              <Btn variant="gold" type="submit" disabled={submitting || authLoading || !agreed} loading={submitting}>
                 {submitting ? "Sending…" : "Send request"}
               </Btn>
             </form>

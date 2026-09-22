@@ -11,12 +11,14 @@ import { Mail, UserPlus, X } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { Field, Btn } from "../guest/components/primitives";
 import { IconTile } from "../shared/IconTile";
+import { TermsConsent } from "@/components/shared/TermsConsent";
 import Logo from "../Logo";
 
 export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
   const { signup, resendVerification } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
@@ -27,6 +29,10 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
     setError("");
     if (!email.trim() || !password) {
       setError("Enter your email and password.");
+      return;
+    }
+    if (!agreed) {
+      setError("Please agree to the Terms & Conditions and Privacy Policy.");
       return;
     }
     if (password.length < 8) {
@@ -118,13 +124,15 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
               <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
               <Field label="PASSWORD" required type="password" hint="8+ characters" value={password} onChange={setPassword} placeholder="••••••••" />
 
+              <TermsConsent checked={agreed} onChange={setAgreed} id="signup-terms-consent" />
+
               {error && (
                 <div role="alert" className="mt-1 mb-1 flex gap-2 border-l-2 border-destructive py-0.5 pl-[11px] text-[12.5px] leading-relaxed text-destructive">
                   {error}
                 </div>
               )}
 
-              <Btn variant="gold" type="submit" className="mt-2.5" disabled={submitting} loading={submitting}>
+              <Btn variant="gold" type="submit" className="mt-2.5" disabled={submitting || !agreed} loading={submitting}>
                 {submitting ? "Creating account…" : "Create account"}
               </Btn>
             </motion.form>

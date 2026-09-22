@@ -1,5 +1,13 @@
 "use client";
+import Link from "next/link";
 import Logo from "../Logo";
+
+const LEGAL_LINKS = [
+  { href: "/privacy", label: "Privacy Policy" },
+  { href: "/terms", label: "Terms & Conditions" },
+  { href: "/cookies", label: "Cookie Policy" },
+  { href: "/refund-policy", label: "Refund Policy" },
+];
 
 const LINKS = [
   { href: "#features", label: "Features" },
@@ -46,10 +54,21 @@ export function Footer({ onOpen, onOpenDashboard }) {
           </nav>
         </div>
 
-        <div className="flex flex-col-reverse items-start justify-between gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
-          <p className="m-0 text-[11.5px] text-muted-foreground/80">
-            © {new Date().getFullYear()} Noqeev
-          </p>
+        <nav aria-label="Legal" className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border pt-6">
+          {LEGAL_LINKS.map((l) => (
+            <Link key={l.href} href={l.href} className="text-[12px] font-semibold text-muted-foreground hover:text-foreground">
+              {l.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="flex flex-col-reverse items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <div className="text-[11.5px] leading-relaxed text-muted-foreground/80">
+            <p className="m-0">© {new Date().getFullYear()} Noqeev, operated by Rasheed · 305 Rideau St, Ottawa, ON, Canada</p>
+            <p className="m-0">
+              <a href="mailto:noqeev@gmail.com" className="hover:text-foreground">noqeev@gmail.com</a>
+            </p>
+          </div>
           <p className="m-0 text-[11.5px] text-muted-foreground/80">
             Anonymous by design.
           </p>
