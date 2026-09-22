@@ -416,6 +416,7 @@ def create_vendor():
 
     vendor = Vendor(
         name=name, category=category,
+        custom_category=(body.get("custom_category") or "").strip() or None if category == "other" else None,
         plan=(body.get("plan") or "").strip() or None,
         is_free=body.get("is_free") if isinstance(body.get("is_free"), bool) else None,
         monthly_cost=body.get("monthly_cost") if isinstance(body.get("monthly_cost"), (int, float)) else None,
@@ -446,6 +447,10 @@ def update_vendor(vendor_id):
         if body["category"] not in VALID_VENDOR_CATEGORIES:
             raise APIError(f"category must be one of {sorted(VALID_VENDOR_CATEGORIES)}", 400)
         vendor.category = body["category"]
+        if vendor.category != "other":
+            vendor.custom_category = None  # only meaningful for "other" — stale otherwise
+    if "custom_category" in body and vendor.category == "other":
+        vendor.custom_category = (body["custom_category"] or "").strip() or None
     if "plan" in body:
         vendor.plan = (body["plan"] or "").strip() or None
     if "is_free" in body:

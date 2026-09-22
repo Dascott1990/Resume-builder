@@ -720,6 +720,7 @@ class Vendor(db.Model):
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
     name = db.Column(db.String(80), nullable=False)
     category = db.Column(db.String(20), nullable=False, default="other")  # hosting|database|ai|payments|email|push|monitoring|other
+    custom_category = db.Column(db.String(80), nullable=True)  # what "other" actually means, set when category == "other" so the list never just says the unhelpful bare word "Other"
     plan = db.Column(db.String(80), nullable=True)
     is_free = db.Column(db.Boolean, nullable=True)  # None = unknown, not yet set
     monthly_cost = db.Column(db.Float, nullable=True)
@@ -735,6 +736,7 @@ class Vendor(db.Model):
     def to_dict(self):
         return {
             "id": self.id, "name": self.name, "category": self.category,
+            "custom_category": self.custom_category,
             "plan": self.plan, "is_free": self.is_free, "monthly_cost": self.monthly_cost,
             "console_url": self.console_url, "status_feed_url": self.status_feed_url,
             "notes": self.notes, "auto_detected": bool(self.auto_detected),

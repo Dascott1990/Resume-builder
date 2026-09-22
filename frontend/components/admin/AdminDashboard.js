@@ -1107,8 +1107,10 @@ function VendorFormDialog({ vendor, open, onOpenChange, onSaved }) {
     if (!form.name?.trim()) { toast.error("Name is required."); return; }
     setSaving(true);
     try {
+      const category = form.category || "other";
       const payload = {
-        name: form.name.trim(), category: form.category || "other",
+        name: form.name.trim(), category,
+        custom_category: category === "other" ? (form.custom_category || "").trim() : "",
         plan: form.plan || "", is_free: form.is_free ?? null,
         monthly_cost: form.monthly_cost === "" || form.monthly_cost == null ? null : Number(form.monthly_cost),
         console_url: form.console_url || "", status_feed_url: form.status_feed_url || "",
@@ -1151,6 +1153,18 @@ function VendorFormDialog({ vendor, open, onOpenChange, onSaved }) {
               </Select>
             </div>
           </div>
+          {(form.category || "other") === "other" && (
+            <div className="space-y-1.5">
+              <Label>What kind of vendor is this?</Label>
+              <Input
+                autoFocus
+                placeholder="e.g. Domain registrar, CDN, analytics…"
+                value={form.custom_category || ""}
+                onChange={(e) => setForm({ ...form, custom_category: e.target.value })}
+              />
+              <p className="m-0 text-[11.5px] text-muted-foreground">Shown next to "Other" in the vendor list so it's never just a mystery bucket.</p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5"><Label>Plan</Label><Input value={form.plan || ""} onChange={(e) => setForm({ ...form, plan: e.target.value })} /></div>
             <div className="space-y-1.5">
@@ -1394,7 +1408,7 @@ function VendorsTab() {
               </div>
             ),
           },
-          { key: "category", label: "Category", render: (v) => CATEGORY_LABELS[v.category] || v.category },
+          { key: "category", label: "Category", render: (v) => v.category === "other" && v.custom_category ? `Other — ${v.custom_category}` : CATEGORY_LABELS[v.category] || v.category },
           { key: "plan", label: "Plan", render: (v) => v.plan || "—" },
           { key: "is_free", label: "Free?", render: (v) => <FreeBadge isFree={v.is_free} /> },
           { key: "monthly_cost", label: "Cost/mo", render: (v) => (v.monthly_cost != null ? `$${v.monthly_cost}` : "—") },
