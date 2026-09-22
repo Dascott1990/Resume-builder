@@ -2,6 +2,29 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Self-hosted, not linked from fonts.googleapis.com/fonts.gstatic.com —
+   loading Google Fonts live sends every visitor's IP address to Google on
+   every page load (the actual basis a German court fined a site over in
+   2022 for doing this without consent/disclosure). Both are the same
+   variable-font files Google itself serves for these families — verified
+   identical bytes are returned for every requested weight in each
+   family's range, so one file per family, real font-weight ranges below,
+   covers the same visual output with zero runtime request to Google. */
+@font-face {
+  font-family: "Caveat";
+  font-style: normal;
+  font-weight: 600 700;
+  font-display: swap;
+  src: url("/fonts/caveat-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Unbounded";
+  font-style: normal;
+  font-weight: 700 800;
+  font-display: swap;
+  src: url("/fonts/unbounded-variable.woff2") format("woff2");
+}
+
 @custom-variant dark (&:is(.dark *));
 
 /* :root = light theme. The old values here were shadcn's generic scaffold
@@ -22,8 +45,8 @@
      built from the same blocky, flat-edged vocabulary, so the icon and the
      type read as one designed object instead of an icon bolted onto
      whatever the UI's body font happened to be. Loaded via the same
-     Google Fonts <link> as Caveat in layout.js — falls back to
-     --font-sans if the request is ever blocked. */
+     self-hosted @font-face declaration as Caveat, above — falls back to
+     --font-sans if the font file is ever unreachable. */
   --font-wordmark: "Unbounded", "Helvetica Neue", Arial, system-ui, sans-serif;
   --background: oklch(0.99 0.003 80);
   --foreground: oklch(0.16 0.01 60);
@@ -33,6 +56,17 @@
   --popover-foreground: oklch(0.16 0.01 60);
   --primary: #f59e0b;
   --primary-foreground: #1c1206;
+  /* --primary itself, used as TEXT color (not a button/icon fill) directly
+     on this light background, computes to 2.09:1 — fails WCAG AA (needs
+     4.5:1 for text, 3:1 even for large text/icons). Verified by real OKLCH
+     -> sRGB -> relative-luminance math, not eyeballed. Fine as a solid
+     fill (primary-foreground on top of it is 8.59:1) — the failure is
+     amber-as-text specifically. This darker shade (4.88:1, passes AA)
+     is for exactly that case; --primary itself is unchanged since most of
+     its usage is fills/icons, not body text. Dark mode's --primary
+     already passes at 9.22:1 as text, so --primary-text there is
+     identical to --primary — no separate value needed. */
+  --primary-text: #b45309;
   --secondary: oklch(0.96 0.006 80);
   --secondary-foreground: oklch(0.2 0.01 60);
   --muted: oklch(0.96 0.006 80);
@@ -182,6 +216,7 @@ select {
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-text: var(--primary-text);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -217,6 +252,10 @@ select {
   --success-foreground: #052e12;
   --primary: #f59e0b;
   --primary-foreground: #1c1206;
+  /* Already passes as text here (9.22:1 against this dark background) —
+     same token as --primary, not a separate darker shade like light
+     mode needs (see the light :root's own --primary-text comment). */
+  --primary-text: #f59e0b;
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: #f59e0b;

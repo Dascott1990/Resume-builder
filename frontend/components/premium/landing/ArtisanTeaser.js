@@ -25,8 +25,15 @@ export function ArtisanTeaser({ onOpenArtisans }) {
           <Reveal delay={0.1}>
             {/* Illustrative example, not a live listing — deliberately generic
                 name/number (555 = the standard non-working placeholder) so
-                this mockup never gets confused with a real person's info. */}
-            <div className="rounded-2xl border border-border bg-card p-5">
+                this mockup never gets confused with a real person's info.
+                Also labeled ON the card itself, not just in this comment —
+                a visitor reads a name + a 4.9-star rating + a phone number
+                as a real profile unless told otherwise; the placeholder
+                phone number alone isn't a visible enough signal on its own. */}
+            <div className="relative rounded-2xl border border-border bg-card p-5">
+              <span className="absolute top-3 right-3 rounded-full border border-dashed border-muted-foreground/40 px-2 py-0.5 font-mono text-[9.5px] tracking-wide text-muted-foreground uppercase">
+                Example
+              </span>
               <div className="flex items-center gap-3">
                 <div className="flex size-11 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 font-mono text-sm font-bold text-primary">
                   J
@@ -34,7 +41,7 @@ export function ArtisanTeaser({ onOpenArtisans }) {
                 <div className="min-w-0 flex-1">
                   <div className="text-[14px] font-bold text-foreground">J. Alvarez</div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-primary">Electrician</span>
+                    <span className="text-xs font-bold text-primary-text">Electrician</span>
                     <span className="rounded border border-dashed border-border font-mono text-[10px] text-muted-foreground">9+ YRS</span>
                   </div>
                 </div>
@@ -46,7 +53,7 @@ export function ArtisanTeaser({ onOpenArtisans }) {
               <p className="m-0 mt-3.5 text-[12.5px] leading-relaxed text-foreground">
                 Same-week availability
               </p>
-              <div className="mt-3.5 flex items-center justify-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 py-2.5 text-[12.5px] font-bold text-primary">
+              <div className="mt-3.5 flex items-center justify-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 py-2.5 text-[12.5px] font-bold text-primary-text">
                 <Phone className="size-3.5" />
                 (555) 019-0142
               </div>

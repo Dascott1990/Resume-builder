@@ -24,4 +24,9 @@ export function Reveal({ children, delay = 0, className, y = 56, ...rest }) {
 
 export const SECTION_WRAP = "mx-auto w-full max-w-6xl px-6 sm:px-8 lg:px-12";
 
-export const EYEBROW = "mb-3 block font-mono text-[11px] font-bold tracking-[0.22em] text-primary uppercase";
+// text-primary-text, not text-primary — plain amber text directly on the
+// light-mode background computes to 2.09:1, failing WCAG AA (needs
+// 4.5:1). See globals.css's own --primary-text comment for the real
+// contrast math; this eyebrow label is real text on every section that
+// uses it, not an icon or button fill, so it needs the accessible variant.
+export const EYEBROW = "mb-3 block font-mono text-[11px] font-bold tracking-[0.22em] text-primary-text uppercase";

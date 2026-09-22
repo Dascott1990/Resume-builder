@@ -315,11 +315,11 @@ export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
   const canvasBlock = (
     <>
       <div className="flex w-full max-w-[560px] items-center justify-end gap-1">
-        <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
+        <button type="button" onClick={undo} disabled={!canUndo} title="Undo" aria-label="Undo"
           className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
           <Undo2 className="size-4" />
         </button>
-        <button type="button" onClick={redo} disabled={!canRedo} title="Redo"
+        <button type="button" onClick={redo} disabled={!canRedo} title="Redo" aria-label="Redo"
           className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
           <Redo2 className="size-4" />
         </button>

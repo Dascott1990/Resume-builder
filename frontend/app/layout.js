@@ -117,30 +117,23 @@ export default function RootLayout({ children }) {
             }),
           }}
         />
-        {/* Site-wide font need, loaded here — everything ELSE that used to
-            be bundled into this one request (Bebas Neue, Poppins, Anton,
-            Oswald, Montserrat, Space Mono, Baloo 2, Permanent Marker,
-            Playfair Display — /brand's composer-only text-layer library,
-            see FONT_STACKS in postTemplates.js) now loads scoped to
-            app/brand/layout.js instead. Real production measurement
-            (Lighthouse against the built landing page) found the combined
-            11-family request was THE single biggest render-blocking cost
-            on this page — ~846ms — for nine font families this page never
-            uses at all. Splitting it means the landing page (and every
-            other non-/brand route) only pays for what it actually needs.
-            Caveat — the handwriting font drawn onto the pen-writing 3D
-            scene's canvas textures (PaperTransformScene.js), used on THIS
-            page (Hero.js). Loaded as a real stylesheet, not next/font,
-            since it needs to be resolvable by name from a plain 2D canvas
-            context inside a dynamically imported, ssr:false Three.js
-            module. Unbounded — the wordmark face (--font-wordmark in
-            globals.css), rendered on every page via Logo.js. */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Unbounded:wght@700;800&display=swap"
-          rel="stylesheet"
-        />
+        {/* Caveat + Unbounded — the two families this page (and every
+            non-/brand route) actually needs: Caveat is the handwriting
+            font drawn onto the pen-writing 3D scene's canvas textures
+            (PaperTransformScene.js, used on Hero.js), Unbounded is the
+            wordmark face (--font-wordmark in globals.css) rendered on
+            every page via Logo.js. Both self-hosted via @font-face in
+            globals.css now, not a live fonts.googleapis.com/fonts.gstatic.com
+            request — see that file's own comment for why (Google Fonts
+            loaded live leaks every visitor's IP to Google on every page
+            load). Same family names as before on purpose, so canvas
+            contexts and any other by-name font-family reference resolve
+            exactly the way they did before this change — nothing else
+            needed to be touched. /brand's own 9-family composer library
+            still loads live from Google (app/brand/layout.js) — lower
+            exposure (internal tool only, not every visitor) and higher
+            risk to self-host blind (heavily referenced by name across
+            canvas-rendering code); flagged as a follow-up, not done here. */}
       </head>
       <body className="m-0 overscroll-none bg-background">
         {children}

@@ -31,7 +31,12 @@ export function HowItWorks() {
               <div className="relative z-10 flex size-12 items-center justify-center rounded-full border border-primary/30 bg-background text-primary shadow-[0_0_0_6px_var(--background)]">
                 <s.Icon className="size-5" />
               </div>
-              <span className="mt-4 font-mono text-[11px] font-bold tracking-[0.18em] text-primary/70">STEP {s.step}</span>
+              {/* text-primary-text at full opacity, not text-primary/70 —
+                  real text needs 4.5:1 against the light background;
+                  --primary-text is tuned to just clear that, and any
+                  opacity below 100% blends back toward the background
+                  and undoes it. */}
+              <span className="mt-4 font-mono text-[11px] font-bold tracking-[0.18em] text-primary-text">STEP {s.step}</span>
               <h3 className="m-0 mt-1.5 text-[16px] font-bold text-foreground">{s.title}</h3>
             </Reveal>
           ))}

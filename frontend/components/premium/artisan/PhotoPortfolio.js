@@ -81,14 +81,18 @@ export default function PhotoPortfolio({ artisanId, isMine, editToken }) {
         <Images className="size-3" /> PHOTOS OF PAST WORK
       </p>
       <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-        {photos.map((p) => (
+        {photos.map((p, i) => (
           <button
             key={p.id}
             type="button"
             onClick={() => setViewing(p)}
             className="size-20 shrink-0 overflow-hidden rounded-lg border border-border bg-card p-0"
           >
-            <img src={rawUrl(artisanId, p.id)} alt={p.caption || ""} className="size-full object-cover" />
+            {/* Real content, not decoration — an uncaptioned photo still
+                gets a meaningful fallback (matching the strip's own
+                "Photos of past work" heading) rather than an empty alt,
+                which would tell a screen reader there's nothing here. */}
+            <img src={rawUrl(artisanId, p.id)} alt={p.caption || `Photo of past work, ${i + 1} of ${photos.length}`} className="size-full object-cover" />
           </button>
         ))}
         {isMine && (
@@ -115,7 +119,7 @@ export default function PhotoPortfolio({ artisanId, isMine, editToken }) {
         <DialogContent showCloseButton className="w-full max-w-[520px] gap-0 overflow-hidden p-0 sm:max-w-[520px]">
           {viewing && (
             <div>
-              <img src={rawUrl(artisanId, viewing.id)} alt={viewing.caption || ""} className="max-h-[70vh] w-full object-contain" />
+              <img src={rawUrl(artisanId, viewing.id)} alt={viewing.caption || "Photo of past work"} className="max-h-[70vh] w-full object-contain" />
               <div className="flex items-center justify-between gap-2 p-3.5">
                 <p className="m-0 text-[13px] text-muted-foreground">{viewing.caption || "No caption"}</p>
                 {isMine && (

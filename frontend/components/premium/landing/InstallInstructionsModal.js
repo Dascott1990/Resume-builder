@@ -16,13 +16,13 @@ export function InstallInstructionsModal({ open, onClose }) {
           <p className="m-0 mb-5 font-serif text-xl italic text-foreground">Add to Home Screen</p>
           <div className="flex flex-col gap-2 text-left">
             <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[12px] font-bold text-primary">1</span>
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[12px] font-bold text-primary-text">1</span>
               <span className="flex items-center gap-1.5 text-[13px] text-foreground">
                 Tap the Share icon <Share className="size-3.5 text-muted-foreground" />
               </span>
             </div>
             <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[12px] font-bold text-primary">2</span>
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[12px] font-bold text-primary-text">2</span>
               <span className="text-[13px] text-foreground">Scroll down, tap "Add to Home Screen"</span>
             </div>
           </div>
