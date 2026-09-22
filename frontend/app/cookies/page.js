@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function CookiePolicyPage() {
   return (
-    <LegalPageLayout title="Cookie Policy" updated="September 22, 2026" activeHref="/cookies">
+    <LegalPageLayout title="Cookie Policy" activeHref="/cookies">
       <h2>Noqeev doesn't use cookies</h2>
       <p>
         We don't set cookies, and we don't run any advertising, analytics, or cross-site tracking

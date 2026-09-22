@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function RefundPolicyPage() {
   return (
-    <LegalPageLayout title="Refund Policy" updated="September 22, 2026" activeHref="/refund-policy">
+    <LegalPageLayout title="Refund Policy" activeHref="/refund-policy">
       <p>
         This policy covers paid bookings made through Noqeev's artisan marketplace. Noqeev's
         resume, job-tracking, and brand tools are free and don't involve payment, so nothing

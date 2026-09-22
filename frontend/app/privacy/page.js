@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function PrivacyPolicyPage() {
   return (
-    <LegalPageLayout title="Privacy Policy" updated="September 22, 2026" activeHref="/privacy">
+    <LegalPageLayout title="Privacy Policy" activeHref="/privacy">
       <p>
         Noqeev Technology ("Noqeev," "we," "us") is based at 305 Rideau St, Ottawa, ON, Canada.
         This policy explains what personal information we

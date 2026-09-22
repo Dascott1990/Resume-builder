@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function TermsPage() {
   return (
-    <LegalPageLayout title="Terms & Conditions" updated="September 22, 2026" activeHref="/terms">
+    <LegalPageLayout title="Terms & Conditions" activeHref="/terms">
       <p>
         These terms govern your use of Noqeev (noqeev.com and the Noqeev apps, the "Service"),
         operated by Noqeev Technology, based in Ottawa, Ontario, Canada. By using the Service you
