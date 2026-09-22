@@ -249,12 +249,15 @@ export function saveSignatureTheme(theme) {
 // Which destination (Assets/Create/Capture/Reference) and which Reference
 // sections were left open — restored on the next visit so returning here
 // picks up exactly where someone left off instead of a fresh scroll from
-// the top. Assets is the default landing spot — grabbing a logo file is
-// the single most common reason to open this page.
+// the top. Today is the default landing spot — a status summary is what
+// a returning visitor wants to see before anything else (see
+// TodayPanel.js). Kept in sync by hand with page.js's own ZONES array —
+// this list is only a validation guard (falls back to DEFAULT_UI_STATE
+// for a zone id that no longer exists), not the display metadata.
 const UI_STATE_KEY = "noqeev_brand_ui_state";
-const ZONES = ["assets", "create", "story", "capture", "reference"];
+const ZONES = ["today", "assets", "create", "story", "capture", "seo", "reference"];
 const DEFAULT_UI_STATE = {
-  zone: "assets",
+  zone: "today",
   openSections: { reference: ["mark"] },
 };
 export function loadBrandUiState() {

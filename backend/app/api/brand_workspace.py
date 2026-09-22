@@ -10,6 +10,7 @@ and reachable only by whoever holds this token.
 POST /api/v1/workspace          — create one, token appears in THIS response only
 GET  /api/v1/workspace/me       — resolve the caller's own workspace from their token
 PATCH /api/v1/workspace/me      — name / notify_email
+GET  /api/v1/workspace/default  — the one workspace behind /brand itself (see below)
 """
 import secrets
 
@@ -37,10 +38,33 @@ def create_workspace():
     )
     db.session.add(ws)
     db.session.commit()
-    # token only ever appears in THIS response — to_dict() defaults
-    # reveal_token to False everywhere else, so there's no later request
-    # where it could leak to anyone but whoever just created it.
+    # token only ever appears here and in /default below — to_dict()
+    # defaults reveal_token to False everywhere else, so there's no OTHER
+    # request where it could leak to someone who shouldn't have it.
     return jsonify({"success": True, "data": ws.to_dict(reveal_token=True)}), 201
+
+
+@workspace_bp.route("/default", methods=["GET"])
+def get_default_workspace():
+    """The one workspace behind noqeev.com's own /brand page. This product
+    is single-tenant — there's exactly one "our workspace," not a
+    per-visitor concept — so /brand resolves it here on load instead of
+    needing a token in the URL the way the standalone ?ws=<token> share
+    link (page.js's own deep link, a DIFFERENT way to reach this SAME
+    row for handing an external collaborator scoped access) does.
+
+    Deliberately unauthenticated, same trust posture every other /brand
+    zone already has (Composer/Story/Downloads have no login wall either
+    — see this module's own docstring) — reachable by anyone who finds
+    the page, not a new weaker guarantee than what already exists.
+    Auto-creates the row the first time anything needs it, so this never
+    404s waiting on a setup step nobody's told to do."""
+    ws = BrandWorkspace.query.order_by(BrandWorkspace.created_at.asc()).first()
+    if not ws:
+        ws = BrandWorkspace(token=secrets.token_urlsafe(32), name="Noqeev")
+        db.session.add(ws)
+        db.session.commit()
+    return jsonify({"success": True, "data": ws.to_dict(reveal_token=True)}), 200
 
 
 @workspace_bp.route("/me", methods=["GET"])

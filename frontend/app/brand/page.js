@@ -5,10 +5,12 @@
  * the code it describes and stays reviewable in git history the same way
  * everything else here does.
  *
- * Five flat destinations, not a scrolling stack — Assets (logo exports +
- * this month's signature color), Create (the post composer), Story (the
- * multi-clip story composer), Capture (the screenshot studio), and
- * Reference (the mark's own rationale, read-only) — switched via a fixed
+ * Flat destinations, not a scrolling stack — Today (the fixed status
+ * panel, see TodayPanel.js), Assets (logo exports + this month's
+ * signature color), Create (the post composer), Story (the multi-clip
+ * story composer), Capture (the screenshot studio), SEO (Search Console
+ * + Core Web Vitals, admin-gated), and Reference (the mark's own
+ * rationale, read-only) — switched via a fixed
  * bottom nav (components/premium/shared/BottomNav.js, the same one
  * Dashboard.js and Artisans.js already use) rather than a sticky top tab
  * strip, so switching never costs a scroll-to-top first. Each opens to
@@ -26,7 +28,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Logo, { LogoMark, MARK_PATH, MARK_STROKE } from "@/components/premium/Logo";
 import { BottomNav } from "@/components/premium/shared/BottomNav";
-import { Sparkles, Type, Clapperboard, Camera, Archive, ArrowLeft, TrendingUp } from "lucide-react";
+import { Sparkles, Type, Clapperboard, Camera, Archive, ArrowLeft, TrendingUp, CalendarClock, Loader2 } from "lucide-react";
 import { Section } from "./BrandSection";
 import { LogoDownloads } from "./LogoDownloads";
 import { PostComposer } from "./PostComposer";
@@ -35,6 +37,8 @@ import { SignatureTheme } from "./SignatureTheme";
 import { ScreenshotStudio } from "./ScreenshotStudio";
 import { NotificationBell } from "./NotificationBell";
 import { SeoStatus } from "@/components/premium/brand/SeoStatus";
+import { TodayPanel } from "@/components/premium/brand/TodayPanel";
+import { apiRequest } from "@/components/premium/shared/api";
 import { DEFAULT_ACCENT } from "./postTemplates";
 import { loadBrandUiState, saveBrandUiState } from "./assetKit";
 
@@ -120,7 +124,11 @@ function AtAGlanceStrip() {
   );
 }
 
+// "Today" first — not appended at the end. Its entire purpose is "here's
+// what's happening," which by convention belongs where a returning
+// visitor's eye lands first (see TodayPanel.js's own docstring).
 const ZONES = [
+  { id: "today", Icon: CalendarClock, label: "Today" },
   { id: "assets", Icon: Sparkles, label: "Assets" },
   { id: "create", Icon: Type, label: "Create" },
   { id: "story", Icon: Clapperboard, label: "Story" },
@@ -131,9 +139,19 @@ const ZONES = [
 
 export default function BrandPage() {
   const [accent, setAccent] = useState(DEFAULT_ACCENT);
-  const [zone, setZone] = useState("assets");
+  const [zone, setZone] = useState("today");
   const [openSections, setOpenSections] = useState({ reference: ["mark"] });
   const [uiLoaded, setUiLoaded] = useState(false);
+  // This product is single-tenant — there's exactly one "our workspace"
+  // behind this whole page, not a per-visitor concept. Resolved once on
+  // load via GET /workspace/default (auto-creates it the first time
+  // anything needs it), no token in the URL, no login — same trust
+  // posture every other zone on this page already has.
+  const [workspaceToken, setWorkspaceToken] = useState(null);
+
+  useEffect(() => {
+    apiRequest("/api/v1/workspace/default").then((ws) => setWorkspaceToken(ws.token)).catch(() => {});
+  }, []);
 
   // Loaded after mount, never in a useState initializer — this file is
   // rendered on the server first (no localStorage there), so reading it
@@ -190,6 +208,18 @@ export default function BrandPage() {
         </div>
 
         <AtAGlanceStrip />
+
+        {zone === "today" && (
+          <div className="mt-4">
+            {workspaceToken ? (
+              <TodayPanel token={workspaceToken} />
+            ) : (
+              <div className="flex items-center justify-center rounded-2xl border border-border bg-card py-8 text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+              </div>
+            )}
+          </div>
+        )}
 
         {zone === "assets" && (
           <div className="mt-4 grid gap-6">
