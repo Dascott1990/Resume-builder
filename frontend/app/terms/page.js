@@ -11,9 +11,8 @@ export default function TermsPage() {
     <LegalPageLayout title="Terms & Conditions" updated="September 22, 2026" activeHref="/terms">
       <p>
         These terms govern your use of Noqeev (noqeev.com and the Noqeev apps, the "Service"),
-        operated by Rasheed as a sole proprietorship trading as Noqeev, based in Ottawa, Ontario,
-        Canada. By using the Service you agree to these terms. If you don't agree, don't use the
-        Service.
+        operated by Noqeev Technology, based in Ottawa, Ontario, Canada. By using the Service you
+        agree to these terms. If you don't agree, don't use the Service.
       </p>
 
       <h2>What Noqeev is</h2>
@@ -117,7 +116,7 @@ export default function TermsPage() {
 
       <h2>Contact</h2>
       <p>
-        Noqeev, operated by Rasheed<br />
+        Noqeev Technology<br />
         305 Rideau St, Ottawa, ON, Canada<br />
         <a href="mailto:noqeev@gmail.com">noqeev@gmail.com</a>
       </p>

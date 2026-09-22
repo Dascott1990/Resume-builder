@@ -10,8 +10,8 @@ export default function PrivacyPolicyPage() {
   return (
     <LegalPageLayout title="Privacy Policy" updated="September 22, 2026" activeHref="/privacy">
       <p>
-        Noqeev ("Noqeev," "we," "us") is operated by Rasheed, a sole proprietorship based at
-        305 Rideau St, Ottawa, ON, Canada. This policy explains what personal information we
+        Noqeev Technology ("Noqeev," "we," "us") is based at 305 Rideau St, Ottawa, ON, Canada.
+        This policy explains what personal information we
         collect through noqeev.com and the Noqeev apps (the "Service"), why we collect it, who
         we share it with, and the choices you have. If anything here is unclear, email{" "}
         <a href="mailto:noqeev@gmail.com">noqeev@gmail.com</a>.
@@ -137,7 +137,7 @@ export default function PrivacyPolicyPage() {
 
       <h2>Contact</h2>
       <p>
-        Noqeev, operated by Rasheed<br />
+        Noqeev Technology<br />
         305 Rideau St, Ottawa, ON, Canada<br />
         <a href="mailto:noqeev@gmail.com">noqeev@gmail.com</a>
       </p>

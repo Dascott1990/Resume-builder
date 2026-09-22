@@ -64,7 +64,7 @@ export function Footer({ onOpen, onOpenDashboard }) {
 
         <div className="flex flex-col-reverse items-start justify-between gap-3 sm:flex-row sm:items-center">
           <div className="text-[11.5px] leading-relaxed text-muted-foreground/80">
-            <p className="m-0">© {new Date().getFullYear()} Noqeev, operated by Rasheed · 305 Rideau St, Ottawa, ON, Canada</p>
+            <p className="m-0">© {new Date().getFullYear()} Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada</p>
             <p className="m-0">
               <a href="mailto:noqeev@gmail.com" className="hover:text-foreground">noqeev@gmail.com</a>
             </p>
