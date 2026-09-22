@@ -23,6 +23,7 @@ import { ComposerTool } from "./ComposerTool";
 import { LogoDownloads } from "@/app/brand/LogoDownloads";
 import { StoryTool } from "./StoryTool";
 import { SchedulerTool } from "./SchedulerTool";
+import { TodayPanel } from "./TodayPanel";
 
 function Swatch({ hex, label }) {
   return (
@@ -167,10 +168,17 @@ export function BrandWorkspaceView({ token, onClose }) {
           <p className="m-0 truncate text-[13px] font-bold text-foreground">{workspace?.name || "Branding workspace"}</p>
         </div>
 
+        {/* Fixed, always visible above both zones — not itself a zone,
+            not collapsible, and not gated behind picking "Tools" first.
+            See TodayPanel.js for why. */}
+        <div className="mt-6">
+          <TodayPanel token={token} />
+        </div>
+
         {/* Two zones, not one continuous scroll — a plain toggle between
             them, not a route change (nothing here is worth deep-linking
             to a sub-zone). */}
-        <div className="mt-6 mb-6 flex gap-1.5 rounded-xl border border-border bg-card p-1">
+        <div className="mb-6 flex gap-1.5 rounded-xl border border-border bg-card p-1">
           {[["tools", "Tools"], ["reference", "Reference"]].map(([id, label]) => (
             <button key={id} type="button" onClick={() => setZone(id)} aria-pressed={zone === id}
               className={`flex-1 rounded-lg px-4 py-2 text-[13px] font-bold ${zone === id ? "bg-primary/10 text-primary" : "bg-transparent text-muted-foreground"}`}>

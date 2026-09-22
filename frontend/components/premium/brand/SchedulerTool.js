@@ -22,13 +22,15 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { workspaceFetch } from "./workspaceApi";
 
 const PLATFORM_OPTIONS = ["instagram", "tiktok", "x", "facebook", "linkedin", "youtube", "pinterest", "other"];
-const PLATFORM_LABELS = {
+// Exported — TodayPanel.js reuses these exact labels/formatting rather
+// than keeping a second copy that could drift out of sync.
+export const PLATFORM_LABELS = {
   instagram: "Instagram", tiktok: "TikTok", x: "X", facebook: "Facebook",
   linkedin: "LinkedIn", youtube: "YouTube", pinterest: "Pinterest", other: "Other",
 };
-const CONTENT_TYPE_LABELS = { post: "Post", story: "Story" };
+export const CONTENT_TYPE_LABELS = { post: "Post", story: "Story" };
 
-function fmtDateTime(iso) {
+export function fmtDateTime(iso) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
