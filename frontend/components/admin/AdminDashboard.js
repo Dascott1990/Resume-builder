@@ -17,7 +17,6 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, RefreshCw, Trash2, ShieldCheck, ShieldOff,
   Users, FileText, Briefcase, Star, Wrench, LayoutGrid, Pencil, Mail, Plus, X, Sparkles,
@@ -29,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import Logo from "@/components/premium/Logo";
 import { AdminSidebar, NAV_GROUPS } from "./AdminSidebar";
@@ -1448,22 +1448,15 @@ export function AdminDashboard({ adminUser, onSignOut }) {
         <AdminSidebar activeSection={activeSection} onNavigate={navigate} adminUser={adminUser} onSignOut={onSignOut} />
       </aside>
 
-      <AnimatePresence>
-        {drawerOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setDrawerOpen(false)}
-            />
-            <motion.div
-              initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ type: "spring", damping: 28, stiffness: 320 }}
-              className="fixed inset-y-0 left-0 z-50 w-72 border-r border-border bg-background lg:hidden"
-            >
-              <AdminSidebar activeSection={activeSection} onNavigate={navigate} adminUser={adminUser} onSignOut={onSignOut} />
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {/* Real Radix Dialog underneath (components/ui/sheet.jsx), not a
+          hand-rolled useState+AnimatePresence panel — gets scroll-lock
+          (background can't scroll behind an open drawer, which the
+          hand-rolled version never had) and Escape-to-close for free. */}
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent side="left" showCloseButton={false} className="p-0 lg:hidden">
+          <AdminSidebar activeSection={activeSection} onNavigate={navigate} adminUser={adminUser} onSignOut={onSignOut} />
+        </SheetContent>
+      </Sheet>
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex shrink-0 items-center gap-3 border-b border-border px-3 py-3 sm:px-6 lg:hidden">

@@ -38,7 +38,7 @@ import Link from "next/link";
 import Logo, { LogoMark, MARK_PATH, MARK_STROKE } from "@/components/premium/Logo";
 import { BottomNav } from "@/components/premium/shared/BottomNav";
 import { Sparkles, Type, Clapperboard, Camera, Archive, ArrowLeft, TrendingUp, CalendarClock, Loader2, MoreHorizontal, Check } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Section } from "./BrandSection";
 import { LogoDownloads } from "./LogoDownloads";
 import { PostComposer } from "./PostComposer";
@@ -152,47 +152,31 @@ const MORE_ZONES = [
   { id: "reference", Icon: Archive, label: "Reference" },
 ];
 
-// Same floating-panel shape ThreeDIntensityControl.js already uses
-// elsewhere in this app (button + AnimatePresence-animated absolute
-// panel) — not a new pattern invented here, and no new UI-library
-// dependency for what's really just two links.
+// Real Radix dropdown-menu (components/ui/dropdown-menu.jsx), not a
+// hand-rolled useState+absolute-panel — that version had no collision
+// detection (could overflow off a narrow phone screen near the right
+// edge), no focus trap, no Escape-to-close. This gets all of that free.
 function MoreMenu({ zone, onSelect }) {
-  const [open, setOpen] = useState(false);
   return (
-    <div className="relative">
-      <button
-        type="button" onClick={() => setOpen((v) => !v)} aria-label="More" aria-expanded={open}
-        className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground [-webkit-tap-highlight-color:transparent]"
-      >
-        <MoreHorizontal className="size-[18px]" />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <>
-            {/* Invisible backdrop — click-outside-to-close, same as
-                InstallInstructionsModal's own dialog pattern but without
-                a full modal for what's just two menu items. */}
-            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, y: -6, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.96 }}
-              transition={{ duration: 0.15 }}
-              className="absolute top-[calc(100%+8px)] right-0 z-50 w-44 overflow-hidden rounded-2xl border border-white/[0.12] bg-card/95 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.5)] backdrop-blur-xl"
-            >
-              {MORE_ZONES.map((z) => (
-                <button
-                  key={z.id} type="button" onClick={() => { onSelect(z.id); setOpen(false); }}
-                  className="flex w-full items-center gap-2.5 rounded-lg border-none bg-transparent px-3 py-2.5 text-left text-[13px] font-semibold text-foreground [-webkit-tap-highlight-color:transparent] hover:bg-accent"
-                >
-                  <z.Icon className="size-4 text-muted-foreground" />
-                  {z.label}
-                  {zone === z.id && <Check className="ml-auto size-3.5 text-primary" />}
-                </button>
-              ))}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button" aria-label="More"
+          className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground [-webkit-tap-highlight-color:transparent]"
+        >
+          <MoreHorizontal className="size-[18px]" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-44">
+        {MORE_ZONES.map((z) => (
+          <DropdownMenuItem key={z.id} onSelect={() => onSelect(z.id)}>
+            <z.Icon className="size-4 text-muted-foreground" />
+            {z.label}
+            {zone === z.id && <Check className="ml-auto size-3.5 text-primary" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
