@@ -1,11 +1,14 @@
 "use client";
 /**
  * AdminDashboard.js — the actual admin panel, once app/admin/page.js has
- * already confirmed the caller is a real admin. Eight tabs: a live
- * overview, full manage-and-moderate tables for every model in the app,
- * a Vendors registry of the third-party services this app depends on,
- * and System (live backend/DB/scheduler health + a route+table map
- * introspected from the running app itself, not a hand-kept doc).
+ * already confirmed the caller is a real admin. Eight sections behind a
+ * persistent left sidebar (AdminSidebar.js) — a live overview, full
+ * manage-and-moderate tables for every model in the app, a Vendors
+ * registry of the third-party services this app depends on, and System
+ * (live backend/DB/scheduler health + a route+table map introspected from
+ * the running app itself, not a hand-kept doc). Below lg: the sidebar
+ * becomes a slide-out drawer instead of a persistent column — see this
+ * file's own AdminDashboard() component for that responsive split.
  *
  * Artisan listings are the one tab that talks to /api/v1/artisans instead
  * of /api/v1/admin/* — that resource already has full CRUD with no auth of
@@ -13,23 +16,22 @@
  * admin-specific to add server-side; this tab just reuses it.
  */
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Loader2, RefreshCw, Trash2, ShieldCheck, ShieldOff, LogOut, KeyRound,
+  Loader2, RefreshCw, Trash2, ShieldCheck, ShieldOff,
   Users, FileText, Briefcase, Star, Wrench, LayoutGrid, Pencil, Mail, Plus, X, Sparkles,
-  Newspaper, ExternalLink, Server, Database, CheckCircle2, XCircle, ChevronDown, Table2, Activity,
+  Newspaper, ExternalLink, Server, Database, CheckCircle2, XCircle, ChevronDown, Table2, Activity, Menu,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import Logo from "@/components/premium/Logo";
+import { AdminSidebar, NAV_GROUPS } from "./AdminSidebar";
 
 function fmtDate(iso) {
   if (!iso) return "—";
@@ -116,17 +118,34 @@ function StatCard({ icon: Icon, label, value }) {
         <Icon className="size-4.5" />
       </div>
       <div>
-        <p className="m-0 text-[20px] font-bold leading-none text-foreground">{value}</p>
-        <p className="m-0 mt-1 text-[12px] text-muted-foreground">{label}</p>
+        <p className="m-0 text-[22px] leading-none font-bold text-foreground [font-variant-numeric:tabular-nums]">{value}</p>
+        <p className="m-0 mt-1.5 text-[12px] text-muted-foreground">{label}</p>
       </div>
     </div>
   );
 }
 
+// One consistent colored-chip treatment for every status/category cell in
+// the panel (admin/not, verified/not, vendor category, job status, …) —
+// replaces a mix of raw text and ad hoc <Badge> usage scattered per tab.
+const CHIP_TONES = {
+  good: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  neutral: "bg-muted text-muted-foreground",
+  warning: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  bad: "bg-destructive/10 text-destructive",
+};
+function StatusChip({ tone = "neutral", children }) {
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap ${CHIP_TONES[tone] || CHIP_TONES.neutral}`}>
+      {children}
+    </span>
+  );
+}
+
 function TabHeader({ title, onRefresh, refreshing, extra }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
-      <h2 className="m-0 text-base font-bold text-foreground">{title}</h2>
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
+      <h2 className="m-0 text-[18px] font-bold text-foreground">{title}</h2>
       <div className="flex items-center gap-2">
         {extra}
         <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing} title="Refresh">
@@ -134,6 +153,15 @@ function TabHeader({ title, onRefresh, refreshing, extra }) {
           <span className="hidden sm:inline">Refresh</span>
         </Button>
       </div>
+    </div>
+  );
+}
+
+function StatGroup({ label, children }) {
+  return (
+    <div>
+      <p className="m-0 mb-2.5 font-mono text-[10.5px] font-bold tracking-[0.12em] text-muted-foreground/60 uppercase">{label}</p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">{children}</div>
     </div>
   );
 }
@@ -163,18 +191,24 @@ function OverviewTab() {
       {loading && !stats ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="size-5 animate-spin" /></div>
       ) : stats ? (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {/* No sm:grid-cols-3 — with exactly 8 cards, 3 columns leaves an
-              orphaned card alone in the last row on tablet-width screens.
-              2 and 4 both divide 8 evenly. */}
-          <StatCard icon={Users} label="Total users" value={stats.users} />
-          <StatCard icon={ShieldCheck} label="Admins" value={stats.admins} />
-          <StatCard icon={Users} label="New users (7d)" value={stats.new_users_7d} />
-          <StatCard icon={FileText} label="Saved resumes" value={stats.resumes} />
-          <StatCard icon={Wrench} label="Artisan listings" value={stats.artisans} />
-          <StatCard icon={Star} label="Reviews" value={stats.reviews} />
-          <StatCard icon={Briefcase} label="Applications tracked" value={stats.applications} />
-          <StatCard icon={LayoutGrid} label="Pending JD captures" value={stats.pending_job_captures} />
+        // Grouped by what the numbers actually relate to, not one flat
+        // 8-card grid — People / Content / Marketplace, matching how the
+        // sidebar's own Content/Operations groups already read.
+        <div className="grid gap-6">
+          <StatGroup label="People">
+            <StatCard icon={Users} label="Total users" value={stats.users} />
+            <StatCard icon={ShieldCheck} label="Admins" value={stats.admins} />
+            <StatCard icon={Users} label="New users (7d)" value={stats.new_users_7d} />
+          </StatGroup>
+          <StatGroup label="Content">
+            <StatCard icon={FileText} label="Saved resumes" value={stats.resumes} />
+            <StatCard icon={Briefcase} label="Applications tracked" value={stats.applications} />
+            <StatCard icon={LayoutGrid} label="Pending JD captures" value={stats.pending_job_captures} />
+          </StatGroup>
+          <StatGroup label="Marketplace">
+            <StatCard icon={Wrench} label="Artisan listings" value={stats.artisans} />
+            <StatCard icon={Star} label="Reviews" value={stats.reviews} />
+          </StatGroup>
         </div>
       ) : null}
     </div>
@@ -360,13 +394,13 @@ function UsersTab({ selfId }) {
             key: "email_verified", label: "Verified",
             render: (u) => (
               <button onClick={() => toggleVerified(u)} disabled={busyId === u.id} className="cursor-pointer border-none bg-transparent p-0">
-                <Badge variant={u.email_verified ? "default" : "outline"}>{u.email_verified ? "Verified" : "Unverified"}</Badge>
+                <StatusChip tone={u.email_verified ? "good" : "neutral"}>{u.email_verified ? "Verified" : "Unverified"}</StatusChip>
               </button>
             ),
           },
           {
             key: "is_admin", label: "Role",
-            render: (u) => <Badge variant={u.is_admin ? "default" : "outline"}>{u.is_admin ? "Admin" : "User"}</Badge>,
+            render: (u) => <StatusChip tone={u.is_admin ? "good" : "neutral"}>{u.is_admin ? "Admin" : "User"}</StatusChip>,
           },
           { key: "created_at", label: "Joined", render: (u) => fmtDate(u.created_at) },
           {
@@ -781,7 +815,14 @@ function ApplicationsTab() {
         columns={[
           { key: "company", label: "Company" },
           { key: "role", label: "Role" },
-          { key: "status", label: "Status", render: (a) => <Badge variant="outline">{a.status}</Badge> },
+          {
+            key: "status", label: "Status",
+            render: (a) => (
+              <StatusChip tone={{ applied: "neutral", interview: "warning", offer: "good", rejected: "bad" }[a.status] || "neutral"}>
+                {a.status}
+              </StatusChip>
+            ),
+          },
           { key: "owner", label: "Owner" },
           { key: "created_at", label: "Added", render: (a) => fmtDate(a.created_at) },
           {
@@ -974,7 +1015,11 @@ function ArtisansTab() {
           { key: "city", label: "City" },
           {
             key: "rating_avg", label: "Rating",
-            render: (a) => (a.rating_count ? `${a.rating_avg?.toFixed(1)} (${a.rating_count})` : "—"),
+            render: (a) => (
+              <span className="[font-variant-numeric:tabular-nums]">
+                {a.rating_count ? `${a.rating_avg?.toFixed(1)} (${a.rating_count})` : "—"}
+              </span>
+            ),
           },
           {
             key: "actions", label: "",
@@ -1007,9 +1052,9 @@ const CATEGORY_LABELS = {
 };
 
 function FreeBadge({ isFree }) {
-  if (isFree === true) return <Badge variant="secondary">Free</Badge>;
-  if (isFree === false) return <Badge variant="outline">Paid</Badge>;
-  return <Badge variant="ghost">Unknown</Badge>;
+  if (isFree === true) return <StatusChip tone="good">Free</StatusChip>;
+  if (isFree === false) return <StatusChip tone="warning">Paid</StatusChip>;
+  return <StatusChip tone="neutral">Unknown</StatusChip>;
 }
 
 function VendorNewsDialog({ vendor, open, onOpenChange }) {
@@ -1345,7 +1390,7 @@ function VendorsTab() {
             render: (v) => (
               <div className="flex items-center gap-1.5">
                 <span className="font-semibold">{v.name}</span>
-                {v.auto_detected && <Badge variant="secondary" className="text-[10px]">Detected</Badge>}
+                {v.auto_detected && <StatusChip tone="neutral">Detected</StatusChip>}
               </div>
             ),
           },
@@ -1382,107 +1427,69 @@ function VendorsTab() {
   );
 }
 
-// Reuses the exact same forgot-password flow the public site already has
-// (rate-limited, single-use, time-limited token — see backend/app/api/
-// auth.py) rather than a separate "change password" endpoint. Surfaced
-// here so someone who just signed in with a temporary/generated password
-// (see how ADMIN_BOOTSTRAP_EMAIL accounts get created) doesn't have to
-// leave the admin panel and go hunt for the public login page to reset it.
-function ChangePasswordButton({ email }) {
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+export function AdminDashboard({ adminUser, onSignOut }) {
+  const [activeSection, setActiveSection] = useState("overview");
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const send = async () => {
-    setSending(true);
-    try {
-      await apiRequest("/api/v1/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      setSent(true);
-      toast.success(`Password reset link sent to ${email}.`);
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setSending(false);
-    }
+  const navigate = (id) => {
+    setActiveSection(id);
+    setDrawerOpen(false);
   };
 
-  if (sent) {
-    return <span className="text-[12px] whitespace-nowrap text-muted-foreground">Sent</span>;
-  }
-  return (
-    <Button variant="outline" size="sm" onClick={send} disabled={sending} title="Change password">
-      {sending ? <Loader2 className="size-3.5 animate-spin" /> : <KeyRound className="size-3.5" />}
-      <span className="hidden sm:inline">Change password</span>
-    </Button>
-  );
-}
-
-export function AdminDashboard({ adminUser, onSignOut }) {
+  const activeLabel = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.id === activeSection)?.label || "Admin";
   return (
     // Fixed shell, not a scrolling page — matches every other screen in
     // the app (see GuestMode.js's own `absolute inset-0 ... overflow-hidden`
-    // outer div): the header and tab bar stay put, only the content below
-    // them scrolls. Without this the whole page — header included —
-    // scrolled as one long document, which reads as everything drifting
-    // around rather than a stable app shell.
-    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background">
-      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-3 sm:gap-3 sm:px-8 sm:py-3.5">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <Logo size={22} />
-          <span className="hidden text-[13px] font-semibold text-muted-foreground sm:inline">Admin</span>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
-          <span className="hidden text-[13px] text-muted-foreground sm:inline">{adminUser?.email}</span>
-          {/* /brand has zero functional connection to admin (no shared
-              auth, no shared backend — see api/brand.py's module
-              docstring) — this is a plain navigation link, nothing more.
-              Without it, /brand's whole toolkit (Create, Story, etc.) had
-              no discoverable path from anywhere in the app at all, only
-              reachable by typing the URL from memory or a bookmark. */}
-          <Button variant="outline" size="sm" asChild title="Post composer, story assembly, and other brand tools">
-            <Link href="/brand">
-              <Sparkles className="size-3.5" />
-              <span className="hidden sm:inline">Brand kit</span>
-            </Link>
-          </Button>
-          <ChangePasswordButton email={adminUser?.email} />
-          <Button variant="outline" size="sm" onClick={onSignOut} title="Sign out">
-            <LogOut className="size-3.5" />
-            <span className="hidden sm:inline">Sign out</span>
-          </Button>
-        </div>
-      </header>
+    // outer div). A persistent lg:+ sidebar column replaces the old
+    // horizontal Tabs strip (which overflowed at 8 items); below lg it
+    // becomes a slide-out drawer instead, opened from the slim top bar.
+    <div className="fixed inset-0 z-50 flex bg-background">
+      <aside className="hidden w-60 shrink-0 border-r border-border lg:flex">
+        <AdminSidebar activeSection={activeSection} onNavigate={navigate} adminUser={adminUser} onSignOut={onSignOut} />
+      </aside>
 
-      <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden">
-        <div className="shrink-0 overflow-x-auto border-b border-border px-3 sm:px-8">
-          <TabsList className="my-2 w-max">
-            <TabsTrigger value="overview" className="shrink-0">Overview</TabsTrigger>
-            <TabsTrigger value="users" className="shrink-0">Users</TabsTrigger>
-            <TabsTrigger value="resumes" className="shrink-0">Resumes</TabsTrigger>
-            <TabsTrigger value="applications" className="shrink-0">Applications</TabsTrigger>
-            <TabsTrigger value="reviews" className="shrink-0">Reviews</TabsTrigger>
-            <TabsTrigger value="artisans" className="shrink-0">Artisans</TabsTrigger>
-            <TabsTrigger value="vendors" className="shrink-0">Vendors</TabsTrigger>
-            <TabsTrigger value="system" className="shrink-0">System</TabsTrigger>
-          </TabsList>
-        </div>
+      <AnimatePresence>
+        {drawerOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setDrawerOpen(false)}
+            />
+            <motion.div
+              initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ type: "spring", damping: 28, stiffness: 320 }}
+              className="fixed inset-y-0 left-0 z-50 w-72 border-r border-border bg-background lg:hidden"
+            >
+              <AdminSidebar activeSection={activeSection} onNavigate={navigate} adminUser={adminUser} onSignOut={onSignOut} />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <header className="flex shrink-0 items-center gap-3 border-b border-border px-3 py-3 sm:px-6 lg:hidden">
+          <button
+            type="button" onClick={() => setDrawerOpen(true)} aria-label="Open menu"
+            className="flex size-9 items-center justify-center rounded-lg border border-border text-foreground"
+          >
+            <Menu className="size-4.5" />
+          </button>
+          <Logo size={20} />
+          <span className="text-[13.5px] font-bold text-foreground">{activeLabel}</span>
+        </header>
 
         <main className="flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
-          <div className="mx-auto max-w-6xl px-3 py-5 sm:px-8 sm:py-6">
-            <TabsContent value="overview"><OverviewTab /></TabsContent>
-            <TabsContent value="users"><UsersTab selfId={adminUser?.id} /></TabsContent>
-            <TabsContent value="resumes"><ResumesTab /></TabsContent>
-            <TabsContent value="applications"><ApplicationsTab /></TabsContent>
-            <TabsContent value="reviews"><ReviewsTab /></TabsContent>
-            <TabsContent value="artisans"><ArtisansTab /></TabsContent>
-            <TabsContent value="vendors"><VendorsTab /></TabsContent>
-            <TabsContent value="system"><SystemTab /></TabsContent>
+          <div className="mx-auto max-w-6xl px-4 py-5 sm:px-8 sm:py-7">
+            {activeSection === "overview" && <OverviewTab />}
+            {activeSection === "users" && <UsersTab selfId={adminUser?.id} />}
+            {activeSection === "resumes" && <ResumesTab />}
+            {activeSection === "applications" && <ApplicationsTab />}
+            {activeSection === "reviews" && <ReviewsTab />}
+            {activeSection === "artisans" && <ArtisansTab />}
+            {activeSection === "vendors" && <VendorsTab />}
+            {activeSection === "system" && <SystemTab />}
           </div>
         </main>
-      </Tabs>
+      </div>
     </div>
   );
 }
