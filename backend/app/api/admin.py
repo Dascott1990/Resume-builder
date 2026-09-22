@@ -72,6 +72,7 @@ from app import db
 from app.models import (
     User, Media, Artisan, Review, JobApplication, JdCapture, CareerProfile,
     ApplicationRun, Vendor, VendorNewsItem, GoogleSearchConsoleCredential, SeoSnapshot,
+    SchedulerStatus,
 )
 from app.middleware.error_handlers import APIError
 from app.utils.auth import require_admin, JWT_SECRET, JWT_ALGORITHM
@@ -615,4 +616,76 @@ def seo_refresh_now():
     if not snapshot:
         raise APIError("Snapshot fetch failed — check server logs", 502)
     return jsonify({"success": True, "data": snapshot.to_dict()}), 200
+
+
+# --- System tab: Health + Structure ---------------------------------------
+# Two admin-only, read-only views. Health answers "is everything actually
+# running" (backend/DB reachability + each background job's last real
+# run — see utils/scheduler_health.py). Structure answers "what does this
+# app consist of right now" by introspecting the LIVE running app (Flask's
+# own url_map, SQLAlchemy's own table metadata) rather than a hand-written
+# doc — a route added tomorrow shows up here automatically the next time
+# this loads, with nothing to remember to update. Deliberately backend-
+# only: the frontend (Next.js, deployed separately on Vercel) has no
+# filesystem this process can see, so a live frontend-route map isn't
+# something this endpoint can honestly produce.
+#
+# Neither one reproduces Render's or Sentry's own logs/dashboards — both
+# already do that well. This links out to them instead of rebuilding it.
+
+RENDER_DASHBOARD_URL = "https://dashboard.render.com"
+SENTRY_DASHBOARD_URL = "https://sentry.io"
+
+
+@admin_bp.route("/health", methods=["GET"])
+def system_health():
+    require_admin(request)
+
+    try:
+        db.session.execute(db.text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    jobs = SchedulerStatus.query.order_by(SchedulerStatus.job_name.asc()).all()
+
+    return jsonify({"success": True, "data": {
+        "backend": "ok",  # trivially true — this response is proof of it
+        "database": "ok" if db_ok else "error",
+        "jobs": [j.to_dict() for j in jobs],
+        "links": {"render": RENDER_DASHBOARD_URL, "sentry": SENTRY_DASHBOARD_URL},
+    }}), 200
+
+
+@admin_bp.route("/structure", methods=["GET"])
+def system_structure():
+    from flask import current_app
+
+    require_admin(request)
+    app = current_app._get_current_object()
+
+    routes_by_blueprint = {}
+    for rule in app.url_map.iter_rules():
+        if rule.endpoint == "static":
+            continue
+        blueprint = rule.endpoint.split(".")[0] if "." in rule.endpoint else "app"
+        methods = sorted(m for m in rule.methods if m not in ("HEAD", "OPTIONS"))
+        routes_by_blueprint.setdefault(blueprint, []).append({"path": str(rule), "methods": methods})
+    for group in routes_by_blueprint.values():
+        group.sort(key=lambda r: r["path"])
+
+    tables = []
+    for name, table in sorted(db.metadata.tables.items()):
+        tables.append({
+            "name": name,
+            "columns": [{"name": c.name, "type": str(c.type)} for c in table.columns],
+        })
+
+    return jsonify({"success": True, "data": {
+        "blueprints": [
+            {"name": name, "routes": routes}
+            for name, routes in sorted(routes_by_blueprint.items())
+        ],
+        "tables": tables,
+    }}), 200
 

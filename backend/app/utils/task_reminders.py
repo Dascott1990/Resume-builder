@@ -62,8 +62,9 @@ def start_scheduler(app):
     if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         return None
     from apscheduler.schedulers.background import BackgroundScheduler
+    from app.utils.scheduler_health import run_tracked
     scheduler = BackgroundScheduler(daemon=True)
-    scheduler.add_job(lambda: check_due_tasks(app), "interval", seconds=REMINDER_POLL_SECONDS, next_run_time=datetime.now())
+    scheduler.add_job(lambda: run_tracked(app, "task_reminders", check_due_tasks), "interval", seconds=REMINDER_POLL_SECONDS, next_run_time=datetime.now())
     scheduler.start()
     return scheduler
 

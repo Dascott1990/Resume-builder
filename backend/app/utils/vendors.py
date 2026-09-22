@@ -166,7 +166,8 @@ def start_vendor_news_scheduler(scheduler, app):
     """Shares the one BackgroundScheduler instance task_reminders.py
     already starts (see app/__init__.py) rather than running a second
     scheduler thread."""
+    from app.utils.scheduler_health import run_tracked
     scheduler.add_job(
-        lambda: refresh_vendor_news(app), "interval",
+        lambda: run_tracked(app, "vendor_news", refresh_vendor_news), "interval",
         seconds=VENDOR_NEWS_POLL_SECONDS, next_run_time=datetime.now(),
     )

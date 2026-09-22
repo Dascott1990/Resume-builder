@@ -72,7 +72,8 @@ def start_seo_scheduler(scheduler, app):
     connects Search Console — fetch_and_store_snapshot returns None
     immediately when no credential row exists, same "non-fatal if not
     configured yet" posture as every other optional integration here."""
+    from app.utils.scheduler_health import run_tracked
     scheduler.add_job(
-        lambda: fetch_and_store_snapshot(app), "interval",
+        lambda: run_tracked(app, "seo_snapshot", fetch_and_store_snapshot), "interval",
         seconds=SEO_POLL_SECONDS, next_run_time=datetime.now(),
     )

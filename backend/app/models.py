@@ -983,3 +983,41 @@ class SeoSnapshot(db.Model):
             "cwv_inp_p75": self.cwv_inp_p75,
             "created_at": _iso_utc(self.created_at),
         }
+
+
+class SchedulerStatus(db.Model):
+    """One row per background job (see utils/scheduler_health.py's
+    run_tracked, the only thing that ever writes here) — whether it's
+    still actually cycling, for the admin Health tab. DB-backed rather
+    than an in-memory dict on purpose: Render can restart this process
+    at any time, and "last run 2 minutes ago" reading as "never run"
+    right after a routine restart would be a false alarm, not a real
+    health signal.
+
+    Deliberately coarse — "ok" means the job returned without raising,
+    not that everything it tried internally succeeded. Several jobs
+    already catch their own real failures (a bad API token, one failed
+    push) and print an error rather than raise, exactly so one bad
+    row/subscriber never kills the whole polling loop; those still show
+    up in Render's real logs. This tracks "is the scheduler itself
+    still alive," not a replacement for reading logs when something's
+    actually wrong (see the Health tab's own link out to Render/Sentry
+    for that).
+    """
+    __tablename__ = "scheduler_status"
+    job_name = db.Column(db.String(64), primary_key=True)
+    last_run_at = db.Column(db.DateTime, nullable=True)
+    last_success_at = db.Column(db.DateTime, nullable=True)
+    last_status = db.Column(db.String(20), nullable=True)  # "ok" | "error"
+    last_error = db.Column(db.Text, nullable=True)
+    last_duration_ms = db.Column(db.Integer, nullable=True)
+
+    def to_dict(self):
+        return {
+            "job_name": self.job_name,
+            "last_run_at": _iso_utc(self.last_run_at),
+            "last_success_at": _iso_utc(self.last_success_at),
+            "last_status": self.last_status,
+            "last_error": self.last_error,
+            "last_duration_ms": self.last_duration_ms,
+        }

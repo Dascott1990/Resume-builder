@@ -232,4 +232,5 @@ def start_world_feed_scheduler(scheduler, app):
     already starts, rather than running a second scheduler thread — both
     are guarded against Flask's dev-mode reloader double-start at the one
     call site in app/__init__.py, so this doesn't need its own guard."""
-    scheduler.add_job(lambda: refresh_world_feed(app), "interval", seconds=POLL_SECONDS, next_run_time=datetime.now())
+    from app.utils.scheduler_health import run_tracked
+    scheduler.add_job(lambda: run_tracked(app, "world_feed", refresh_world_feed), "interval", seconds=POLL_SECONDS, next_run_time=datetime.now())

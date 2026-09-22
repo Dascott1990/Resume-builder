@@ -1,9 +1,11 @@
 "use client";
 /**
  * AdminDashboard.js — the actual admin panel, once app/admin/page.js has
- * already confirmed the caller is a real admin. Seven tabs: a live
+ * already confirmed the caller is a real admin. Eight tabs: a live
  * overview, full manage-and-moderate tables for every model in the app,
- * and a Vendors registry of the third-party services this app depends on.
+ * a Vendors registry of the third-party services this app depends on,
+ * and System (live backend/DB/scheduler health + a route+table map
+ * introspected from the running app itself, not a hand-kept doc).
  *
  * Artisan listings are the one tab that talks to /api/v1/artisans instead
  * of /api/v1/admin/* — that resource already has full CRUD with no auth of
@@ -16,7 +18,7 @@ import { toast } from "sonner";
 import {
   Loader2, RefreshCw, Trash2, ShieldCheck, ShieldOff, LogOut, KeyRound,
   Users, FileText, Briefcase, Star, Wrench, LayoutGrid, Pencil, Mail, Plus, X, Sparkles,
-  Newspaper, ExternalLink,
+  Newspaper, ExternalLink, Server, Database, CheckCircle2, XCircle, ChevronDown, Table2, Activity,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { Button } from "@/components/ui/button";
@@ -1140,6 +1142,158 @@ function VendorFormDialog({ vendor, open, onOpenChange, onSaved }) {
   );
 }
 
+const JOB_LABELS = {
+  task_reminders: "Task reminders", world_feed: "World feed", vendor_news: "Vendor news",
+  seo_snapshot: "SEO snapshot",
+};
+
+function timeAgo(iso) {
+  if (!iso) return "never";
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function StatusPill({ ok, okLabel, badLabel }) {
+  return (
+    <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] font-bold ${ok ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive"}`}>
+      {ok ? <CheckCircle2 className="size-3.5" /> : <XCircle className="size-3.5" />}
+      {ok ? okLabel : badLabel}
+    </span>
+  );
+}
+
+// Collapsed by default — a flat dump of 148 routes or 25 tables isn't
+// "clean," a summary count with an expand-to-see affordance is.
+function CollapsibleGroup({ title, count, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-lg border border-border">
+      <button
+        type="button" onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[13px] font-semibold"
+      >
+        <span>{title}</span>
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          {count} <ChevronDown className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        </span>
+      </button>
+      {open && <div className="border-t border-border p-3">{children}</div>}
+    </div>
+  );
+}
+
+function SystemTab() {
+  const [health, setHealth] = useState(null);
+  const [structure, setStructure] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    Promise.all([
+      apiRequest("/api/v1/admin/health"),
+      apiRequest("/api/v1/admin/structure"),
+    ]).then(([h, s]) => { setHealth(h); setStructure(s); })
+      .catch((e) => toast.error(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(load, [load]);
+
+  return (
+    <div>
+      <TabHeader title="System" onRefresh={load} refreshing={loading} />
+
+      {health && (
+        <div className="mb-6 grid gap-4 rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center gap-1.5 text-[12px] font-bold tracking-wide text-muted-foreground uppercase">
+            <Activity className="size-3.5" /> Health
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill ok={health.backend === "ok"} okLabel="Backend up" badLabel="Backend down" />
+            <StatusPill ok={health.database === "ok"} okLabel="Database up" badLabel="Database down" />
+            <Button variant="outline" size="sm" asChild>
+              <a href={health.links.render} target="_blank" rel="noreferrer"><Server className="size-3.5" /> Render <ExternalLink className="size-3" /></a>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <a href={health.links.sentry} target="_blank" rel="noreferrer"><Database className="size-3.5" /> Sentry <ExternalLink className="size-3" /></a>
+            </Button>
+          </div>
+
+          <div className="grid gap-1.5">
+            <p className="m-0 text-[11px] font-semibold text-muted-foreground">Background jobs</p>
+            {health.jobs.length === 0 ? (
+              <p className="m-0 text-[12.5px] text-muted-foreground">No jobs have run yet.</p>
+            ) : (
+              health.jobs.map((j) => (
+                <div key={j.job_name} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="m-0 truncate text-[12.5px] font-bold text-foreground">{JOB_LABELS[j.job_name] || j.job_name}</p>
+                    <p className="m-0 text-[11px] text-muted-foreground">
+                      Last ran {timeAgo(j.last_run_at)}{j.last_duration_ms != null ? ` · ${j.last_duration_ms}ms` : ""}
+                      {j.last_status === "error" && j.last_error ? ` · ${j.last_error.slice(0, 80)}` : ""}
+                    </p>
+                  </div>
+                  <StatusPill ok={j.last_status === "ok"} okLabel="OK" badLabel="Error" />
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {structure && (
+        <div className="grid gap-4 rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center gap-1.5 text-[12px] font-bold tracking-wide text-muted-foreground uppercase">
+            <LayoutGrid className="size-3.5" /> Structure
+            <span className="font-normal normal-case">— live from the running app, not a hand-kept doc</span>
+          </div>
+
+          <div className="grid gap-1.5">
+            <p className="m-0 text-[11px] font-semibold text-muted-foreground">
+              API blueprints ({structure.blueprints.reduce((n, b) => n + b.routes.length, 0)} routes)
+            </p>
+            {structure.blueprints.map((b) => (
+              <CollapsibleGroup key={b.name} title={b.name} count={`${b.routes.length} routes`}>
+                <div className="grid gap-1">
+                  {b.routes.map((r) => (
+                    <div key={r.path + r.methods.join()} className="flex items-center gap-2 font-mono text-[11px]">
+                      <span className="w-14 shrink-0 font-bold text-primary-text">{r.methods.join("/")}</span>
+                      <span className="truncate text-muted-foreground">{r.path}</span>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleGroup>
+            ))}
+          </div>
+
+          <div className="grid gap-1.5">
+            <p className="m-0 flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+              <Table2 className="size-3.5" /> Database tables ({structure.tables.length})
+            </p>
+            {structure.tables.map((t) => (
+              <CollapsibleGroup key={t.name} title={t.name} count={`${t.columns.length} cols`}>
+                <div className="grid gap-1">
+                  {t.columns.map((c) => (
+                    <div key={c.name} className="flex items-center gap-2 font-mono text-[11px]">
+                      <span className="text-foreground">{c.name}</span>
+                      <span className="text-muted-foreground">{c.type}</span>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleGroup>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function VendorsTab() {
   const { rows, loading, busyId, load, remove } = useAdminList("/api/v1/admin/vendors");
   const [editing, setEditing] = useState(null); // {} for "new", a row for "edit"
@@ -1312,6 +1466,7 @@ export function AdminDashboard({ adminUser, onSignOut }) {
             <TabsTrigger value="reviews" className="shrink-0">Reviews</TabsTrigger>
             <TabsTrigger value="artisans" className="shrink-0">Artisans</TabsTrigger>
             <TabsTrigger value="vendors" className="shrink-0">Vendors</TabsTrigger>
+            <TabsTrigger value="system" className="shrink-0">System</TabsTrigger>
           </TabsList>
         </div>
 
@@ -1324,6 +1479,7 @@ export function AdminDashboard({ adminUser, onSignOut }) {
             <TabsContent value="reviews"><ReviewsTab /></TabsContent>
             <TabsContent value="artisans"><ArtisansTab /></TabsContent>
             <TabsContent value="vendors"><VendorsTab /></TabsContent>
+            <TabsContent value="system"><SystemTab /></TabsContent>
           </div>
         </main>
       </Tabs>
