@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { getToken } from "@/lib/authToken";
+import { getBrandKey, setBrandKey } from "@/lib/brandKey";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
 import { downloadBlob } from "./assetKit";
@@ -40,8 +41,12 @@ const BASE = process.env.NEXT_PUBLIC_API_URL;
 // uses) is what actually lets the token reach the request.
 async function downloadTaskIcs(taskId, title) {
   const token = getToken();
+  const brandKey = getBrandKey();
   const res = await fetch(`${BASE}/api/v1/brand/tasks/${taskId}/ics`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(brandKey ? { "X-Brand-Key": brandKey } : {}),
+    },
   });
   if (!res.ok) throw new Error("Couldn't get that calendar file.");
   downloadBlob(await res.blob(), `${(title || "task").slice(0, 40).replace(/[^\w\- ]/g, "")}.ics`);
@@ -136,7 +141,7 @@ function TaskSection({ label, tasks, overdue, ...handlers }) {
   );
 }
 
-function QuickAddTask({ onAdded }) {
+function QuickAddTask({ onAdded, onAuthError }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [dueAt, setDueAt] = useState("");
@@ -155,7 +160,7 @@ function QuickAddTask({ onAdded }) {
       setTitle(""); setDueAt(""); setRecurring(""); setOpen(false);
       onAdded();
     } catch (e) {
-      toast.error(e.message || "Try again.");
+      if (!onAuthError?.(e)) toast.error(e.message || "Try again.");
     } finally {
       setSaving(false);
     }
@@ -257,7 +262,7 @@ function PushToggle() {
   );
 }
 
-function NewsComposer({ onPosted }) {
+function NewsComposer({ onPosted, onAuthError }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [sending, setSending] = useState(false);
@@ -275,7 +280,7 @@ function NewsComposer({ onPosted }) {
       onPosted();
       toast.success("Posted.");
     } catch (e) {
-      toast.error(e.message || "Try again.");
+      if (!onAuthError?.(e)) toast.error(e.message || "Try again.");
     } finally {
       setSending(false);
     }
@@ -297,13 +302,57 @@ function NewsComposer({ onPosted }) {
   );
 }
 
+// Tasks/news-write are the "genuinely internal-only" routes require_brand_key
+// gates (see backend/app/utils/auth.py) — a shared secret, not a login, to
+// match /brand's own no-login-wall design. Nothing in the browser knew that
+// secret until now: this is the one place it gets entered and stashed
+// locally so every apiRequest call can attach it (see shared/api.js).
+function BrandKeyGate({ onUnlocked }) {
+  const [value, setValue] = useState("");
+  const [checking, setChecking] = useState(false);
+
+  const unlock = async () => {
+    if (!value.trim()) return;
+    setChecking(true);
+    setBrandKey(value.trim());
+    try {
+      await apiRequest("/api/v1/brand/tasks"); // confirms the key is actually right before trusting it
+      toast.success("Unlocked.");
+      onUnlocked();
+    } catch (e) {
+      setBrandKey(null);
+      toast.error(e.status === 401 ? "That key isn't right." : (e.message || "Try again."));
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-dashed border-border p-2.5">
+      <p className="m-0 text-[12px] font-semibold text-foreground">Unlock tasks &amp; news</p>
+      <p className="m-0 text-[11px] text-muted-foreground">This browser hasn't been given the brand key yet.</p>
+      <div className="flex gap-1.5">
+        <Input
+          type="password" value={value} onChange={(e) => setValue(e.target.value)} autoFocus
+          placeholder="Brand key" className="h-8 rounded-[6px] text-[12.5px]"
+          onKeyDown={(e) => { if (e.key === "Enter") unlock(); }}
+        />
+        <Btn small variant="gold" onClick={unlock} disabled={checking} loading={checking}>Unlock</Btn>
+      </div>
+    </div>
+  );
+}
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [tasks, setTasks] = useState({ open: [], done: [] });
   const [news, setNews] = useState([]);
+  const [needsBrandKey, setNeedsBrandKey] = useState(false);
 
   const loadTasks = () => {
-    apiRequest("/api/v1/brand/tasks").then(setTasks).catch(() => {});
+    apiRequest("/api/v1/brand/tasks")
+      .then((d) => { setTasks(d); setNeedsBrandKey(false); })
+      .catch((e) => { if (e.status === 401 || e.status === 503) setNeedsBrandKey(true); });
   };
   const loadNews = () => {
     apiRequest("/api/v1/brand/news").then(setNews).catch(() => setNews([]));
@@ -314,6 +363,14 @@ export function NotificationBell() {
     loadTasks();
   }, []);
 
+  // Shared by every write action below: a key that was valid a moment ago
+  // (rotated on the backend, or just wrong) should re-lock instead of
+  // repeating a confusing raw error every time.
+  const onAuthError = (e) => {
+    if (e.status === 401 || e.status === 503) { setBrandKey(null); setNeedsBrandKey(true); return true; }
+    return false;
+  };
+
   const toggleDone = async (task, done) => {
     setTasks((t) => ({ ...t, open: t.open.filter((x) => x.id !== task.id) })); // optimistic
     try {
@@ -322,7 +379,7 @@ export function NotificationBell() {
       });
       loadTasks();
     } catch (e) {
-      toast.error(e.message || "Try again.");
+      if (!onAuthError(e)) toast.error(e.message || "Try again.");
       loadTasks();
     }
   };
@@ -332,13 +389,13 @@ export function NotificationBell() {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ snooze_days: 1 }),
       });
       loadTasks();
-    } catch (e) { toast.error(e.message || "Try again."); }
+    } catch (e) { if (!onAuthError(e)) toast.error(e.message || "Try again."); }
   };
   const deleteTask = async (task) => {
     setTasks((t) => ({ ...t, open: t.open.filter((x) => x.id !== task.id) }));
     try {
       await apiRequest(`/api/v1/brand/tasks/${task.id}`, { method: "DELETE" });
-    } catch (e) { toast.error(e.message || "Try again."); loadTasks(); }
+    } catch (e) { if (!onAuthError(e)) toast.error(e.message || "Try again."); loadTasks(); }
   };
 
   const buckets = bucketTasks(tasks.open);
@@ -367,11 +424,20 @@ export function NotificationBell() {
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute top-11 right-0 z-20 max-h-[75vh] w-80 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-[0_8px_28px_rgba(0,0,0,0.25)]">
-            <QuickAddTask onAdded={loadTasks} />
-            <TaskSection label="Overdue" tasks={buckets.overdue} overdue {...taskHandlers} />
-            <TaskSection label="Today" tasks={buckets.today} {...taskHandlers} />
-            <TaskSection label="Upcoming" tasks={buckets.upcoming} {...taskHandlers} />
-            <TaskSection label="No date" tasks={buckets.noDate} {...taskHandlers} />
+            {needsBrandKey ? (
+              <BrandKeyGate onUnlocked={loadTasks} />
+            ) : (
+              <>
+                <QuickAddTask onAdded={loadTasks} onAuthError={onAuthError} />
+                <TaskSection label="Overdue" tasks={buckets.overdue} overdue {...taskHandlers} />
+                <TaskSection label="Today" tasks={buckets.today} {...taskHandlers} />
+                <TaskSection label="Upcoming" tasks={buckets.upcoming} {...taskHandlers} />
+                <TaskSection label="No date" tasks={buckets.noDate} {...taskHandlers} />
+                {tasks.open.length === 0 && (
+                  <p className="m-0 px-2 pb-1 text-[12.5px] text-muted-foreground">No open tasks</p>
+                )}
+              </>
+            )}
 
             <div className="mt-1 border-t border-border pt-1">
               <p className="m-0 px-2 pt-1 pb-0.5 font-mono text-[9.5px] font-bold tracking-[0.1em] text-muted-foreground/50 uppercase">News</p>
@@ -389,13 +455,9 @@ export function NotificationBell() {
               </Link>
             </div>
 
-            {tasks.open.length === 0 && (
-              <p className="m-0 px-2 pb-1 text-[12.5px] text-muted-foreground">No open tasks</p>
-            )}
-
             <div className="mt-1 border-t border-border pt-1">
               <PushToggle />
-              <NewsComposer onPosted={loadNews} />
+              {!needsBrandKey && <NewsComposer onPosted={loadNews} onAuthError={onAuthError} />}
             </div>
           </div>
         </>

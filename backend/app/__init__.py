@@ -73,7 +73,7 @@ def create_app():
             # one included, Artisan listing edits too) was failing its CORS
             # preflight and never actually reaching the server.
             "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id", "X-Edit-Token", "X-Artisan-Token", "X-Workspace-Token"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id", "X-Edit-Token", "X-Artisan-Token", "X-Workspace-Token", "X-Brand-Key"],
             "supports_credentials": True,
             # X-Quality-Report (api/story.py's render endpoint) rides
             # alongside the downloaded video file as a response header —
