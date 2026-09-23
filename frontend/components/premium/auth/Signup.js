@@ -121,8 +121,8 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.12 }}
               onSubmit={submit} className="grid gap-1"
             >
-              <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
-              <Field label="PASSWORD" required type="password" hint="8+ characters" value={password} onChange={setPassword} placeholder="••••••••" />
+              <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" autoComplete="email" />
+              <Field label="PASSWORD" required type="password" hint="8+ characters" value={password} onChange={setPassword} placeholder="••••••••" autoComplete="new-password" />
 
               <TermsConsent checked={agreed} onChange={setAgreed} id="signup-terms-consent" />
 

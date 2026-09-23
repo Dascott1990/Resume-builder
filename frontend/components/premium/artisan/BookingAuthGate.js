@@ -79,8 +79,8 @@ export default function BookingAuthGate({ open, onClose, onSuccess }) {
               An account is how artisans reach back out and how you track this job's status.
             </p>
             <form onSubmit={submit} className="grid gap-0">
-              <Field label="Email" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
-              <Field label="Password" required type="password" value={password} onChange={setPassword} placeholder={mode === "signup" ? "8+ characters" : "••••••••"} />
+              <Field label="Email" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" autoComplete="email" />
+              <Field label="Password" required type="password" value={password} onChange={setPassword} placeholder={mode === "signup" ? "8+ characters" : "••••••••"} autoComplete={mode === "signup" ? "new-password" : "current-password"} />
               {error && (
                 <div role="alert" className="mb-3 border-l-2 border-destructive py-0.5 pl-[11px] text-[12.5px] leading-relaxed text-destructive">
                   {error}

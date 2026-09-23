@@ -72,7 +72,7 @@ export function TextLink({ children, onClick, disabled, small }) {
 // Leave it unset (the default) for hints that are live feedback rather than
 // a static example — a running character count, a status that changes with
 // other state — those should stay visible regardless of focus.
-export function Field({ label, required, hint, hintOnFocus = false, value, onChange, placeholder, type = "text", multiline, rows = 3, mono }) {
+export function Field({ label, required, hint, hintOnFocus = false, value, onChange, placeholder, type = "text", multiline, rows = 3, mono, autoComplete }) {
   // A stable, unique id per rendered instance (not derived from `label`,
   // which isn't guaranteed unique across a form and can repeat verbatim
   // across different Field instances) — what actually associates the
@@ -108,6 +108,7 @@ export function Field({ label, required, hint, hintOnFocus = false, value, onCha
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           type={type}
+          autoComplete={autoComplete}
           className={`h-[52px] rounded-[10px] text-base ${mono ? "font-mono" : ""}`}
           {...focusHandlers}
         />

@@ -128,8 +128,8 @@ export default function ArtisanAuth({ onClose, onSuccess }) {
             key="login" onSubmit={doLogin} className="grid gap-1"
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.12 }}
           >
-            <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
-            <Field label="PASSWORD" required type="password" value={password} onChange={setPassword} placeholder="••••••••" />
+            <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" autoComplete="email" />
+            <Field label="PASSWORD" required type="password" value={password} onChange={setPassword} placeholder="••••••••" autoComplete="current-password" />
 
             {error && (
               <div role="alert" className="mt-1 mb-1 flex gap-2 border-l-2 border-destructive py-0.5 pl-[11px] text-[12.5px] leading-relaxed text-destructive">
@@ -146,7 +146,7 @@ export default function ArtisanAuth({ onClose, onSuccess }) {
             key="signup" onSubmit={doSignup} className="grid gap-0"
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.12 }}
           >
-            <Field label="Full name" required value={form.name} onChange={set("name")} placeholder="Full name" />
+            <Field label="Full name" required value={form.name} onChange={set("name")} placeholder="Full name" autoComplete="name" />
             <div className="mb-3.5">
               <div className="mb-1.5 text-[13.5px] font-bold tracking-wide text-foreground">
                 Trade<span className="text-primary"> *</span>
@@ -160,10 +160,10 @@ export default function ArtisanAuth({ onClose, onSuccess }) {
                 </SelectContent>
               </Select>
             </div>
-            <Field label="City" hint="optional" value={form.city} onChange={set("city")} placeholder="City" />
-            <Field label="Phone" required type="tel" value={form.phone} onChange={set("phone")} placeholder="(xxx) xxx-xxxx" />
-            <Field label="Email" required type="email" value={form.email} onChange={set("email")} placeholder="you@example.com" />
-            <Field label="Password" required type="password" value={form.password} onChange={set("password")} placeholder="At least 8 characters" />
+            <Field label="City" hint="optional" value={form.city} onChange={set("city")} placeholder="City" autoComplete="address-level2" />
+            <Field label="Phone" required type="tel" value={form.phone} onChange={set("phone")} placeholder="(xxx) xxx-xxxx" autoComplete="tel" />
+            <Field label="Email" required type="email" value={form.email} onChange={set("email")} placeholder="you@example.com" autoComplete="email" />
+            <Field label="Password" required type="password" value={form.password} onChange={set("password")} placeholder="At least 8 characters" autoComplete="new-password" />
 
             <TermsConsent checked={agreed} onChange={setAgreed} id="artisan-terms-consent" />
 

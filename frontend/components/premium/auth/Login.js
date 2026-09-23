@@ -102,9 +102,9 @@ export default function Login({ onClose, onSuccess, onSwitchToSignup }) {
           initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.12 }}
           onSubmit={submit} className="grid gap-1"
         >
-          <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
+          <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" autoComplete="email" />
           <div>
-            <Field label="PASSWORD" required type="password" value={password} onChange={setPassword} placeholder="••••••••" />
+            <Field label="PASSWORD" required type="password" value={password} onChange={setPassword} placeholder="••••••••" autoComplete="current-password" />
             <div className="-mt-3 mb-3.5 flex justify-end">
               <TextLink small onClick={() => setScreen("forgot")}>Forgot password?</TextLink>
             </div>

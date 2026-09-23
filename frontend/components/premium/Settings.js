@@ -106,9 +106,9 @@ function ChangePasswordForm({ onSubmit }) {
 
   return (
     <div className="grid gap-2.5 rounded-lg border border-border p-3">
-      <Field label="Current password" type="password" value={current} onChange={setCurrent} placeholder="••••••••" />
-      <Field label="New password" type="password" value={next} onChange={setNext} placeholder="At least 8 characters" />
-      <Field label="Confirm new password" type="password" value={confirm} onChange={setConfirm} placeholder="Retype new password" />
+      <Field label="Current password" type="password" value={current} onChange={setCurrent} placeholder="••••••••" autoComplete="current-password" />
+      <Field label="New password" type="password" value={next} onChange={setNext} placeholder="At least 8 characters" autoComplete="new-password" />
+      <Field label="Confirm new password" type="password" value={confirm} onChange={setConfirm} placeholder="Retype new password" autoComplete="new-password" />
       <div className="flex gap-2">
         <Btn small variant="gold" disabled={submitting} loading={submitting} onClick={submit}>Update password</Btn>
         <Btn small variant="ghost" disabled={submitting} onClick={() => setOpen(false)}>Cancel</Btn>

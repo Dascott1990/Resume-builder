@@ -76,8 +76,8 @@ function ResetPasswordContent() {
         </div>
 
         <form onSubmit={submit} className="grid gap-1">
-          <Field label="NEW PASSWORD" required type="password" hint="8+ characters" value={password} onChange={setPassword} placeholder="••••••••" />
-          <Field label="CONFIRM PASSWORD" required type="password" value={confirm} onChange={setConfirm} placeholder="••••••••" />
+          <Field label="NEW PASSWORD" required type="password" hint="8+ characters" value={password} onChange={setPassword} placeholder="••••••••" autoComplete="new-password" />
+          <Field label="CONFIRM PASSWORD" required type="password" value={confirm} onChange={setConfirm} placeholder="••••••••" autoComplete="new-password" />
 
           {error && (
             <div role="alert" className="mt-1 mb-1 flex gap-2 border-l-2 border-destructive py-0.5 pl-[11px] text-[12.5px] leading-relaxed text-destructive">

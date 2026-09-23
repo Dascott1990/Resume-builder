@@ -89,7 +89,7 @@ export default function ForgotPassword({ onClose, onBackToLogin }) {
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.12 }}
               onSubmit={submit} className="grid gap-1"
             >
-              <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
+              <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" autoComplete="email" />
 
               {error && (
                 <div role="alert" className="mt-1 mb-1 flex gap-2 border-l-2 border-destructive py-0.5 pl-[11px] text-[12.5px] leading-relaxed text-destructive">

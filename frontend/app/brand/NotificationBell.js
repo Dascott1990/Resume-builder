@@ -333,7 +333,7 @@ function BrandKeyGate({ onUnlocked }) {
       <p className="m-0 text-[11px] text-muted-foreground">This browser hasn't been given the brand key yet.</p>
       <div className="flex gap-1.5">
         <Input
-          type="password" value={value} onChange={(e) => setValue(e.target.value)} autoFocus
+          type="password" value={value} onChange={(e) => setValue(e.target.value)} autoFocus autoComplete="off"
           placeholder="Brand key" className="h-8 rounded-[6px] text-[12.5px]"
           onKeyDown={(e) => { if (e.key === "Enter") unlock(); }}
         />
