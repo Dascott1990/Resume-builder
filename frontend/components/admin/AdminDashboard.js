@@ -1318,11 +1318,11 @@ function SystemTab() {
             </p>
             {structure.blueprints.map((b) => (
               <CollapsibleGroup key={b.name} title={b.name} count={`${b.routes.length} routes`}>
-                <div className="grid gap-1">
+                <div className="grid min-w-0 gap-1.5">
                   {b.routes.map((r) => (
-                    <div key={r.path + r.methods.join()} className="flex items-center gap-2 font-mono text-[11px]">
-                      <span className="w-14 shrink-0 font-bold text-primary-text">{r.methods.join("/")}</span>
-                      <span className="min-w-0 flex-1 truncate text-muted-foreground">{r.path}</span>
+                    <div key={r.path + r.methods.join()} className="flex min-w-0 items-start gap-2 font-mono text-[11px]">
+                      <span className="w-14 shrink-0 pt-px font-bold text-primary-text">{r.methods.join("/")}</span>
+                      <span className="min-w-0 flex-1 break-all text-muted-foreground">{r.path}</span>
                     </div>
                   ))}
                 </div>
@@ -1336,9 +1336,9 @@ function SystemTab() {
             </p>
             {structure.tables.map((t) => (
               <CollapsibleGroup key={t.name} title={t.name} count={`${t.columns.length} cols`}>
-                <div className="grid gap-1">
+                <div className="grid min-w-0 gap-1">
                   {t.columns.map((c) => (
-                    <div key={c.name} className="flex items-center gap-2 font-mono text-[11px]">
+                    <div key={c.name} className="flex min-w-0 items-center gap-2 font-mono text-[11px]">
                       <span className="shrink-0 truncate text-foreground">{c.name}</span>
                       <span className="min-w-0 flex-1 truncate text-muted-foreground">{c.type}</span>
                     </div>
