@@ -350,6 +350,7 @@ def reset_password():
         raise APIError("This reset link is invalid or has expired", 400)
 
     user.password_hash = hash_password(password)
+    user.password_changed_at = datetime.now(timezone.utc)
     user.reset_token = None
     user.reset_token_expires = None
     # A password reset invalidates any pending email-verification token too
@@ -414,8 +415,11 @@ def change_password():
     if len(new_password) < 8:
         raise APIError("New password must be at least 8 characters", 400)
 
-    # The JWT isn't derived from the password hash, so it stays valid —
-    # no need to re-issue a token or force a re-login after this.
+    # password_changed_at is what actually logs out every OTHER session —
+    # see utils/auth.py's _issued_before_password_change. This session gets
+    # a freshly-issued token in the response so it isn't logged out of
+    # itself; the frontend must store it in place of the old one.
     user.password_hash = hash_password(new_password)
+    user.password_changed_at = datetime.now(timezone.utc)
     db.session.commit()
-    return jsonify({"success": True, "data": {"message": "Password updated"}}), 200
+    return jsonify({"success": True, "data": {"message": "Password updated", "token": issue_token(user.id)}}), 200

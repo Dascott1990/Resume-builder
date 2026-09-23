@@ -60,11 +60,11 @@ def issue_token(subject_id: str, role: str = "user") -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def verify_token(token: str, expected_role: str = "user"):
-    """Returns the subject id the token was issued for, or None if it's
+def _decode_payload(token: str, expected_role: str = "user"):
+    """Cryptographic verification only, no database access — returns the
+    full decoded payload (sub, role, iat, exp) or None if the token is
     missing, expired, signed with a different secret, or issued for a
-    different role than expected. Never raises — every caller treats an
-    invalid token exactly like "not logged in", not an error.
+    different role than expected.
 
     The role check matters once two separate account systems (User,
     Artisan) both issue Bearer-style tokens from the same JWT_SECRET —
@@ -81,7 +81,45 @@ def verify_token(token: str, expected_role: str = "user"):
         return None
     if payload.get("role", "user") != expected_role:
         return None
-    return payload.get("sub")
+    return payload
+
+
+def verify_token(token: str, expected_role: str = "user"):
+    """Returns the subject id the token was issued for, or None if it's
+    invalid — see _decode_payload. Never raises — every caller treats an
+    invalid token exactly like "not logged in", not an error. Doesn't check
+    password_changed_at (that needs a database lookup by subject id, which
+    this deliberately stays free of) — callers that need that check use
+    _decode_payload + _issued_before_password_change directly instead;
+    this stays the plain "is this token real" helper for callers (like
+    get_admin_user's break-glass short-circuit) that never reach it."""
+    payload = _decode_payload(token, expected_role)
+    return payload.get("sub") if payload else None
+
+
+def _issued_before_password_change(iat, password_changed_at):
+    """A token issued before the account's last password change is stale.
+    Changing a password is supposed to end every OTHER session — with a
+    stateless JWT and no session table to delete rows from, this iat-vs-
+    password_changed_at comparison is what actually makes that true (see
+    api/auth.py's change_password and api/artisans.py's
+    artisan_change_password, which both set the column and re-issue a
+    fresh token so the session that MADE the change isn't logged out of
+    itself). password_changed_at is None for every account that hasn't
+    explicitly changed its password since this existed, so this never
+    retroactively invalidates a pre-existing token.
+
+    The 5-second grace window matters: a JWT's iat is whole seconds (per
+    the JWT spec), but password_changed_at is a microsecond-precision DB
+    timestamp set a moment BEFORE the fresh token's iat is generated in
+    the same request — without slack, that fresh token's truncated iat can
+    land a fraction of a second "before" password_changed_at and get
+    treated as stale immediately, logging out the very session that just
+    changed its own password."""
+    if not password_changed_at or iat is None:
+        return False
+    iat_dt = datetime.fromtimestamp(iat, tz=timezone.utc).replace(tzinfo=None)
+    return iat_dt < password_changed_at - timedelta(seconds=5)
 
 
 def break_glass_configured():
@@ -150,11 +188,25 @@ def get_scope(request):
     """(user_id, guest_id) for the current request — exactly one is
     meaningful for a given caller, but both are returned so a route can
     decide (e.g. "prefer user_id, fall back to guest_id") without repeating
-    the header-parsing logic itself."""
+    the header-parsing logic itself.
+
+    Does a User row lookup whenever a Bearer token is present (not just
+    crypto verification) — the only way to check the token against
+    password_changed_at, see _issued_before_password_change. That's a real
+    added DB query on every authenticated request this app didn't pay
+    before; the alternative is a password change that doesn't actually log
+    anyone else out, which defeats the point of a password change."""
     user_id = None
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
-        user_id = verify_token(auth_header[len("Bearer "):].strip(), expected_role="user")
+        payload = _decode_payload(auth_header[len("Bearer "):].strip(), expected_role="user")
+        if payload:
+            from app import db
+            from app.models import User
+
+            user = db.session.get(User, payload.get("sub"))
+            if user and not _issued_before_password_change(payload.get("iat"), user.password_changed_at):
+                user_id = user.id
     guest_id = request.headers.get("X-Guest-Id") or None
     return user_id, guest_id
 
@@ -187,7 +239,17 @@ def get_artisan_scope(request):
     app, receiving/accepting job requests requires a real artisan account —
     see JobRequest's accept/complete routes in api/requests.py."""
     token = request.headers.get("X-Artisan-Token") or ""
-    return verify_token(token, expected_role="artisan")
+    payload = _decode_payload(token, expected_role="artisan")
+    if not payload:
+        return None
+
+    from app import db
+    from app.models import Artisan
+
+    artisan = db.session.get(Artisan, payload.get("sub"))
+    if not artisan or _issued_before_password_change(payload.get("iat"), artisan.password_changed_at):
+        return None
+    return artisan.id
 
 
 def require_artisan_scope(request):
@@ -231,11 +293,13 @@ def get_admin_user(request):
     from app import db
     from app.models import User
 
-    user_id = verify_token(token, expected_role="user") if token else None
-    if not user_id:
+    payload = _decode_payload(token, expected_role="user") if token else None
+    if not payload:
         return None
-    user = db.session.get(User, user_id)
+    user = db.session.get(User, payload.get("sub"))
     if not user or not user.is_admin:
+        return None
+    if _issued_before_password_change(payload.get("iat"), user.password_changed_at):
         return None
     return user
 

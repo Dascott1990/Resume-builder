@@ -120,12 +120,20 @@ export function useAuth() {
     return data;
   };
 
-  const changePassword = (currentPassword, newPassword) =>
-    apiRequest("/api/v1/auth/change-password", {
+  const changePassword = async (currentPassword, newPassword) => {
+    const data = await apiRequest("/api/v1/auth/change-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
     });
+    // Changing a password now invalidates every token issued before it
+    // (see backend/app/utils/auth.py's _issued_before_password_change) —
+    // this session's own existing token is one of them, so without
+    // storing the freshly-issued one here, the very next request would
+    // log this session out too.
+    setToken(data.token);
+    return data;
+  };
 
   const resendVerification = (email) =>
     apiRequest("/api/v1/auth/resend-verification", {

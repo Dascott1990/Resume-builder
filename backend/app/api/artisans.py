@@ -4,6 +4,7 @@ import re
 import io
 import time
 import secrets
+from datetime import datetime, timezone
 import anthropic
 import requests
 from flask import Blueprint, request, jsonify, send_file
@@ -366,9 +367,12 @@ def artisan_change_password():
     if len(new_password) < 8:
         raise APIError("New password must be at least 8 characters", 400)
 
+    # See auth.py's change_password — same reasoning for both timestamp
+    # and re-issued token.
     a.password_hash = hash_password(new_password)
+    a.password_changed_at = datetime.now(timezone.utc)
     db.session.commit()
-    return jsonify({"success": True, "data": {"message": "Password updated"}}), 200
+    return jsonify({"success": True, "data": {"message": "Password updated", "token": issue_token(a.id, role="artisan")}}), 200
 
 
 @artisans_bp.route("/me/avatar-photo", methods=["POST"])

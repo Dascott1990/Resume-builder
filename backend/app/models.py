@@ -32,6 +32,13 @@ class User(db.Model):
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
     email = db.Column(db.String(190), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
+    # NULL until the first explicit password change (see api/auth.py's
+    # change_password) — a token issued before this timestamp is treated
+    # as stale (see utils/auth.py's _issued_before_password_change), which
+    # is what actually logs out every OTHER session on a password change.
+    # NULL means "never changed since this existed," so no pre-existing
+    # token is retroactively invalidated the moment this column appears.
+    password_changed_at = db.Column(db.DateTime, nullable=True)
     # Optional — signup never asks for any of these, only the Settings
     # screen does. status_line mirrors Artisan.bio's role, just shorter —
     # a one-line headline shown next to the name ("Open to work"), not a
@@ -119,6 +126,8 @@ class Artisan(db.Model):
     # JobRequest below) once they've signed up for real AND turned
     # is_available on — neither is assumed just because a listing exists.
     password_hash = db.Column(db.String(255), nullable=True)
+    # Same reasoning as User.password_changed_at above.
+    password_changed_at = db.Column(db.DateTime, nullable=True)
     is_available = db.Column(db.Boolean, nullable=True)
     # Best-effort geocode of `city` (see utils/geocoding.py), set on save —
     # NULL on every row until it's (re)saved after this shipped, and NULL

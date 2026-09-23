@@ -1,5 +1,5 @@
 import { apiRequest } from "../shared/api";
-import { getArtisanToken } from "@/lib/artisanAuthToken";
+import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
 
 // Every artisan-scoped call needs X-Artisan-Token — apiRequest itself only
 // ever attaches X-Guest-Id/Authorization (the customer-side scoping), so
@@ -82,11 +82,19 @@ export const artisanUpdateProfile = (fields) => apiRequest("/api/v1/artisans/me"
   body: JSON.stringify(fields),
 });
 
-export const artisanChangePassword = (currentPassword, newPassword) => apiRequest("/api/v1/artisans/me/change-password", {
-  method: "POST",
-  headers: { "Content-Type": "application/json", ...authHeaders() },
-  body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
-});
+export const artisanChangePassword = async (currentPassword, newPassword) => {
+  const data = await apiRequest("/api/v1/artisans/me/change-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+  // Same reasoning as useAuth.js's changePassword — this session's own
+  // token is now stale too (see backend's password_changed_at check), so
+  // it must be replaced with the freshly-issued one or the very next
+  // request logs this session out.
+  setArtisanToken(data.token);
+  return data;
+};
 
 // FormData, not JSON — deliberately no "Content-Type" header here, same as
 // PhotoPortfolio.js's own upload: fetch sets the multipart boundary itself
