@@ -125,18 +125,24 @@ function StatCard({ label, value, Icon, loading, needsAttention }) {
 // "Build a resume" CTA for the same big-card visual weight real content
 // (stats, recent activity) should get instead. This is shortcuts, not
 // content, and industry dashboards size it accordingly: small, scannable,
-// out of the way in one line.
+// out of the way in one line. A quiet bg-card/60 tile with no border gives
+// each one a single tappable boundary without going back to the heavier
+// bordered-card look; min-h-[2lh] on the label reserves the same two-
+// line-height block whether that label wraps once or twice, so all four
+// tiles end at the same bottom edge instead of a crooked row.
 function QuickAction({ Icon, label, onClick, color = "amber" }) {
   return (
     <motion.button
-      whileTap={{ scale: 0.92 }}
+      whileTap={{ scale: 0.96 }}
       onClick={onClick}
-      className="flex w-16 shrink-0 flex-col items-center gap-1.5 border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
+      className="flex flex-col items-center gap-1.5 rounded-2xl border-none bg-card/60 p-3 [-webkit-tap-highlight-color:transparent]"
     >
       <span className={`flex size-12 items-center justify-center rounded-full border ${QUICK_ACTION_COLORS[color]}`}>
         <Icon className="size-[19px]" />
       </span>
-      <span className="text-center text-[11px] leading-tight font-semibold text-foreground">{label}</span>
+      <span className="flex min-h-[2lh] items-start justify-center text-center text-[11px] leading-tight font-semibold text-foreground">
+        {label}
+      </span>
     </motion.button>
   );
 }
@@ -323,7 +329,11 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
           (see QUICK_ACTION_COLORS) so the four read as distinct actions
           at a glance, not four identical circles with different labels. */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }} className="mb-6">
-        <div className="-mx-5 flex gap-4 overflow-x-auto px-5 sm:-mx-8 sm:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* grid grid-cols-4, not flex — a flex row's leftover space
+            distributes unevenly between gaps; a 4-column grid gives every
+            tile the exact same width and every gap the exact same size,
+            same pattern as the stats row's own grid-cols-3 below. */}
+        <div className="grid grid-cols-4 gap-3">
           <QuickAction Icon={Sparkles} label="Apply with AI" color="amber" onClick={() => go("apply")} />
           <QuickAction Icon={ScanLine} label="CV Scan" color="blue" onClick={() => go("scan")} />
           <QuickAction Icon={ClipboardList} label="Job Tracker" color="purple" onClick={() => go("jobtracker")} />
