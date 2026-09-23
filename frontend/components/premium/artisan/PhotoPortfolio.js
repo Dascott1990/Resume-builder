@@ -2,12 +2,10 @@
 /**
  * PhotoPortfolio.js — an artisan's public photo portfolio, shown as
  * ArtisanProfile.js's hero: one large photo up top with a thumbnail strip
- * below it to switch which one's showing, not a small standalone strip
- * anymore. Thumbnails/hero both point straight at the backend's raw-byte
- * route (GET /api/v1/artisans/<id>/photos/<photo>/raw) via a plain <img>,
- * never base64-inlined in the list response — see backend/app/api/
- * artisans.py's get_photo_raw. Upload/delete logic is untouched from the
- * original strip version, just re-laid-out.
+ * below it to switch which one's showing. Data (fetch/upload/delete)
+ * comes from usePortfolioPhotos.js, shared with PortfolioGrid.js (the
+ * management screen's own, differently-shaped presentation of this same
+ * data) so neither re-implements the network calls.
  *
  * Takes the full `artisan` object (not just an id) so a listing with zero
  * uploaded photos still has a real hero to show — falls back to the same
@@ -15,92 +13,18 @@
  * app already uses, instead of leaving a blank gap at the top of the
  * profile.
  */
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useRef, useState } from "react";
 import { Plus, Loader2, Trash2 } from "lucide-react";
 import { tintFor, initialsOf, avatarPhotoUrl } from "../shared/artisanDisplay";
 import Emoji3D from "../shared/Emoji3D";
-import { apiRequest } from "../shared/api";
-import { getArtisanToken } from "@/lib/artisanAuthToken";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL;
-
-// A real signed-up artisan has no edit_token to hand this component at
-// all (see backend/app/api/artisans.py's _authorize_edit — it's
-// deliberately never exposed in Artisan.to_dict()); their own session
-// (X-Artisan-Token) is what authorizes them instead. Sending both
-// unconditionally means this one component works unmodified from every
-// caller — the anonymous "list yourself" edit flow (editToken set, no
-// artisan session) and a real signed-in artisan (editToken null, real
-// session) alike — without either caller needing to know or care which
-// door actually applies.
-function editHeaders(editToken) {
-  return { "X-Edit-Token": editToken || "", "X-Artisan-Token": getArtisanToken() || "" };
-}
-
-function rawUrl(artisanId, photoId) {
-  return `${API_BASE}/api/v1/artisans/${artisanId}/photos/${photoId}/raw`;
-}
+import { usePortfolioPhotos, rawUrl } from "./usePortfolioPhotos";
 
 export default function PhotoPortfolio({ artisan, isMine, editToken }) {
   const artisanId = artisan.id;
-  const [photos, setPhotos] = useState(null); // null = loading
+  const { photos, uploading, upload, remove } = usePortfolioPhotos(artisanId, editToken);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef(null);
-
-  const load = () => {
-    apiRequest(`/api/v1/artisans/${artisanId}/photos`)
-      .then((data) => { setPhotos(data); setActiveIndex(0); })
-      .catch(() => setPhotos([]));
-  };
-  useEffect(load, [artisanId]);
-
-  const upload = async (file) => {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Only image files are allowed.");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Photo must be 5MB or smaller.");
-      return;
-    }
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      await apiRequest(`/api/v1/artisans/${artisanId}/photos`, {
-        method: "POST",
-        headers: editHeaders(editToken),
-        body: formData,
-      });
-      toast.success("Photo added");
-      load();
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const removeActive = async () => {
-    const photo = photos?.[activeIndex];
-    if (!photo) return;
-    setDeleting(true);
-    try {
-      await apiRequest(`/api/v1/artisans/${artisanId}/photos/${photo.id}`, {
-        method: "DELETE",
-        headers: editHeaders(editToken),
-      });
-      load();
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setDeleting(false);
-    }
-  };
 
   if (photos === null) {
     return <div className="aspect-[4/5] w-full animate-pulse rounded-2xl bg-muted sm:aspect-[16/10]" />;
@@ -109,6 +33,17 @@ export default function PhotoPortfolio({ artisan, isMine, editToken }) {
   const hasPhotos = photos.length > 0;
   const active = hasPhotos ? photos[Math.min(activeIndex, photos.length - 1)] : null;
   const tint = tintFor(artisan.name || "?");
+
+  const removeActive = async () => {
+    if (!active) return;
+    setDeleting(true);
+    try {
+      await remove(active.id);
+      setActiveIndex(0);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div>

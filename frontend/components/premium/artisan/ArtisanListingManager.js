@@ -4,9 +4,14 @@
  * what a customer actually sees: profile details and the work portfolio.
  * Previously scattered — profile fields lived in Settings.js, portfolio
  * photos were only reachable by opening your own PUBLIC listing from
- * Browse (ArtisanProfile.js's isMine-gated PhotoPortfolio) — with no
- * single "manage my listing" screen at all, the way Fiverr's gig manager
- * or Thumbtack's pro profile page works.
+ * Browse — with no single "manage my listing" screen at all, the way
+ * Fiverr's gig manager or Thumbtack's pro profile page works.
+ *
+ * Photos render via PortfolioGrid.js here — a compact management grid,
+ * not PhotoPortfolio.js's full-bleed hero (that's right for
+ * ArtisanProfile.js's public page, wrong stacked under a normal-sized
+ * form here). Same data underneath (usePortfolioPhotos.js), different
+ * shape for a genuinely different job.
  *
  * Reachable from ArtisanDashboard.js (where an artisan actually spends
  * their time) and from Settings.js's now-slimmed-down Artisan Account
@@ -27,7 +32,7 @@ import { Field, Btn } from "../guest/components/primitives";
 import { IconTile } from "../shared/IconTile";
 import Emoji3D from "../shared/Emoji3D";
 import { EmojiPicker } from "../shared/EmojiPicker";
-import PhotoPortfolio from "./PhotoPortfolio";
+import PortfolioGrid from "./PortfolioGrid";
 import ArtisanProfile from "../ArtisanProfile";
 import { tintFor, initialsOf, avatarPhotoUrl } from "../shared/artisanDisplay";
 import { TRADES } from "../shared/trades";
@@ -236,7 +241,7 @@ export default function ArtisanListingManager({ onClose }) {
           {saving ? "Saving…" : "Save changes"}
         </Btn>
 
-        <PhotoPortfolio artisan={artisan} isMine editToken={null} />
+        <PortfolioGrid artisanId={artisan.id} editToken={null} />
       </div>
     </div>
   );
