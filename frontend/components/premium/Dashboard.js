@@ -245,13 +245,13 @@ function NotificationsDialog({ open, onClose, items, onOpenItem }) {
   );
 }
 
-function SectionHeader({ children, onViewAll }) {
+function SectionHeader({ children, onViewAll, viewAllLabel = "View all" }) {
   return (
     <div className="mb-3 flex items-center justify-between">
       <span className="font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{children}</span>
       {onViewAll && (
         <button onClick={onViewAll} className="flex items-center gap-0.5 border-none bg-transparent p-0 text-[12px] font-bold text-primary">
-          View all <ChevronRight className="size-3" />
+          {viewAllLabel} <ChevronRight className="size-3" />
         </button>
       )}
     </div>
@@ -263,6 +263,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
   const recentResumes = savedResumes.slice(0, 3);
   const recentApps = applications.slice(0, 3);
   const followupCount = applications.filter((a) => a.needs_followup).length;
+  const [showAllFeed, setShowAllFeed] = useState(false);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5 py-6 sm:px-8 sm:py-8">
@@ -498,13 +499,18 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
 
       {worldFeed.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.35 }} className="mb-6">
-          <SectionHeader>Worth a look</SectionHeader>
+          <SectionHeader onViewAll={() => setShowAllFeed((v) => !v)} viewAllLabel={showAllFeed ? "Show less" : "View all"}>
+            Worth a look
+          </SectionHeader>
           {/* Horizontal, not another vertical list — this is idle-moment
               browsing, not a task queue, so it shouldn't compete for the
               same "scroll down for more of your stuff" rhythm as Recent
-              resumes/applications above it. */}
+              resumes/applications above it. Items aren't lost when they
+              scroll out of the default top-8 — the feed keeps everything
+              fetched (up to 40 here) reachable via "View all" instead of
+              only ever showing the newest 8. */}
           <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden">
-            {worldFeed.slice(0, 8).map((item) => {
+            {worldFeed.slice(0, showAllFeed ? 40 : 8).map((item) => {
               const meta = FEED_CATEGORY_META[item.category] || FEED_CATEGORY_META.world;
               return (
                 <a
