@@ -7,7 +7,12 @@ import { Toaster as Sonner } from "sonner"
 // sonner's default top offset is a flat 16px on mobile, which sits under the
 // notch/Dynamic Island/status bar. Match the safe-area pattern used
 // everywhere else in the app (BottomNav, page headers, etc).
-const SAFE_AREA_OFFSET = { top: "calc(env(safe-area-inset-top, 0px) + 16px)" };
+// 16px alone isn't enough clearance on screens with a two-row top toolbar
+// (Resume.js's back/undo/redo icons plus its Templates/AI tab row reach
+// ~109px down) — a toast landing there sat directly on top of those
+// buttons instead of below them. 120px clears the tallest header in the
+// app; it's a little extra breathing room on shorter ones, not a problem.
+const SAFE_AREA_OFFSET = { top: "calc(env(safe-area-inset-top, 0px) + 120px)" };
 
 function Toaster({ ...props }) {
   return (
