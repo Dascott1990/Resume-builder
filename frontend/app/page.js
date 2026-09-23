@@ -92,6 +92,14 @@ export default function Home() {
   // clears it first so a stale scan never resurfaces on a later, unrelated
   // visit to the studio.
   const [pendingImport, setPendingImport] = useState(null);
+  // Same idea, for a specific saved resume clicked from Dashboard.js's own
+  // "Recent resumes" row — without this, every row opened the studio at
+  // its default state regardless of which one was actually clicked. Set
+  // by openResume's resumeId argument, consumed once by GuestMode (the
+  // "guest" mode tab inside Resume.js, where saved resumes actually live),
+  // then implicitly cleared the same way pendingImport is: every other
+  // path into "resume" calls openResume() with no id, which resets this.
+  const [pendingLoadResumeId, setPendingLoadResumeId] = useState(null);
   // Same idea, for a job description handed off by the "tailor for this
   // job" bookmarklet (see lib/bookmarklet.js) — set once, from the ?jd=
   // query param below, consumed once by GuestMode, then cleared.
@@ -229,9 +237,14 @@ export default function Home() {
     );
   }
 
-  const openResume = () => {
+  const openResume = (resumeId) => {
     setPendingImport(null);
     setPendingJobDesc(null);
+    // openResume is also used directly as an onClick handler in a few
+    // places (FinalCTA.js, Footer.js's onOpen) — React calls it with the
+    // SyntheticEvent as the first argument there, not a resume id. The
+    // typeof guard is what keeps that from ever being mistaken for one.
+    setPendingLoadResumeId(typeof resumeId === "string" ? resumeId : null);
     setSessionId((id) => id + 1);
     setView("resume");
   };
@@ -267,7 +280,7 @@ export default function Home() {
           }}
           onNavigate={(id, opts) => {
             setArtisansInitialTab(id === "artisans" ? opts?.tab || null : null);
-            if (id === "resume") openResume();
+            if (id === "resume") openResume(opts?.resumeId);
             else if (id === "scan") setView("cvscan");
             else if (id === "jobtracker") setView("jobtracker");
             else if (id === "artisans") setView("artisans");
@@ -384,7 +397,7 @@ export default function Home() {
       // "Close": back to the dashboard, not out of the app entirely.
       onClose={() => setView("dashboard")}
     >
-      <Resume key={sessionId} onClose={() => setView("dashboard")} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} />
+      <Resume key={sessionId} onClose={() => setView("dashboard")} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} pendingLoadResumeId={pendingLoadResumeId} />
     </ErrorBoundary>
   );
 }

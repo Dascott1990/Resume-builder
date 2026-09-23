@@ -40,7 +40,7 @@ import { useViewport } from "@/lib/useViewport";
 import { useSignupNudge } from "@/lib/useSignupNudge";
 import { SignupNudgeModal } from "../shared/SignupNudgeModal";
 
-export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDesc }) {
+export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDesc, pendingLoadResumeId }) {
   const { isPhone, isTablet, isDesktop } = useViewport();
   const signupNudge = useSignupNudge();
 
@@ -386,6 +386,11 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
       setLoadingResumeId(null);
     }
   };
+
+  useEffect(() => {
+    if (pendingLoadResumeId) loadSaved(pendingLoadResumeId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDocx = async () => {
     if (!resume) return;

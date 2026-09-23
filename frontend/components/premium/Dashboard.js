@@ -378,7 +378,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
             <div className="grid gap-2">
               {recentResumes.map((r) => (
                 <div key={r.id} className="glass-surface flex items-center gap-2 rounded-xl p-3">
-                  <button onClick={() => go("resume")}
+                  <button onClick={() => go("resume", { resumeId: r.id })}
                     className="flex min-w-0 flex-1 items-center gap-3 border-none bg-transparent p-0 text-left [-webkit-tap-highlight-color:transparent]">
                     <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10">
                       <FileText className="size-4 text-primary" />

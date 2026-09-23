@@ -650,7 +650,7 @@ const FLIP_VARIANTS = {
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN Resume component
 // ═══════════════════════════════════════════════════════════════════════════════
-const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
+const Resume = ({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId }) => {
   // Read once, synchronously, before first render — same pattern as
   // GuestMode.js's own draftAtMount — so the initial useState value is
   // already correct instead of flashing the default template for one
@@ -662,7 +662,7 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
   // lives in the wizard, so land there directly instead of on the
   // pre-built list someone would just have to click past. Falls back to
   // the restored draft's own mode only when neither of those is present.
-  const [mode,         setMode]         = useState(() => (pendingImport || pendingJobDesc) ? "guest" : (draftAtMount?.mode || "mine"));
+  const [mode,         setMode]         = useState(() => (pendingImport || pendingJobDesc || pendingLoadResumeId) ? "guest" : (draftAtMount?.mode || "mine"));
   const [flipDir,      setFlipDir]      = useState(1); // 1 = flipping forward (mine→guest), -1 = flipping back
   const [activeResume, setActiveResume] = useState(() => draftAtMount?.activeResume || "it");
   const [resumeData,   setResumeData]   = useState(() => draftAtMount?.resumeData || JSON.parse(JSON.stringify(RESUMES["it"])));
@@ -951,7 +951,7 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
                 whole studio (onClose → launcher), while onBack flips back to
                 "My Resumes" without ever losing the session. Guest mode's
                 own draft/profile autosave means either direction is safe. */}
-            <ResumeGuestMode onClose={onClose} onBack={() => goToMode("mine")} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} />
+            <ResumeGuestMode onClose={onClose} onBack={() => goToMode("mine")} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} pendingLoadResumeId={pendingLoadResumeId} />
           </motion.div>
         ) : (
           <motion.div key="mine" custom={flipDir} variants={FLIP_VARIANTS} initial="enter" animate="center" exit="exit"
