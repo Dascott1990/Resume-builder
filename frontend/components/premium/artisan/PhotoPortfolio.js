@@ -21,8 +21,22 @@ import { Plus, Loader2, Trash2 } from "lucide-react";
 import { tintFor, initialsOf, avatarPhotoUrl } from "../shared/artisanDisplay";
 import Emoji3D from "../shared/Emoji3D";
 import { apiRequest } from "../shared/api";
+import { getArtisanToken } from "@/lib/artisanAuthToken";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+
+// A real signed-up artisan has no edit_token to hand this component at
+// all (see backend/app/api/artisans.py's _authorize_edit — it's
+// deliberately never exposed in Artisan.to_dict()); their own session
+// (X-Artisan-Token) is what authorizes them instead. Sending both
+// unconditionally means this one component works unmodified from every
+// caller — the anonymous "list yourself" edit flow (editToken set, no
+// artisan session) and a real signed-in artisan (editToken null, real
+// session) alike — without either caller needing to know or care which
+// door actually applies.
+function editHeaders(editToken) {
+  return { "X-Edit-Token": editToken || "", "X-Artisan-Token": getArtisanToken() || "" };
+}
 
 function rawUrl(artisanId, photoId) {
   return `${API_BASE}/api/v1/artisans/${artisanId}/photos/${photoId}/raw`;
@@ -59,7 +73,7 @@ export default function PhotoPortfolio({ artisan, isMine, editToken }) {
       formData.append("file", file);
       await apiRequest(`/api/v1/artisans/${artisanId}/photos`, {
         method: "POST",
-        headers: { "X-Edit-Token": editToken || "" },
+        headers: editHeaders(editToken),
         body: formData,
       });
       toast.success("Photo added");
@@ -78,7 +92,7 @@ export default function PhotoPortfolio({ artisan, isMine, editToken }) {
     try {
       await apiRequest(`/api/v1/artisans/${artisanId}/photos/${photo.id}`, {
         method: "DELETE",
-        headers: { "X-Edit-Token": editToken || "" },
+        headers: editHeaders(editToken),
       });
       load();
     } catch (e) {

@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   Loader2, MapPin, Clock, X, Wrench, RefreshCw, ClipboardList, Hammer,
-  CheckCircle2, Inbox, Star, MessageCircle, Banknote, Trash2,
+  CheckCircle2, Inbox, Star, MessageCircle, Banknote, Trash2, Camera,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -142,7 +142,7 @@ function CompactJobCard({ j, onOpen }) {
   );
 }
 
-export default function ArtisanDashboard({ onClose }) {
+export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
   const [signedIn, setSignedIn] = useState(null); // null = checking
   const [artisan, setArtisan] = useState(null);
   const [pool, setPool] = useState(null);
@@ -471,6 +471,28 @@ export default function ArtisanDashboard({ onClose }) {
             <Switch checked={!!artisan?.is_available} disabled={togglingAvail} onCheckedChange={toggleAvailability} />
           </div>
         </Card>
+
+        {/* The one real entry point into everything about how this
+            listing actually presents — profile fields and the work
+            portfolio, both previously only reachable by digging into the
+            app's generic Settings screen (fields) or opening your own
+            PUBLIC listing from Browse (photos). Right under the status
+            card someone actually looks at first. */}
+        {onOpenListingManager && (
+          <button
+            type="button"
+            onClick={onOpenListingManager}
+            className="mt-2.5 flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-card px-3.5 py-3 text-left"
+          >
+            <span className="flex items-center gap-2.5">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Camera className="size-3.5" />
+              </span>
+              <span className="text-[13px] font-bold text-foreground">Manage my listing</span>
+            </span>
+            <span className="text-[11.5px] font-semibold text-muted-foreground">Profile &amp; photos →</span>
+          </button>
+        )}
 
         {/* Where escrow actually lands — a job's payment can't be
             released to this artisan (see JobDetailDialog.js's "Release

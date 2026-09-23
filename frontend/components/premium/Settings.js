@@ -22,19 +22,17 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
   Settings as SettingsIcon, X, User, Wrench, Palette, LogOut, KeyRound,
-  CheckCircle2, Loader2, Check, Smile, Bell, ImagePlus, Trash2,
+  CheckCircle2, Loader2, Check, Bell, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field, Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import Emoji3D from "./shared/Emoji3D";
 import { ThemeToggle } from "./shared/ThemeToggle";
 import { tintFor, initialsOf, avatarPhotoUrl } from "./shared/artisanDisplay";
-import { TRADES } from "./shared/trades";
 import { useAuth } from "@/lib/useAuth";
 import { useAccentColor } from "@/lib/useAccentColor";
 import { useBrightness } from "@/lib/useBrightness";
@@ -42,15 +40,10 @@ import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
 import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
 import {
   artisanMe, artisanUpdateProfile, artisanChangePassword,
-  artisanUploadAvatarPhoto, artisanDeleteAvatarPhoto, artisanDeleteMe,
+  artisanDeleteMe,
 } from "./artisan/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
-
-const AVATAR_EMOJI = [
-  "😀", "😎", "🤓", "🥳", "🦄", "🐱", "🐶", "🦊",
-  "🐼", "🚀", "⭐", "🔥", "💪", "🎯", "🏆", "🎨",
-  "⚡", "🌈", "☕", "🎸",
-];
+import { EmojiPicker } from "./shared/EmojiPicker";
 
 function Section({ icon: Icon, children }) {
   return (
@@ -179,51 +172,7 @@ function BrightnessSlider() {
   );
 }
 
-// A curated grid rather than a full emoji picker/search — this only ever
-// needs to answer "pick a fun avatar," not "find any of 3000 emoji."
-// Reveal-on-tap, same collapsed-link pattern as ChangePasswordForm.
-function EmojiPicker({ value, onChange }) {
-  const [open, setOpen] = useState(false);
-
-  if (!open) {
-    return (
-      <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-1.5 border-none bg-transparent p-0 text-[12.5px] font-bold text-primary">
-        <Smile className="size-3.5" /> {value ? "Change avatar emoji" : "Set an avatar emoji"}
-      </button>
-    );
-  }
-
-  return (
-    <div className="rounded-lg border border-border p-3">
-      <div className="grid grid-cols-8 gap-1.5">
-        {AVATAR_EMOJI.map((e) => (
-          <button
-            key={e}
-            type="button"
-            aria-label={e}
-            onClick={() => { onChange(e); setOpen(false); }}
-            className={`flex size-8 items-center justify-center rounded-lg text-base ${value === e ? "bg-primary/15 ring-1 ring-primary" : ""}`}
-          >
-            {e}
-          </button>
-        ))}
-      </div>
-      <div className="mt-2 flex items-center justify-between">
-        {value ? (
-          <button type="button" onClick={() => { onChange(null); setOpen(false); }} className="border-none bg-transparent p-0 text-[11.5px] font-semibold text-muted-foreground">
-            Remove
-          </button>
-        ) : <span />}
-        <button type="button" onClick={() => setOpen(false)} className="border-none bg-transparent p-0 text-[11.5px] font-semibold text-muted-foreground">
-          Close
-        </button>
-      </div>
-    </div>
-  );
-}
-
 const SETTINGS_PROFILE_DRAFT_KEY = "resumeBuilder:settingsProfileDraft:v1";
-const SETTINGS_ARTISAN_DRAFT_KEY = "resumeBuilder:settingsArtisanDraft:v1";
 
 // Drafts here only exist to survive an accidental refresh mid-edit, not to
 // stand in for the server forever — the plain loadFormDraft/saveFormDraft
@@ -247,7 +196,7 @@ function saveDraftNow(key, data) {
   saveFormDraft(key, { savedAt: Date.now(), data });
 }
 
-export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
+export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOpenArtisanListingManager }) {
   const { user, loading: authLoading, updateProfile, changePassword, logout } = useAuth();
   const profileDraftAtMount = useRef(loadRecentDraft(SETTINGS_PROFILE_DRAFT_KEY)).current;
   const [name, setName] = useState(() => profileDraftAtMount?.name ?? "");
@@ -285,33 +234,14 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
 
   const [artisan, setArtisan] = useState(null);
   const [artisanLoading, setArtisanLoading] = useState(true);
-  const artisanDraftAtMount = useRef(loadRecentDraft(SETTINGS_ARTISAN_DRAFT_KEY)).current;
-  const [artisanForm, setArtisanForm] = useState(artisanDraftAtMount || null);
-  const [savingArtisan, setSavingArtisan] = useState(false);
-  const [avatarPhotoUploading, setAvatarPhotoUploading] = useState(false);
-  const avatarFileInputRef = useRef(null);
 
   useEffect(() => {
     if (!getArtisanToken()) { setArtisan(null); setArtisanLoading(false); return; }
     artisanMe()
-      .then((a) => {
-        setArtisan(a);
-        // Same reasoning as the customer profile above — a restored draft
-        // (unsaved edits from before a refresh) wins over the freshly-
-        // fetched baseline; only fall back to it when there's nothing
-        // pending.
-        setArtisanForm((current) => current || a);
-      })
+      .then(setArtisan)
       .catch(() => { setArtisanToken(null); setArtisan(null); })
       .finally(() => setArtisanLoading(false));
   }, []);
-
-  const artisanDraftSaveTimer = useRef(null);
-  useEffect(() => {
-    clearTimeout(artisanDraftSaveTimer.current);
-    artisanDraftSaveTimer.current = setTimeout(() => saveDraftNow(SETTINGS_ARTISAN_DRAFT_KEY, artisanForm), 300);
-    return () => clearTimeout(artisanDraftSaveTimer.current);
-  }, [artisanForm]);
 
   const saveProfile = async () => {
     setSavingProfile(true);
@@ -326,72 +256,16 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
     }
   };
 
-  const saveArtisanProfile = async () => {
-    setSavingArtisan(true);
-    try {
-      const updated = await artisanUpdateProfile({
-        name: artisanForm.name, trade: artisanForm.trade, city: artisanForm.city,
-        phone: artisanForm.phone, email: artisanForm.email,
-        years_experience: artisanForm.years_experience, bio: artisanForm.bio,
-        avatar_emoji: artisanForm.avatar_emoji,
-      });
-      setArtisan(updated);
-      setArtisanForm(updated);
-      clearFormDraft(SETTINGS_ARTISAN_DRAFT_KEY);
-      toast.success("Profile updated");
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setSavingArtisan(false);
-    }
-  };
-
-  // Also instant, not bundled into "Save profile" — same reasoning as
-  // toggleArtisanNotify below: this is a real file upload with its own
-  // request, not a text field that makes sense to batch. Updates `artisan`
-  // itself (the server truth this section's own preview reads from), not
-  // just artisanForm's draft.
-  const uploadAvatarPhoto = async (file) => {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) { toast.error("Only image files are allowed."); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error("Photo must be 5MB or smaller."); return; }
-    setAvatarPhotoUploading(true);
-    try {
-      const updated = await artisanUploadAvatarPhoto(file);
-      setArtisan(updated);
-      toast.success("Profile photo updated");
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setAvatarPhotoUploading(false);
-    }
-  };
-
-  const removeAvatarPhoto = async () => {
-    setAvatarPhotoUploading(true);
-    try {
-      const updated = await artisanDeleteAvatarPhoto();
-      setArtisan(updated);
-      toast.success("Profile photo removed");
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setAvatarPhotoUploading(false);
-    }
-  };
-
-  // Instant, not bundled into "Save profile" — a preference toggle should
+  // Instant, not bundled into a "Save" button — a preference toggle should
   // behave like ArtisanDashboard.js's availability Switch (takes effect
-  // immediately), not sit half-changed until someone remembers to hit Save.
+  // immediately), not sit half-changed until someone remembers to save.
   const toggleArtisanNotify = async (field, checked) => {
     const previous = artisan[field];
     setArtisan((a) => ({ ...a, [field]: checked }));
-    setArtisanForm((f) => ({ ...f, [field]: checked }));
     try {
       await artisanUpdateProfile({ [field]: checked });
     } catch (e) {
       setArtisan((a) => ({ ...a, [field]: previous }));
-      setArtisanForm((f) => ({ ...f, [field]: previous }));
       toast.error(e.message);
     }
   };
@@ -399,7 +273,6 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
   const artisanSignOut = () => {
     setArtisanToken(null);
     setArtisan(null);
-    setArtisanForm(null);
     toast.success("Signed out");
   };
 
@@ -411,8 +284,6 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
       await artisanDeleteMe();
       setArtisanToken(null);
       setArtisan(null);
-      setArtisanForm(null);
-      clearFormDraft(SETTINGS_ARTISAN_DRAFT_KEY);
       toast.success("Your listing has been taken down.");
     } catch (e) {
       toast.error(e.message);
@@ -531,11 +402,11 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
           ) : (
             <Card className="grid gap-3 p-3.5">
               <div className="flex items-center gap-3">
-                <div className={`flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisan.has_avatar_photo || artisanForm.avatar_emoji ? "" : "font-mono text-sm font-bold"} ${tintFor(artisan.name)}`}>
+                <div className={`flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisan.has_avatar_photo || artisan.avatar_emoji ? "" : "font-mono text-sm font-bold"} ${tintFor(artisan.name)}`}>
                   {artisan.has_avatar_photo ? (
                     <img src={avatarPhotoUrl(artisan.id, artisan.avatar_photo_version)} alt="" className="size-full object-cover" />
-                  ) : artisanForm.avatar_emoji ? (
-                    <Emoji3D emoji={artisanForm.avatar_emoji} size={44} />
+                  ) : artisan.avatar_emoji ? (
+                    <Emoji3D emoji={artisan.avatar_emoji} size={44} />
                   ) : (
                     initialsOf(artisan.name)
                   )}
@@ -576,69 +447,20 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
                 </div>
               </div>
 
-              <Field label="Name" value={artisanForm.name || ""} onChange={(v) => setArtisanForm((f) => ({ ...f, name: v }))} />
-              <div className="mb-3.5 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => avatarFileInputRef.current?.click()}
-                  disabled={avatarPhotoUploading}
-                  className="flex items-center gap-1.5 border-none bg-transparent p-0 text-[12.5px] font-bold text-primary disabled:opacity-50"
-                >
-                  {avatarPhotoUploading ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
-                  {artisan.has_avatar_photo ? "Change profile photo" : "Set a profile photo"}
-                </button>
-                {artisan.has_avatar_photo && (
-                  <button
-                    type="button"
-                    onClick={removeAvatarPhoto}
-                    disabled={avatarPhotoUploading}
-                    className="border-none bg-transparent p-0 text-[11.5px] font-semibold text-muted-foreground disabled:opacity-50"
-                  >
-                    Remove
-                  </button>
-                )}
-                <input
-                  ref={avatarFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => { uploadAvatarPhoto(e.target.files?.[0]); e.target.value = ""; }}
-                />
-              </div>
-              {/* A photo always wins over an emoji in every rendered avatar
-                  (see shared/artisanDisplay.js) — the picker still works
-                  with a photo set, it just won't show anywhere until the
-                  photo itself is removed. */}
-              <EmojiPicker
-                value={artisanForm.avatar_emoji}
-                onChange={(e) => setArtisanForm((f) => ({ ...f, avatar_emoji: e }))}
-              />
-              <div className="mb-3.5">
-                <div className="mb-1.5 text-[13.5px] font-bold tracking-wide text-foreground">Trade</div>
-                <Select value={artisanForm.trade} onValueChange={(v) => setArtisanForm((f) => ({ ...f, trade: v }))}>
-                  <SelectTrigger className="h-[52px] w-full rounded-[10px] text-base">
-                    <SelectValue placeholder="Select a trade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TRADES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                <Field label="City" hint="optional" value={artisanForm.city || ""} onChange={(v) => setArtisanForm((f) => ({ ...f, city: v }))} />
-                <Field label="Years experience" type="number" value={artisanForm.years_experience ?? ""} onChange={(v) => setArtisanForm((f) => ({ ...f, years_experience: v }))} />
-              </div>
-              <Field label="Phone" type="tel" value={artisanForm.phone || ""} onChange={(v) => setArtisanForm((f) => ({ ...f, phone: v }))} />
-              <Field label="Email" type="email" value={artisanForm.email || ""} onChange={(v) => setArtisanForm((f) => ({ ...f, email: v }))} />
-              <Field label="Bio" hint="optional" multiline rows={3} value={artisanForm.bio || ""} onChange={(v) => setArtisanForm((f) => ({ ...f, bio: v }))} />
-
-              <Btn small variant="gold" className="justify-self-start" disabled={savingArtisan} loading={savingArtisan} onClick={saveArtisanProfile}>
-                Save profile
-              </Btn>
-
               <div className="border-t border-border pt-3">
                 <ChangePasswordForm onSubmit={artisanChangePassword} />
               </div>
+
+              {/* Profile fields and the work portfolio moved to their own
+                  real "manage my listing" screen (ArtisanListingManager.js)
+                  instead of living here as a second, easy-to-forget copy —
+                  this card is now a summary + the doors into where each
+                  thing actually gets managed. */}
+              {onOpenArtisanListingManager && (
+                <button type="button" onClick={onOpenArtisanListingManager} className="flex items-center gap-1 justify-self-start border-none bg-transparent p-0 text-[12.5px] font-bold text-primary">
+                  Manage my listing (profile &amp; photos) →
+                </button>
+              )}
 
               <button type="button" onClick={onOpenArtisanAuth} className="flex items-center gap-1 justify-self-start border-none bg-transparent p-0 text-[12.5px] font-bold text-primary">
                 Manage requests &amp; availability →

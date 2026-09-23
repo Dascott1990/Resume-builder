@@ -25,6 +25,7 @@ const dynamicScreen = (loader) => dynamic(loader, { ssr: false, loading: () => <
 const Resume = dynamicScreen(() => import("../components/premium/Resume"));
 const Artisans = dynamicScreen(() => import("../components/premium/Artisans"));
 const ArtisanDashboard = dynamicScreen(() => import("../components/premium/artisan/ArtisanDashboard"));
+const ArtisanListingManager = dynamicScreen(() => import("../components/premium/artisan/ArtisanListingManager"));
 const Settings = dynamicScreen(() => import("../components/premium/Settings"));
 const Login = dynamicScreen(() => import("../components/premium/auth/Login"));
 const Signup = dynamicScreen(() => import("../components/premium/auth/Signup"));
@@ -61,7 +62,7 @@ const ENTERED_KEY = "noqeev_entered_app";
 // sensible landing spot for those two).
 const VIEW_KEY = "noqeev_last_view";
 const RESTORABLE_VIEWS = new Set([
-  "dashboard", "resume", "cvscan", "jobtracker", "apply", "settings", "artisans", "artisan-dashboard", "brand-workspace",
+  "dashboard", "resume", "cvscan", "jobtracker", "apply", "settings", "artisans", "artisan-dashboard", "artisan-listing-manager", "brand-workspace",
 ]);
 
 // The branding workspace has no account to restore into — RESTORABLE_VIEWS
@@ -363,6 +364,7 @@ export default function Home() {
           onClose={() => setView("dashboard")}
           onOpenLogin={() => setView("login")}
           onOpenArtisanAuth={() => setView("artisan-dashboard")}
+          onOpenArtisanListingManager={() => setView("artisan-listing-manager")}
         />
       </ErrorBoundary>
     );
@@ -383,7 +385,15 @@ export default function Home() {
   if (view === "artisan-dashboard") {
     return (
       <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("artisans")}>
-        <ArtisanDashboard onClose={() => setView("artisans")} />
+        <ArtisanDashboard onClose={() => setView("artisans")} onOpenListingManager={() => setView("artisan-listing-manager")} />
+      </ErrorBoundary>
+    );
+  }
+
+  if (view === "artisan-listing-manager") {
+    return (
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("artisan-dashboard")}>
+        <ArtisanListingManager onClose={() => setView("artisan-dashboard")} />
       </ErrorBoundary>
     );
   }
