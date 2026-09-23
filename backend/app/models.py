@@ -543,6 +543,13 @@ class ApplicationRun(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     completed_at = db.Column(db.DateTime, nullable=True)
+    # Null until the notification bell (Dashboard.js) has actually been
+    # opened on this run's terminal-state item, or the run finished while
+    # someone was already watching it live in ApplyWithAI — either way,
+    # once it's null no longer, GET /apply/runs/unseen-terminal stops
+    # surfacing it. Same read_at-on-Message shape this app already uses
+    # for the messages side of the same bell (see api/messages.py).
+    seen_at = db.Column(db.DateTime, nullable=True)
 
     def to_dict(self):
         return {
@@ -558,6 +565,7 @@ class ApplicationRun(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "seen_at": self.seen_at.isoformat() if self.seen_at else None,
         }
 
 

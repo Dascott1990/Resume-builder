@@ -434,7 +434,7 @@ function TerminalScreen({ run, onRestart }) {
   );
 }
 
-export default function ApplyWithAI({ onClose }) {
+export default function ApplyWithAI({ onClose, pendingRunId }) {
   const [phase, setPhase] = useState("loading"); // loading | profile | url | progress | review | terminal
   const [profile, setProfile] = useState(null);
   const [run, setRun] = useState(null);
@@ -444,6 +444,24 @@ export default function ApplyWithAI({ onClose }) {
     apiRequest("/api/v1/apply/profile")
       .then((data) => {
         setProfile(data);
+
+        // Opened from the notification bell for one specific finished (or
+        // still-running) run — go straight to THAT run's own screen
+        // instead of the active-run auto-detect below, which only ever
+        // finds the single most recent one and wouldn't necessarily match
+        // what was actually clicked.
+        if (pendingRunId) {
+          apiRequest(`/api/v1/apply/runs/${pendingRunId}`)
+            .then((target) => {
+              setRun(target);
+              if (TERMINAL_STATUSES.includes(target.status)) setPhase("terminal");
+              else if (target.status === "ready_for_review") setPhase("review");
+              else { setPhase("progress"); startPolling(target.id); }
+            })
+            .catch(() => setPhase(data && data.confirmed ? "url" : "profile"));
+          return;
+        }
+
         // A run started before this screen was last closed (or before a
         // refresh) is still going on the backend regardless — reopening
         // "Apply with AI" shouldn't dump someone back at a blank URL form
@@ -463,7 +481,18 @@ export default function ApplyWithAI({ onClose }) {
           .catch(() => setPhase(data && data.confirmed ? "url" : "profile"));
       })
       .catch(() => setPhase("profile"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Once this screen is actually showing a run's terminal result — however
+  // it got here (live completion, reopening mid-review, or a notification
+  // click) — that run has been seen. Clears it from the bell so a
+  // completed automation doesn't keep re-notifying every poll.
+  useEffect(() => {
+    if (phase === "terminal" && run?.id) {
+      apiRequest(`/api/v1/apply/runs/${run.id}/seen`, { method: "POST" }).catch(() => {});
+    }
+  }, [phase, run?.id]);
 
   const stopPolling = () => {
     if (pollRef.current) clearInterval(pollRef.current);

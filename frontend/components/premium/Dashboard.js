@@ -20,7 +20,7 @@ import {
   Home, FileText, ScanLine, ClipboardList, Hammer, Settings as SettingsIcon,
   ArrowRight, ChevronRight, CalendarCheck, X, Clock, Sparkles, Bell,
   MessageCircle, Wrench, Inbox, User, Megaphone, Globe, Cpu, Atom, Landmark,
-  MoreVertical, Trash2, StickyNote,
+  MoreVertical, Trash2, StickyNote, Check, AlertTriangle,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -190,11 +190,29 @@ function AddNoteDialog({ app, open, onClose, onSaved }) {
   );
 }
 
-// The actual notification list — every item is its own message thread
-// (see useUnreadNotifications), so a click opens whatever THAT thread is
-// actually about (a customer's own request, or a job in an artisan's own
-// dashboard), never a single guessed destination regardless of which
-// item was tapped.
+// Apply with AI's own item shape (kind: "apply_run") carries a whole `run`
+// record, not the per-thread fields messages use — this is what turns
+// that into the same {icon, title, subtitle} shape the dialog below
+// renders every item as, so one finished automation reads as clearly as
+// one unread message rather than a raw status string.
+function applyRunNotifCopy(run) {
+  let company = "that application";
+  try { company = new URL(run.target_url).hostname.replace(/^www\./, ""); } catch { /* keep the fallback */ }
+  const map = {
+    submitted: { Icon: Check, title: `Application submitted — ${company}`, subtitle: "Added to your Job Tracker." },
+    failed: { Icon: AlertTriangle, title: `Couldn't finish — ${company}`, subtitle: run.error_message || "Something went wrong." },
+    cancelled: { Icon: X, title: `Cancelled — ${company}`, subtitle: "Nothing was submitted." },
+    expired: { Icon: AlertTriangle, title: `Review window expired — ${company}`, subtitle: "Nothing was submitted." },
+  };
+  return map[run.status] || map.failed;
+}
+
+// The actual notification list — each item is either its own message
+// thread or a finished Apply with AI run (see useUnreadNotifications), so
+// a click opens whatever THAT item is actually about (a customer's own
+// request, a job in an artisan's own dashboard, or that specific run's
+// result), never a single guessed destination regardless of which item
+// was tapped.
 function NotificationsDialog({ open, onClose, items, onOpenItem }) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -211,33 +229,54 @@ function NotificationsDialog({ open, onClose, items, onOpenItem }) {
               <p className="m-0 text-sm font-bold text-foreground">All caught up</p>
             </div>
           ) : (
-            items.map((it) => (
-              <button
-                key={it.job_request_id}
-                type="button"
-                onClick={() => onOpenItem(it)}
-                className="flex w-full items-start gap-3 border-b border-border p-4 text-left last:border-b-0 hover:bg-muted/50"
-              >
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
-                  {it.viewer_role === "artisan" ? <Wrench className="size-4" /> : <MessageCircle className="size-4" />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="m-0 text-[13px] font-bold text-foreground">
-                    {it.viewer_role === "artisan"
-                      ? `${it.other_name} messaged you about a ${it.trade} job`
-                      : `${it.other_name} messaged you about your ${it.trade} request`}
-                  </p>
-                  {it.preview && (
-                    <p className="m-0 mt-0.5 truncate text-[12px] text-muted-foreground">{it.preview}</p>
+            items.map((it) => {
+              if (it.kind === "apply_run") {
+                const { Icon, title, subtitle } = applyRunNotifCopy(it.run);
+                return (
+                  <button
+                    key={it.run.id}
+                    type="button"
+                    onClick={() => onOpenItem(it)}
+                    className="flex w-full items-start gap-3 border-b border-border p-4 text-left last:border-b-0 hover:bg-muted/50"
+                  >
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
+                      <Icon className="size-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="m-0 text-[13px] font-bold text-foreground">{title}</p>
+                      <p className="m-0 mt-0.5 truncate text-[12px] text-muted-foreground">{subtitle}</p>
+                    </div>
+                  </button>
+                );
+              }
+              return (
+                <button
+                  key={it.job_request_id}
+                  type="button"
+                  onClick={() => onOpenItem(it)}
+                  className="flex w-full items-start gap-3 border-b border-border p-4 text-left last:border-b-0 hover:bg-muted/50"
+                >
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
+                    {it.viewer_role === "artisan" ? <Wrench className="size-4" /> : <MessageCircle className="size-4" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="m-0 text-[13px] font-bold text-foreground">
+                      {it.viewer_role === "artisan"
+                        ? `${it.other_name} messaged you about a ${it.trade} job`
+                        : `${it.other_name} messaged you about your ${it.trade} request`}
+                    </p>
+                    {it.preview && (
+                      <p className="m-0 mt-0.5 truncate text-[12px] text-muted-foreground">{it.preview}</p>
+                    )}
+                  </div>
+                  {it.unread_count > 1 && (
+                    <span className="mt-0.5 flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10.5px] font-bold text-primary-foreground">
+                      {it.unread_count}
+                    </span>
                   )}
-                </div>
-                {it.unread_count > 1 && (
-                  <span className="mt-0.5 flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10.5px] font-bold text-primary-foreground">
-                    {it.unread_count}
-                  </span>
-                )}
-              </button>
-            ))
+                </button>
+              );
+            })
           )}
         </div>
       </DialogContent>
@@ -588,6 +627,7 @@ export default function Dashboard({ onClose, onNavigate }) {
   // someone actually meant to open.
   const openNotification = (item) => {
     setNotifOpen(false);
+    if (item.kind === "apply_run") { go("apply", { runId: item.run.id }); return; }
     if (item.viewer_role === "artisan") go("artisan-dashboard");
     else go("artisans", { tab: "requests" });
   };

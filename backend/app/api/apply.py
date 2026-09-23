@@ -8,10 +8,12 @@ no-queue Render dyno.
 GET/PUT  /api/v1/apply/profile              — the CareerProfile (memory) this account/guest is building
 POST     /api/v1/apply/runs                 — start a run (returns immediately, runs in a background thread)
 GET      /api/v1/apply/runs                 — this scope's own runs
+GET      /api/v1/apply/runs/unseen-terminal — finished runs the notification bell hasn't shown yet
 GET      /api/v1/apply/runs/<id>            — poll one run's status/progress
 POST     /api/v1/apply/runs/<id>/answer     — answer a pending ask_user question, resumes the paused run
 POST     /api/v1/apply/runs/<id>/confirm-submit — the ONE place a real submit click ever happens
 POST     /api/v1/apply/runs/<id>/cancel     — cancel during execution or during the review window
+POST     /api/v1/apply/runs/<id>/seen       — dismiss a run from the notification bell
 
 Concurrency model: one automation running in-process at a time
 (_RUN_LOCK), held for a run's ENTIRE lifetime — including the idle window
@@ -47,6 +49,11 @@ from app.agent.browser import AgentBrowserSession, PendingReview, register_sessi
 from app.agent.loop import run_agent_loop
 
 apply_bp = Blueprint("apply", __name__)
+
+# The status enum's terminal values — a run never leaves one of these once
+# it lands there. Centralized so sweep/cancel/the notification-bell feed
+# below all agree on exactly the same set.
+TERMINAL_STATUSES_LIST = ["submitted", "failed", "cancelled", "expired"]
 
 REVIEW_TIMEOUT_MINUTES = 15
 # Longest a run could legitimately hold the lock: automation (bounded by
@@ -617,6 +624,41 @@ def list_runs():
     return jsonify({"success": True, "data": [_serialize_run(r) for r in items]}), 200
 
 
+@apply_bp.route("/runs/unseen-terminal", methods=["GET"])
+def unseen_terminal_runs():
+    """What actually feeds the notification bell (Dashboard.js) for Apply
+    with AI — a run that finished (submitted/failed/cancelled/expired)
+    while nobody was watching the live progress screen. Same read_at-is-
+    null shape messages.py's own /unread already uses, just on
+    ApplicationRun.seen_at instead of Message.read_at — one run, one
+    notification, cleared the moment ApplyWithAI actually shows this
+    run's terminal screen (see its own mark-seen effect), whether that's
+    from clicking this notification or just reopening the tool."""
+    query, _, _ = _scope_filter(ApplicationRun.query)
+    items = (
+        query.filter(
+            ApplicationRun.status.in_(TERMINAL_STATUSES_LIST),
+            ApplicationRun.seen_at.is_(None),
+        )
+        .order_by(ApplicationRun.completed_at.desc())
+        .limit(10)
+        .all()
+    )
+    return jsonify({"success": True, "data": [_serialize_run(r) for r in items]}), 200
+
+
+@apply_bp.route("/runs/<run_id>/seen", methods=["POST"])
+def mark_run_seen(run_id):
+    query, _, _ = _scope_filter(ApplicationRun.query.filter_by(id=run_id))
+    run = query.first()
+    if not run:
+        raise APIError("Run not found", 404)
+    if run.seen_at is None:
+        run.seen_at = datetime.now(timezone.utc)
+        db.session.commit()
+    return jsonify({"success": True, "data": _serialize_run(run)}), 200
+
+
 @apply_bp.route("/runs/<run_id>", methods=["GET"])
 def get_run(run_id):
     query, _, _ = _scope_filter(ApplicationRun.query.filter_by(id=run_id))
@@ -681,7 +723,7 @@ def cancel_run(run_id):
             db.session.refresh(run)
             return jsonify({"success": True, "data": _serialize_run(run)}), 200
 
-    if run.status in ("submitted", "failed", "cancelled", "expired"):
+    if run.status in TERMINAL_STATUSES_LIST:
         return jsonify({"success": True, "data": _serialize_run(run)}), 200
 
     # Mid-automation cancel: mark it immediately for instant UI feedback,

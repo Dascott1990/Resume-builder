@@ -100,6 +100,13 @@ export default function Home() {
   // then implicitly cleared the same way pendingImport is: every other
   // path into "resume" calls openResume() with no id, which resets this.
   const [pendingLoadResumeId, setPendingLoadResumeId] = useState(null);
+  // Same idea again, for a specific Apply with AI run clicked from the
+  // notification bell (Dashboard.js's own "X" run just finished" item) —
+  // without this, opening "apply" always lands on the blank URL form
+  // regardless of which finished run the notification was actually about.
+  // Consumed once by ApplyWithAI, cleared the same implicit way as the
+  // other pending* values: any other path into "apply" passes no runId.
+  const [pendingApplyRunId, setPendingApplyRunId] = useState(null);
   // Same idea, for a job description handed off by the "tailor for this
   // job" bookmarklet (see lib/bookmarklet.js) — set once, from the ?jd=
   // query param below, consumed once by GuestMode, then cleared.
@@ -285,7 +292,7 @@ export default function Home() {
             else if (id === "jobtracker") setView("jobtracker");
             else if (id === "artisans") setView("artisans");
             else if (id === "artisan-dashboard") setView("artisan-dashboard");
-            else if (id === "apply") setView("apply");
+            else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); setView("apply"); }
             else if (id === "settings") setView("settings");
           }}
         />
@@ -344,7 +351,7 @@ export default function Home() {
   if (view === "apply") {
     return (
       <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
-        <ApplyWithAI onClose={() => setView("dashboard")} />
+        <ApplyWithAI onClose={() => setView("dashboard")} pendingRunId={pendingApplyRunId} />
       </ErrorBoundary>
     );
   }
