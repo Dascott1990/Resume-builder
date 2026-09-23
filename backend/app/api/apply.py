@@ -711,17 +711,36 @@ def cancel_run(run_id):
 
 
 def sweep_stuck_runs(app):
-    """Boot-time cleanup — a redeploy mid-run leaves rows stuck in an
-    active status with no code path left that will ever update them
-    (their owning thread is gone). Called once from create_app()."""
+    """Cleanup for rows a dead background thread left behind — a redeploy
+    or crash mid-run leaves a row stuck in an active status with no code
+    path left that will ever update it again (its owning thread is gone).
+
+    This is called from create_app(), NOT specifically from the real
+    server's own boot — anything that imports and calls create_app() runs
+    it too: a one-off diagnostic script, a test, a migration. The original
+    version swept every non-terminal row unconditionally, on the
+    assumption that "create_app() just ran" meant "the process just
+    (re)started" — true for gunicorn, false for literally any other
+    caller. In practice this meant a completely healthy, actively-running
+    automation got killed and mislabeled "Interrupted by a server
+    restart" the moment anyone ran an unrelated script against the same
+    database — a real incident, not a hypothetical.
+
+    updated_at bumps on every single step (on_step commits after each
+    tool call) — a genuinely orphaned row's is stale, an active one's
+    isn't. Only reap rows quiet for longer than a real run should ever
+    legitimately take (MAX_LOCK_HOLD_SECONDS — the same ceiling _RunLock
+    itself uses to judge "this holder is dead, not just slow")."""
     with app.app_context():
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=MAX_LOCK_HOLD_SECONDS)
         stuck = ApplicationRun.query.filter(
-            ApplicationRun.status.in_(["queued", "reading_job", "preparing_resume", "filling_form", "needs_input", "ready_for_review"])
+            ApplicationRun.status.in_(["queued", "reading_job", "preparing_resume", "filling_form", "needs_input", "ready_for_review"]),
+            ApplicationRun.updated_at < cutoff,
         ).all()
         for run in stuck:
             run.status = "failed"
-            run.error_message = "Interrupted by a server restart."
+            run.error_message = "This automation stopped responding and was cleaned up."
             run.completed_at = datetime.now(timezone.utc)
         if stuck:
             db.session.commit()
-            print(f"🔧 Swept {len(stuck)} stuck ApplicationRun row(s) after restart")
+            print(f"🔧 Swept {len(stuck)} stuck ApplicationRun row(s) with no activity for over {MAX_LOCK_HOLD_SECONDS // 60} min")
