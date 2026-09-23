@@ -694,10 +694,21 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc }) => {
       setScale(Math.min(1, Math.max(0.3, available / A4W)));
     };
     compute();
+    // A single post-paint measurement can land before the browser has
+    // fully settled layout on a real (slower) mobile device — e.g. a
+    // webfont swapping in after this effect's first run. When that
+    // happens the canvas gets measured wrong once and then never
+    // rechecked, since nothing else in this effect's dependencies
+    // changes on its own — the resume renders unscaled (looks "zoomed
+    // in") until something unrelated, like toggling the sidebar, just
+    // happens to re-run this effect. These two catch that without
+    // needing that manual nudge.
+    const raf = requestAnimationFrame(() => requestAnimationFrame(compute));
+    document.fonts?.ready?.then(compute).catch(() => {});
     const ro = window.ResizeObserver ? new ResizeObserver(compute) : null;
     if (ro && canvasRef.current) ro.observe(canvasRef.current);
     window.addEventListener("resize", compute);
-    return () => { ro?.disconnect(); window.removeEventListener("resize", compute); };
+    return () => { cancelAnimationFrame(raf); ro?.disconnect(); window.removeEventListener("resize", compute); };
   }, [sidebarOpen, isMobile]);
 
   // Mirrors GuestMode.js's own debounced draft save exactly — 300ms so
