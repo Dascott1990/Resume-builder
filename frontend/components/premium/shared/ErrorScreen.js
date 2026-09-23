@@ -165,8 +165,8 @@ export default function ErrorScreen({
                 {showDetails ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
               </button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="mt-1.5 max-h-[180px] overflow-auto rounded-lg border border-border bg-black/30 p-3">
-              <pre className="m-0 whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-muted-foreground">
+            <CollapsibleContent className="mt-1.5">
+              <pre className="m-0 max-h-[180px] min-w-0 overflow-auto rounded-lg border border-border bg-muted/60 p-3 whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-muted-foreground">
                 {error?.detail || error?.stack || error?.message || "No further detail was provided."}
                 {componentStack || ""}
               </pre>
