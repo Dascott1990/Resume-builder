@@ -1,36 +1,29 @@
 "use client";
 /**
  * ArtisanProfile.js — full-screen "professional profile" view for one
- * artisan: full bio, rating summary + Uber-style rate-this-artisan widget,
- * recent reviews, and a Call/Text/Email connect section.
+ * artisan: a portfolio-forward hero, rating summary, bio, rate-this-
+ * artisan widget, recent reviews, and a Message/Request contact sheet.
  *
  * A state swap (like Artisans.js's own tab / page.js's view), not a Dialog —
  * shadcn's DialogContent caps at sm:max-w-sm, too cramped for this much
  * content, and the app already treats "look at one thing full screen" as a
  * state swap at two other levels.
  *
- * Visually speaks the same artisan-brand language as ArtisanDashboard.js/
- * JobDetailDialog.js — mono tracking-wide section labels with icons, a
- * status badge reusing the same available/off language as the artisan's
- * own dashboard, staggered entrance on the hero block.
- *
- * Contact (Request/Call/Text/Email) is a sticky sheet pinned to the
- * bottom of the screen, NOT part of the scrolling content — the whole
- * point of this page is to reach the artisan, so that action shouldn't
- * require scrolling past bio/photos/reviews to find it. It slides up once
- * on mount, the same "always reachable at the bottom" feel as iOS's
- * incoming-call sheet, then just stays put through however much the rest
- * of the page scrolls underneath it.
+ * Contact (Message/Request) is a sticky sheet pinned to the bottom of the
+ * screen, NOT part of the scrolling content — the whole point of this page
+ * is to reach the artisan, so that action shouldn't require scrolling past
+ * photos/bio/reviews to find it. Call/Text/Email — real tel:/sms:/mailto:
+ * links, unchanged from before — live in the scrolling column instead of
+ * the sheet now; the sheet itself stays to exactly two actions on purpose.
  */
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { ChevronLeft, MapPin, Phone, MessageSquare, Mail, RefreshCw, ClipboardList, Star, MessageCircle } from "lucide-react";
+import { ChevronLeft, MapPin, Phone, MessageSquare, Mail, RefreshCw, ClipboardList, Star, MessageCircle, Heart, Share2 } from "lucide-react";
 import { apiRequest } from "./shared/api";
-import { tintFor, initialsOf, formatPhone, avatarPhotoUrl } from "./shared/artisanDisplay";
+import { formatPhone } from "./shared/artisanDisplay";
 import { Btn } from "./guest/components/primitives";
 import PhotoPortfolio from "./artisan/PhotoPortfolio";
-import Emoji3D from "./shared/Emoji3D";
 import RequestJobModal from "./artisan/RequestJobModal";
 import StarRating from "./shared/StarRating";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
@@ -39,6 +32,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const BIO_TRUNCATE_LEN = 220;
 
 function timeAgo(iso) {
   if (!iso) return "";
@@ -61,11 +56,38 @@ function Section({ icon: Icon, children }) {
   );
 }
 
+// Truncate-then-expand for the bio, same shape as the reference's product
+// description — full text always exists in the DOM/state, just visually
+// clipped until "Read more" is tapped, so nothing is ever actually hidden
+// from a screen reader or search.
+function ExpandableBio({ text }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!text) return null;
+  const needsTruncation = text.length > BIO_TRUNCATE_LEN;
+  const shown = expanded || !needsTruncation ? text : text.slice(0, BIO_TRUNCATE_LEN).trimEnd() + "…";
+  return (
+    <p className="text-[13.5px] leading-relaxed text-foreground">
+      {shown}
+      {needsTruncation && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="ml-1.5 border-none bg-transparent p-0 text-[13px] font-bold text-primary"
+        >
+          {expanded ? "Show less" : "Read more"}
+        </button>
+      )}
+    </p>
+  );
+}
+
 export default function ArtisanProfile({
   artisan, isMine, editToken, onBack, onEdit, onDelete, myRating, onRated, onRatingUpdate,
+  isFavorite, onToggleFavorite, onMessage,
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
+  const [messageChecking, setMessageChecking] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [reviewsError, setReviewsError] = useState(null);
@@ -83,12 +105,47 @@ export default function ArtisanProfile({
   };
   useEffect(loadReviews, [artisan.id]);
 
-  const tint = tintFor(artisan.name || "?");
   // Requesting needs a real account on the other end (see backend's
   // create_request) — most existing listings are the anonymous "list
   // yourself" kind with no account, for which Call/Text/Email is and
   // stays the only path. is_available is the artisan's own on/off switch.
   const canRequest = !isMine && artisan.has_account && artisan.is_available;
+
+  // "Message" has no standalone backend of its own — real in-app messaging
+  // only exists once a request is accepted (job-scoped threads, see
+  // messages.py). So this checks for an already-accepted request with
+  // THIS artisan first and, if one exists, hands off to the real thread
+  // (via onMessage, which Artisans.js wires to its own "My requests" tab —
+  // the one place that thread actually renders); otherwise it's the same
+  // honest fallback as the Request button: submitting a request IS the
+  // real first step toward a conversation in this product today.
+  const handleMessage = async () => {
+    if (!isMine && onMessage) {
+      setMessageChecking(true);
+      try {
+        const mine = await apiRequest("/api/v1/requests/mine");
+        const accepted = (mine || []).find((r) => r.artisan_id === artisan.id && r.status === "accepted");
+        if (accepted) { onMessage(); return; }
+      } catch { /* fall through to request/call fallback below */ }
+      finally { setMessageChecking(false); }
+    }
+    if (canRequest) setRequestOpen(true);
+    else toast.error("Send a request first — you'll be able to message once it's accepted.");
+  };
+
+  const share = async () => {
+    const text = `${artisan.name} — ${artisan.trade}${artisan.city ? ` in ${artisan.city}` : ""} on Noqeev`;
+    if (navigator.share) {
+      try { await navigator.share({ title: artisan.name, text }); } catch { /* cancelled — not an error */ }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Couldn't share — try copying manually.");
+    }
+  };
 
   const submitRating = async () => {
     setSubmitting(true);
@@ -137,58 +194,74 @@ export default function ArtisanProfile({
         )}
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }}
-        className="flex items-center gap-3 rounded-2xl border border-foreground/10 bg-card/95 p-4 shadow-[0_8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl supports-backdrop-filter:bg-card/75 dark:shadow-[0_10px_36px_rgba(0,0,0,0.4),0_1px_0_rgba(255,255,255,0.06)_inset]"
-      >
-        <div className={`flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisan.has_avatar_photo || artisan.avatar_emoji ? "" : "font-mono text-xl font-bold"} ${tint}`}>
-          {artisan.has_avatar_photo ? (
-            <img src={avatarPhotoUrl(artisan.id, artisan.avatar_photo_version)} alt="" className="size-full object-cover" />
-          ) : artisan.avatar_emoji ? (
-            <Emoji3D emoji={artisan.avatar_emoji} size={64} />
-          ) : (
-            initialsOf(artisan.name)
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xl font-bold text-foreground">{artisan.name}</div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-            <span className="text-sm font-bold text-primary">{artisan.trade}</span>
-            {artisan.years_experience != null && (
-              <Badge variant="outline" className="rounded border-dashed font-mono text-[10.5px] text-muted-foreground">
-                {artisan.years_experience}+ YRS
-              </Badge>
-            )}
-            {/* The same available/off language as the artisan's own
-                dashboard status card (ArtisanDashboard.js) — a customer
-                gets the same signal the artisan sees about themselves,
-                instead of only discovering it once the Request button
-                does or doesn't appear. */}
-            {!isMine && artisan.has_account && (
-              <Badge
-                variant="outline"
-                className={`gap-1 rounded-full text-[10px] font-bold ${
-                  artisan.is_available
-                    ? "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[var(--success,#22c55e)]"
-                    : "border-border bg-muted text-muted-foreground"
-                }`}
+      {/* Hero: the artisan's own portfolio, not a small circular avatar —
+          heart/share float over its top-right corner, same corner
+          positions a product-detail hero uses them in. */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }} className="relative">
+        <PhotoPortfolio artisan={artisan} isMine={isMine} editToken={editToken} />
+        {!isMine && (
+          <div className="absolute top-3 right-3 flex gap-2">
+            <button
+              type="button"
+              onClick={share}
+              aria-label="Share"
+              className="flex size-9 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-colors hover:bg-black/60"
+            >
+              <Share2 className="size-4" />
+            </button>
+            {onToggleFavorite && (
+              <button
+                type="button"
+                onClick={() => onToggleFavorite(artisan.id)}
+                aria-label={isFavorite ? "Remove from favorites" : "Save to favorites"}
+                aria-pressed={!!isFavorite}
+                className="flex size-9 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-colors hover:bg-black/60"
               >
-                <span className={`size-[5px] rounded-full ${artisan.is_available ? "bg-[var(--success,#22c55e)]" : "bg-muted-foreground/50"}`} />
-                {artisan.is_available ? "Available now" : "Not accepting requests"}
-              </Badge>
+                <Heart className={`size-4 ${isFavorite ? "fill-white" : ""}`} />
+              </button>
             )}
           </div>
-          {artisan.city && (
-            <div className="mt-1 flex items-center gap-1">
-              <MapPin className="size-3 text-muted-foreground" />
-              <span className="text-[12.5px] text-muted-foreground">{artisan.city}</span>
-            </div>
+        )}
+      </motion.div>
+
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
+        <div className="text-xl font-bold text-foreground">{artisan.name}</div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+          <span className="text-sm font-bold text-primary">{artisan.trade}</span>
+          {artisan.years_experience != null && (
+            <Badge variant="outline" className="rounded border-dashed font-mono text-[10.5px] text-muted-foreground">
+              {artisan.years_experience}+ YRS
+            </Badge>
+          )}
+          {/* The same available/off language as the artisan's own
+              dashboard status card (ArtisanDashboard.js) — a customer
+              gets the same signal the artisan sees about themselves,
+              instead of only discovering it once the Request button
+              does or doesn't appear. */}
+          {!isMine && artisan.has_account && (
+            <Badge
+              variant="outline"
+              className={`gap-1 rounded-full text-[10px] font-bold ${
+                artisan.is_available
+                  ? "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[var(--success,#22c55e)]"
+                  : "border-border bg-muted text-muted-foreground"
+              }`}
+            >
+              <span className={`size-[5px] rounded-full ${artisan.is_available ? "bg-[var(--success,#22c55e)]" : "bg-muted-foreground/50"}`} />
+              {artisan.is_available ? "Available now" : "Not accepting requests"}
+            </Badge>
           )}
         </div>
+        {artisan.city && (
+          <div className="mt-1 flex items-center gap-1">
+            <MapPin className="size-3 text-muted-foreground" />
+            <span className="text-[12.5px] text-muted-foreground">{artisan.city}</span>
+          </div>
+        )}
       </motion.div>
 
       <motion.div
-        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.15 }}
         className="flex items-center gap-2.5 rounded-2xl border border-foreground/10 bg-card/95 px-4 py-3.5 shadow-[0_8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl supports-backdrop-filter:bg-card/75 dark:shadow-[0_10px_36px_rgba(0,0,0,0.4),0_1px_0_rgba(255,255,255,0.06)_inset]"
       >
         {artisan.rating_count > 0 ? (
@@ -204,11 +277,7 @@ export default function ArtisanProfile({
         )}
       </motion.div>
 
-      {artisan.bio && (
-        <p className="text-[13.5px] leading-relaxed text-foreground">{artisan.bio}</p>
-      )}
-
-      <PhotoPortfolio artisanId={artisan.id} isMine={isMine} editToken={editToken} />
+      <ExpandableBio text={artisan.bio} />
 
       {!isMine && (
         <div className="rounded-2xl border border-foreground/10 bg-card/95 p-3.5 shadow-[0_8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl supports-backdrop-filter:bg-card/75 dark:shadow-[0_10px_36px_rgba(0,0,0,0.4),0_1px_0_rgba(255,255,255,0.06)_inset]">
@@ -299,69 +368,73 @@ export default function ArtisanProfile({
         </div>
       )}
 
-    </div>
-
-      {/* Same underlying Button primitive Btn itself wraps (asChild renders
-          the real <a> so tel:/sms:/mailto: semantics stay correct), sized
-          with Btn's own default/small classes — pixel-identical to the
-          rest of the app's gold-CTA + quiet-secondary pattern.
-
-          "Request this artisan" is the primary action once they have a
-          real account and are available (see canRequest above) — Call
-          becomes the secondary/fallback path instead of the only one.
-          Without an account (most existing listings, per the code comment
-          above) Call/Text/Email are simply the only way to reach out — no
-          note needed, since there was never an in-app request path to
-          begin with. Only when the artisan HAS an account but toggled
-          themselves off does a short note explain the gap (the header
-          badge above already says "Not accepting requests," so this stays
-          brief rather than repeating it verbatim).
-
-          Pinned outside the scrolling column above (see the file-level
-          comment) — a border + blur reads as a distinct sheet sitting on
-          top of the content, the same visual cue as an iOS action sheet
-          rather than just "the last thing in the list." */}
-      <motion.div
-        initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-        transition={{ type: "spring", damping: 24, stiffness: 300 }}
-        className="shrink-0 border-t border-foreground/10 bg-background/95 px-5 pt-3 shadow-[0_-8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl supports-backdrop-filter:bg-background/80 dark:shadow-[0_-10px_32px_rgba(0,0,0,0.4)]"
-        style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
-      >
-      <div className="grid gap-2.5">
-        {canRequest ? (
-          <Button className="h-[54px] w-full gap-2 rounded-xl px-[18px] text-[15px] font-bold" onClick={() => setRequestOpen(true)}>
-            <ClipboardList className="size-[18px]" /> Request {artisan.name.split(" ")[0]}
-          </Button>
-        ) : !isMine && artisan.has_account && (
-          <p className="m-0 text-center text-[12px] text-muted-foreground">
-            Try calling instead — back in a bit, most likely
-          </p>
-        )}
-        <Button
-          asChild
-          variant={canRequest ? "outline" : "default"}
-          className={canRequest ? "h-11 w-full gap-1.5 rounded-[10px] px-4 text-sm font-bold" : "h-[54px] w-full gap-2 rounded-xl px-[18px] text-[15px] font-bold"}
-        >
-          <a href={`tel:${artisan.phone}`}>
-            <Phone className={canRequest ? "size-4" : "size-[18px]"} /> Call {formatPhone(artisan.phone)}
-          </a>
-        </Button>
-        <div className={artisan.email ? "grid grid-cols-2 gap-2.5" : "grid grid-cols-1 gap-2.5"}>
-          <Button asChild variant="outline" className="h-11 w-full gap-1.5 rounded-[10px] px-4 text-sm font-bold">
-            <a href={`sms:${artisan.phone}`}>
-              <MessageSquare className="size-4" /> Text
-            </a>
-          </Button>
-          {artisan.email && (
-            <Button asChild variant="outline" className="h-11 w-full gap-1.5 rounded-[10px] px-4 text-sm font-bold">
-              <a href={`mailto:${artisan.email}`}>
-                <Mail className="size-4" /> Email
+      {/* Call/Text/Email — real tel:/sms:/mailto: links, unchanged from
+          before, just moved out of the sticky sheet below (which now
+          stays to exactly Message + Request) and into the scrolling
+          column as the "other ways to reach them" fallback. */}
+      {!isMine && (
+        <div className="grid gap-2">
+          <Section icon={Phone}>OTHER WAYS TO REACH {artisan.name.split(" ")[0].toUpperCase()}</Section>
+          <div className={artisan.email ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
+            <Button asChild variant="outline" className="h-11 w-full gap-1.5 rounded-[10px] px-2 text-[12.5px] font-bold">
+              <a href={`tel:${artisan.phone}`}>
+                <Phone className="size-3.5" /> {formatPhone(artisan.phone)}
               </a>
             </Button>
-          )}
+            <Button asChild variant="outline" className="h-11 w-full gap-1.5 rounded-[10px] px-2 text-[12.5px] font-bold">
+              <a href={`sms:${artisan.phone}`}>
+                <MessageSquare className="size-3.5" /> Text
+              </a>
+            </Button>
+            {artisan.email && (
+              <Button asChild variant="outline" className="h-11 w-full gap-1.5 rounded-[10px] px-2 text-[12.5px] font-bold">
+                <a href={`mailto:${artisan.email}`}>
+                  <Mail className="size-3.5" /> Email
+                </a>
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
-      </motion.div>
+      )}
+
+    </div>
+
+      {/* The sticky contact sheet — exactly two actions now, Message and
+          Request, the one deliberate deviation from a literal product-
+          page footer (no size/quantity/cart concept applies here). Pinned
+          outside the scrolling column above so reaching the artisan never
+          requires scrolling past photos/bio/reviews to find it. */}
+      {!isMine && (
+        <motion.div
+          initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+          transition={{ type: "spring", damping: 24, stiffness: 300 }}
+          className="shrink-0 border-t border-foreground/10 bg-background/95 px-5 pt-3 shadow-[0_-8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl supports-backdrop-filter:bg-background/80 dark:shadow-[0_-10px_32px_rgba(0,0,0,0.4)]"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="grid grid-cols-2 gap-2.5">
+            <Button
+              variant="outline"
+              className="h-[54px] w-full gap-2 rounded-xl px-3 text-[14px] font-bold"
+              onClick={handleMessage}
+              disabled={messageChecking}
+            >
+              <MessageCircle className="size-[18px]" /> Message
+            </Button>
+            <Button
+              className="h-[54px] w-full gap-2 rounded-xl px-3 text-[14px] font-bold"
+              onClick={() => setRequestOpen(true)}
+              disabled={!canRequest}
+            >
+              <ClipboardList className="size-[18px]" /> Request {artisan.trade}
+            </Button>
+          </div>
+          {!canRequest && artisan.has_account && (
+            <p className="m-0 pt-2 text-center text-[12px] text-muted-foreground">
+              Not accepting requests right now — try calling instead
+            </p>
+          )}
+        </motion.div>
+      )}
 
       <RequestJobModal open={requestOpen} onClose={() => setRequestOpen(false)} targetArtisan={artisan} />
     </div>

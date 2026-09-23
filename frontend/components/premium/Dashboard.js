@@ -377,7 +377,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
           <QuickAction Icon={Sparkles} label="Apply with AI" color="amber" onClick={() => go("apply")} />
           <QuickAction Icon={ScanLine} label="CV Scan" color="blue" onClick={() => go("scan")} />
           <QuickAction Icon={ClipboardList} label="Job Tracker" color="purple" onClick={() => go("jobtracker")} />
-          <QuickAction Icon={Hammer} label="Find an Artisan" color="green" onClick={() => go("artisans")} />
+          <QuickAction Icon={Hammer} label="Artisan" color="green" onClick={() => go("artisans")} />
         </div>
       </motion.div>
 

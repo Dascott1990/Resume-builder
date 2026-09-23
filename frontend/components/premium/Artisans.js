@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon, Heart } from "lucide-react";
+import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon, Heart, SlidersHorizontal, MessageCircle, Loader2, Zap, Wind, Trees, Blocks, Truck, PaintRoller, Droplets, Home as HomeIcon, Navigation } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tintFor, initialsOf, formatPhone, truncateBio, formatDistance, avatarPhotoUrl } from "./shared/artisanDisplay";
@@ -24,6 +24,7 @@ import { Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import Emoji3D from "./shared/Emoji3D";
 import ArtisanProfile from "./ArtisanProfile";
+import RequestJobModal from "./artisan/RequestJobModal";
 import { tapFeedback } from "@/lib/haptics";
 import { useViewport } from "@/lib/useViewport";
 import { BottomNav } from "./shared/BottomNav";
@@ -66,6 +67,25 @@ const ARTISAN_VIEW_KEY = "noqeev_artisan_browse_view";
 const FAVORITE_IDS_KEY = "noqeev_favorite_artisan_ids";
 
 const TRADES = TRADES_WITH_ALL;
+
+// One real icon per real trade — shared/trades.js's own TRADES list, not
+// an invented category set. "Handyman" gets Wrench even though the grid
+// list view also uses Wrench for the "I'm an artisan" sign-in icon —
+// different contexts, no real collision.
+const TRADE_ICONS = {
+  Carpenter: Hammer,
+  Electrician: Zap,
+  Handyman: Wrench,
+  HVAC: Wind,
+  Landscaper: Trees,
+  Mason: Blocks,
+  Mover: Truck,
+  Painter: PaintRoller,
+  Plumber: Droplets,
+  Roofer: HomeIcon,
+};
+
+const HOME_CITY_KEY = "noqeev_artisan_home_city";
 
 const SORTS = [
   { id: "newest", label: "Newest" },
@@ -130,16 +150,126 @@ const toggleFavoriteId = (id) => {
   return next;
 };
 
-function SearchBar({ value, onChange }) {
+// Filters live behind an icon now instead of an always-visible chip row —
+// TradeChips itself (and everything it drives: `trade` state, the
+// backend's own ?trade= query) is completely unchanged, just shown/hidden
+// on demand. The dot marks "a non-default filter is active" the same way
+// a cart badge marks "something's in here" — visible at a glance without
+// opening the panel to check.
+function SearchBar({ value, onChange, filtersOpen, onToggleFilters, filterActive }) {
   return (
-    <div className="relative min-w-0 shrink-0">
-      <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Search by name, trade, or city"
-        className="h-10 rounded-lg pl-9"
-      />
+    <div className="flex min-w-0 shrink-0 items-center gap-2">
+      <div className="relative min-w-0 flex-1">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Search by name, trade, or city"
+          className="h-11 rounded-full pl-9"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={onToggleFilters}
+        aria-label="Filter by trade"
+        aria-pressed={filtersOpen}
+        className={`relative flex size-11 shrink-0 items-center justify-center rounded-full border transition-colors ${
+          filtersOpen || filterActive
+            ? "border-primary bg-primary/10 text-primary"
+            : "border-border bg-card text-muted-foreground"
+        }`}
+      >
+        <SlidersHorizontal className="size-4" />
+        {filterActive && !filtersOpen && (
+          <span className="absolute top-1.5 right-1.5 size-[7px] rounded-full bg-primary" />
+        )}
+      </button>
+    </div>
+  );
+}
+
+// "Where's the job?" — not "Where to?": the real question this app asks
+// is where the artisan needs to show up, not a destination the visitor is
+// traveling to. Feeds the backend's own ?city= browse param (it existed
+// on the API the whole time, same as ?trade= — see the file header
+// comment; this is what finally calls it) and pre-fills RequestJobModal's
+// city field, so setting it once actually narrows real results instead
+// of being decorative chrome.
+function LocationChip({ city, onOpen }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-center gap-2.5 rounded-2xl border border-border bg-card px-4 py-3 text-left"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <MapPin className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">WHERE'S THE JOB?</p>
+        <p className="m-0 truncate text-[14px] font-bold text-foreground">{city || "Set the job's city"}</p>
+      </div>
+      <ChevronLeft className="size-4 shrink-0 rotate-180 text-muted-foreground/50" />
+    </button>
+  );
+}
+
+// Trade categories as tappable icon tiles — the Browse tab's landing
+// state, one screen before the individual-artisan card grid. Tapping one
+// sets the real `trade` filter (same state the existing TradeChips/
+// backend ?trade= param already use) and drops straight into the results
+// grid for it — no separate "category" concept on the backend, this is
+// exactly the existing filter with a bigger, friendlier front door.
+function CategoryGrid({ onPick }) {
+  return (
+    <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-5">
+      {TRADES_WITH_ALL.filter((t) => t !== "All").map((t) => {
+        const Icon = TRADE_ICONS[t] || Hammer;
+        return (
+          <button
+            key={t}
+            type="button"
+            onClick={() => onPick(t)}
+            className="flex flex-col items-center gap-1.5 rounded-2xl border-none bg-transparent p-1 [-webkit-tap-highlight-color:transparent]"
+          >
+            <span className="flex size-14 items-center justify-center rounded-2xl border border-border bg-card text-foreground">
+              <Icon className="size-5" />
+            </span>
+            <span className="text-center text-[11px] leading-tight font-semibold text-foreground">{t}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Real past job-request cities, not generic "saved places" — a landlord
+// or a recurring cleaning customer re-uses the same address constantly,
+// so surfacing what they've actually typed before (deduped, most-recent
+// first) saves re-typing it, with zero new backend: GET /requests/mine
+// already returns every past request's city (see requests.py's to_dict).
+function RecentLocations({ cities, onPick }) {
+  if (!cities.length) return null;
+  return (
+    <div>
+      <p className="m-0 mb-2 flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">
+        <Navigation className="size-3" /> RECENT JOB LOCATIONS
+      </p>
+      <div className="grid gap-1.5">
+        {cities.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onPick(c)}
+            className="flex items-center gap-2.5 rounded-xl border-none bg-transparent px-1 py-2 text-left [-webkit-tap-highlight-color:transparent] hover:bg-muted/50"
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <MapPin className="size-3.5" />
+            </span>
+            <span className="truncate text-[13px] font-semibold text-foreground">{c}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -252,7 +382,7 @@ const CARD_SURFACE = "cursor-pointer gap-0 overflow-hidden rounded-2xl border bo
 // avatar, name + trade beside it, then two stat columns below a divider.
 // Same underlying data (avatar precedence, edit/delete) as the list card,
 // laid out for a visual multi-column grid instead of a scanning list.
-function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete, variant = "list", isFavorite, onToggleFavorite }) {
+function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete, variant = "list", isFavorite, onToggleFavorite, onMessage, messagingId }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const openProps = {
     role: "button", tabIndex: 0, onClick: () => onOpen(a),
@@ -260,20 +390,21 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete, variant = "list", is
   };
 
   if (variant === "grid") {
-    // The Airbnb-listing-card shape, not its literal styling: a photo on
-    // its own (nothing overlaid except favorite/availability, both
-    // non-textual) with a couple of short, well-chosen lines BELOW it —
-    // not beside it. That's what the previous two attempts got wrong in
-    // opposite directions: cramming name+trade+stats into a strip next
-    // to a small photo truncated everything, and then going fully
-    // photo-only left nothing to decide "tap this one" from. Stacking
-    // instead of cramming gives the text the card's full width to
-    // breathe, so it never needs to compete with the photo for space.
+    // The wishlist-grid shape: a portrait photo bleeding to the card's
+    // own edge (favorite heart floating top-right, same corner a saved-
+    // items grid always puts it), a couple of short lines below it — not
+    // beside it, so text never has to compete with the photo for space —
+    // and a single quick-message circular button in the photo's own
+    // bottom-right corner where the reference's bag/buy icon would sit.
+    // No rate field exists on an Artisan (see backend/app/models.py) —
+    // rating (or years, before any rating exists) fills that same "quick
+    // value signal" slot instead of a fabricated number.
     const hasRating = a.rating_count > 0;
+    const isMessaging = messagingId === a.id;
     return (
       <motion.div whileTap={{ scale: 0.97 }}>
         <div {...openProps} className="cursor-pointer">
-          <div className="relative aspect-square overflow-hidden rounded-2xl shadow-[0_6px_18px_rgba(0,0,0,0.16)] dark:shadow-[0_8px_22px_rgba(0,0,0,0.55)]">
+          <div className="relative aspect-[3/4] overflow-hidden rounded-2xl shadow-[0_6px_18px_rgba(0,0,0,0.16)] dark:shadow-[0_8px_22px_rgba(0,0,0,0.55)]">
             {a.has_avatar_photo ? (
               <img src={avatarPhotoUrl(a.id, a.avatar_photo_version)} alt="" className="size-full object-cover" />
             ) : (
@@ -309,6 +440,18 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete, variant = "list", is
               </button>
             )}
 
+            {!isMine && onMessage && (
+              <button
+                type="button"
+                aria-label={`Message ${a.name}`}
+                onClick={(e) => { e.stopPropagation(); onMessage(a); }}
+                disabled={isMessaging}
+                className="absolute right-2 bottom-2 flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_2px_10px_rgba(0,0,0,0.3)]"
+              >
+                {isMessaging ? <Loader2 className="size-4 animate-spin" /> : <MessageCircle className="size-4" />}
+              </button>
+            )}
+
             {isMine && (
               <div className="absolute bottom-2 left-2 flex gap-1.5 rounded-full bg-black/40 p-1 backdrop-blur-sm">
                 <EditDeleteButtons a={a} onEdit={onEdit} onDelete={onDelete} confirmOpen={confirmOpen} setConfirmOpen={setConfirmOpen} />
@@ -317,15 +460,15 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete, variant = "list", is
           </div>
 
           {/* Below the photo, full card width — the actual "why tap
-              this one" signal: who, how good, what they do and where.
-              Same title/rating-on-one-line shape a listing card uses,
-              just swapped for a person instead of a place. */}
+              this one" signal: who, how good, what they do and where. */}
           <div className="mt-2 flex items-start justify-between gap-2">
             <p className="m-0 min-w-0 flex-1 truncate text-[14px] font-bold text-foreground">{a.name}</p>
             {hasRating ? (
               <span className="flex shrink-0 items-center gap-0.5 text-[13px] font-semibold text-foreground">
                 <Star className="size-3 fill-foreground text-foreground" /> {a.rating_avg.toFixed(1)}
               </span>
+            ) : a.years_experience != null ? (
+              <span className="shrink-0 text-[11px] font-bold text-muted-foreground">{a.years_experience}+ yrs</span>
             ) : (
               <span className="shrink-0 text-[12px] font-bold text-primary">New</span>
             )}
@@ -505,7 +648,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
   // picking grid once means every future visit opens in grid, not just
   // this session.
   const [view, setView] = useState(() => {
-    try { return localStorage.getItem(ARTISAN_VIEW_KEY) || "list"; } catch { return "list"; }
+    try { return localStorage.getItem(ARTISAN_VIEW_KEY) || "grid"; } catch { return "grid"; }
   });
   useEffect(() => {
     try { localStorage.setItem(ARTISAN_VIEW_KEY, view); } catch { /* best-effort */ }
@@ -516,6 +659,69 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
   // control for this instead of two that can disagree with each other.
   const [nearMe, setNearMe] = useState(null); // { lat, lng } | null
   const [unread, setUnread] = useState(0);
+
+  // Browse's own landing state — the trade-category grid + location chip
+  // (Yolda-style "pick a category first") shows until a category's
+  // tapped or a search actually happens; only then does the individual-
+  // artisan wishlist-style grid appear. "results" also persists once
+  // reached so paging/sorting/switching view types doesn't bounce back.
+  const [catView, setCatView] = useState("home"); // "home" | "results"
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [homeCity, setHomeCity] = useState(() => {
+    try { return localStorage.getItem(HOME_CITY_KEY) || ""; } catch { return ""; }
+  });
+  const [homeCityDraft, setHomeCityDraft] = useState("");
+  const [editingCity, setEditingCity] = useState(false);
+  const [recentLocations, setRecentLocations] = useState([]);
+  // Set to the artisan's id while the quick-message button's own
+  // accepted-job check is in flight — a spinner on that ONE card's
+  // button, not a global loading state.
+  const [messagingId, setMessagingId] = useState(null);
+  // A quick-request opened straight from a card's message button, skipping
+  // the full profile — separate from ArtisanProfile's own RequestJobModal
+  // instance so the two don't fight over one shared open/close state.
+  const [quickRequestArtisan, setQuickRequestArtisan] = useState(null);
+
+  useEffect(() => {
+    try { localStorage.setItem(HOME_CITY_KEY, homeCity); } catch { /* best-effort */ }
+  }, [homeCity]);
+
+  // Real past request cities, deduped, most-recent first — GET /mine
+  // already returns this (see requests.py), no new endpoint.
+  useEffect(() => {
+    apiRequest("/api/v1/requests/mine")
+      .then((rows) => {
+        const seen = new Set();
+        const cities = [];
+        for (const r of rows || []) {
+          if (r.city && !seen.has(r.city)) { seen.add(r.city); cities.push(r.city); }
+          if (cities.length >= 5) break;
+        }
+        setRecentLocations(cities);
+      })
+      .catch(() => {});
+  }, []);
+
+  const pickTrade = (t) => { setTrade(t); setCatView("results"); };
+
+  // Message quick-action: check for an already-accepted job with this
+  // artisan first (real thread lives on "My requests" — see
+  // ArtisanProfile.js's identical handleMessage for the full reasoning);
+  // otherwise fall straight into a request for them, skipping the full
+  // profile screen entirely, or the profile itself if a request isn't
+  // even possible (no account / not available) since Call/Text/Email
+  // only live there.
+  const quickMessage = async (a) => {
+    if (!(a.has_account && a.is_available)) { setViewingArtisan(a); return; }
+    setMessagingId(a.id);
+    try {
+      const mine = await apiRequest("/api/v1/requests/mine");
+      const accepted = (mine || []).find((r) => r.artisan_id === a.id && r.status === "accepted");
+      if (accepted) { setTab("requests"); return; }
+    } catch { /* fall through to request modal */ }
+    finally { setMessagingId(null); }
+    setQuickRequestArtisan(a);
+  };
 
   useEffect(() => { setMyIds(getMyIds()); setRatedIds(getRatedIds()); setFavIds(getFavoriteIds()); }, []);
 
@@ -560,12 +766,13 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
     );
   }, [sort, nearMe]);
 
-  const load = async (activeTrade, near) => {
+  const load = async (activeTrade, near, city) => {
     setLoading(true);
     setError(null);
     try {
       const qs = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (activeTrade && activeTrade !== "All") qs.set("trade", activeTrade);
+      if (city) qs.set("city", city);
       if (near) { qs.set("near_lat", String(near.lat)); qs.set("near_lng", String(near.lng)); qs.set("radius_km", "50"); }
       const data = await apiRequest(`/api/v1/artisans?${qs}`);
       setList(data);
@@ -579,13 +786,14 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
       setLoading(false);
     }
   };
-  useEffect(() => { load(trade, sort === "distance" ? nearMe : null); }, [trade, sort === "distance" ? nearMe : null]);
+  useEffect(() => { load(trade, sort === "distance" ? nearMe : null, homeCity); }, [trade, sort === "distance" ? nearMe : null, homeCity]);
 
   const loadMore = async () => {
     setLoadingMore(true);
     try {
       const qs = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(list.length) });
       if (trade && trade !== "All") qs.set("trade", trade);
+      if (homeCity) qs.set("city", homeCity);
       if (sort === "distance" && nearMe) { qs.set("near_lat", String(nearMe.lat)); qs.set("near_lng", String(nearMe.lng)); qs.set("radius_km", "50"); }
       const data = await apiRequest(`/api/v1/artisans?${qs}`);
       setList((l) => [...l, ...data]);
@@ -715,17 +923,79 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
     </Alert>
   );
 
-  const browsePane = (
-    <motion.div key="browse" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="flex min-h-0 flex-1 flex-col gap-3">
-      <SearchBar value={query} onChange={setQuery} />
+  // Landing state: trade-category grid + "where's the job" location chip,
+  // Yolda-style — one screen before the individual-artisan results grid.
+  // Typing a search or tapping a category is what actually reveals
+  // results; this itself makes no /artisans call of its own.
+  const homePane = (
+    <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pb-1">
+      <SearchBar
+        value={query}
+        onChange={(v) => { setQuery(v); if (v.trim()) setCatView("results"); }}
+        filtersOpen={false}
+        filterActive={false}
+        onToggleFilters={() => setCatView("results")}
+      />
 
-      <TradeChips active={trade} onSelect={setTrade} />
+      {editingCity ? (
+        <div className="flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 p-3">
+          <MapPin className="size-4 shrink-0 text-primary" />
+          <Input
+            autoFocus
+            value={homeCityDraft}
+            onChange={(e) => setHomeCityDraft(e.target.value)}
+            placeholder="City or neighborhood"
+            className="h-9 border-none bg-transparent px-0 shadow-none focus-visible:ring-0"
+            onKeyDown={(e) => { if (e.key === "Enter") { setHomeCity(homeCityDraft.trim()); setEditingCity(false); } }}
+          />
+          <Btn small variant="gold" onClick={() => { setHomeCity(homeCityDraft.trim()); setEditingCity(false); }}>
+            Save
+          </Btn>
+        </div>
+      ) : (
+        <LocationChip city={homeCity} onOpen={() => { setHomeCityDraft(homeCity); setEditingCity(true); }} />
+      )}
+
+      <RecentLocations cities={recentLocations.filter((c) => c !== homeCity)} onPick={(c) => setHomeCity(c)} />
+
+      <div>
+        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">WHAT DO YOU NEED?</p>
+        <CategoryGrid onPick={pickTrade} />
+      </div>
+
+      <Btn small variant="ghost" onClick={() => setCatView("results")} className="justify-self-center">
+        Browse everyone
+      </Btn>
+    </motion.div>
+  );
+
+  const resultsPane = (
+    <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="flex min-h-0 flex-1 flex-col gap-3">
+      <button
+        type="button"
+        onClick={() => { setCatView("home"); setQuery(""); }}
+        className="flex shrink-0 items-center gap-1 self-start border-none bg-transparent p-0 text-[12.5px] font-semibold text-muted-foreground"
+      >
+        <ChevronLeft className="size-3.5" /> Categories
+      </button>
+
+      <SearchBar
+        value={query}
+        onChange={setQuery}
+        filtersOpen={filtersOpen}
+        filterActive={trade !== "All"}
+        onToggleFilters={() => setFiltersOpen((v) => !v)}
+      />
+
+      {filtersOpen && <TradeChips active={trade} onSelect={(t) => { setTrade(t); setFiltersOpen(false); }} />}
 
       <div className="flex shrink-0 items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">
           <ClipboardList className="size-3" />
           {loading ? "LOADING…" : `${visibleList.length} LISTING${visibleList.length === 1 ? "" : "S"}`}
+          {homeCity && ` · ${homeCity.toUpperCase()}`}
         </span>
         <div className="flex shrink-0 items-center gap-2">
           <ToggleGroup type="single" value={view} onValueChange={(v) => v && setView(v)} className="gap-1">
@@ -780,7 +1050,8 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
           {!loading && visibleList.map((a) => (
             <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id)} variant={view === "grid" ? "grid" : "list"}
               onOpen={setViewingArtisan} onEdit={startEdit} onDelete={remove}
-              isFavorite={favIds.includes(a.id)} onToggleFavorite={view === "grid" ? toggleFavorite : undefined} />
+              isFavorite={favIds.includes(a.id)} onToggleFavorite={view === "grid" ? toggleFavorite : undefined}
+              onMessage={view === "grid" ? quickMessage : undefined} messagingId={messagingId} />
           ))}
           {/* Only offered once the current filter/search is otherwise exhausted —
               "Load more" fetches the next page from the backend; it's deliberately
@@ -866,6 +1137,13 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
       setViewingArtisan((a) => ({ ...a, ...patch }));
       setList((l) => l.map((x) => (x.id === viewingArtisan.id ? { ...x, ...patch } : x)));
     },
+    isFavorite: favIds.includes(viewingArtisan.id),
+    onToggleFavorite: toggleFavorite,
+    // An accepted job with this artisan was found (see ArtisanProfile's
+    // own handleMessage) — the real thread lives on "My requests," so
+    // back out of the full profile and land there instead of pretending
+    // there's a direct-message screen this app doesn't have.
+    onMessage: () => { setViewingArtisan(null); setTab("requests"); },
   };
 
   const header = (
@@ -952,6 +1230,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
   // a card fills the right pane instead of replacing the whole screen.
   if (isDesktop) {
     return (
+      <>
       <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
         {header}
         {personaSwitch}
@@ -970,7 +1249,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
             <div className="flex w-[380px] shrink-0 flex-col gap-3.5 overflow-hidden border-r border-border p-5">
               {errorBanner}
               <AnimatePresence mode="wait">
-                {tab === "browse" ? browsePane : requestsPane}
+                {tab === "browse" ? (catView === "home" ? homePane : resultsPane) : requestsPane}
               </AnimatePresence>
             </div>
             <div className="min-w-0 flex-1 overflow-y-auto">
@@ -988,6 +1267,8 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
           </div>
         )}
       </div>
+      <RequestJobModal open={!!quickRequestArtisan} onClose={() => setQuickRequestArtisan(null)} targetArtisan={quickRequestArtisan} />
+      </>
     );
   }
 
@@ -995,6 +1276,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
   // matching MobileNav's pattern. Selecting a card does a full-screen swap
   // to the profile view (standard mobile drill-down navigation).
   return (
+    <>
     <AnimatePresence mode="wait">
       {viewingArtisan ? (
         <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -1016,12 +1298,14 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
           >
             {errorBanner}
             <AnimatePresence mode="wait">
-              {persona === "artisan" ? artisanPane : tab === "browse" ? browsePane : requestsPane}
+              {persona === "artisan" ? artisanPane : tab === "browse" ? (catView === "home" ? homePane : resultsPane) : requestsPane}
             </AnimatePresence>
           </div>
           {persona === "hire" && <BottomNav items={hireTabs} active={tab} onChange={onNavChange} />}
         </motion.div>
       )}
     </AnimatePresence>
+    <RequestJobModal open={!!quickRequestArtisan} onClose={() => setQuickRequestArtisan(null)} targetArtisan={quickRequestArtisan} />
+    </>
   );
 }
