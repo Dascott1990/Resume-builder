@@ -47,10 +47,17 @@ function timeAgo(ms) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+// Same glass-surface material Dashboard.js's own recent-activity rows use
+// (see globals.css) — this panel is the branding workspace's direct
+// equivalent of that screen's "what's going on" content, so it gets the
+// same row treatment instead of the flat bordered boxes it had before.
+// Overdue keeps a destructive tint layered on top of the glass base —
+// still the same red-means-needs-action signal the rest of the app uses,
+// just not a flat solid fill underneath it anymore.
 function PostRow({ post, overdue }) {
   const platforms = post.handles.map((h) => PLATFORM_LABELS[h.platform] || h.platform).join(", ");
   return (
-    <div className={`flex items-start justify-between gap-3 rounded-lg border px-3 py-2 ${overdue ? "border-destructive/30 bg-destructive/[0.04]" : "border-border bg-background"}`}>
+    <div className={`glass-surface flex items-start justify-between gap-3 rounded-xl px-3 py-2.5 ${overdue ? "glass-surface-danger" : ""}`}>
       <div className="min-w-0">
         <p className="m-0 truncate text-[12.5px] font-bold text-foreground">{post.title}</p>
         <p className="m-0 text-[11px] text-muted-foreground">
@@ -63,13 +70,27 @@ function PostRow({ post, overdue }) {
   );
 }
 
-function Section({ icon: Icon, iconClass, label, empty, children }) {
+// A colored icon circle per section — same language Dashboard.js's Quick
+// Actions row established (a distinct hue per item instead of one uniform
+// accent) — amber for what's scheduled, blue for what's in progress, and
+// destructive-red for what needs attention (the one that's already a real
+// severity signal elsewhere, kept as-is rather than given an arbitrary hue).
+const SECTION_COLORS = {
+  amber: "border-amber-500/25 bg-amber-500/10 text-amber-500",
+  blue: "border-blue-500/25 bg-blue-500/10 text-blue-500",
+  destructive: "border-destructive/25 bg-destructive/10 text-destructive",
+};
+
+function Section({ icon: Icon, color, label, empty, children }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-bold text-foreground">
-        <Icon className={`size-3.5 ${iconClass}`} /> {label}
+      <div className="mb-2 flex items-center gap-2">
+        <span className={`flex size-6 shrink-0 items-center justify-center rounded-full border ${SECTION_COLORS[color]}`}>
+          <Icon className="size-3.5" />
+        </span>
+        <span className="text-[11.5px] font-bold text-foreground">{label}</span>
       </div>
-      {children || <p className="m-0 text-[12px] text-muted-foreground">{empty}</p>}
+      {children || <p className="m-0 pl-8 text-[12px] text-muted-foreground">{empty}</p>}
     </div>
   );
 }
@@ -87,7 +108,7 @@ export function TodayPanel({ token }) {
 
   if (posts === null) {
     return (
-      <div className="mb-6 flex items-center justify-center rounded-2xl border border-border bg-card py-8 text-muted-foreground">
+      <div className="glass-surface mb-6 flex items-center justify-center rounded-2xl py-8 text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
       </div>
     );
@@ -97,10 +118,10 @@ export function TodayPanel({ token }) {
   const overduePosts = posts.filter(isOverdue);
 
   return (
-    <div className="mb-6 grid gap-4 rounded-2xl border border-border bg-card p-4">
+    <div className="glass-surface mb-6 grid gap-4 rounded-2xl p-4">
       <p className="m-0 font-mono text-[10.5px] font-bold tracking-[0.14em] text-muted-foreground/70 uppercase">Today</p>
 
-      <Section icon={CalendarClock} iconClass="text-primary" label="Scheduled today" empty="Nothing scheduled for today.">
+      <Section icon={CalendarClock} color="amber" label="Scheduled today" empty="Nothing scheduled for today.">
         {todayPosts.length > 0 && (
           <div className="grid gap-1.5">
             {todayPosts.map((p) => <PostRow key={p.id} post={p} overdue={isOverdue(p)} />)}
@@ -108,11 +129,11 @@ export function TodayPanel({ token }) {
         )}
       </Section>
 
-      <Section icon={PenLine} iconClass="text-primary" label="Working on now" empty="No drafts in progress on this browser.">
+      <Section icon={PenLine} color="blue" label="Working on now" empty="No drafts in progress on this browser.">
         {drafts.length > 0 && (
           <div className="grid gap-1.5">
             {drafts.map((d) => (
-              <div key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2">
+              <div key={d.id} className="glass-surface flex items-center justify-between gap-3 rounded-xl px-3 py-2.5">
                 <p className="m-0 min-w-0 truncate text-[12.5px] font-bold text-foreground">{d.name}</p>
                 <p className="m-0 shrink-0 text-[11px] text-muted-foreground">
                   {d.layerCount} layer{d.layerCount === 1 ? "" : "s"} · {timeAgo(d.updatedAt)}
@@ -123,7 +144,7 @@ export function TodayPanel({ token }) {
         )}
       </Section>
 
-      <Section icon={AlertTriangle} iconClass="text-destructive" label="Needs attention" empty="Nothing overdue.">
+      <Section icon={AlertTriangle} color="destructive" label="Needs attention" empty="Nothing overdue.">
         {overduePosts.length > 0 && (
           <div className="grid gap-1.5">
             {overduePosts.map((p) => <PostRow key={p.id} post={p} overdue />)}

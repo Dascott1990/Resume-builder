@@ -305,3 +305,16 @@ select {
     inset 0 1px 0 color-mix(in oklch, white 12%, transparent),
     0 8px 24px color-mix(in oklch, black 10%, transparent);
 }
+
+/* A severity-tinted variant of the glass surface above (e.g. an overdue
+   row) — layered as a second unlayered class rather than a Tailwind
+   utility override, since @import "tailwindcss" puts every utility class
+   inside @layer utilities, and CSS Cascade Layers gives ANY unlayered
+   rule priority over ALL layered ones regardless of selector specificity
+   or source order. A bg-destructive/[...] utility placed after
+   .glass-surface in a className string looks like it should win — it
+   silently never does, so this needs its own unlayered rule instead. */
+.glass-surface-danger {
+  background: color-mix(in oklch, var(--destructive) 8%, color-mix(in oklch, var(--card) 78%, transparent));
+  border-color: color-mix(in oklch, var(--destructive) 30%, transparent);
+}
