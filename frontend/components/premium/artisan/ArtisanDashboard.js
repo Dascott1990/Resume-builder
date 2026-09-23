@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   Loader2, MapPin, Clock, X, Wrench, RefreshCw, ClipboardList, Hammer,
-  CheckCircle2, Inbox, Star, MessageCircle, Banknote,
+  CheckCircle2, Inbox, Star, MessageCircle, Banknote, Trash2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ import { Btn } from "../guest/components/primitives";
 import { truncateBio, tintFor, initialsOf, avatarPhotoUrl } from "../shared/artisanDisplay";
 import Emoji3D from "../shared/Emoji3D";
 import StarRating from "../shared/StarRating";
+import DeleteListingDialog from "../shared/DeleteListingDialog";
 import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
 import ArtisanAuth from "./ArtisanAuth";
 import JobDetailDialog from "./JobDetailDialog";
@@ -39,7 +40,7 @@ import {
   artisanAcceptRequest, artisanDeclineRequest, artisanCompleteRequest,
   artisanProposeTime, artisanConfirmTime,
   artisanGetThread, artisanPostMessage, artisanMarkThreadRead, artisanUnreadCount,
-  artisanReviews, artisanConnectOnboard, artisanConnectStatus,
+  artisanReviews, artisanConnectOnboard, artisanConnectStatus, artisanDeleteMe,
 } from "./api";
 
 function timeAgo(iso) {
@@ -316,6 +317,29 @@ export default function ArtisanDashboard({ onClose }) {
     setArtisan(null);
   };
 
+  // The same delete action also lives in Settings' Artisan Account card —
+  // duplicated here on purpose, not left as the only copy there. This
+  // dashboard is where an artisan actually manages their real listing day
+  // to day; requiring them to separately discover the app's general
+  // Settings screen just to find "delete my listing" is exactly the kind
+  // of gap that gets reported as "I don't know where to remove it."
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const deleteListing = async () => {
+    setDeleting(true);
+    try {
+      await artisanDeleteMe();
+      setArtisanToken(null);
+      setSignedIn(false);
+      setArtisan(null);
+      toast.success("Your listing has been taken down.");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const header = (
     <div
       className="relative flex shrink-0 items-center justify-between overflow-hidden px-5 pb-3.5"
@@ -579,6 +603,25 @@ export default function ArtisanDashboard({ onClose }) {
         <button type="button" onClick={signOut} className="justify-self-center border-none bg-transparent p-2 text-[12.5px] font-semibold text-muted-foreground">
           Sign out
         </button>
+
+        {artisan && (
+          <DeleteListingDialog
+            name={artisan.name}
+            open={confirmDeleteOpen}
+            onOpenChange={setConfirmDeleteOpen}
+            onConfirm={deleteListing}
+            trigger={
+              <button
+                type="button"
+                disabled={deleting}
+                className="flex items-center gap-1.5 justify-self-center border-none bg-transparent p-2 text-[12.5px] font-bold text-destructive disabled:opacity-50"
+              >
+                {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                {deleting ? "Removing…" : "Delete my listing"}
+              </button>
+            }
+          />
+        )}
       </div>
 
       <JobDetailDialog
