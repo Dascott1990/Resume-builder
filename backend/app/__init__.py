@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timezone
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_limiter import Limiter
@@ -42,6 +42,22 @@ db = SQLAlchemy()
 # their own counters and the effective limit would multiply by worker
 # count, silently weakening every limit below.
 limiter = Limiter(key_func=get_remote_address, default_limits=["200 per hour"])
+
+
+@limiter.request_filter
+def _exempt_cors_preflight():
+    """A browser sends its own OPTIONS preflight automatically before any
+    cross-origin request that needs one — it's not a user action, carries
+    no auth/business logic, and happens once per (origin, method, headers)
+    combo per browser cache window, completely independent of how often
+    the real request fires. Without this, a client that legitimately
+    exhausts a route's rate limit (e.g. NotificationBell polling
+    /messages/unread every ~25s) gets its NEXT preflight rejected with
+    429 too — which the browser reports as a CORS failure ("preflight
+    doesn't pass access control check"), not a rate-limit error, since a
+    non-2xx preflight response blocks the real request from ever being
+    sent. That masks the real cause and makes it look like a CORS bug."""
+    return request.method == "OPTIONS"
 
 
 def create_app():
