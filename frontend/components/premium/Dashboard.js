@@ -15,18 +15,23 @@
  */
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import {
   Home, FileText, ScanLine, ClipboardList, Hammer, Settings as SettingsIcon,
   ArrowRight, ChevronRight, CalendarCheck, X, Clock, Sparkles, Bell,
   MessageCircle, Wrench, Inbox, User, Megaphone, Globe, Cpu, Atom, Landmark,
+  MoreVertical, Trash2, StickyNote,
 } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
 import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
 import { tapFeedback } from "@/lib/haptics";
 import { apiRequest } from "./shared/api";
-import { apiListSaved } from "./guest/api";
+import { apiListSaved, apiDelete } from "./guest/api";
 import { BottomNav } from "./shared/BottomNav";
 import { ThemeToggle } from "./shared/ThemeToggle";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -45,6 +50,21 @@ const STATUS_META = {
   interview: { label: "Interview", className: "text-primary" },
   offer: { label: "Offer", className: "text-emerald-500" },
   rejected: { label: "Rejected", className: "text-destructive" },
+};
+// Same 4 statuses JobTracker.js's own STATUSES array uses (this is that
+// same backend enum — VALID_STATUSES in api/applications.py) — just this
+// screen's own compact order for the per-row "mark status" menu.
+const STATUS_ORDER = ["applied", "interview", "offer", "rejected"];
+
+// Each of the 4 quick actions gets its own color so they're distinguishable
+// at a glance instead of reading as identical gray circles with different
+// labels — Apply with AI keeps the brand accent (it IS the flagship AI
+// feature), the other three get a genuinely different hue each.
+const QUICK_ACTION_COLORS = {
+  amber: "border-amber-500/25 bg-amber-500/10 text-amber-500",
+  blue: "border-blue-500/25 bg-blue-500/10 text-blue-500",
+  purple: "border-purple-500/25 bg-purple-500/10 text-purple-500",
+  green: "border-emerald-500/25 bg-emerald-500/10 text-emerald-500",
 };
 
 // Same source /brand/news reads (backend/app/api/brand.py's GET /news and
@@ -65,6 +85,19 @@ function timeAgo(iso) {
   return `${days}d ago`;
 }
 
+// date_applied is a plain YYYY-MM-DD string (see JobApplication model —
+// free text from the user, not a real deadline system), not an ISO
+// timestamp like the other dates on this screen, so it needs its own
+// parse instead of reusing timeAgo.
+function daysSinceApplied(dateStr) {
+  if (!dateStr) return null;
+  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  if (Number.isNaN(days)) return null;
+  if (days <= 0) return "today";
+  if (days === 1) return "1 day ago";
+  return `${days} days ago`;
+}
+
 function greeting() {
   const h = new Date().getHours();
   if (h < 5) return "Still up?";
@@ -73,9 +106,13 @@ function greeting() {
   return "Good evening";
 }
 
-function StatCard({ label, value, Icon, loading }) {
+function StatCard({ label, value, Icon, loading, needsAttention }) {
   return (
-    <div className="glass-surface flex flex-col gap-2 rounded-2xl p-4">
+    <div className="glass-surface relative flex flex-col gap-2 rounded-2xl p-4">
+      {/* Same red-means-action-needed signal as the header bell badge —
+          ties this stat to the follow-up nudge banner above instead of
+          the two existing as two separately-discovered facts. */}
+      {needsAttention && <span className="absolute top-3 right-3 size-2 rounded-full bg-destructive" />}
       <Icon className="size-4 text-primary" />
       {loading ? <Skeleton className="h-7 w-10" /> : <span className="text-2xl font-bold text-foreground">{value}</span>}
       <span className="text-[11.5px] leading-tight text-muted-foreground">{label}</span>
@@ -89,18 +126,61 @@ function StatCard({ label, value, Icon, loading }) {
 // (stats, recent activity) should get instead. This is shortcuts, not
 // content, and industry dashboards size it accordingly: small, scannable,
 // out of the way in one line.
-function QuickAction({ Icon, label, onClick }) {
+function QuickAction({ Icon, label, onClick, color = "amber" }) {
   return (
     <motion.button
       whileTap={{ scale: 0.92 }}
       onClick={onClick}
       className="flex w-16 shrink-0 flex-col items-center gap-1.5 border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
     >
-      <span className="flex size-12 items-center justify-center rounded-full border border-primary/20 bg-primary/10">
-        <Icon className="size-[19px] text-primary" />
+      <span className={`flex size-12 items-center justify-center rounded-full border ${QUICK_ACTION_COLORS[color]}`}>
+        <Icon className="size-[19px]" />
       </span>
       <span className="text-center text-[11px] leading-tight font-semibold text-foreground">{label}</span>
     </motion.button>
+  );
+}
+
+// Real PATCH /api/v1/applications/<id> (same route JobTracker.js's own
+// edit form uses — see api/applications.py), just a small dialog instead
+// of the full Job Tracker screen, so adding a quick note from the
+// dashboard doesn't require leaving it.
+function AddNoteDialog({ app, open, onClose, onSaved }) {
+  const [notes, setNotes] = useState(app?.notes || "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setNotes(app?.notes || ""); }, [app]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const updated = await apiRequest(`/api/v1/applications/${app.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: notes.trim() }),
+      });
+      onSaved(updated);
+      onClose();
+    } catch (e) {
+      toast.error(e.message || "Couldn't save that note.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!app) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Note — {app.role} at {app.company}</DialogTitle></DialogHeader>
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="What's worth remembering about this one?" autoFocus />
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save note"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -172,7 +252,7 @@ function SectionHeader({ children, onViewAll }) {
   );
 }
 
-function DashboardContent({ user, statsLoading, savedResumes, applications, updates, worldFeed, go }) {
+function DashboardContent({ user, statsLoading, savedResumes, applications, updates, worldFeed, go, onDeleteResume, onDeleteApplication, onUpdateApplicationStatus, onAddNote }) {
   const interviews = applications.filter((a) => a.status === "interview").length;
   const recentResumes = savedResumes.slice(0, 3);
   const recentApps = applications.slice(0, 3);
@@ -206,15 +286,28 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
         </motion.button>
       )}
 
-      {/* The one dominant action — everything else on this screen supports it */}
+      {/* The one dominant action — everything else on this screen supports
+          it. Gradient (the same from-primary-to-primary/75 recipe
+          IconTile.js already established, plus a soft primary-tinted
+          glow) instead of a flat fill, and a leading icon circle + one
+          line of subtext next to the trailing arrow button — the "balance
+          card" treatment this comment already claimed it gets, made
+          actually visible instead of a flat-color button with a headline
+          on it. */}
       <motion.button
         initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.05 }}
         whileTap={{ scale: 0.98 }}
         onClick={() => go("resume")}
-        className="mb-5 flex w-full items-center justify-between gap-4 rounded-3xl border-none bg-primary p-6 text-left [-webkit-tap-highlight-color:transparent]"
+        className="mb-5 flex w-full items-center justify-between gap-4 rounded-3xl border-none bg-gradient-to-br from-primary to-primary/75 p-6 text-left shadow-[0_16px_36px_-12px_color-mix(in_oklch,var(--primary)_55%,transparent)] [-webkit-tap-highlight-color:transparent]"
       >
-        <div className="min-w-0">
-          <p className="m-0 text-xl font-bold text-primary-foreground">Build a resume</p>
+        <div className="flex min-w-0 items-center gap-3.5">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
+            <FileText className="size-5 text-primary-foreground" />
+          </div>
+          <div className="min-w-0">
+            <p className="m-0 text-xl font-bold text-primary-foreground">Build a resume</p>
+            <p className="m-0 text-[12px] text-primary-foreground/70">Tailored, ATS-ready in minutes</p>
+          </div>
         </div>
         <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
           <ArrowRight className="size-5 text-primary-foreground" />
@@ -226,13 +319,15 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
           actions under the balance. Always shown regardless of whether
           there's any data yet: these are navigation shortcuts, not
           content, so "nothing tracked yet" doesn't apply to them the way
-          it does to the stats/activity below. */}
+          it does to the stats/activity below. Each gets its own color
+          (see QUICK_ACTION_COLORS) so the four read as distinct actions
+          at a glance, not four identical circles with different labels. */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }} className="mb-6">
         <div className="-mx-5 flex gap-4 overflow-x-auto px-5 sm:-mx-8 sm:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <QuickAction Icon={Sparkles} label="Apply with AI" onClick={() => go("apply")} />
-          <QuickAction Icon={ScanLine} label="CV Scan" onClick={() => go("scan")} />
-          <QuickAction Icon={ClipboardList} label="Job Tracker" onClick={() => go("jobtracker")} />
-          <QuickAction Icon={Hammer} label="Find an Artisan" onClick={() => go("artisans")} />
+          <QuickAction Icon={Sparkles} label="Apply with AI" color="amber" onClick={() => go("apply")} />
+          <QuickAction Icon={ScanLine} label="CV Scan" color="blue" onClick={() => go("scan")} />
+          <QuickAction Icon={ClipboardList} label="Job Tracker" color="purple" onClick={() => go("jobtracker")} />
+          <QuickAction Icon={Hammer} label="Find an Artisan" color="green" onClick={() => go("artisans")} />
         </div>
       </motion.div>
 
@@ -254,7 +349,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
           ) : (
             <div className="grid grid-cols-3 gap-3">
               <StatCard label="Saved resumes" value={savedResumes.length} Icon={FileText} />
-              <StatCard label="Applications" value={applications.length} Icon={ClipboardList} />
+              <StatCard label="Applications" value={applications.length} Icon={ClipboardList} needsAttention={followupCount > 0} />
               <StatCard label="Interviews" value={interviews} Icon={CalendarCheck} />
             </div>
           )}
@@ -272,17 +367,34 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
           ) : (
             <div className="grid gap-2">
               {recentResumes.map((r) => (
-                <button key={r.id} onClick={() => go("resume")}
-                  className="glass-surface flex items-center gap-3 rounded-xl p-3 text-left [-webkit-tap-highlight-color:transparent]">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10">
-                    <FileText className="size-4 text-primary" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="m-0 truncate text-[13px] font-bold text-foreground">{r.name || "Untitled"}</p>
-                    <p className="m-0 truncate text-[11.5px] text-muted-foreground">{r.role || "—"}</p>
-                  </div>
+                <div key={r.id} className="glass-surface flex items-center gap-2 rounded-xl p-3">
+                  <button onClick={() => go("resume")}
+                    className="flex min-w-0 flex-1 items-center gap-3 border-none bg-transparent p-0 text-left [-webkit-tap-highlight-color:transparent]">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10">
+                      <FileText className="size-4 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="m-0 truncate text-[13px] font-bold text-foreground">{r.name || "Untitled"}</p>
+                      <p className="m-0 truncate text-[11.5px] text-muted-foreground">
+                        {r.role ? `${r.role} · ` : ""}Saved {timeAgo(r.generated_at)}
+                      </p>
+                    </div>
+                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button aria-label="More options" onClick={(e) => e.stopPropagation()}
+                        className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted hover:text-foreground">
+                        <MoreVertical className="size-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem className="text-destructive data-highlighted:text-destructive" onSelect={() => onDeleteResume(r.id)}>
+                        <Trash2 className="size-3.5" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <ChevronRight className="size-4 shrink-0 text-muted-foreground/50" />
-                </button>
+                </div>
               ))}
             </div>
           )}
@@ -300,15 +412,49 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
             <div className="grid gap-2">
               {recentApps.map((a) => {
                 const meta = STATUS_META[a.status] || STATUS_META.applied;
+                const since = daysSinceApplied(a.date_applied);
                 return (
-                  <button key={a.id} onClick={() => go("jobtracker")}
-                    className="glass-surface flex items-center gap-3 rounded-xl p-3 text-left [-webkit-tap-highlight-color:transparent]">
-                    <div className="min-w-0 flex-1">
-                      <p className="m-0 truncate text-[13px] font-bold text-foreground">{a.role}</p>
-                      <p className="m-0 truncate text-[11.5px] text-muted-foreground">{a.company}</p>
-                    </div>
-                    <span className={`shrink-0 text-[11.5px] font-bold ${meta.className}`}>{meta.label}</span>
-                  </button>
+                  <div key={a.id} className="glass-surface flex items-center gap-2 rounded-xl p-3">
+                    <button onClick={() => go("jobtracker")}
+                      className="min-w-0 flex-1 border-none bg-transparent p-0 text-left [-webkit-tap-highlight-color:transparent]">
+                      <div className="flex items-center gap-2">
+                        <p className="m-0 min-w-0 flex-1 truncate text-[13px] font-bold text-foreground">{a.role}</p>
+                        <span className={`shrink-0 text-[11.5px] font-bold ${meta.className}`}>{meta.label}</span>
+                      </div>
+                      <p className="m-0 truncate text-[11.5px] text-muted-foreground">
+                        {a.company}{since ? ` · Applied ${since}` : ""}
+                      </p>
+                      {a.notes && <p className="m-0 mt-0.5 truncate text-[11px] text-muted-foreground/75">{a.notes}</p>}
+                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button aria-label="More options" onClick={(e) => e.stopPropagation()}
+                          className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted hover:text-foreground">
+                          <MoreVertical className="size-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        {STATUS_ORDER.filter((s) => s !== a.status).map((s) => (
+                          <DropdownMenuItem key={s} onSelect={() => onUpdateApplicationStatus(a.id, s)}>
+                            Mark as {STATUS_META[s].label}
+                          </DropdownMenuItem>
+                        ))}
+                        {/* Deferred, not called directly: Radix's DropdownMenu
+                            returns focus to its trigger as part of closing, and
+                            doing that in the same tick as mounting a Dialog
+                            steals the Dialog's own focus trap / pointer-events
+                            lock before it finishes opening — the dialog never
+                            becomes visible. Letting the menu's close finish
+                            first (a plain setTimeout 0) is the standard fix. */}
+                        <DropdownMenuItem onSelect={() => setTimeout(() => onAddNote(a), 0)}>
+                          <StickyNote className="size-3.5" /> {a.notes ? "Edit note" : "Add note"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive data-highlighted:text-destructive" onSelect={() => onDeleteApplication(a.id)}>
+                          <Trash2 className="size-3.5" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 );
               })}
             </div>
@@ -411,6 +557,7 @@ export default function Dashboard({ onClose, onNavigate }) {
   }, [authLoading, user?.id]);
 
   const [notifOpen, setNotifOpen] = useState(false);
+  const [noteApp, setNoteApp] = useState(null);
 
   const go = (id, opts) => {
     tapFeedback();
@@ -429,7 +576,53 @@ export default function Dashboard({ onClose, onNavigate }) {
     else go("artisans", { tab: "requests" });
   };
 
-  const contentProps = { user, statsLoading, savedResumes, applications, updates, worldFeed, go };
+  // Real mutations (same endpoints JobTracker.js's own full screen uses —
+  // see api/resume.py's DELETE /<id> and api/applications.py's PATCH/DELETE
+  // /<id>), just reachable from a row's overflow menu here so a quick edit
+  // doesn't require leaving the dashboard. Optimistic locally, since
+  // there's nowhere richer to show a failure than the toast itself.
+  const deleteResume = async (id) => {
+    setSavedResumes((list) => list.filter((r) => r.id !== id));
+    const ok = await apiDelete(id);
+    if (!ok) toast.error("Couldn't delete that resume.");
+  };
+  const deleteApplication = async (id) => {
+    setApplications((list) => list.filter((a) => a.id !== id));
+    try {
+      await apiRequest(`/api/v1/applications/${id}`, { method: "DELETE" });
+    } catch (e) {
+      toast.error(e.message || "Couldn't delete that application.");
+    }
+  };
+  const updateApplicationStatus = async (id, status) => {
+    setApplications((list) => list.map((a) => (a.id === id ? { ...a, status } : a)));
+    try {
+      const updated = await apiRequest(`/api/v1/applications/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+      });
+      setApplications((list) => list.map((a) => (a.id === id ? { ...a, ...updated } : a)));
+    } catch (e) {
+      toast.error(e.message || "Couldn't update that application.");
+    }
+  };
+  const onNoteSaved = (updated) => {
+    setApplications((list) => list.map((a) => (a.id === updated.id ? { ...a, ...updated } : a)));
+  };
+
+  // Same real signal the follow-up nudge banner and the Applications stat
+  // dot already use — the header bell now shares it too, instead of the
+  // badge only ever reflecting unread messages and staying its normal
+  // color regardless of whether anything shown actually needs attention.
+  const followupCount = applications.filter((a) => a.needs_followup).length;
+  const needsAttention = unread.count > 0 || followupCount > 0;
+
+  const contentProps = {
+    user, statsLoading, savedResumes, applications, updates, worldFeed, go,
+    onDeleteResume: deleteResume,
+    onDeleteApplication: deleteApplication,
+    onUpdateApplicationStatus: updateApplicationStatus,
+    onAddNote: setNoteApp,
+  };
 
   if (isDesktop) {
     return (
@@ -492,10 +685,22 @@ export default function Dashboard({ onClose, onNavigate }) {
                 className="relative flex size-9 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
               >
                 <Bell className="size-4" />
-                {unread.count > 0 && (
-                  <span className="absolute top-1 right-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
-                    {unread.count > 9 ? "9+" : unread.count}
-                  </span>
+                {/* Red = needs action (an unread message or a stalled
+                    application — see needsAttention above), not just a
+                    flat count with no severity signal. A real unread-
+                    message count still shows when that's the reason;
+                    a plain dot covers the "stalled application, no new
+                    message" case, which has no natural number of its own
+                    here (see the stat row's own dot + the nudge banner
+                    for that count instead). */}
+                {needsAttention && (
+                  unread.count > 0 ? (
+                    <span className="absolute top-1 right-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
+                      {unread.count > 9 ? "9+" : unread.count}
+                    </span>
+                  ) : (
+                    <span className="absolute top-1 right-1 size-2.5 rounded-full bg-destructive" />
+                  )
                 )}
               </button>
               <button
@@ -520,6 +725,7 @@ export default function Dashboard({ onClose, onNavigate }) {
           <DashboardContent {...contentProps} />
         </main>
         <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={openNotification} />
+        <AddNoteDialog app={noteApp} open={!!noteApp} onClose={() => setNoteApp(null)} onSaved={onNoteSaved} />
       </motion.div>
     );
   }
@@ -540,10 +746,14 @@ export default function Dashboard({ onClose, onNavigate }) {
           <ThemeToggle compact />
           <button onClick={() => setNotifOpen(true)} aria-label="Notifications" className="relative flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <Bell className="size-[15px]" />
-            {unread.count > 0 && (
-              <span className="absolute top-0.5 right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
-                {unread.count > 9 ? "9+" : unread.count}
-              </span>
+            {needsAttention && (
+              unread.count > 0 ? (
+                <span className="absolute top-0.5 right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
+                  {unread.count > 9 ? "9+" : unread.count}
+                </span>
+              ) : (
+                <span className="absolute top-0.5 right-0.5 size-2.5 rounded-full bg-destructive" />
+              )
             )}
           </button>
           <button onClick={() => go("settings")} aria-label="Settings" className="flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground">
@@ -563,6 +773,7 @@ export default function Dashboard({ onClose, onNavigate }) {
 
       <BottomNav items={NAV_ITEMS} active="home" onChange={go} />
       <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={openNotification} />
+      <AddNoteDialog app={noteApp} open={!!noteApp} onClose={() => setNoteApp(null)} onSaved={onNoteSaved} />
     </motion.div>
   );
 }
