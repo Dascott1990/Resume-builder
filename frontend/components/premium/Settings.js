@@ -460,11 +460,11 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <p className="m-0 truncate text-[13.5px] font-bold text-foreground">{user.name || "No name set"}</p>
-                    {user.status_line && <span className="truncate text-[12px] text-primary">· {user.status_line}</span>}
+                    <p className="m-0 min-w-0 truncate text-[13.5px] font-bold text-foreground">{user.name || "No name set"}</p>
+                    {user.status_line && <span className="shrink-0 truncate text-[12px] text-primary">· {user.status_line}</span>}
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="truncate text-[12px] text-muted-foreground">{user.email}</span>
+                    <span className="min-w-0 truncate text-[12px] text-muted-foreground">{user.email}</span>
                     {user.email_verified && <CheckCircle2 className="size-3 shrink-0 text-[var(--success,#22c55e)]" />}
                   </div>
                 </div>

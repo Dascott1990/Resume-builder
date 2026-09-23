@@ -113,7 +113,7 @@ export function TodayPanel({ token }) {
           <div className="grid gap-1.5">
             {drafts.map((d) => (
               <div key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2">
-                <p className="m-0 truncate text-[12.5px] font-bold text-foreground">{d.name}</p>
+                <p className="m-0 min-w-0 truncate text-[12.5px] font-bold text-foreground">{d.name}</p>
                 <p className="m-0 shrink-0 text-[11px] text-muted-foreground">
                   {d.layerCount} layer{d.layerCount === 1 ? "" : "s"} · {timeAgo(d.updatedAt)}
                 </p>

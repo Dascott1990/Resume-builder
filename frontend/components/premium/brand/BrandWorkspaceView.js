@@ -165,7 +165,7 @@ export function BrandWorkspaceView({ token, onClose }) {
           <button type="button" onClick={onClose} className="flex items-center gap-1.5 border-none bg-transparent p-0 text-[12.5px] font-semibold text-muted-foreground no-underline hover:text-foreground">
             <ArrowLeft className="size-3.5" /> Back
           </button>
-          <p className="m-0 truncate text-[13px] font-bold text-foreground">{workspace?.name || "Branding workspace"}</p>
+          <p className="m-0 min-w-0 truncate text-[13px] font-bold text-foreground">{workspace?.name || "Branding workspace"}</p>
         </div>
 
         {/* Fixed, always visible above both zones — not itself a zone,

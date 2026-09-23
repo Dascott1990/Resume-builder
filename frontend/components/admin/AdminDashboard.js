@@ -1240,7 +1240,7 @@ function CollapsibleGroup({ title, count, children }) {
           {count} <ChevronDown className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
         </span>
       </button>
-      {open && <div className="border-t border-border p-3">{children}</div>}
+      {open && <div className="max-h-72 overflow-y-auto border-t border-border p-3">{children}</div>}
     </div>
   );
 }
@@ -1322,7 +1322,7 @@ function SystemTab() {
                   {b.routes.map((r) => (
                     <div key={r.path + r.methods.join()} className="flex items-center gap-2 font-mono text-[11px]">
                       <span className="w-14 shrink-0 font-bold text-primary-text">{r.methods.join("/")}</span>
-                      <span className="truncate text-muted-foreground">{r.path}</span>
+                      <span className="min-w-0 flex-1 truncate text-muted-foreground">{r.path}</span>
                     </div>
                   ))}
                 </div>
@@ -1339,8 +1339,8 @@ function SystemTab() {
                 <div className="grid gap-1">
                   {t.columns.map((c) => (
                     <div key={c.name} className="flex items-center gap-2 font-mono text-[11px]">
-                      <span className="text-foreground">{c.name}</span>
-                      <span className="text-muted-foreground">{c.type}</span>
+                      <span className="shrink-0 truncate text-foreground">{c.name}</span>
+                      <span className="min-w-0 flex-1 truncate text-muted-foreground">{c.type}</span>
                     </div>
                   ))}
                 </div>

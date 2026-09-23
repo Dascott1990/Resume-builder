@@ -290,7 +290,7 @@ export default function JobTracker({ onClose }) {
                     {a.date_applied && <p className="m-0 font-mono text-[10.5px] text-muted-foreground/70">Applied {a.date_applied}</p>}
                     {resumeUsed && (
                       <p className="m-0 mt-1 flex items-center gap-1 text-[11.5px] text-muted-foreground">
-                        <FileText className="size-3 shrink-0" /> <span className="truncate">{resumeUsed}</span>
+                        <FileText className="size-3 shrink-0" /> <span className="min-w-0 truncate">{resumeUsed}</span>
                       </p>
                     )}
                     {a.notes && <p className="m-0 mt-1 text-[12.5px] leading-relaxed text-foreground">{a.notes}</p>}
