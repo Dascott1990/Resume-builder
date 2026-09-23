@@ -66,7 +66,7 @@ export function SignatureTheme({ onLockIn }) {
   const activeColor = active ? colorFor(active.accentId) : null;
 
   return (
-    <div className="min-w-0 w-full rounded-2xl border border-border bg-card p-4 sm:p-5">
+    <div className="glass-surface min-w-0 w-full rounded-2xl p-4 sm:p-5">
       <div className="mb-1 flex items-center gap-1.5">
         <Sparkles className="size-3.5 text-primary" />
         <p className="m-0 font-mono text-[10.5px] font-bold tracking-[0.14em] text-muted-foreground/60 uppercase">

@@ -138,7 +138,7 @@ function StatTile({ metric, snapshots, cruxConfigured }) {
 
   if (metric.needsCrux && !cruxConfigured) {
     return (
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="glass-surface rounded-xl p-4">
         <p className="m-0 text-[12px] font-medium text-muted-foreground">{metric.label}</p>
         <p className="m-0 mt-2 text-[11px] text-muted-foreground/60">CRUX_API_KEY not configured</p>
       </div>
@@ -152,7 +152,7 @@ function StatTile({ metric, snapshots, cruxConfigured }) {
   const isGoodDelta = delta != null && (delta === 0 ? null : (delta > 0) === metric.upIsGood);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="glass-surface rounded-xl p-4">
       <p className="m-0 text-[12px] font-medium text-muted-foreground">{metric.label}</p>
       <div className="mt-1.5 flex items-baseline gap-2">
         <p className="m-0 text-[22px] font-bold text-foreground">{latest != null ? metric.format(latest) : "—"}</p>
@@ -245,7 +245,7 @@ export function SeoStatus() {
 
   if (error && !status) {
     return (
-      <div className="rounded-xl border border-border bg-card p-5 text-center">
+      <div className="glass-surface rounded-xl p-5 text-center">
         <p className="m-0 text-[13px] text-muted-foreground">{error}</p>
         <p className="m-0 mt-1 text-[11.5px] text-muted-foreground/60">Sign in with an admin account to view this.</p>
       </div>
@@ -254,7 +254,7 @@ export function SeoStatus() {
 
   if (!status?.connected) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 text-center">
+      <div className="glass-surface rounded-xl p-6 text-center">
         <div className="mx-auto flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary">
           <Gauge className="size-5" />
         </div>
@@ -300,7 +300,7 @@ export function SeoStatus() {
       {error && <p className="m-0 text-[11.5px] text-destructive">{error}</p>}
 
       {snapshots.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-5 text-center text-[12.5px] text-muted-foreground">
+        <div className="glass-surface rounded-xl p-5 text-center text-[12.5px] text-muted-foreground">
           Connected — no snapshot yet. Click "Refresh now" to fetch the first one (the daily job otherwise runs automatically).
         </div>
       ) : (

@@ -238,7 +238,7 @@ function AssetRow({ asset }) {
   };
 
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-3.5">
+    <div className="glass-surface flex items-center gap-4 rounded-xl p-3.5">
       <PreviewSwatch kind={asset.preview} />
       <div className="min-w-0 flex-1">
         <p className="m-0 text-[13.5px] font-bold text-foreground">{asset.label}</p>
@@ -331,7 +331,7 @@ function PlatformPicker() {
           return (
             <button
               key={a.id} type="button" onClick={() => toggle(a.id)} aria-pressed={selected}
-              className={`relative flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center ${selected ? "border-primary" : "border-border bg-card"}`}
+              className={`relative flex flex-col items-center gap-1.5 rounded-xl p-3 text-center ${selected ? "border border-primary bg-primary/5" : "glass-surface"}`}
             >
               <div className={`absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full border ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background/80"}`}>
                 {selected && <Check className="size-3" strokeWidth={3} />}
