@@ -6,6 +6,7 @@ import { ACCENT_INIT_SCRIPT } from "@/lib/accentColor";
 import { BRIGHTNESS_INIT_SCRIPT } from "@/lib/brightness";
 import { ServiceWorkerRegister } from "./ServiceWorkerRegister";
 import { KeepAlive } from "./KeepAlive";
+import { ThemeSync } from "./ThemeSync";
 
 const SITE_NAME = "Noqeev";
 const SITE_TITLE = "Noqeev — AI Resume Builder";
@@ -69,13 +70,14 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Blocking, runs before hydration — reads the stored theme (or
-            falls back to dark, the brand default) and sets the "dark"
-            class immediately, so the very first paint already matches
-            what was chosen last time. Without this, the server always
-            renders dark (it has no way to know what's in this browser's
-            localStorage), and a light-mode visitor would see a flash of
-            dark before React mounts and corrects it. */}
+        {/* Blocking, runs before hydration — reads the stored theme, or
+            (see lib/theme.js's THEME_INIT_SCRIPT/resolveTheme) follows the
+            OS's prefers-color-scheme when no explicit choice has been made
+            yet, and sets the "dark" class immediately so the very first
+            paint already matches. Without this, the server always renders
+            dark (it has no way to know either the browser's localStorage
+            or its OS setting), and a light-mode visitor would see a flash
+            of dark before React mounts and corrects it. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {/* Same reasoning, one property lower — the stored accent color
             (default amber) applied before first paint via inline style
@@ -141,6 +143,7 @@ export default function RootLayout({ children }) {
         <Toaster position="top-center" />
         <ServiceWorkerRegister />
         <KeepAlive />
+        <ThemeSync />
         {/* Screen brightness — see lib/brightness.js for why this is two
             always-mounted overlays (opacity driven purely by the CSS
             variables the script/hook above set) rather than a `filter` on

@@ -6,12 +6,11 @@
  */
 export const THEME_KEY = "noqeev_theme";
 
-// Dark is the brand's actual default — not a neutral "respect the OS"
-// choice. The whole visual identity (every screenshot, every design
-// decision this app has gone through) was built against a dark, gold-on-
-// black surface; light mode is the opt-in alternative for people who want
-// it, not what a first-time visitor should be switched into just because
-// their OS happens to be in light mode.
+// Fallback only for an environment where matchMedia itself is unavailable
+// (see systemPrefersDark below) — every real browser follows the OS
+// instead, live, until someone explicitly taps the theme toggle. That tap
+// is what setStoredTheme records; from then on their choice wins over the
+// OS, same as any native app's own "System" vs. "Light"/"Dark" setting.
 export const DEFAULT_THEME = "dark";
 
 export function getStoredTheme() {
@@ -21,6 +20,20 @@ export function getStoredTheme() {
   } catch {
     return null;
   }
+}
+
+export function systemPrefersDark() {
+  try {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  } catch {
+    return true; // DEFAULT_THEME's fallback
+  }
+}
+
+export function resolveTheme() {
+  const stored = getStoredTheme();
+  if (stored) return stored;
+  return systemPrefersDark() ? "dark" : "light";
 }
 
 export function applyTheme(theme) {
@@ -42,7 +55,7 @@ export function setStoredTheme(theme) {
 // The exact source run inline as a blocking <script> in layout.js's <head>
 // — has to be a plain string (not imported and called), since it must
 // execute before hydration and before this module's own JS bundle has
-// necessarily loaded. Keep this in sync with getStoredTheme/applyTheme
-// above by hand; it's intentionally a duplicate, not a shared function
-// call, for that reason.
-export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("${THEME_KEY}");if(t!=="light"&&t!=="dark")t="${DEFAULT_THEME}";var r=document.documentElement;if(t==="dark")r.classList.add("dark");else r.classList.remove("dark");r.style.colorScheme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="dark"?"#0a0a0a":"#fafaf9");}catch(e){}})();`;
+// necessarily loaded. Keep this in sync with getStoredTheme/applyTheme/
+// resolveTheme above by hand; it's intentionally a duplicate, not a
+// shared function call, for that reason.
+export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("${THEME_KEY}");if(t!=="light"&&t!=="dark")t=(window.matchMedia?window.matchMedia("(prefers-color-scheme: dark)").matches:true)?"dark":"light";var r=document.documentElement;if(t==="dark")r.classList.add("dark");else r.classList.remove("dark");r.style.colorScheme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="dark"?"#0a0a0a":"#fafaf9");}catch(e){}})();`;
