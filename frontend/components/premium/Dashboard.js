@@ -28,7 +28,6 @@ import { tapFeedback } from "@/lib/haptics";
 import { apiRequest } from "./shared/api";
 import { apiListSaved } from "./guest/api";
 import { BottomNav } from "./shared/BottomNav";
-import { IconTile } from "./shared/IconTile";
 import { ThemeToggle } from "./shared/ThemeToggle";
 import { Skeleton } from "@/components/ui/skeleton";
 import Logo from "./Logo";
@@ -84,18 +83,23 @@ function StatCard({ label, value, Icon, loading }) {
   );
 }
 
-function ActionTile({ Icon, label, sub, onClick }) {
+// A compact circular-icon row (Cash App/Venmo's own "quick actions" shape),
+// not a 2x2 grid of square cards — those were competing with the primary
+// "Build a resume" CTA for the same big-card visual weight real content
+// (stats, recent activity) should get instead. This is shortcuts, not
+// content, and industry dashboards size it accordingly: small, scannable,
+// out of the way in one line.
+function QuickAction({ Icon, label, onClick }) {
   return (
     <motion.button
-      whileTap={{ scale: 0.96 }}
+      whileTap={{ scale: 0.92 }}
       onClick={onClick}
-      className="glass-surface flex flex-col items-start gap-2.5 rounded-2xl p-4 text-left [-webkit-tap-highlight-color:transparent]"
+      className="flex w-16 shrink-0 flex-col items-center gap-1.5 border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
     >
-      <IconTile icon={Icon} size="sm" />
-      <div>
-        <p className="m-0 text-[13.5px] font-bold text-foreground">{label}</p>
-        {sub && <p className="m-0 mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{sub}</p>}
-      </div>
+      <span className="flex size-12 items-center justify-center rounded-full border border-primary/20 bg-primary/10">
+        <Icon className="size-[19px] text-primary" />
+      </span>
+      <span className="text-center text-[11px] leading-tight font-semibold text-foreground">{label}</span>
     </motion.button>
   );
 }
@@ -217,108 +221,100 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
         </div>
       </motion.button>
 
-      {/* A brand-new visitor has nothing to show here yet — three "0" cards
-          in a row right under "Let's get you hired" reads like a scoreboard
-          stuck at zero, not an invitation. Once there's genuinely nothing
-          tracked anywhere, swap the grid for one warmer line instead; the
-          moment there's real data (even just one saved resume), the normal
-          stat row comes back. */}
+      {/* Right under the primary action, one uncaptioned horizontal row —
+          same shape/position Cash App and Venmo use for their own quick
+          actions under the balance. Always shown regardless of whether
+          there's any data yet: these are navigation shortcuts, not
+          content, so "nothing tracked yet" doesn't apply to them the way
+          it does to the stats/activity below. */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }} className="mb-6">
-        {statsLoading ? (
-          <div className="grid grid-cols-3 gap-3">
-            <StatCard label="Saved resumes" Icon={FileText} loading />
-            <StatCard label="Applications" Icon={ClipboardList} loading />
-            <StatCard label="Interviews" Icon={CalendarCheck} loading />
-          </div>
-        ) : savedResumes.length === 0 && applications.length === 0 ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-dashed border-border p-4">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10">
-              <Sparkles className="size-4 text-primary" />
-            </div>
-            <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">Nothing yet</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-3">
-            <StatCard label="Saved resumes" value={savedResumes.length} Icon={FileText} />
-            <StatCard label="Applications" value={applications.length} Icon={ClipboardList} />
-            <StatCard label="Interviews" value={interviews} Icon={CalendarCheck} />
-          </div>
-        )}
-      </motion.div>
-
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }} className="mb-6">
-        <SectionHeader>Quick actions</SectionHeader>
-        {/* A flat 2-column grid at every width, deliberately not 3 at sm —
-            with exactly 4 tiles, 3 columns leaves the last tile orphaned
-            alone in an otherwise-empty row (confirmed on iPad-width
-            screens: 768-1023px hits sm but not lg, so it never gets to a
-            clean 4-per-row either). 2 columns divides 4 evenly everywhere. */}
-        <div className="grid grid-cols-2 gap-3">
-          <ActionTile Icon={Sparkles} label="Apply with AI" onClick={() => go("apply")} />
-          <ActionTile Icon={ScanLine} label="CV Scan" onClick={() => go("scan")} />
-          <ActionTile Icon={ClipboardList} label="Job Tracker" onClick={() => go("jobtracker")} />
-          <ActionTile Icon={Hammer} label="Find an Artisan" onClick={() => go("artisans")} />
+        <div className="-mx-5 flex gap-4 overflow-x-auto px-5 sm:-mx-8 sm:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <QuickAction Icon={Sparkles} label="Apply with AI" onClick={() => go("apply")} />
+          <QuickAction Icon={ScanLine} label="CV Scan" onClick={() => go("scan")} />
+          <QuickAction Icon={ClipboardList} label="Job Tracker" onClick={() => go("jobtracker")} />
+          <QuickAction Icon={Hammer} label="Find an Artisan" onClick={() => go("artisans")} />
         </div>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }} className="mb-6">
-        <SectionHeader onViewAll={() => go("resume")}>Recent resumes</SectionHeader>
-        {statsLoading ? (
-          <div className="grid gap-2">
-            <Skeleton className="h-14 w-full rounded-xl" />
-            <Skeleton className="h-14 w-full rounded-xl" />
-          </div>
-        ) : recentResumes.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border p-4 text-center">
-            <p className="m-0 text-[12.5px] text-muted-foreground">Nothing yet</p>
-          </div>
-        ) : (
-          <div className="grid gap-2">
-            {recentResumes.map((r) => (
-              <button key={r.id} onClick={() => go("resume")}
-                className="glass-surface flex items-center gap-3 rounded-xl p-3 text-left [-webkit-tap-highlight-color:transparent]">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10">
-                  <FileText className="size-4 text-primary" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="m-0 truncate text-[13px] font-bold text-foreground">{r.name || "Untitled"}</p>
-                  <p className="m-0 truncate text-[11.5px] text-muted-foreground">{r.role || "—"}</p>
-                </div>
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground/50" />
-              </button>
-            ))}
-          </div>
-        )}
-      </motion.div>
+      {/* Stats, recent resumes, and recent applications below all share one
+          rule now: a brand-new visitor with nothing tracked anywhere sees
+          NONE of these sections, not an empty "Nothing yet" placeholder
+          for each — three dashed boxes in a row reads like a scoreboard
+          stuck at zero, not an invitation. The moment there's real data
+          (even just one saved resume), the section it belongs to appears
+          on its own. */}
+      {(statsLoading || savedResumes.length > 0 || applications.length > 0) && (
+        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }} className="mb-6">
+          {statsLoading ? (
+            <div className="grid grid-cols-3 gap-3">
+              <StatCard label="Saved resumes" Icon={FileText} loading />
+              <StatCard label="Applications" Icon={ClipboardList} loading />
+              <StatCard label="Interviews" Icon={CalendarCheck} loading />
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              <StatCard label="Saved resumes" value={savedResumes.length} Icon={FileText} />
+              <StatCard label="Applications" value={applications.length} Icon={ClipboardList} />
+              <StatCard label="Interviews" value={interviews} Icon={CalendarCheck} />
+            </div>
+          )}
+        </motion.div>
+      )}
 
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.25 }}>
-        <SectionHeader onViewAll={() => go("jobtracker")}>Recent applications</SectionHeader>
-        {statsLoading ? (
-          <div className="grid gap-2">
-            <Skeleton className="h-14 w-full rounded-xl" />
-          </div>
-        ) : recentApps.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border p-4 text-center">
-            <p className="m-0 text-[12.5px] text-muted-foreground">Nothing yet</p>
-          </div>
-        ) : (
-          <div className="grid gap-2">
-            {recentApps.map((a) => {
-              const meta = STATUS_META[a.status] || STATUS_META.applied;
-              return (
-                <button key={a.id} onClick={() => go("jobtracker")}
+      {(statsLoading || recentResumes.length > 0) && (
+        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }} className="mb-6">
+          <SectionHeader onViewAll={() => go("resume")}>Recent resumes</SectionHeader>
+          {statsLoading ? (
+            <div className="grid gap-2">
+              <Skeleton className="h-14 w-full rounded-xl" />
+              <Skeleton className="h-14 w-full rounded-xl" />
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              {recentResumes.map((r) => (
+                <button key={r.id} onClick={() => go("resume")}
                   className="glass-surface flex items-center gap-3 rounded-xl p-3 text-left [-webkit-tap-highlight-color:transparent]">
-                  <div className="min-w-0 flex-1">
-                    <p className="m-0 truncate text-[13px] font-bold text-foreground">{a.role}</p>
-                    <p className="m-0 truncate text-[11.5px] text-muted-foreground">{a.company}</p>
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10">
+                    <FileText className="size-4 text-primary" />
                   </div>
-                  <span className={`shrink-0 text-[11.5px] font-bold ${meta.className}`}>{meta.label}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="m-0 truncate text-[13px] font-bold text-foreground">{r.name || "Untitled"}</p>
+                    <p className="m-0 truncate text-[11.5px] text-muted-foreground">{r.role || "—"}</p>
+                  </div>
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground/50" />
                 </button>
-              );
-            })}
-          </div>
-        )}
-      </motion.div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {(statsLoading || recentApps.length > 0) && (
+        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.25 }} className="mb-6">
+          <SectionHeader onViewAll={() => go("jobtracker")}>Recent applications</SectionHeader>
+          {statsLoading ? (
+            <div className="grid gap-2">
+              <Skeleton className="h-14 w-full rounded-xl" />
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              {recentApps.map((a) => {
+                const meta = STATUS_META[a.status] || STATUS_META.applied;
+                return (
+                  <button key={a.id} onClick={() => go("jobtracker")}
+                    className="glass-surface flex items-center gap-3 rounded-xl p-3 text-left [-webkit-tap-highlight-color:transparent]">
+                    <div className="min-w-0 flex-1">
+                      <p className="m-0 truncate text-[13px] font-bold text-foreground">{a.role}</p>
+                      <p className="m-0 truncate text-[11.5px] text-muted-foreground">{a.company}</p>
+                    </div>
+                    <span className={`shrink-0 text-[11.5px] font-bold ${meta.className}`}>{meta.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </motion.div>
+      )}
 
       {updates.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.3 }} className="mb-6">
