@@ -423,7 +423,7 @@ export function NotificationBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-11 right-0 z-20 max-h-[75vh] w-80 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-[0_8px_28px_rgba(0,0,0,0.25)]">
+          <div className="glass-surface absolute top-11 right-0 z-20 max-h-[75vh] w-80 overflow-y-auto rounded-xl p-1.5 shadow-[0_8px_28px_rgba(0,0,0,0.25)]">
             {needsBrandKey ? (
               <BrandKeyGate onUnlocked={loadTasks} />
             ) : (

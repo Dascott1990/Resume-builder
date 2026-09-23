@@ -76,7 +76,7 @@ function greeting() {
 
 function StatCard({ label, value, Icon, loading }) {
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4">
+    <div className="glass-surface flex flex-col gap-2 rounded-2xl p-4">
       <Icon className="size-4 text-primary" />
       {loading ? <Skeleton className="h-7 w-10" /> : <span className="text-2xl font-bold text-foreground">{value}</span>}
       <span className="text-[11.5px] leading-tight text-muted-foreground">{label}</span>
@@ -89,7 +89,7 @@ function ActionTile({ Icon, label, sub, onClick }) {
     <motion.button
       whileTap={{ scale: 0.96 }}
       onClick={onClick}
-      className="flex flex-col items-start gap-2.5 rounded-2xl border border-border bg-card p-4 text-left [-webkit-tap-highlight-color:transparent]"
+      className="glass-surface flex flex-col items-start gap-2.5 rounded-2xl p-4 text-left [-webkit-tap-highlight-color:transparent]"
     >
       <IconTile icon={Icon} size="sm" />
       <div>
@@ -276,7 +276,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
           <div className="grid gap-2">
             {recentResumes.map((r) => (
               <button key={r.id} onClick={() => go("resume")}
-                className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 text-left [-webkit-tap-highlight-color:transparent]">
+                className="glass-surface flex items-center gap-3 rounded-xl p-3 text-left [-webkit-tap-highlight-color:transparent]">
                 <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10">
                   <FileText className="size-4 text-primary" />
                 </div>
@@ -307,7 +307,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
               const meta = STATUS_META[a.status] || STATUS_META.applied;
               return (
                 <button key={a.id} onClick={() => go("jobtracker")}
-                  className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 text-left [-webkit-tap-highlight-color:transparent]">
+                  className="glass-surface flex items-center gap-3 rounded-xl p-3 text-left [-webkit-tap-highlight-color:transparent]">
                   <div className="min-w-0 flex-1">
                     <p className="m-0 truncate text-[13px] font-bold text-foreground">{a.role}</p>
                     <p className="m-0 truncate text-[11.5px] text-muted-foreground">{a.company}</p>
@@ -327,7 +327,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
           </SectionHeader>
           <div className="grid gap-2">
             {updates.slice(0, 3).map((u) => (
-              <div key={u.id} className="rounded-xl border border-border bg-card p-3">
+              <div key={u.id} className="glass-surface rounded-xl p-3">
                 <p className="m-0 text-[13px] font-bold text-foreground">{u.title}</p>
                 {u.body && <p className="m-0 mt-1 text-[12px] leading-relaxed text-muted-foreground">{u.body}</p>}
                 <div className="mt-1.5 flex flex-wrap items-center gap-2">
@@ -357,7 +357,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
               return (
                 <a
                   key={item.id} href={item.url} target="_blank" rel="noreferrer"
-                  className="flex w-56 shrink-0 flex-col gap-1.5 rounded-xl border border-border bg-card p-3 no-underline"
+                  className="glass-surface flex w-56 shrink-0 flex-col gap-1.5 rounded-xl p-3 no-underline"
                 >
                   <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-muted-foreground/70 uppercase">
                     <meta.Icon className="size-3" /> {meta.label}
