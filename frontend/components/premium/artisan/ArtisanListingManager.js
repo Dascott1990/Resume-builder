@@ -1,35 +1,27 @@
 "use client";
 /**
- * ArtisanListingManager.js — one real place to manage everything about
- * what a customer actually sees: profile details and the work portfolio.
- * Previously scattered — profile fields lived in Settings.js, portfolio
- * photos were only reachable by opening your own PUBLIC listing from
- * Browse — with no single "manage my listing" screen at all, the way
- * Fiverr's gig manager or Thumbtack's pro profile page works.
+ * ArtisanListingManager.js — a real, standalone "Edit profile" page for
+ * an artisan's listing. Not a dashboard screen wearing a different
+ * title: no IconTile branding badge, no card chrome around the summary
+ * row, no status pill — those belong to ArtisanDashboard.js, which is
+ * about running the business day to day. This page has exactly one job
+ * (edit what a customer sees: photo, details, portfolio, in that order)
+ * and looks like it — plain header with Back/Save, one flowing column,
+ * nothing decorative competing with the content.
  *
- * Photos render via PortfolioGrid.js here — a compact management grid,
- * not PhotoPortfolio.js's full-bleed hero (that's right for
- * ArtisanProfile.js's public page, wrong stacked under a normal-sized
- * form here). Same data underneath (usePortfolioPhotos.js), different
- * shape for a genuinely different job.
+ * Reachable from ArtisanDashboard.js and from Settings.js's artisan
+ * summary card — same screen either door.
  *
- * Reachable from ArtisanDashboard.js (where an artisan actually spends
- * their time) and from Settings.js's now-slimmed-down Artisan Account
- * summary card — same data/endpoints either door, not two different
- * copies that can drift.
- *
- * Deliberately does NOT include: notifications, change-password, sign
- * out, delete listing — those stay exactly where they already live
- * (Settings for account/security preferences, the Dashboard for the
- * delete action) rather than tripling every action across three screens.
+ * Deliberately does NOT include: availability toggle, notifications,
+ * change-password, sign out, delete listing — those stay exactly where
+ * they already live (the Dashboard, Settings) rather than tripling every
+ * action across three screens. This page is content, not account admin.
  */
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ChevronLeft, X, Loader2, ImagePlus, Eye, Wrench } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { ChevronLeft, Loader2, Camera } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Field, Btn } from "../guest/components/primitives";
-import { IconTile } from "../shared/IconTile";
+import { Field } from "../guest/components/primitives";
 import Emoji3D from "../shared/Emoji3D";
 import { EmojiPicker } from "../shared/EmojiPicker";
 import PortfolioGrid from "./PortfolioGrid";
@@ -65,7 +57,8 @@ export default function ArtisanListingManager({ onClose }) {
       });
       setArtisan(updated);
       setForm(updated);
-      toast.success("Listing updated");
+      toast.success("Saved");
+      onClose?.();
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -81,7 +74,6 @@ export default function ArtisanListingManager({ onClose }) {
     try {
       const updated = await artisanUploadAvatarPhoto(file);
       setArtisan(updated);
-      toast.success("Profile photo updated");
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -94,7 +86,6 @@ export default function ArtisanListingManager({ onClose }) {
     try {
       const updated = await artisanDeleteAvatarPhoto();
       setArtisan(updated);
-      toast.success("Profile photo removed");
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -105,7 +96,7 @@ export default function ArtisanListingManager({ onClose }) {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center bg-background">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -113,23 +104,26 @@ export default function ArtisanListingManager({ onClose }) {
   if (!artisan) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 bg-background px-5 text-center">
-        <Wrench className="size-8 text-muted-foreground" />
-        <p className="m-0 text-sm font-bold text-foreground">Sign in to manage your listing</p>
-        {onClose && <Btn small variant="ghost" onClick={onClose}>Back</Btn>}
+        <p className="m-0 text-[14px] font-medium text-foreground">Sign in to edit your profile</p>
+        {onClose && (
+          <button type="button" onClick={onClose} className="border-none bg-transparent p-0 text-[13px] font-medium text-primary">
+            Back
+          </button>
+        )}
       </div>
     );
   }
 
   // Real preview, not a mockup — the exact screen a customer opens,
   // rendered with isMine=false so it shows what they'd actually see
-  // (Message/Request footer, no edit controls) instead of a fake
-  // read-only clone that could drift from the real thing.
+  // (Message/Request footer, no edit controls) instead of a read-only
+  // clone that could drift from the real thing.
   if (previewing) {
     return (
       <div className="relative h-full">
         <ArtisanProfile artisan={artisan} isMine={false} onBack={() => setPreviewing(false)} />
         <div className="pointer-events-none absolute top-0 right-0 left-0 flex justify-center pt-[max(0.5rem,env(safe-area-inset-top))]">
-          <span className="rounded-full bg-foreground px-3 py-1 text-[11px] font-bold text-background shadow-lg">
+          <span className="rounded-full bg-foreground px-3 py-1 text-[11px] font-medium text-background shadow-lg">
             Previewing as a customer
           </span>
         </div>
@@ -139,71 +133,55 @@ export default function ArtisanListingManager({ onClose }) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+      {/* Plain title bar — Back / title / Save, nothing else. Same shape
+          any focused editor uses, not this app's marketing chrome. */}
       <div
-        className="flex shrink-0 items-center justify-between px-5 pb-3.5"
-        style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
+        className="flex shrink-0 items-center justify-between px-4 pb-3"
+        style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
       >
-        <div className="flex items-center gap-3">
-          <IconTile icon={Wrench} size="sm" />
-          <p className="m-0 font-serif text-[17px] italic text-foreground">Manage my listing</p>
-        </div>
-        {onClose && (
-          <button onClick={onClose} aria-label="Close" className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground">
-            <X className="size-4" />
+        {onClose ? (
+          <button type="button" onClick={onClose} className="flex items-center gap-0.5 border-none bg-transparent p-0 text-[15px] text-primary">
+            <ChevronLeft className="size-4" /> Back
           </button>
-        )}
+        ) : <span />}
+        <p className="m-0 text-[15px] font-semibold text-foreground">Edit profile</p>
+        <button type="button" onClick={save} disabled={saving} className="border-none bg-transparent p-0 text-[15px] font-semibold text-primary disabled:opacity-50">
+          {saving ? "Saving…" : "Save"}
+        </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
-        <button
-          type="button"
-          onClick={() => setPreviewing(true)}
-          className="mb-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-primary/30 bg-primary/5 py-2.5 text-[12.5px] font-bold text-primary"
-        >
-          <Eye className="size-3.5" /> Preview as a customer
-        </button>
-
-        <div className="mb-4 flex items-center gap-3">
-          <div className={`flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisan.has_avatar_photo || form.avatar_emoji ? "" : "font-mono text-base font-bold"} ${tintFor(artisan.name)}`}>
-            {artisan.has_avatar_photo ? (
-              <img src={avatarPhotoUrl(artisan.id, artisan.avatar_photo_version)} alt="" className="size-full object-cover" />
-            ) : form.avatar_emoji ? (
-              <Emoji3D emoji={form.avatar_emoji} size={56} />
-            ) : (
-              initialsOf(artisan.name)
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="m-0 truncate text-[14.5px] font-bold text-foreground">{artisan.name}</p>
-            <p className="m-0 text-[12.5px] text-muted-foreground">{artisan.trade}</p>
-          </div>
-          <Badge
-            variant="outline"
-            className={`shrink-0 gap-1 rounded-full text-[10px] font-bold ${
-              artisan.is_available
-                ? "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[var(--success,#22c55e)]"
-                : "border-border bg-muted text-muted-foreground"
-            }`}
-          >
-            {artisan.is_available ? "Available" : "Off"}
-          </Badge>
-        </div>
-
-        <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-8">
+        <div className="mb-6 flex flex-col items-center gap-2">
           <button
             type="button"
             onClick={() => avatarFileInputRef.current?.click()}
             disabled={avatarUploading}
-            className="flex items-center gap-1.5 border-none bg-transparent p-0 text-[12.5px] font-bold text-primary disabled:opacity-50"
+            aria-label={artisan.has_avatar_photo ? "Change profile photo" : "Add a profile photo"}
+            className={`relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisan.has_avatar_photo || form.avatar_emoji ? "" : "font-mono text-xl font-bold"} ${tintFor(artisan.name)}`}
           >
-            {avatarUploading ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
-            {artisan.has_avatar_photo ? "Change profile photo" : "Set a profile photo"}
+            {avatarUploading ? (
+              <Loader2 className="size-5 animate-spin" />
+            ) : artisan.has_avatar_photo ? (
+              <img src={avatarPhotoUrl(artisan.id, artisan.avatar_photo_version)} alt="" className="size-full object-cover" />
+            ) : form.avatar_emoji ? (
+              <Emoji3D emoji={form.avatar_emoji} size={80} />
+            ) : (
+              initialsOf(artisan.name)
+            )}
+            <span className="absolute right-0 bottom-0 flex size-6 items-center justify-center rounded-full border border-background bg-foreground text-background">
+              <Camera className="size-3" />
+            </span>
           </button>
-          {artisan.has_avatar_photo && (
-            <button type="button" onClick={removeAvatar} disabled={avatarUploading} className="border-none bg-transparent p-0 text-[11.5px] font-semibold text-muted-foreground disabled:opacity-50">
-              Remove
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {artisan.has_avatar_photo && (
+              <button type="button" onClick={removeAvatar} disabled={avatarUploading} className="border-none bg-transparent p-0 text-[12.5px] text-muted-foreground disabled:opacity-50">
+                Remove photo
+              </button>
+            )}
+            {!artisan.has_avatar_photo && (
+              <EmojiPicker value={form.avatar_emoji} onChange={(e) => setForm((f) => ({ ...f, avatar_emoji: e }))} />
+            )}
+          </div>
           <input
             ref={avatarFileInputRef}
             type="file"
@@ -211,10 +189,6 @@ export default function ArtisanListingManager({ onClose }) {
             className="hidden"
             onChange={(e) => { uploadAvatar(e.target.files?.[0]); e.target.value = ""; }}
           />
-        </div>
-
-        <div className="mb-4">
-          <EmojiPicker value={form.avatar_emoji} onChange={(e) => setForm((f) => ({ ...f, avatar_emoji: e }))} />
         </div>
 
         <Field label="Name" value={form.name || ""} onChange={(v) => setForm((f) => ({ ...f, name: v }))} />
@@ -237,11 +211,17 @@ export default function ArtisanListingManager({ onClose }) {
         <Field label="Email" hint="optional" type="email" value={form.email || ""} onChange={(v) => setForm((f) => ({ ...f, email: v }))} />
         <Field label="Bio" hint="optional" multiline rows={3} value={form.bio || ""} onChange={(v) => setForm((f) => ({ ...f, bio: v }))} />
 
-        <Btn variant="gold" className="mb-6" disabled={saving} loading={saving} onClick={save}>
-          {saving ? "Saving…" : "Save changes"}
-        </Btn>
+        <div className="my-6 border-t border-border" />
 
         <PortfolioGrid artisanId={artisan.id} editToken={null} />
+
+        <button
+          type="button"
+          onClick={() => setPreviewing(true)}
+          className="mt-6 w-full border-none bg-transparent p-0 text-center text-[13px] font-medium text-primary"
+        >
+          Preview as a customer
+        </button>
       </div>
     </div>
   );

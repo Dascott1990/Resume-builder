@@ -74,5 +74,37 @@ export function usePortfolioPhotos(artisanId, editToken) {
     }
   };
 
-  return { photos, uploading, upload, remove };
+  // Swaps a photo with its neighbor — sort_order already exists on
+  // ArtisanPhoto and PATCH /photos/<id> already accepts it (see
+  // backend/app/api/artisans.py's update_photo); nothing in the UI ever
+  // called it until now. Optimistic (reorders `photos` locally first) so
+  // arranging feels instant instead of waiting on two round trips.
+  const move = async (photoId, direction) => {
+    if (!photos) return;
+    const i = photos.findIndex((p) => p.id === photoId);
+    const j = i + direction;
+    if (i < 0 || j < 0 || j >= photos.length) return;
+    const reordered = [...photos];
+    [reordered[i], reordered[j]] = [reordered[j], reordered[i]];
+    setPhotos(reordered);
+    try {
+      await Promise.all([
+        apiRequest(`/api/v1/artisans/${artisanId}/photos/${reordered[i].id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...editHeaders(editToken) },
+          body: JSON.stringify({ sort_order: i }),
+        }),
+        apiRequest(`/api/v1/artisans/${artisanId}/photos/${reordered[j].id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...editHeaders(editToken) },
+          body: JSON.stringify({ sort_order: j }),
+        }),
+      ]);
+    } catch (e) {
+      toast.error(e.message);
+      load(); // reconcile with the server's real order on failure
+    }
+  };
+
+  return { photos, uploading, upload, remove, move };
 }
