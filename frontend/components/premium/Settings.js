@@ -22,7 +22,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
   Settings as SettingsIcon, X, User, Wrench, Palette, LogOut, KeyRound,
-  CheckCircle2, Loader2, Check, Smile, Bell, ImagePlus,
+  CheckCircle2, Loader2, Check, Smile, Bell, ImagePlus, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -42,8 +42,9 @@ import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
 import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
 import {
   artisanMe, artisanUpdateProfile, artisanChangePassword,
-  artisanUploadAvatarPhoto, artisanDeleteAvatarPhoto,
+  artisanUploadAvatarPhoto, artisanDeleteAvatarPhoto, artisanDeleteMe,
 } from "./artisan/api";
+import DeleteListingDialog from "./shared/DeleteListingDialog";
 
 const AVATAR_EMOJI = [
   "😀", "😎", "🤓", "🥳", "🦄", "🐱", "🐶", "🦊",
@@ -402,6 +403,24 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
     toast.success("Signed out");
   };
 
+  const [confirmDeleteArtisanOpen, setConfirmDeleteArtisanOpen] = useState(false);
+  const [deletingArtisan, setDeletingArtisan] = useState(false);
+  const deleteArtisanAccount = async () => {
+    setDeletingArtisan(true);
+    try {
+      await artisanDeleteMe();
+      setArtisanToken(null);
+      setArtisan(null);
+      setArtisanForm(null);
+      clearFormDraft(SETTINGS_ARTISAN_DRAFT_KEY);
+      toast.success("Your listing has been taken down.");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setDeletingArtisan(false);
+    }
+  };
+
   const header = (
     <div className="flex shrink-0 items-center justify-between px-5 pb-3.5" style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}>
       <div className="flex items-center gap-3">
@@ -628,6 +647,25 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth }) {
               <button type="button" onClick={artisanSignOut} className="flex items-center gap-1.5 justify-self-start border-none bg-transparent p-0 text-[12.5px] font-semibold text-muted-foreground">
                 <LogOut className="size-3.5" /> Sign out
               </button>
+
+              <div className="border-t border-border pt-3">
+                <DeleteListingDialog
+                  name={artisan.name}
+                  open={confirmDeleteArtisanOpen}
+                  onOpenChange={setConfirmDeleteArtisanOpen}
+                  onConfirm={deleteArtisanAccount}
+                  trigger={
+                    <button
+                      type="button"
+                      disabled={deletingArtisan}
+                      className="flex items-center gap-1.5 justify-self-start border-none bg-transparent p-0 text-[12.5px] font-bold text-destructive disabled:opacity-50"
+                    >
+                      {deletingArtisan ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                      {deletingArtisan ? "Removing…" : "Delete my listing"}
+                    </button>
+                  }
+                />
+              </div>
             </Card>
           )}
         </div>

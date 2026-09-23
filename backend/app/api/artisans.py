@@ -11,7 +11,7 @@ from flask import Blueprint, request, jsonify, send_file
 from sqlalchemy import func
 from app import db, limiter
 from flask_limiter.util import get_remote_address
-from app.models import Artisan, ArtisanPhoto, Review
+from app.models import Artisan, ArtisanPhoto, Review, JobRequest
 from app.middleware.error_handlers import APIError
 from app.utils.auth import get_admin_user, require_artisan_scope, hash_password, verify_password, issue_token
 from app.utils.geocoding import geocode_city, haversine_km
@@ -350,6 +350,24 @@ def artisan_update_me():
     return jsonify({"success": True, "data": a.to_dict()}), 200
 
 
+@artisans_bp.route("/me", methods=["DELETE"])
+@limiter.limit("10 per hour")
+def artisan_delete_me():
+    """The other real gap the DELETE /<id> route's own history left open:
+    it only ever trusted X-Edit-Token (the anonymous 'list yourself'
+    door) or an admin — a real signed-up artisan's own session was never
+    accepted, so someone who actually created an account had no
+    self-service way to take their listing down at all. Same
+    require_artisan_scope door every other /me/* route already uses,
+    same cascade-safe delete delete_artisan itself relies on."""
+    artisan_id = require_artisan_scope(request)
+    a = db.session.get(Artisan, artisan_id)
+    if not a:
+        raise APIError("Artisan account not found", 404)
+    _delete_artisan_row(a)
+    return jsonify({"success": True}), 200
+
+
 @artisans_bp.route("/me/change-password", methods=["POST"])
 @limiter.limit("10 per hour")
 def artisan_change_password():
@@ -506,20 +524,40 @@ def update_artisan(artisan_id):
     return jsonify({"success": True, "data": a.to_dict()}), 200
 
 
+def _delete_artisan_row(a):
+    """Shared by both delete_artisan (edit_token/admin door) and
+    delete_me (real signed-in-artisan door) — one place to get the
+    cascade right for both.
+
+    SQLite (local dev) doesn't enforce ondelete=CASCADE/SET NULL, only
+    Postgres (prod) does — handling Review/ArtisanPhoto/JobRequest
+    explicitly here means this works the same way in both, instead of
+    only working in prod and silently leaving orphaned rows (or failing
+    outright) the first time someone deletes a listing that has reviews,
+    photos, or job history in local dev.
+
+    JobRequest rows are intentionally kept, not deleted — real job/
+    payment/escrow history for whoever hired this artisan shouldn't
+    disappear just because the artisan's own listing did; only the now-
+    meaningless artisan_id link is cleared (mirrors JobRequest.artisan_id's
+    own ondelete="SET NULL"). Message rows have no FK to Artisan at all
+    (keyed by job_request_id — see models.py), so they're untouched
+    either way; a job's message history survives with the JobRequest.
+    """
+    JobRequest.query.filter_by(artisan_id=a.id).update({"artisan_id": None})
+    Review.query.filter_by(artisan_id=a.id).delete()
+    ArtisanPhoto.query.filter_by(artisan_id=a.id).delete()
+    db.session.delete(a)
+    db.session.commit()
+
+
 @artisans_bp.route("/<artisan_id>", methods=["DELETE"])
 def delete_artisan(artisan_id):
     a = Artisan.query.get(artisan_id)
     if not a:
         raise APIError("Artisan not found", 404)
     _authorize_edit(a)
-    # SQLite (local dev) doesn't enforce the FK's ondelete=CASCADE, only
-    # Postgres (prod) does — deleting reviews/photos explicitly here means
-    # this works the same way in both, instead of only failing in prod the
-    # first time someone deletes a listing that has reviews or photos.
-    Review.query.filter_by(artisan_id=artisan_id).delete()
-    ArtisanPhoto.query.filter_by(artisan_id=artisan_id).delete()
-    db.session.delete(a)
-    db.session.commit()
+    _delete_artisan_row(a)
     return jsonify({"success": True}), 200
 
 

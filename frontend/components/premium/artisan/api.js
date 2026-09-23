@@ -82,6 +82,15 @@ export const artisanUpdateProfile = (fields) => apiRequest("/api/v1/artisans/me"
   body: JSON.stringify(fields),
 });
 
+// Takes the listing (and the account itself — one row, see models.py)
+// down for good. The old DELETE /<id> route only ever trusted the
+// anonymous edit_token door; this is the same real-session door every
+// other /me/* call already uses.
+export const artisanDeleteMe = () => apiRequest("/api/v1/artisans/me", {
+  method: "DELETE",
+  headers: authHeaders(),
+});
+
 export const artisanChangePassword = async (currentPassword, newPassword) => {
   const data = await apiRequest("/api/v1/artisans/me/change-password", {
     method: "POST",
