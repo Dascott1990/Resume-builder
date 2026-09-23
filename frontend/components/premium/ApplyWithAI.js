@@ -444,7 +444,23 @@ export default function ApplyWithAI({ onClose }) {
     apiRequest("/api/v1/apply/profile")
       .then((data) => {
         setProfile(data);
-        setPhase(data && data.confirmed ? "url" : "profile");
+        // A run started before this screen was last closed (or before a
+        // refresh) is still going on the backend regardless — reopening
+        // "Apply with AI" shouldn't dump someone back at a blank URL form
+        // as if nothing were happening. Check for one still in flight and
+        // pick this screen back up exactly where it left off instead.
+        apiRequest("/api/v1/apply/runs")
+          .then((runs) => {
+            const active = (runs || []).find((r) => !TERMINAL_STATUSES.includes(r.status));
+            if (active) {
+              setRun(active);
+              if (active.status === "ready_for_review") setPhase("review");
+              else { setPhase("progress"); startPolling(active.id); }
+            } else {
+              setPhase(data && data.confirmed ? "url" : "profile");
+            }
+          })
+          .catch(() => setPhase(data && data.confirmed ? "url" : "profile"));
       })
       .catch(() => setPhase("profile"));
   }, []);
