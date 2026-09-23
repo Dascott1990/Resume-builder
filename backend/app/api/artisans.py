@@ -13,7 +13,7 @@ from app import db, limiter
 from flask_limiter.util import get_remote_address
 from app.models import Artisan, ArtisanPhoto, Review, JobRequest
 from app.middleware.error_handlers import APIError
-from app.utils.auth import get_admin_user, require_artisan_scope, hash_password, verify_password, issue_token
+from app.utils.auth import get_admin_user, get_artisan_scope, require_artisan_scope, hash_password, verify_password, issue_token
 from app.utils.geocoding import geocode_city, haversine_km
 from app.utils.ratings import recompute_rating
 from app.utils.uploads import validate_upload
@@ -23,12 +23,27 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _authorize_edit(a):
-    """Who's allowed to PATCH/DELETE this listing: an admin, always — or
-    whoever's holding the edit_token handed back when it was created. A
-    NULL edit_token means this row predates the token system entirely and
-    stays open (there was never a secret to check it against), rather than
-    silently locking out whoever originally listed themselves."""
+    """Who's allowed to PATCH/DELETE this listing (or its photos — every
+    route below that touches ArtisanPhoto shares this same check): an
+    admin, always — or the artisan's own real session — or whoever's
+    holding the edit_token handed back when it was created.
+
+    That middle case used to be missing entirely: a real signed-up
+    artisan's edit_token IS set at signup (see artisan_signup below) but
+    is deliberately never included in Artisan.to_dict(), so the frontend
+    never has it to send — meaning every account-based artisan was
+    silently blocked from uploading, editing, or deleting their own
+    portfolio photos (PATCH /<id> had its own /me twin as a workaround,
+    but photos never did). Checking the real session first fixes that at
+    the one shared choke point instead of patching each photo route.
+
+    A NULL edit_token means this row predates the token system entirely
+    and stays open (there was never a secret to check it against),
+    rather than silently locking out whoever originally listed
+    themselves."""
     if get_admin_user(request):
+        return
+    if get_artisan_scope(request) == a.id:
         return
     if not a.edit_token:
         return
