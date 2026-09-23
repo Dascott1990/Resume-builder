@@ -448,6 +448,33 @@ def _do_automation_phase(run):
         _clear_cancel(run.id)
         return None
 
+    final_state = session.extract_state()
+    reviewable = _build_review_snapshot(final_state["elements"])
+
+    # The model calls done() the moment it believes every required field is
+    # filled — which is also, vacuously, true on a page with no form on it
+    # at all (a careers *listing* page, a "browse open roles" page, a
+    # search-results page someone pasted instead of one specific job's own
+    # Apply page). Nothing in the system prompt tells it to tell the
+    # difference, so this used to sail straight through to
+    # "ready_for_review" with an empty review screen — then fail later,
+    # confusingly, the moment a human clicked Confirm & Submit and
+    # _find_submit_ref found no submit button because there was never a
+    # form to submit. Catch it here instead, honestly, before pretending
+    # there's anything to review.
+    if not reviewable and not (run.unfillable_fields or []):
+        run.status = "failed"
+        run.error_message = (
+            "No application form was found on this page. If this is a company's "
+            "general careers page or a search-results page rather than one "
+            "specific job's own \"Apply\" page, paste that job's direct "
+            "application URL instead."
+        )
+        run.completed_at = datetime.now(timezone.utc)
+        db.session.commit()
+        session.close()
+        return None
+
     screenshot_bytes = session.screenshot_bytes()
     shot = Media(
         filename=f"apply_review_{run.id}.png", media_type="image", mime_type="image/png",
@@ -458,8 +485,7 @@ def _do_automation_phase(run):
     db.session.flush()
     run.review_screenshot_media_id = shot.id
 
-    final_state = session.extract_state()
-    run.filled_form_snapshot = {"elements": _build_review_snapshot(final_state["elements"])}
+    run.filled_form_snapshot = {"elements": reviewable}
     run.status = "ready_for_review"
     db.session.commit()
     return session  # kept alive on purpose — the caller owns the review-wait phase
