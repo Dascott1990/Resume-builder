@@ -18,7 +18,7 @@ import { motion } from "framer-motion";
 import {
   Home, FileText, ScanLine, ClipboardList, Hammer, Settings as SettingsIcon,
   ArrowRight, ChevronRight, CalendarCheck, X, Clock, Sparkles, Bell,
-  MessageCircle, Wrench, Inbox, User,
+  MessageCircle, Wrench, Inbox, User, Megaphone, Globe, Cpu, Atom, Landmark,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/useAuth";
@@ -47,6 +47,24 @@ const STATUS_META = {
   offer: { label: "Offer", className: "text-emerald-500" },
   rejected: { label: "Rejected", className: "text-destructive" },
 };
+
+// Same source /brand/news reads (backend/app/api/brand.py's GET /news and
+// /world-feed — both public reads, no admin gate) — this is the read-only
+// consumer-facing view of the same real content, not a second copy of it.
+const FEED_CATEGORY_META = {
+  world: { label: "World", Icon: Globe },
+  tech: { label: "Technology", Icon: Cpu },
+  physics: { label: "Physics", Icon: Atom },
+  history: { label: "History", Icon: Landmark },
+};
+
+function timeAgo(iso) {
+  if (!iso) return "";
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days < 1) return "today";
+  if (days === 1) return "yesterday";
+  return `${days}d ago`;
+}
 
 function greeting() {
   const h = new Date().getHours();
@@ -150,7 +168,7 @@ function SectionHeader({ children, onViewAll }) {
   );
 }
 
-function DashboardContent({ user, statsLoading, savedResumes, applications, go }) {
+function DashboardContent({ user, statsLoading, savedResumes, applications, updates, worldFeed, go }) {
   const interviews = applications.filter((a) => a.status === "interview").length;
   const recentResumes = savedResumes.slice(0, 3);
   const recentApps = applications.slice(0, 3);
@@ -301,6 +319,57 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go }
           </div>
         )}
       </motion.div>
+
+      {updates.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.3 }} className="mb-6">
+          <SectionHeader>
+            <span className="flex items-center gap-1.5"><Megaphone className="size-3.5" /> What's new</span>
+          </SectionHeader>
+          <div className="grid gap-2">
+            {updates.slice(0, 3).map((u) => (
+              <div key={u.id} className="rounded-xl border border-border bg-card p-3">
+                <p className="m-0 text-[13px] font-bold text-foreground">{u.title}</p>
+                {u.body && <p className="m-0 mt-1 text-[12px] leading-relaxed text-muted-foreground">{u.body}</p>}
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <span className="text-[10.5px] text-muted-foreground/60">{timeAgo(u.created_at)}</span>
+                  {u.link && (
+                    <a href={u.link} target="_blank" rel="noreferrer" className="text-[10.5px] font-semibold text-primary no-underline">
+                      Learn more
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {worldFeed.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.35 }} className="mb-6">
+          <SectionHeader>Worth a look</SectionHeader>
+          {/* Horizontal, not another vertical list — this is idle-moment
+              browsing, not a task queue, so it shouldn't compete for the
+              same "scroll down for more of your stuff" rhythm as Recent
+              resumes/applications above it. */}
+          <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden">
+            {worldFeed.slice(0, 8).map((item) => {
+              const meta = FEED_CATEGORY_META[item.category] || FEED_CATEGORY_META.world;
+              return (
+                <a
+                  key={item.id} href={item.url} target="_blank" rel="noreferrer"
+                  className="flex w-56 shrink-0 flex-col gap-1.5 rounded-xl border border-border bg-card p-3 no-underline"
+                >
+                  <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-muted-foreground/70 uppercase">
+                    <meta.Icon className="size-3" /> {meta.label}
+                  </span>
+                  <p className="m-0 text-[12.5px] leading-snug font-bold text-foreground">{item.title}</p>
+                  <span className="mt-auto pt-1 text-[10px] text-muted-foreground/50">{timeAgo(item.published_at || item.fetched_at)}</span>
+                </a>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }
@@ -312,6 +381,19 @@ export default function Dashboard({ onClose, onNavigate }) {
   const [savedResumes, setSavedResumes] = useState([]);
   const [applications, setApplications] = useState([]);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [updates, setUpdates] = useState([]);
+  const [worldFeed, setWorldFeed] = useState([]);
+
+  // Both routes are public reads (backend/app/api/brand.py's GET /news and
+  // /world-feed — no login, no admin gate) and the same real content
+  // /brand/news shows — this just surfaces it somewhere an actual customer
+  // would see it, instead of only existing inside the internal /brand
+  // workspace nobody outside the team ever opens. Independent of
+  // auth/user state on purpose — a guest gets this too.
+  useEffect(() => {
+    apiRequest("/api/v1/brand/news").then((list) => setUpdates(list.filter((u) => !u.resolved))).catch(() => {});
+    apiRequest("/api/v1/brand/world-feed").then(setWorldFeed).catch(() => {});
+  }, []);
 
   useEffect(() => {
     // Signing out happens right on this screen (see the Sign out button
@@ -351,7 +433,7 @@ export default function Dashboard({ onClose, onNavigate }) {
     else go("artisans", { tab: "requests" });
   };
 
-  const contentProps = { user, statsLoading, savedResumes, applications, go };
+  const contentProps = { user, statsLoading, savedResumes, applications, updates, worldFeed, go };
 
   if (isDesktop) {
     return (
