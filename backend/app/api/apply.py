@@ -148,6 +148,37 @@ def _peek_answer(run_id):
         return _ANSWER_REGISTRY.get(run_id)
 
 
+class RunCancelledError(Exception):
+    """Raised inside the background thread once it actually notices a
+    cancel request — the only way out of the mid-automation branch below,
+    which otherwise has no interrupt point at all (see cancel_run's old
+    comment) and would keep running — and keep holding _RUN_LOCK — for as
+    long as the automation naturally takes, regardless of the click."""
+
+
+# run_id -> requested. A run only ever appears here while a mid-automation
+# cancel is pending; cleared the moment the background thread actually
+# stops (see _do_automation_phase's RunCancelledError handler) so this
+# can't leak entries across a long-running process's lifetime.
+_CANCEL_REQUESTS = set()
+_CANCEL_LOCK = threading.Lock()
+
+
+def _request_cancel(run_id):
+    with _CANCEL_LOCK:
+        _CANCEL_REQUESTS.add(run_id)
+
+
+def _is_cancel_requested(run_id):
+    with _CANCEL_LOCK:
+        return run_id in _CANCEL_REQUESTS
+
+
+def _clear_cancel(run_id):
+    with _CANCEL_LOCK:
+        _CANCEL_REQUESTS.discard(run_id)
+
+
 # ── Scoping — identical shape to applications.py's _scope_filter; a leak
 # here would be exactly the kind of bug already fixed once this session. ───
 def _scope_filter(query):
@@ -332,56 +363,82 @@ def _do_automation_phase(run):
         steps.append({**entry, "timestamp": datetime.now(timezone.utc).isoformat()})
         run.steps_log = steps
         db.session.commit()
+        # The only interrupt point in the whole fill loop — checked after
+        # every single tool call, so a cancel takes effect within one step
+        # instead of running to natural completion (and holding _RUN_LOCK
+        # the whole time) regardless of the click. See RunCancelledError.
+        if _is_cancel_requested(run.id):
+            raise RunCancelledError()
 
-    while True:
-        result = run_agent_loop(session, profile_snapshot, pending_questions, unfillable_fields, on_step)
-        run.pending_questions = pending_questions
-        run.unfillable_fields = unfillable_fields
-        db.session.commit()
-
-        if result["stop_reason"] == "needs_input":
-            run.status = "needs_input"
-            db.session.commit()
-            pending_answer = PendingAnswer()
-            _register_answer(run.id, pending_answer)
-            got_answer = pending_answer.answered.wait(timeout=REVIEW_TIMEOUT_MINUTES * 60)
-            _pop_answer(run.id)
-            if not got_answer:
-                run.status = "expired"
-                run.completed_at = datetime.now(timezone.utc)
-                db.session.commit()
-                session.close()
-                return None
-            for q in pending_questions:
-                if not q["answered"]:
-                    q["answered"] = True
-                    q["answer"] = pending_answer.answer_text
-                    break
+    try:
+        while True:
+            result = run_agent_loop(session, profile_snapshot, pending_questions, unfillable_fields, on_step)
             run.pending_questions = pending_questions
-            run.status = "filling_form"
+            run.unfillable_fields = unfillable_fields
             db.session.commit()
-            continue
 
-        if result["stop_reason"] == "done":
-            break
+            if result["stop_reason"] == "needs_input":
+                run.status = "needs_input"
+                db.session.commit()
+                pending_answer = PendingAnswer()
+                _register_answer(run.id, pending_answer)
+                got_answer = pending_answer.answered.wait(timeout=REVIEW_TIMEOUT_MINUTES * 60)
+                _pop_answer(run.id)
+                # A mid-"needs_input" cancel has no tool call to interrupt —
+                # cancel_run wakes this same wait early by providing a dummy
+                # answer (see the route below), so this has to be checked
+                # right after, before that dummy text is ever treated as a
+                # real one.
+                if _is_cancel_requested(run.id):
+                    raise RunCancelledError()
+                if not got_answer:
+                    run.status = "expired"
+                    run.completed_at = datetime.now(timezone.utc)
+                    db.session.commit()
+                    session.close()
+                    return None
+                for q in pending_questions:
+                    if not q["answered"]:
+                        q["answered"] = True
+                        q["answer"] = pending_answer.answer_text
+                        break
+                run.pending_questions = pending_questions
+                run.status = "filling_form"
+                db.session.commit()
+                continue
 
-        # Every non-"done"/non-"needs_input" stop_reason lands here, including
-        # "step_limit_exceeded"/"time_limit_exceeded" — those used to be
-        # written straight into run.status, but the frontend's status maps
-        # (ProgressChecklist, TerminalScreen) only recognize the DB enum's
-        # actual terminal values, so a capped run stuck displaying nothing
-        # ever, forever "in progress" from the user's point of view. Always
-        # land on "failed"; the real reason still reaches the user via
-        # error_message, and whatever got filled survives in
-        # filled_form_snapshot/steps_log either way.
-        run.status = "failed"
-        run.error_message = result.get("error") or {
-            "step_limit_exceeded": "The application took too many steps to fill out automatically — review what was completed so far.",
-            "time_limit_exceeded": "The application took too long to fill out automatically — review what was completed so far.",
-        }.get(result["stop_reason"], f"Stopped: {result['stop_reason']}")
+            if result["stop_reason"] == "done":
+                break
+
+            # Every non-"done"/non-"needs_input" stop_reason lands here, including
+            # "step_limit_exceeded"/"time_limit_exceeded" — those used to be
+            # written straight into run.status, but the frontend's status maps
+            # (ProgressChecklist, TerminalScreen) only recognize the DB enum's
+            # actual terminal values, so a capped run stuck displaying nothing
+            # ever, forever "in progress" from the user's point of view. Always
+            # land on "failed"; the real reason still reaches the user via
+            # error_message, and whatever got filled survives in
+            # filled_form_snapshot/steps_log either way.
+            run.status = "failed"
+            run.error_message = result.get("error") or {
+                "step_limit_exceeded": "The application took too many steps to fill out automatically — review what was completed so far.",
+                "time_limit_exceeded": "The application took too long to fill out automatically — review what was completed so far.",
+            }.get(result["stop_reason"], f"Stopped: {result['stop_reason']}")
+            run.completed_at = datetime.now(timezone.utc)
+            db.session.commit()
+            session.close()
+            return None
+    except RunCancelledError:
+        # cancel_run already wrote status="cancelled" the moment the click
+        # happened — this is just the background thread catching up so it
+        # actually stops (instead of running to its own natural end) and,
+        # critically, so _execute_run's finally releases _RUN_LOCK promptly
+        # instead of leaving every future run 429-ing behind a dead one.
+        run.status = "cancelled"
         run.completed_at = datetime.now(timezone.utc)
         db.session.commit()
         session.close()
+        _clear_cancel(run.id)
         return None
 
     screenshot_bytes = session.screenshot_bytes()
@@ -627,11 +684,26 @@ def cancel_run(run_id):
     if run.status in ("submitted", "failed", "cancelled", "expired"):
         return jsonify({"success": True, "data": _serialize_run(run)}), 200
 
-    # Mid-automation cancel: no clean interrupt point in the tool loop for
-    # v1 — mark it and let the background thread's own completion no-op
-    # once it notices (checked nowhere yet — acceptable MVP gap, the run
-    # will simply keep going to its natural stop and this flag is mostly
-    # informative). A real interrupt point is a reasonable fast-follow.
+    # Mid-automation cancel: mark it immediately for instant UI feedback,
+    # then actually signal the background thread — _do_automation_phase's
+    # on_step checks _is_cancel_requested after every tool call and raises
+    # RunCancelledError, which stops the thread and releases _RUN_LOCK.
+    # Without this, the click only ever changed this row; the thread (and
+    # the lock every future run needs) kept going regardless — the run
+    # would show "cancelled" here while genuinely still running, and the
+    # next Apply with AI attempt would 429 with "already running" until
+    # the old thread eventually finished or the lock's own ~25min self-heal
+    # kicked in.
+    _request_cancel(run.id)
+    if run.status == "needs_input":
+        # The thread isn't between tool calls right now — it's blocked on
+        # pending_answer.answered.wait() with nothing to interrupt it for
+        # up to REVIEW_TIMEOUT_MINUTES. Waking it with a throwaway answer
+        # is what lets it notice the cancel flag at all; see the check
+        # right after that same wait() in _do_automation_phase.
+        pending_answer = _peek_answer(run.id)
+        if pending_answer:
+            pending_answer.provide("")
     run.status = "cancelled"
     run.completed_at = datetime.now(timezone.utc)
     db.session.commit()
