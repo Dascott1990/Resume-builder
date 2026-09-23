@@ -177,10 +177,17 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
       setScale(Math.min(1, Math.max(0.25, available / 794)));
     };
     compute();
+    // See Resume.js's matching effect for why: a single post-paint
+    // measurement can land before layout's fully settled on a real
+    // mobile device (e.g. a webfont swap-in), leaving the preview
+    // unscaled ("zoomed in") until something unrelated happens to
+    // re-run this effect. These two catch that without needing that.
+    const raf = requestAnimationFrame(() => requestAnimationFrame(compute));
+    document.fonts?.ready?.then(compute).catch(() => {});
     const ro = window.ResizeObserver ? new ResizeObserver(compute) : null;
     if (ro && canvasRef.current) ro.observe(canvasRef.current);
     window.addEventListener("resize", compute);
-    return () => { ro?.disconnect(); window.removeEventListener("resize", compute); };
+    return () => { cancelAnimationFrame(raf); ro?.disconnect(); window.removeEventListener("resize", compute); };
   }, [isPhone, mobileView]);
 
   useEffect(() => {
