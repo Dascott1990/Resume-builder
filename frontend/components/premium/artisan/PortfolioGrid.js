@@ -4,15 +4,21 @@
  * thumbnails in display order, tap to view/delete, small ‹ › controls to
  * reorder. sort_order already existed on the backend (PATCH /photos/<id>)
  * with nothing in the UI ever calling it — this is that, finally wired
- * up, via usePortfolioPhotos.js's shared data layer.
+ * up. The first photo (sort_order 0) is what PhotoPortfolio.js's public
+ * hero shows by default, so it's labeled "Cover" here — a real fact
+ * about the existing data, not a separate field invented for this.
+ *
+ * Takes photos/upload/remove/move as props rather than calling
+ * usePortfolioPhotos itself — ArtisanListingManager.js owns that one
+ * fetch so it can factor photo count into the profile-completion
+ * checklist without a second, redundant hook instance.
  */
 import { useRef, useState } from "react";
 import { Plus, Loader2, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { usePortfolioPhotos, rawUrl } from "./usePortfolioPhotos";
+import { rawUrl } from "./usePortfolioPhotos";
 
-export default function PortfolioGrid({ artisanId, editToken }) {
-  const { photos, uploading, upload, remove, move } = usePortfolioPhotos(artisanId, editToken);
+export default function PortfolioGrid({ artisanId, photos, uploading, upload, remove, move }) {
   const [viewing, setViewing] = useState(null); // a photo object, or null
   const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef(null);
@@ -53,6 +59,11 @@ export default function PortfolioGrid({ artisanId, editToken }) {
               >
                 <img src={rawUrl(artisanId, p.id)} alt={p.caption || `Photo ${i + 1} of ${photos.length}`} className="size-full object-cover" />
               </button>
+              {i === 0 && (
+                <span className="pointer-events-none absolute top-1 left-1 rounded bg-black/55 px-1 py-0.5 text-[8.5px] font-semibold text-white">
+                  Cover
+                </span>
+              )}
               {photos.length > 1 && (
                 <div className="absolute inset-x-0 -bottom-1 flex justify-center gap-0.5">
                   {i > 0 && (

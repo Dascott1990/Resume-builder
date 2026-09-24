@@ -34,10 +34,14 @@ export function usePortfolioPhotos(artisanId, editToken) {
   const [uploading, setUploading] = useState(false);
 
   const load = () => {
+    if (!artisanId) return;
     apiRequest(`/api/v1/artisans/${artisanId}/photos`)
       .then(setPhotos)
       .catch(() => setPhotos([]));
   };
+  // ArtisanListingManager.js calls this before its own artisanMe() fetch
+  // resolves (artisanId is undefined for that first render) — skip the
+  // request rather than hitting .../artisans/undefined/photos.
   useEffect(load, [artisanId]);
 
   const upload = async (file) => {

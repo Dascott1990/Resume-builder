@@ -2,12 +2,22 @@
 /**
  * ArtisanListingManager.js — a real, standalone "Edit profile" page for
  * an artisan's listing. Not a dashboard screen wearing a different
- * title: no IconTile branding badge, no card chrome around the summary
- * row, no status pill — those belong to ArtisanDashboard.js, which is
- * about running the business day to day. This page has exactly one job
- * (edit what a customer sees: photo, details, portfolio, in that order)
- * and looks like it — plain header with Back/Save, one flowing column,
- * nothing decorative competing with the content.
+ * title: no IconTile branding badge, no card chrome, no status pill —
+ * those belong to ArtisanDashboard.js, which is about running the
+ * business day to day. This page has exactly one job (edit what a
+ * customer sees: photo, details, portfolio, in that order) and looks
+ * like it — plain header, one flowing column, a save bar that only
+ * appears once there's actually something to save.
+ *
+ * The completion checklist below is computed entirely from real,
+ * already-saved fields (photo, bio, city, years, ≥1 portfolio photo) —
+ * not a fabricated "profile strength" metric with its own hidden model.
+ * Deliberately excludes anything this marketplace has no real backend
+ * for: a separate business name, a second category, a URL slug, an
+ * Active/Pending/Draft status, a website field, operating hours,
+ * address autocomplete, or a custom-attributes checklist (Wi-Fi,
+ * wheelchair access, etc.) — none of that exists on the Artisan model,
+ * and a control with no real action behind it is worse than no control.
  *
  * Reachable from ArtisanDashboard.js and from Settings.js's artisan
  * summary card — same screen either door.
@@ -17,9 +27,9 @@
  * they already live (the Dashboard, Settings) rather than tripling every
  * action across three screens. This page is content, not account admin.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ChevronLeft, Loader2, Camera } from "lucide-react";
+import { ChevronLeft, Loader2, Camera, Check } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field } from "../guest/components/primitives";
 import Emoji3D from "../shared/Emoji3D";
@@ -28,7 +38,11 @@ import PortfolioGrid from "./PortfolioGrid";
 import ArtisanProfile from "../ArtisanProfile";
 import { tintFor, initialsOf, avatarPhotoUrl } from "../shared/artisanDisplay";
 import { TRADES } from "../shared/trades";
+import { usePortfolioPhotos } from "./usePortfolioPhotos";
 import { artisanMe, artisanUpdateProfile, artisanUploadAvatarPhoto, artisanDeleteAvatarPhoto } from "./api";
+
+const BIO_MAX = 600;
+const EDITABLE_FIELDS = ["name", "trade", "city", "phone", "email", "years_experience", "bio", "avatar_emoji"];
 
 export default function ArtisanListingManager({ onClose }) {
   const [artisan, setArtisan] = useState(null);
@@ -38,6 +52,13 @@ export default function ArtisanListingManager({ onClose }) {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const avatarFileInputRef = useRef(null);
+  const cityFieldRef = useRef(null);
+  const yearsFieldRef = useRef(null);
+  const bioFieldRef = useRef(null);
+  const photosSectionRef = useRef(null);
+
+  const { photos, uploading: photoUploading, upload: uploadPhoto, remove: removePhoto, move: movePhoto } =
+    usePortfolioPhotos(artisan?.id, null);
 
   useEffect(() => {
     artisanMe()
@@ -45,6 +66,28 @@ export default function ArtisanListingManager({ onClose }) {
       .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const isDirty = useMemo(() => {
+    if (!artisan || !form) return false;
+    return EDITABLE_FIELDS.some((k) => (form[k] ?? "") !== (artisan[k] ?? ""));
+  }, [artisan, form]);
+
+  // What's actually missing, computed from real saved fields — no
+  // separate "completion" model to drift out of sync with the profile
+  // itself. Each item focuses the field it's about when tapped.
+  const checklist = useMemo(() => {
+    if (!artisan) return [];
+    const items = [
+      { done: artisan.has_avatar_photo || !!artisan.avatar_emoji, label: "Add a profile photo", onGo: () => avatarFileInputRef.current?.click() },
+      { done: !!artisan.city, label: "Add your city", onGo: () => { cityFieldRef.current?.scrollIntoView({ block: "center" }); cityFieldRef.current?.focus(); } },
+      { done: artisan.years_experience != null, label: "Add years of experience", onGo: () => { yearsFieldRef.current?.scrollIntoView({ block: "center" }); yearsFieldRef.current?.focus(); } },
+      { done: !!artisan.bio, label: "Write a short bio", onGo: () => { bioFieldRef.current?.scrollIntoView({ block: "center" }); bioFieldRef.current?.focus(); } },
+      { done: (photos?.length || 0) > 0, label: "Upload a photo of your work", onGo: () => photosSectionRef.current?.scrollIntoView({ block: "start" }) },
+    ];
+    return items;
+  }, [artisan, photos]);
+  const doneCount = checklist.filter((c) => c.done).length;
+  const complete = checklist.length > 0 && doneCount === checklist.length;
 
   const save = async () => {
     setSaving(true);
@@ -58,7 +101,6 @@ export default function ArtisanListingManager({ onClose }) {
       setArtisan(updated);
       setForm(updated);
       toast.success("Saved");
-      onClose?.();
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -133,8 +175,9 @@ export default function ArtisanListingManager({ onClose }) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
-      {/* Plain title bar — Back / title / Save, nothing else. Same shape
-          any focused editor uses, not this app's marketing chrome. */}
+      {/* Plain title bar — Back / title, nothing else. Save moves to a
+          bottom bar that only shows up once there's something to save
+          (see below), rather than sitting here permanently enabled. */}
       <div
         className="flex shrink-0 items-center justify-between px-4 pb-3"
         style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
@@ -145,12 +188,35 @@ export default function ArtisanListingManager({ onClose }) {
           </button>
         ) : <span />}
         <p className="m-0 text-[15px] font-semibold text-foreground">Edit profile</p>
-        <button type="button" onClick={save} disabled={saving} className="border-none bg-transparent p-0 text-[15px] font-semibold text-primary disabled:opacity-50">
-          {saving ? "Saving…" : "Save"}
-        </button>
+        <span className="w-[52px]" aria-hidden="true" />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-8">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5" style={{ paddingBottom: isDirty ? "88px" : "24px" }}>
+        {!complete && (
+          <div className="mb-6">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[12.5px] font-semibold text-foreground">Profile {Math.round((doneCount / checklist.length) * 100)}% complete</span>
+              <span className="text-[11.5px] text-muted-foreground">{doneCount}/{checklist.length}</span>
+            </div>
+            <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${(doneCount / checklist.length) * 100}%` }} />
+            </div>
+            <div className="grid gap-1">
+              {checklist.filter((c) => !c.done).map((c) => (
+                <button
+                  key={c.label}
+                  type="button"
+                  onClick={c.onGo}
+                  className="flex items-center justify-between gap-2 border-none bg-transparent px-0 py-1 text-left text-[13px] text-foreground"
+                >
+                  {c.label}
+                  <ChevronLeft className="size-3.5 rotate-180 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="mb-6 flex flex-col items-center gap-2">
           <button
             type="button"
@@ -204,16 +270,52 @@ export default function ArtisanListingManager({ onClose }) {
           </Select>
         </div>
         <div className="grid grid-cols-2 gap-2.5">
-          <Field label="City" hint="optional" value={form.city || ""} onChange={(v) => setForm((f) => ({ ...f, city: v }))} />
-          <Field label="Years experience" type="number" value={form.years_experience ?? ""} onChange={(v) => setForm((f) => ({ ...f, years_experience: v }))} />
+          <div>
+            <div className="mb-1.5 flex items-baseline justify-between">
+              <span className="text-[13.5px] font-bold tracking-wide text-foreground">City</span>
+              <span className="text-xs text-muted-foreground/60">optional</span>
+            </div>
+            <input
+              ref={cityFieldRef}
+              value={form.city || ""}
+              onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+              className="h-[52px] w-full rounded-[10px] border border-input bg-transparent px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+          <div>
+            <div className="mb-1.5 text-[13.5px] font-bold tracking-wide text-foreground">Years experience</div>
+            <input
+              ref={yearsFieldRef}
+              type="number"
+              value={form.years_experience ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, years_experience: e.target.value }))}
+              className="h-[52px] w-full rounded-[10px] border border-input bg-transparent px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
         </div>
         <Field label="Phone" type="tel" value={form.phone || ""} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
         <Field label="Email" hint="optional" type="email" value={form.email || ""} onChange={(v) => setForm((f) => ({ ...f, email: v }))} />
-        <Field label="Bio" hint="optional" multiline rows={3} value={form.bio || ""} onChange={(v) => setForm((f) => ({ ...f, bio: v }))} />
+
+        <div className="mb-3.5">
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <span className="text-[13.5px] font-bold tracking-wide text-foreground">Bio</span>
+            <span className="text-xs text-muted-foreground/60">{(form.bio || "").length}/{BIO_MAX}</span>
+          </div>
+          <textarea
+            ref={bioFieldRef}
+            rows={3}
+            maxLength={BIO_MAX}
+            value={form.bio || ""}
+            onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
+            className="min-h-[52px] w-full resize-y rounded-[10px] border border-input bg-transparent p-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
 
         <div className="my-6 border-t border-border" />
 
-        <PortfolioGrid artisanId={artisan.id} editToken={null} />
+        <div ref={photosSectionRef}>
+          <PortfolioGrid artisanId={artisan.id} photos={photos} uploading={photoUploading} upload={uploadPhoto} remove={removePhoto} move={movePhoto} />
+        </div>
 
         <button
           type="button"
@@ -223,6 +325,26 @@ export default function ArtisanListingManager({ onClose }) {
           Preview as a customer
         </button>
       </div>
+
+      {/* Sticky save bar — appears only once there's actually something
+          unsaved, same "don't show chrome with nothing to do" reasoning
+          as the checklist above. */}
+      {isDirty && (
+        <div
+          className="shrink-0 border-t border-border bg-background px-5 pt-3"
+          style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+        >
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-60"
+          >
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
