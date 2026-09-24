@@ -374,9 +374,9 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
             tile the exact same width and every gap the exact same size,
             same pattern as the stats row's own grid-cols-3 below. */}
         <div className="grid grid-cols-4 gap-3">
-          <QuickAction Icon={Sparkles} label="Apply with AI" color="amber" onClick={() => go("apply")} />
+          <QuickAction Icon={Sparkles} label="Auto Apply" color="amber" onClick={() => go("apply")} />
           <QuickAction Icon={ScanLine} label="CV Scan" color="neutral" onClick={() => go("scan")} />
-          <QuickAction Icon={ClipboardList} label="Job Tracker" color="neutral" onClick={() => go("jobtracker")} />
+          <QuickAction Icon={ClipboardList} label="Tracker" color="neutral" onClick={() => go("jobtracker")} />
           <QuickAction Icon={Hammer} label="Artisan" color="neutral" onClick={() => go("artisans")} />
         </div>
       </motion.div>
@@ -406,16 +406,17 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
         </motion.div>
       )}
 
-      {(statsLoading || recentResumes.length > 0) && (
+      {/* No loading skeleton here (or on Recent applications below) —
+          unlike the stats row above, these two sections might resolve to
+          nothing at all, and a skeleton promises content that's coming.
+          A skeleton that then just vanishes (because there was nothing to
+          show) reads as broken, not as "still loading" — the same silent-
+          pop-in-when-ready treatment "What's new"/"Worth a look" already
+          use below, now applied consistently instead of only there. */}
+      {recentResumes.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }} className="mb-6">
           <SectionHeader onViewAll={() => go("resume")}>Recent resumes</SectionHeader>
-          {statsLoading ? (
-            <div className="grid gap-2">
-              <Skeleton className="h-14 w-full rounded-xl" />
-              <Skeleton className="h-14 w-full rounded-xl" />
-            </div>
-          ) : (
-            <div className="grid gap-2">
+          <div className="grid gap-2">
               {recentResumes.map((r) => (
                 <div key={r.id} className="glass-surface flex items-center gap-2 rounded-xl p-3">
                   <button onClick={() => go("resume", { resumeId: r.id })}
@@ -446,20 +447,14 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
                   <ChevronRight className="size-4 shrink-0 text-muted-foreground/50" />
                 </div>
               ))}
-            </div>
-          )}
+          </div>
         </motion.div>
       )}
 
-      {(statsLoading || recentApps.length > 0) && (
+      {recentApps.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.25 }} className="mb-6">
           <SectionHeader onViewAll={() => go("jobtracker")}>Recent applications</SectionHeader>
-          {statsLoading ? (
-            <div className="grid gap-2">
-              <Skeleton className="h-14 w-full rounded-xl" />
-            </div>
-          ) : (
-            <div className="grid gap-2">
+          <div className="grid gap-2">
               {recentApps.map((a) => {
                 const meta = STATUS_META[a.status] || STATUS_META.applied;
                 const since = daysSinceApplied(a.date_applied);
@@ -507,8 +502,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
                   </div>
                 );
               })}
-            </div>
-          )}
+          </div>
         </motion.div>
       )}
 
