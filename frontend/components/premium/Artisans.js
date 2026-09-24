@@ -222,7 +222,16 @@ function LocationChip({ city, onOpen }) {
 // exactly the existing filter with a bigger, friendlier front door.
 function CategoryGrid({ onPick }) {
   return (
-    <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-5">
+    // sm:grid-cols-5 used to escalate at a plain viewport-width breakpoint
+    // — wrong signal here, since on desktop this renders inside the
+    // browse panel's narrow ~340px sidebar (see the isDesktop branch
+    // below), not the full viewport. A wide viewport with a narrow actual
+    // container squeezed 5 columns into ~64px cells, too narrow for
+    // "Electrician"/"Landscaper" to wrap anywhere but mid-word, leaving a
+    // single orphan letter stranded on its own line. grid-cols-4
+    // everywhere gives every cell the same ~80px+ width this already
+    // works fine at on mobile, in both contexts this same grid renders in.
+    <div className="grid grid-cols-4 gap-2.5">
       {TRADES_WITH_ALL.filter((t) => t !== "All").map((t) => {
         const Icon = TRADE_ICONS[t] || Hammer;
         return (
@@ -235,12 +244,11 @@ function CategoryGrid({ onPick }) {
             <span className="flex size-14 items-center justify-center rounded-2xl border border-border bg-card text-foreground">
               <Icon className="size-5" />
             </span>
-            {/* w-full alone isn't enough — a column this narrow (the
-                desktop sidebar's 5-col grid, ~64px per cell) is narrower
-                than "Landscaper" fits on one line, and normal wrapping
-                only breaks between words, not inside one. break-words
-                lets a too-long single word wrap onto a second line
-                instead of bleeding into the next tile. */}
+            {/* break-words is still the real safety net underneath the
+                width fix above — even a wider column can't guarantee
+                every possible trade name fits on one line, so a too-long
+                single word still wraps onto a second line instead of
+                bleeding into the next tile. */}
             <span className="w-full text-center text-[11px] leading-tight font-semibold break-words text-foreground">{t}</span>
           </button>
         );
