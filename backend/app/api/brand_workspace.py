@@ -20,7 +20,7 @@ import io
 from app import db
 from app.models import BrandWorkspace, BrandAsset
 from app.middleware.error_handlers import APIError
-from app.utils.auth import require_workspace
+from app.utils.auth import require_workspace, require_brand_key
 from app.utils.storage import get_storage, make_key, LocalStorage
 from app.utils.uploads import validate_upload
 from app.utils.story_quality import score_story
@@ -53,12 +53,19 @@ def get_default_workspace():
     link (page.js's own deep link, a DIFFERENT way to reach this SAME
     row for handing an external collaborator scoped access) does.
 
-    Deliberately unauthenticated, same trust posture every other /brand
-    zone already has (Composer/Story/Downloads have no login wall either
-    — see this module's own docstring) — reachable by anyone who finds
-    the page, not a new weaker guarantee than what already exists.
-    Auto-creates the row the first time anything needs it, so this never
-    404s waiting on a setup step nobody's told to do."""
+    Gated by the brand key (require_brand_key — the same shared secret
+    Tasks/News already require) since this is the ONE place the workspace
+    token — full write access to everything the branding workspace
+    touches — gets handed to a browser with nothing but "you loaded this
+    URL." It used to be unauthenticated on the theory that /brand isn't
+    linked/indexed anywhere; noindex keeps it out of search, not off the
+    internet, so anyone who ever finds the bare URL got a live write
+    credential for free. A stored ?ws=<token> link (an intentional share
+    with an external collaborator) is untouched — this only gates how the
+    token gets handed out to someone who has neither that link nor the
+    key. Auto-creates the row the first time anything needs it, so this
+    still never 404s waiting on a setup step nobody's told to do."""
+    require_brand_key(request)
     ws = BrandWorkspace.query.order_by(BrandWorkspace.created_at.asc()).first()
     if not ws:
         ws = BrandWorkspace(token=secrets.token_urlsafe(32), name="Noqeev")

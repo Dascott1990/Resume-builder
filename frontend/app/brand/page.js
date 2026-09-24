@@ -49,8 +49,57 @@ import { NotificationBell } from "./NotificationBell";
 import { SeoStatus } from "@/components/premium/brand/SeoStatus";
 import { TodayPanel } from "@/components/premium/brand/TodayPanel";
 import { apiRequest } from "@/components/premium/shared/api";
+import { getBrandKey, setBrandKey } from "@/lib/brandKey";
+import { Btn } from "@/components/premium/guest/components/primitives";
+import { Input } from "@/components/ui/input";
 import { DEFAULT_ACCENT } from "./postTemplates";
 import { loadBrandUiState, saveBrandUiState } from "./assetKit";
+
+// GET /workspace/default now requires the brand key (see
+// backend/api/brand_workspace.py — it used to hand out full write access
+// to anyone who loaded this URL). Same unlock shape NotificationBell.js's
+// own BrandKeyGate already uses for Tasks/News, just full-page instead of
+// a small popover panel — this gates the whole workspace, not one feature
+// inside it, and there's no page content underneath worth showing yet.
+function WorkspaceKeyGate({ onUnlocked }) {
+  const [value, setValue] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState("");
+
+  const unlock = async () => {
+    if (!value.trim()) return;
+    setChecking(true);
+    setError("");
+    setBrandKey(value.trim());
+    try {
+      const ws = await apiRequest("/api/v1/workspace/default");
+      onUnlocked(ws.token);
+    } catch (e) {
+      setBrandKey(null);
+      setError(e.status === 401 ? "That key isn't right." : (e.message || "Try again."));
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto mt-10 max-w-sm rounded-2xl border border-border bg-card p-6 text-center">
+      <p className="m-0 text-[15px] font-bold text-foreground">Enter the brand key</p>
+      <p className="m-0 mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+        This workspace needs the shared internal key before it'll open.
+      </p>
+      <div className="mt-4 flex flex-col gap-2">
+        <Input
+          type="password" value={value} onChange={(e) => setValue(e.target.value)} autoFocus autoComplete="off"
+          placeholder="Brand key" className="h-11 rounded-[10px] text-center text-[13.5px]"
+          onKeyDown={(e) => { if (e.key === "Enter") unlock(); }}
+        />
+        <Btn variant="gold" onClick={unlock} disabled={checking} loading={checking}>Unlock</Btn>
+      </div>
+      {error && <p className="m-0 mt-2.5 text-[12px] font-semibold text-destructive">{error}</p>}
+    </div>
+  );
+}
 
 function Swatch({ hex, label }) {
   return (
@@ -189,12 +238,18 @@ export default function BrandPage() {
   // behind this whole page, not a per-visitor concept. Resolved once on
   // load via GET /workspace/default (auto-creates it the first time
   // anything needs it), no token in the URL, no login — same trust
-  // posture every other zone on this page already has.
+  // posture every other zone on this page already has (deliberately
+  // gated by the brand key now — see WorkspaceKeyGate above and this
+  // route's own docstring in backend/api/brand_workspace.py for why).
   const [workspaceToken, setWorkspaceToken] = useState(null);
+  const [needsBrandKey, setNeedsBrandKey] = useState(false);
 
-  useEffect(() => {
-    apiRequest("/api/v1/workspace/default").then((ws) => setWorkspaceToken(ws.token)).catch(() => {});
-  }, []);
+  const loadWorkspace = () => {
+    apiRequest("/api/v1/workspace/default")
+      .then((ws) => { setWorkspaceToken(ws.token); setNeedsBrandKey(false); })
+      .catch((e) => { if (e.status === 401 || e.status === 503) setNeedsBrandKey(true); });
+  };
+  useEffect(loadWorkspace, []);
 
   // Loaded after mount, never in a useState initializer — this file is
   // rendered on the server first (no localStorage there), so reading it
@@ -257,7 +312,9 @@ export default function BrandPage() {
 
         {zone === "today" && (
           <div className="mt-4">
-            {workspaceToken ? (
+            {needsBrandKey ? (
+              <WorkspaceKeyGate onUnlocked={(token) => { setWorkspaceToken(token); setNeedsBrandKey(false); }} />
+            ) : workspaceToken ? (
               <TodayPanel token={workspaceToken} />
             ) : (
               <div className="flex items-center justify-center rounded-2xl border border-border bg-card py-8 text-muted-foreground">
