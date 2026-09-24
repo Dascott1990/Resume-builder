@@ -44,6 +44,16 @@ export function printPdf(previewEl) {
   const style = document.createElement("style");
   style.id    = "__resume_print_style__";
   style.textContent = `
+    /* Without this, the browser falls back to its own default print
+       margins — the exact space it uses to stamp its own header
+       (document.title, which literally includes "— Noqeev") and footer
+       (date + URL) onto every page. A resume that comes out of "Download
+       PDF" carrying that is not just ugly, it reads as obviously
+       machine-generated to anyone screening it — the resume's own real
+       margins are already baked into ResumeDocument.js's contentStyle
+       padding, so zeroing the page margin here doesn't touch layout, it
+       only removes the room the browser was using to draw on top of it. */
+    @page { size: auto; margin: 0; }
     @media print {
       body { margin: 0 !important; padding: 0 !important; background: white !important; }
       .${HIDE_CLASS} { display: none !important; }
@@ -122,6 +132,12 @@ export function printCoverLetterPdf(coverLetter, contact) {
   const style = document.createElement("style");
   style.id = "__cover_letter_print_style__";
   style.textContent = `
+    /* Same fix as printPdf() above — otherwise the browser draws its own
+       header (document.title, "— Noqeev") and footer (date + URL) in its
+       default print margin. The page element itself already carries a
+       real 1in padding (set inline above), so this doesn't remove the
+       cover letter's own margins, only the browser's extra ones on top. */
+    @page { size: auto; margin: 0; }
     @media print {
       body { margin: 0 !important; padding: 0 !important; background: white !important; }
       .${HIDE_CLASS} { display: none !important; }
