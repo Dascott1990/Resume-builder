@@ -550,14 +550,24 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
               resumes/applications above it. Items aren't lost when they
               scroll out of the default top-8 — the feed keeps everything
               fetched (up to 40 here) reachable via "View all" instead of
-              only ever showing the newest 8. */}
-          <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden">
+              only ever showing the newest 8. "View all" itself switches to
+              a vertical grid, not just a longer version of the same
+              horizontal strip — the strip is for a quick idle glance at a
+              handful of headlines; someone who explicitly asked to see
+              everything is actually browsing 40 items, and scrolling
+              sideways through that many cards one at a time is a bad way
+              to do it. A real 2-column grid scrolls the normal way,
+              alongside everything else on the page. */}
+          <div className={showAllFeed
+            ? "grid grid-cols-2 gap-2.5"
+            : "-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden"
+          }>
             {worldFeed.slice(0, showAllFeed ? 40 : 8).map((item) => {
               const meta = FEED_CATEGORY_META[item.category] || FEED_CATEGORY_META.world;
               return (
                 <a
                   key={item.id} href={item.url} target="_blank" rel="noreferrer"
-                  className="glass-surface flex w-56 shrink-0 flex-col gap-1.5 rounded-xl p-3 no-underline"
+                  className={`glass-surface flex flex-col gap-1.5 rounded-xl p-3 no-underline ${showAllFeed ? "" : "w-56 shrink-0"}`}
                 >
                   <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-muted-foreground/70 uppercase">
                     <meta.Icon className="size-3" /> {meta.label}
