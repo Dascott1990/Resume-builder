@@ -101,7 +101,13 @@ export default function CVScan({ onClose, onImported }) {
         )}
       </div>
 
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-6 pb-16">
+      {/* max-w-md never had a desktop-specific bump — same class of gap as
+          Dashboard's own content column, just narrower to start with
+          since this is a short centered form, not a list. lg: only
+          widens it modestly (the drop-zone/textarea get more visible
+          room), not to Dashboard's width — a stretched single-column
+          form reads worse than a merely-narrow one. */}
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-6 pb-16 lg:max-w-xl">
         <div>
           <IconTile icon={ScanLine} size="md" className="mb-3" />
           <p className="m-0 text-[22px] font-bold text-foreground">CV Scan</p>

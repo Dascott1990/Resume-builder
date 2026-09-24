@@ -165,7 +165,11 @@ export default function JobTracker({ onClose }) {
         )}
       </header>
 
-      <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-5 py-6 sm:px-8">
+      {/* Same gap as Dashboard's own content column had — max-w-2xl was
+          sized for mobile and never got a desktop-specific widen, leaving
+          real dead space next to a list-of-cards screen that actually
+          benefits from the extra room. */}
+      <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-5 py-6 sm:px-8 lg:max-w-4xl">
         <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <IconTile icon={ClipboardList} size="sm" />

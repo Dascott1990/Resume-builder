@@ -235,7 +235,13 @@ function CategoryGrid({ onPick }) {
             <span className="flex size-14 items-center justify-center rounded-2xl border border-border bg-card text-foreground">
               <Icon className="size-5" />
             </span>
-            <span className="text-center text-[11px] leading-tight font-semibold text-foreground">{t}</span>
+            {/* w-full alone isn't enough — a column this narrow (the
+                desktop sidebar's 5-col grid, ~64px per cell) is narrower
+                than "Landscaper" fits on one line, and normal wrapping
+                only breaks between words, not inside one. break-words
+                lets a too-long single word wrap onto a second line
+                instead of bleeding into the next tile. */}
+            <span className="w-full text-center text-[11px] leading-tight font-semibold break-words text-foreground">{t}</span>
           </button>
         );
       })}

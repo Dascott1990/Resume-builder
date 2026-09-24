@@ -313,7 +313,11 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOp
     >
       {header}
       <div
-        className="mx-auto flex w-full min-h-0 max-w-xl flex-1 flex-col gap-4 overflow-y-auto px-5"
+        // max-w-xl never had a desktop-specific bump either — modest lg:
+        // widen only, same reasoning as CVScan.js: a form of labeled
+        // rows looks worse stretched too wide, so this stays conservative
+        // rather than matching Dashboard/JobTracker's larger jump.
+        className="mx-auto flex w-full min-h-0 max-w-xl flex-1 flex-col gap-4 overflow-y-auto px-5 lg:max-w-2xl"
         style={{ paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))" }}
       >
         <div>
