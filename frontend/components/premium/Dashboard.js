@@ -415,7 +415,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
           use below, now applied consistently instead of only there. */}
       {recentResumes.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }} className="mb-6">
-          <SectionHeader onViewAll={() => go("resume")}>Recent resumes</SectionHeader>
+          <SectionHeader onViewAll={() => go("resume", { viewAllResumes: true })}>Recent resumes</SectionHeader>
           <div className="grid gap-2">
               {recentResumes.map((r) => (
                 <div key={r.id} className="glass-surface flex items-center gap-2 rounded-xl p-3">

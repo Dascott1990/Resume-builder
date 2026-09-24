@@ -101,6 +101,13 @@ export default function Home() {
   // then implicitly cleared the same way pendingImport is: every other
   // path into "resume" calls openResume() with no id, which resets this.
   const [pendingLoadResumeId, setPendingLoadResumeId] = useState(null);
+  // Dashboard's "Recent resumes" section has a "View all" link, meant to
+  // land on the full Saved list (GuestMode's own "templates" tab — see its
+  // top-of-file comment, "'Saved' tab: all previously generated resumes").
+  // Without this, that link just opened the studio at whatever mode/tab a
+  // restored draft last left it in — often the AI wizard mid-draft, not a
+  // list of anything, since nothing told it "the user asked for the list."
+  const [pendingViewAllResumes, setPendingViewAllResumes] = useState(false);
   // Same idea again, for a specific Apply with AI run clicked from the
   // notification bell (Dashboard.js's own "X" run just finished" item) —
   // without this, opening "apply" always lands on the blank URL form
@@ -245,7 +252,7 @@ export default function Home() {
     );
   }
 
-  const openResume = (resumeId) => {
+  const openResume = (resumeId, { viewAllResumes = false } = {}) => {
     setPendingImport(null);
     setPendingJobDesc(null);
     // openResume is also used directly as an onClick handler in a few
@@ -253,6 +260,7 @@ export default function Home() {
     // SyntheticEvent as the first argument there, not a resume id. The
     // typeof guard is what keeps that from ever being mistaken for one.
     setPendingLoadResumeId(typeof resumeId === "string" ? resumeId : null);
+    setPendingViewAllResumes(viewAllResumes);
     setSessionId((id) => id + 1);
     setView("resume");
   };
@@ -288,7 +296,7 @@ export default function Home() {
           }}
           onNavigate={(id, opts) => {
             setArtisansInitialTab(id === "artisans" ? opts?.tab || null : null);
-            if (id === "resume") openResume(opts?.resumeId);
+            if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes });
             else if (id === "scan") setView("cvscan");
             else if (id === "jobtracker") setView("jobtracker");
             else if (id === "artisans") setView("artisans");
@@ -414,7 +422,7 @@ export default function Home() {
       // "Close": back to the dashboard, not out of the app entirely.
       onClose={() => setView("dashboard")}
     >
-      <Resume key={sessionId} onClose={() => setView("dashboard")} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} pendingLoadResumeId={pendingLoadResumeId} />
+      <Resume key={sessionId} onClose={() => setView("dashboard")} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} pendingLoadResumeId={pendingLoadResumeId} pendingViewAllResumes={pendingViewAllResumes} />
     </ErrorBoundary>
   );
 }

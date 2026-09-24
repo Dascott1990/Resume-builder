@@ -40,7 +40,7 @@ import { useViewport } from "@/lib/useViewport";
 import { useSignupNudge } from "@/lib/useSignupNudge";
 import { SignupNudgeModal } from "../shared/SignupNudgeModal";
 
-export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDesc, pendingLoadResumeId }) {
+export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDesc, pendingLoadResumeId, pendingViewAllResumes }) {
   const { isPhone, isTablet, isDesktop } = useViewport();
   const signupNudge = useSignupNudge();
 
@@ -77,8 +77,18 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
   // scan it. A job description handed off by the "tailor for this job"
   // bookmarklet (see lib/bookmarklet.js) takes the same priority, landing
   // one step earlier — Job Posting, not the result — since there's no
-  // resume yet, just the posting someone was just reading.
-  const [tab,        setTab]        = useState(() => (pendingImport || pendingJobDesc) ? "new" : (draftAtMount?.tab || "new"));   // "new" | "style" | "templates" | "settings"
+  // resume yet, just the posting someone was just reading. A specific saved
+  // resume clicked from Dashboard's Recent list (pendingLoadResumeId) gets
+  // the exact same priority — someone who tapped THAT resume should see
+  // that resume, not whatever unrelated draft was last left open here.
+  // pendingViewAllResumes (Dashboard's "View all") is its own destination —
+  // the Saved list itself, "templates" — distinct from all of the above,
+  // which land on "new" (the editor/wizard).
+  const [tab,        setTab]        = useState(() => {
+    if (pendingViewAllResumes) return "templates";
+    if (pendingImport || pendingJobDesc || pendingLoadResumeId) return "new";
+    return draftAtMount?.tab || "new";
+  });   // "new" | "style" | "templates" | "settings"
   // Skipping straight to step 2 only makes sense if there's already usable
   // info to generate from (a saved profile) — otherwise Optimize/Generate
   // would just fail on a missing name/title. With no profile yet, land on
@@ -86,7 +96,7 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
   // on step 2 the moment they finish it.
   const hasUsableProfile = !!(profileAtMount?.name && profileAtMount?.title && profileAtMount?.location);
   const [step,       setStep]       = useState(() => {
-    if (pendingImport) return 3;
+    if (pendingImport || pendingLoadResumeId) return 3;
     if (pendingJobDesc) return hasUsableProfile ? 2 : 1;
     return draftAtMount?.step || 1;
   });       // 1 | 2 | 3
@@ -115,11 +125,15 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
       const c = pendingImport.contact;
       return { ...EMPTY_INFO, name: c.name || "", title: c.title || "", location: c.location || "", email: c.email || "", phone: c.phone || "" };
     }
+    // A specific saved resume (pendingLoadResumeId) is on its way in via
+    // loadSaved()'s async fetch below — starting from an unrelated draft's
+    // info here would just be a flash of the wrong person's contact card.
+    if (pendingLoadResumeId) return EMPTY_INFO;
     return draftAtMount?.info || profileAtMount || EMPTY_INFO;
   });
   // Shown once, only when we actually pre-filled the form from a saved profile
   // (not when restoring a live draft — that already gets its own banner).
-  const [infoFromProfile, setInfoFromProfile] = useState(() => !pendingImport && !draftAtMount?.info && !!profileAtMount);
+  const [infoFromProfile, setInfoFromProfile] = useState(() => !pendingImport && !pendingLoadResumeId && !draftAtMount?.info && !!profileAtMount);
   const [jobDesc,    setJobDesc]    = useState(() => pendingJobDesc || draftAtMount?.jobDesc || "");
   const [generating, setGenerating] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
@@ -137,20 +151,26 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
         job_location: pendingImport.job_location || null,
       };
     }
+    if (pendingLoadResumeId) return null;
     return draftAtMount?.genResult || null;
   });
-  const [coverLetter,  setCoverLetter]  = useState(() => pendingImport?.cover_letter || draftAtMount?.coverLetter || "");
-  const [interviewTips, setInterviewTips] = useState(() => pendingImport?.interview_tips || draftAtMount?.interviewTips || []);
-  const [application, setApplication] = useState(() => pendingImport?.application || draftAtMount?.application || null); // { method, value, instructions }
+  const [coverLetter,  setCoverLetter]  = useState(() => pendingLoadResumeId ? "" : (pendingImport?.cover_letter || draftAtMount?.coverLetter || ""));
+  const [interviewTips, setInterviewTips] = useState(() => pendingLoadResumeId ? [] : (pendingImport?.interview_tips || draftAtMount?.interviewTips || []));
+  const [application, setApplication] = useState(() => pendingLoadResumeId ? null : (pendingImport?.application || draftAtMount?.application || null)); // { method, value, instructions }
   // Mirrors what clicking "Optimize" does — the review package opens
   // immediately when the import already came back tailored to a job.
   const [packageOpen, setPackageOpen] = useState(() => !!pendingImport?.cover_letter);
   const [copied, setCopied] = useState(false);
-  const [resume,     dispatch]      = useReducer(resumeReducer, pendingImport || draftAtMount?.resume || null);
+  // pendingLoadResumeId starts this at null (not draftAtMount?.resume) for
+  // the exact same reason as `info` above — the correct resume is on its
+  // way in via loadSaved()'s fetch; showing someone else's draft in the
+  // meantime is the whole bug this block exists to fix (see GuestMode's
+  // own pendingLoadResumeId effect further down).
+  const [resume,     dispatch]      = useReducer(resumeReducer, pendingImport || (pendingLoadResumeId ? null : draftAtMount?.resume) || null);
   const onEdit = useCallback(onEditHandler(dispatch), [dispatch]);
   const [docStyle,   setDocStyle]   = useState(() => draftAtMount?.docStyle || DEFAULT_STYLE);
   // Restored on mount only if there's actually something worth telling the user about.
-  const [draftRestored, setDraftRestored] = useState(() => !pendingImport && !!(draftAtMount?.resume || draftAtMount?.jobDesc));
+  const [draftRestored, setDraftRestored] = useState(() => !pendingImport && !pendingLoadResumeId && !!(draftAtMount?.resume || draftAtMount?.jobDesc));
   // A one-time banner distinct from draftRestored — this is "we just parsed
   // your upload," not "you refreshed mid-draft."
   const [importNoticeVisible, setImportNoticeVisible] = useState(() => !!pendingImport);
