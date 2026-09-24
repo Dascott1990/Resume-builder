@@ -22,11 +22,18 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      // Drop any cache from a previous OFFLINE_CACHE name (e.g. a brand
-      // rename that changed this constant) — otherwise it just sits
-      // there forever, unreferenced, the first time that name ever
-      // changes. Never deletes OFFLINE_CACHE itself, only stragglers.
-      .then((keys) => Promise.all(keys.filter((k) => k !== OFFLINE_CACHE && k.startsWith("noqeev-offline")).map((k) => caches.delete(k))))
+      // Drop every cache that isn't the current OFFLINE_CACHE — not just
+      // ones matching today's naming scheme. A brand rename (Noviq →
+      // Noqeev) plus an earlier, since-reverted version of this file that
+      // cached the full app shell (see git history) both left caches
+      // behind under names this file no longer even mentions
+      // ("noviq-static-v2", "noviq-pages-v2", …) — a prefix check tied to
+      // the current constant can never catch those, so they'd sit there
+      // forever, unreferenced but real, on anyone who had that version
+      // installed. A flat "keep only what I recognize" is the only rule
+      // that actually cleans up after every past version, not just this
+      // one.
+      .then((keys) => Promise.all(keys.filter((k) => k !== OFFLINE_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
