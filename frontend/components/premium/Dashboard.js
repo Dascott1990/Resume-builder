@@ -331,30 +331,31 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
       )}
 
       {/* The one dominant action — everything else on this screen supports
-          it. Gradient (the same from-primary-to-primary/75 recipe
-          IconTile.js already established, plus a soft primary-tinted
-          glow) instead of a flat fill, and a leading icon circle + one
-          line of subtext next to the trailing arrow button — the "balance
-          card" treatment this comment already claimed it gets, made
-          actually visible instead of a flat-color button with a headline
-          on it. */}
+          it. Weight comes from size, position, and typography, not from
+          filling the whole card edge-to-edge with saturated brand color —
+          a full-bleed vivid-amber surface this large reads as a banner ad,
+          not a premium "balance card." Same glass-surface neutral body
+          StatCard uses below; the accent is confined to the icon badge
+          (the same small IconTile-style squircle used everywhere else in
+          the app) and the trailing arrow, exactly the "one accent, used
+          sparingly" rule the Quick Actions row below now also follows. */}
       <motion.button
         initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.05 }}
         whileTap={{ scale: 0.98 }}
         onClick={() => go("resume")}
-        className="mb-5 flex w-full items-center justify-between gap-4 rounded-3xl border-none bg-gradient-to-br from-primary to-primary/75 p-6 text-left shadow-[0_16px_36px_-12px_color-mix(in_oklch,var(--primary)_55%,transparent)] [-webkit-tap-highlight-color:transparent]"
+        className="glass-surface mb-5 flex w-full items-center justify-between gap-4 rounded-3xl border-none p-6 text-left [-webkit-tap-highlight-color:transparent]"
       >
         <div className="flex min-w-0 items-center gap-3.5">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-[26%] bg-gradient-to-br from-primary to-primary/75 shadow-[0_6px_16px_-4px_color-mix(in_oklch,var(--primary)_55%,transparent)]">
             <FileText className="size-5 text-primary-foreground" />
           </div>
           <div className="min-w-0">
-            <p className="m-0 text-xl font-bold text-primary-foreground">Build a resume</p>
-            <p className="m-0 text-[12px] text-primary-foreground/70">Tailored, ATS-ready in minutes</p>
+            <p className="m-0 text-xl font-bold text-foreground">Build a resume</p>
+            <p className="m-0 text-[12px] text-muted-foreground">Tailored, ATS-ready in minutes</p>
           </div>
         </div>
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
-          <ArrowRight className="size-5 text-primary-foreground" />
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10">
+          <ArrowRight className="size-5 text-primary" />
         </div>
       </motion.button>
 
@@ -363,9 +364,10 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
           actions under the balance. Always shown regardless of whether
           there's any data yet: these are navigation shortcuts, not
           content, so "nothing tracked yet" doesn't apply to them the way
-          it does to the stats/activity below. Each gets its own color
-          (see QUICK_ACTION_COLORS) so the four read as distinct actions
-          at a glance, not four identical circles with different labels. */}
+          it does to the stats/activity below. One neutral treatment for
+          all four, told apart by icon + label — see QUICK_ACTION_COLORS —
+          except Apply with AI, the one flagship feature that keeps the
+          brand accent. */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }} className="mb-6">
         {/* grid grid-cols-4, not flex — a flex row's leftover space
             distributes unevenly between gaps; a 4-column grid gives every
