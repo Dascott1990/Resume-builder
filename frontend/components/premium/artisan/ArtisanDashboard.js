@@ -99,7 +99,14 @@ const PoolCard = forwardRef(function PoolCard({ j, busy, onAccept, onDecline }, 
         )}
         <p className="m-0 mb-2.5 text-[12.5px] leading-relaxed text-foreground">{j.description}</p>
         <div className="flex gap-2">
-          <Btn small variant="gold" disabled={busy} loading={busy} onClick={onAccept}>Accept</Btn>
+          {/* "primary" (a neutral filled button, not gold) rather than
+              plain ghost — Accept and Decline are opposite actions, so
+              they still need to read apart from each other at a glance;
+              it just shouldn't be gold repeated on every card in a list
+              that can be many cards long (see Assets tab's own fix for
+              why solid gold-per-row is the thing to avoid, not fill vs.
+              outline itself). */}
+          <Btn small variant="primary" disabled={busy} loading={busy} onClick={onAccept}>Accept</Btn>
           <Btn small variant="ghost" disabled={busy} onClick={onDecline}>Decline</Btn>
         </div>
       </Card>
