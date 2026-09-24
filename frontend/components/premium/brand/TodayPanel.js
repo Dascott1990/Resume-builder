@@ -70,14 +70,13 @@ function PostRow({ post, overdue }) {
   );
 }
 
-// A colored icon circle per section — same language Dashboard.js's Quick
-// Actions row established (a distinct hue per item instead of one uniform
-// accent) — amber for what's scheduled, blue for what's in progress, and
-// destructive-red for what needs attention (the one that's already a real
-// severity signal elsewhere, kept as-is rather than given an arbitrary hue).
+// One accent (amber, for what's scheduled — the section with a real due
+// time), neutral for what's just in progress, and destructive-red for
+// what needs attention (a real severity signal, not decoration). Matches
+// Dashboard.js's own Quick Actions row — see QUICK_ACTION_COLORS there.
 const SECTION_COLORS = {
-  amber: "border-amber-500/25 bg-amber-500/10 text-amber-500",
-  blue: "border-blue-500/25 bg-blue-500/10 text-blue-500",
+  amber: "border-primary/25 bg-primary/10 text-primary",
+  neutral: "border-border bg-muted/60 text-muted-foreground",
   destructive: "border-destructive/25 bg-destructive/10 text-destructive",
 };
 
@@ -129,7 +128,7 @@ export function TodayPanel({ token }) {
         )}
       </Section>
 
-      <Section icon={PenLine} color="blue" label="Working on now" empty="No drafts in progress on this browser.">
+      <Section icon={PenLine} color="neutral" label="Working on now" empty="No drafts in progress on this browser.">
         {drafts.length > 0 && (
           <div className="grid gap-1.5">
             {drafts.map((d) => (

@@ -56,15 +56,13 @@ const STATUS_META = {
 // screen's own compact order for the per-row "mark status" menu.
 const STATUS_ORDER = ["applied", "interview", "offer", "rejected"];
 
-// Each of the 4 quick actions gets its own color so they're distinguishable
-// at a glance instead of reading as identical gray circles with different
-// labels — Apply with AI keeps the brand accent (it IS the flagship AI
-// feature), the other three get a genuinely different hue each.
+// One accent, used once: Apply with AI is the flagship feature and gets
+// the brand primary; every other quick action shares the same neutral
+// treatment and is told apart by its glyph and label, not an arbitrary
+// hue — a rainbow-per-icon row reads as a kids' app, not this one.
 const QUICK_ACTION_COLORS = {
-  amber: "border-amber-500/25 bg-amber-500/10 text-amber-500",
-  blue: "border-blue-500/25 bg-blue-500/10 text-blue-500",
-  purple: "border-purple-500/25 bg-purple-500/10 text-purple-500",
-  green: "border-emerald-500/25 bg-emerald-500/10 text-emerald-500",
+  amber: "border-primary/25 bg-primary/10 text-primary",
+  neutral: "border-border bg-muted/60 text-muted-foreground",
 };
 
 // Same source /brand/news reads (backend/app/api/brand.py's GET /news and
@@ -375,9 +373,9 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
             same pattern as the stats row's own grid-cols-3 below. */}
         <div className="grid grid-cols-4 gap-3">
           <QuickAction Icon={Sparkles} label="Apply with AI" color="amber" onClick={() => go("apply")} />
-          <QuickAction Icon={ScanLine} label="CV Scan" color="blue" onClick={() => go("scan")} />
-          <QuickAction Icon={ClipboardList} label="Job Tracker" color="purple" onClick={() => go("jobtracker")} />
-          <QuickAction Icon={Hammer} label="Artisan" color="green" onClick={() => go("artisans")} />
+          <QuickAction Icon={ScanLine} label="CV Scan" color="neutral" onClick={() => go("scan")} />
+          <QuickAction Icon={ClipboardList} label="Job Tracker" color="neutral" onClick={() => go("jobtracker")} />
+          <QuickAction Icon={Hammer} label="Artisan" color="neutral" onClick={() => go("artisans")} />
         </div>
       </motion.div>
 
