@@ -150,10 +150,23 @@ export function DotNetworkBackground() {
     };
     window.addEventListener("resize", onResize);
 
+    // The animation loop re-reads colors every frame, so a live theme
+    // change self-corrects within ~16ms there — but useTheme.js toggles
+    // dark mode by adding/removing a plain `.dark` class on <html>, not by
+    // firing any event this component could otherwise hear, and with
+    // reduced motion on, that loop never runs at all (draw() only ever
+    // fires once, at mount). Without this, anyone who toggles theme after
+    // that single draw is stuck looking at dots painted in the OLD
+    // theme's color — visually close to invisible against a background
+    // that's now the opposite of what they were drawn for.
+    const themeObserver = new MutationObserver(draw);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+
     return () => {
       if (raf) cancelAnimationFrame(raf);
       clearTimeout(resizeTimer);
       window.removeEventListener("resize", onResize);
+      themeObserver.disconnect();
     };
   }, [reducedMotionRef]);
 
