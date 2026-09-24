@@ -14,7 +14,7 @@ export default function PrivacyPolicyPage() {
         This policy explains what personal information we
         collect through noqeev.com and the Noqeev apps (the "Service"), why we collect it, who
         we share it with, and the choices you have. If anything here is unclear, email{" "}
-        <a href="mailto:noqeev@gmail.com">noqeev@gmail.com</a>.
+        <a href="mailto:support@noqeev.com">support@noqeev.com</a>.
       </p>
 
       <h2>The short version</h2>
@@ -108,7 +108,7 @@ export default function PrivacyPolicyPage() {
       <h2>Your choices and rights</h2>
       <p>
         You can access, correct, or request deletion of your personal information at any time by
-        emailing <a href="mailto:noqeev@gmail.com">noqeev@gmail.com</a>. We'll respond within a
+        emailing <a href="mailto:support@noqeev.com">support@noqeev.com</a>. We'll respond within a
         reasonable time and verify your identity before acting on a request tied to an account.
         Anonymous, guest-only usage can be cleared simply by clearing your browser's local storage
         — there's no account to delete.
@@ -139,7 +139,7 @@ export default function PrivacyPolicyPage() {
       <p>
         Noqeev Technology<br />
         305 Rideau St, Ottawa, ON, Canada<br />
-        <a href="mailto:noqeev@gmail.com">noqeev@gmail.com</a>
+        <a href="mailto:support@noqeev.com">support@noqeev.com</a>
       </p>
     </LegalPageLayout>
   );

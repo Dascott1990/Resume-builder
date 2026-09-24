@@ -40,7 +40,7 @@ export default function RefundPolicyPage() {
       <p>
         If there's a problem with the work at this stage — before or after you've released
         payment — don't release payment yet if you haven't already, and contact{" "}
-        <a href="mailto:noqeev@gmail.com">noqeev@gmail.com</a> right away. We'll work with you and
+        <a href="mailto:support@noqeev.com">support@noqeev.com</a> right away. We'll work with you and
         the artisan to sort it out, and can process a manual refund through Stripe where it's
         warranted.
       </p>
@@ -54,7 +54,7 @@ export default function RefundPolicyPage() {
 
       <h2>Questions</h2>
       <p>
-        Email <a href="mailto:noqeev@gmail.com">noqeev@gmail.com</a> — include your booking
+        Email <a href="mailto:support@noqeev.com">support@noqeev.com</a> — include your booking
         details and we'll take a look. See also our <a href="/terms">Terms & Conditions</a>.
       </p>
     </LegalPageLayout>

@@ -50,7 +50,7 @@ export default function CookiePolicyPage() {
 
       <h2>Questions</h2>
       <p>
-        Email <a href="mailto:noqeev@gmail.com">noqeev@gmail.com</a> if you'd like more detail on
+        Email <a href="mailto:support@noqeev.com">support@noqeev.com</a> if you'd like more detail on
         anything here. See also our <a href="/privacy">Privacy Policy</a>.
       </p>
     </LegalPageLayout>

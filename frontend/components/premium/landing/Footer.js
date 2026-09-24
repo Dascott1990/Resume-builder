@@ -66,7 +66,7 @@ export function Footer({ onOpen, onOpenDashboard }) {
           <div className="text-[11.5px] leading-relaxed text-muted-foreground/80">
             <p className="m-0">© {new Date().getFullYear()} Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada</p>
             <p className="m-0">
-              <a href="mailto:noqeev@gmail.com" className="hover:text-foreground">noqeev@gmail.com</a>
+              <a href="mailto:support@noqeev.com" className="hover:text-foreground">support@noqeev.com</a>
             </p>
           </div>
           <p className="m-0 text-[11.5px] text-muted-foreground/80">

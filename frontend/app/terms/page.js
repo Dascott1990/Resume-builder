@@ -30,7 +30,7 @@ export default function TermsPage() {
       <p>
         You're responsible for keeping your login credentials secure and for anything that
         happens under your account. Tell us right away at{" "}
-        <a href="mailto:noqeev@gmail.com">noqeev@gmail.com</a> if you think your account has been
+        <a href="mailto:support@noqeev.com">support@noqeev.com</a> if you think your account has been
         accessed without your permission.
       </p>
 
@@ -118,7 +118,7 @@ export default function TermsPage() {
       <p>
         Noqeev Technology<br />
         305 Rideau St, Ottawa, ON, Canada<br />
-        <a href="mailto:noqeev@gmail.com">noqeev@gmail.com</a>
+        <a href="mailto:support@noqeev.com">support@noqeev.com</a>
       </p>
     </LegalPageLayout>
   );
