@@ -250,7 +250,7 @@ function AssetRow({ asset }) {
             {busy === "share" ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
           </Btn>
         )}
-        <Btn small variant="gold" onClick={handleDownload} disabled={!!busy}>
+        <Btn small variant="ghost" onClick={handleDownload} disabled={!!busy}>
           {busy === "download" ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
         </Btn>
       </div>
