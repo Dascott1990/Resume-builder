@@ -51,7 +51,7 @@ function VerifyEmailContent() {
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-4">
           <CheckCircle2 className="size-12 text-primary" />
           <div>
-            <p className="m-0 font-serif text-[20px] italic text-foreground">Email verified</p>
+            <p className="m-0 text-[20px] font-bold text-foreground">Email verified</p>
             <p className="m-0 mt-1.5 max-w-xs text-[13.5px] leading-relaxed text-muted-foreground">
               You're signed in — your account is ready to go.
             </p>
@@ -66,7 +66,7 @@ function VerifyEmailContent() {
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-4">
           <XCircle className="size-12 text-destructive" />
           <div>
-            <p className="m-0 font-serif text-[20px] italic text-foreground">Link didn't work</p>
+            <p className="m-0 text-[20px] font-bold text-foreground">Link didn't work</p>
             <p className="m-0 mt-1.5 max-w-xs text-[13.5px] leading-relaxed text-muted-foreground">{message}</p>
           </div>
           <Btn variant="gold" small onClick={() => router.replace("/")}>

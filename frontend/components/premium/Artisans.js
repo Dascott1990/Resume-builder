@@ -1083,7 +1083,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
       <div className="mb-1 flex items-center gap-3">
         <IconTile icon={Hammer} size="sm" />
         <div>
-          <p className="m-0 font-serif text-[17px] italic text-foreground">
+          <p className="m-0 text-[17px] font-bold text-foreground">
             {editingId ? "Edit your listing" : "List yourself"}
           </p>
           <p className="m-0 text-[12px] text-muted-foreground">
@@ -1153,7 +1153,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
     >
       <div className="flex items-center gap-3">
         <IconTile icon={Hammer} size="sm" />
-        <p className="m-0 font-serif text-[17px] italic text-foreground">Find an Artisan</p>
+        <p className="m-0 text-[17px] font-bold text-foreground">Find an Artisan</p>
       </div>
       <div className="flex items-center gap-1">
         {onOpenArtisanDashboard && (

@@ -104,7 +104,7 @@ export default function CVScan({ onClose, onImported }) {
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-6 pb-16">
         <div>
           <IconTile icon={ScanLine} size="md" className="mb-3" />
-          <p className="m-0 font-serif text-[22px] italic text-foreground">CV Scan</p>
+          <p className="m-0 text-[22px] font-bold text-foreground">CV Scan</p>
         </div>
 
         <input

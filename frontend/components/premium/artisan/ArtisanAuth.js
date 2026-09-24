@@ -113,7 +113,7 @@ export default function ArtisanAuth({ onClose, onSuccess }) {
           <div className="mb-4 flex size-16 items-center justify-center">
             <Logo3D style={{ width: 64, height: 64, display: "block" }} />
           </div>
-          <p className="m-0 font-serif text-[22px] italic text-foreground">
+          <p className="m-0 text-[22px] font-bold text-foreground">
             {mode === "login" ? "Artisan sign in" : "List yourself for job requests"}
           </p>
           <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">

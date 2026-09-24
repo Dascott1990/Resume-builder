@@ -290,7 +290,7 @@ export default function ArtisanProfile({
             </div>
           ) : (
             <>
-              <p className="m-0 mb-2 font-serif text-base italic text-foreground">Rate this artisan</p>
+              <p className="m-0 mb-2 text-base font-bold text-foreground">Rate this artisan</p>
               <StarRating value={stars} onChange={setStars} />
               <Textarea
                 className="mt-2.5 min-h-[60px] resize-y rounded-[10px] text-sm"

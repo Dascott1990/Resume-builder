@@ -106,7 +106,7 @@ export default function JobDetailDialog({
             <div className="flex items-center gap-2.5">
               <IconTile icon={Hammer} size="sm" />
               <div>
-                <p className="m-0 font-serif text-[17px] italic leading-tight text-foreground">{job.trade}</p>
+                <p className="m-0 text-[17px] font-bold leading-tight text-foreground">{job.trade}</p>
                 <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground/70">
                   {job.city && (
                     <span className="flex items-center gap-1">

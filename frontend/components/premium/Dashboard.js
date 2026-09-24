@@ -216,7 +216,7 @@ function NotificationsDialog({ open, onClose, items, onOpenItem }) {
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent showCloseButton className="flex max-h-[70dvh] w-full max-w-[420px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[420px]">
         <div className="shrink-0 border-b border-border p-4">
-          <p className="m-0 font-serif text-lg italic text-foreground">Notifications</p>
+          <p className="m-0 text-lg font-bold text-foreground">Notifications</p>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {items.length === 0 ? (

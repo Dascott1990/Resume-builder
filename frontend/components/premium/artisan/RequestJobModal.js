@@ -107,7 +107,7 @@ export default function RequestJobModal({ open, onClose, targetArtisan }) {
     <Dialog open={open && !authGateOpen} onOpenChange={(v) => !v && onClose()}>
       <DialogContent showCloseButton className="flex max-h-[85dvh] w-full max-w-[440px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[440px]">
         <div className="min-h-0 overflow-y-auto overscroll-contain p-[22px] [-webkit-overflow-scrolling:touch]">
-          <p className="m-0 mb-1 flex items-center gap-2 font-serif text-xl italic text-foreground">
+          <p className="m-0 mb-1 flex items-center gap-2 text-xl font-bold text-foreground">
             <ClipboardList className="size-[17px] text-primary" /> Request {targetArtisan.name}
           </p>
           <p className="m-0 mb-4 text-[12.5px] text-muted-foreground">{targetArtisan.trade}</p>

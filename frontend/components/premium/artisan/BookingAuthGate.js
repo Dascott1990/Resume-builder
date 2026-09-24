@@ -61,7 +61,7 @@ export default function BookingAuthGate({ open, onClose, onSuccess }) {
             <div className="flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary">
               <Mail className="size-5" />
             </div>
-            <p className="m-0 font-serif text-lg italic text-foreground">Check your email</p>
+            <p className="m-0 text-lg font-bold text-foreground">Check your email</p>
             <p className="m-0 text-[13.5px] leading-relaxed text-muted-foreground">
               We sent a verification link to <strong className="text-foreground">{email.trim()}</strong>. Click it, then come back and sign in to post your request.
             </p>
@@ -72,7 +72,7 @@ export default function BookingAuthGate({ open, onClose, onSuccess }) {
             <div className="mb-1 flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary">
               <LogIn className="size-5" />
             </div>
-            <p className="m-0 font-serif text-lg italic text-foreground">
+            <p className="m-0 text-lg font-bold text-foreground">
               {mode === "login" ? "Sign in to post this request" : "Create an account to post this request"}
             </p>
             <p className="m-0 mb-1 text-[13.5px] leading-relaxed text-muted-foreground">

@@ -354,7 +354,7 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
       />
       <div className="relative flex items-center gap-2">
         <Wrench className="size-4 text-primary" />
-        <p className="m-0 font-serif text-[17px] italic text-foreground">Artisan dashboard</p>
+        <p className="m-0 text-[17px] font-bold text-foreground">Artisan dashboard</p>
         {unread > 0 && (
           <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10.5px] font-bold text-primary-foreground">
             {unread > 9 ? "9+" : unread}

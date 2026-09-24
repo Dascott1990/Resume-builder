@@ -68,7 +68,7 @@ export default function ForgotPassword({ onClose, onBackToLogin }) {
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-4 text-center">
             <IconTile icon={Mail} size="lg" />
             <div>
-              <p className="m-0 font-serif text-[20px] italic text-foreground">Check your email</p>
+              <p className="m-0 text-[20px] font-bold text-foreground">Check your email</p>
               <p className="m-0 mt-1.5 max-w-xs text-[13.5px] leading-relaxed text-muted-foreground">
                 If <strong className="text-foreground">{email.trim()}</strong> has an account, a reset link is on its way.
               </p>
@@ -79,7 +79,7 @@ export default function ForgotPassword({ onClose, onBackToLogin }) {
           <>
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.05 }}>
               <IconTile icon={KeyRound} size="md" className="mb-4" />
-              <p className="m-0 font-serif text-[22px] italic text-foreground">Reset your password</p>
+              <p className="m-0 text-[22px] font-bold text-foreground">Reset your password</p>
               <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
                 Enter the email on your account and we'll send a link to choose a new password.
               </p>

@@ -13,7 +13,7 @@ export function InstallInstructionsModal({ open, onClose }) {
           <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full border border-primary/25 bg-primary/10">
             <Download className="size-6 text-primary" />
           </div>
-          <p className="m-0 mb-5 font-serif text-xl italic text-foreground">Add to Home Screen</p>
+          <p className="m-0 mb-5 text-xl font-bold text-foreground">Add to Home Screen</p>
           <div className="flex flex-col gap-2 text-left">
             <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
               <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[12px] font-bold text-primary-text">1</span>

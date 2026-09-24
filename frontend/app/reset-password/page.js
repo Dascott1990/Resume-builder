@@ -48,7 +48,7 @@ function ResetPasswordContent() {
         <Logo size={26} />
         <XCircle className="size-12 text-destructive" />
         <div>
-          <p className="m-0 font-serif text-[20px] italic text-foreground">Link didn't work</p>
+          <p className="m-0 text-[20px] font-bold text-foreground">Link didn't work</p>
           <p className="m-0 mt-1.5 max-w-xs text-[13.5px] leading-relaxed text-muted-foreground">
             This reset link is missing its token.
           </p>
@@ -69,7 +69,7 @@ function ResetPasswordContent() {
 
       <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-6 pb-16">
         <div>
-          <p className="m-0 font-serif text-[22px] italic text-foreground">Choose a new password</p>
+          <p className="m-0 text-[22px] font-bold text-foreground">Choose a new password</p>
           <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
             You'll be signed in right after.
           </p>
