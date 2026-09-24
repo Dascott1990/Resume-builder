@@ -123,6 +123,17 @@ body {
 html:has(#noqeev-landing) {
   scroll-behavior: smooth;
   height: auto;
+  /* Hero.js's useScroll({ target: heroRef }) tracks scroll against the
+     default container (document.documentElement, i.e. <html>) — with no
+     explicit container of its own, framer-motion measures relative to
+     whatever <html>'s own computed position is, and warns in dev whenever
+     that's the default "static" (it can't reliably compute an inset
+     against a static ancestor). <html> is already the initial containing
+     block, so this doesn't change how anything position:fixed elsewhere
+     in the app anchors to the viewport — it only satisfies framer-motion's
+     check, silencing a real (if harmless) console warning on every first
+     visit to the landing page. */
+  position: relative;
 }
 html:has(#noqeev-landing) body {
   height: auto;

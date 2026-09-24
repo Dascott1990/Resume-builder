@@ -302,8 +302,17 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
   const followupCount = applications.filter((a) => a.needs_followup).length;
   const [showAllFeed, setShowAllFeed] = useState(false);
 
+  // max-w-3xl (768px) was sized for mobile, where it never binds — a
+  // viewport has to be >=768px wide before this cap even matters, and the
+  // desktop layout's isDesktop breakpoint doesn't kick in until 1024px
+  // (see useViewport.js), leaving that first mobile-width guess as the
+  // desktop content width too: a widening gap of unused space next to the
+  // 256px sidebar as the window gets wider. lg:max-w-4xl only changes the
+  // desktop case (mobile never reaches the lg breakpoint) — still a real
+  // reading-width cap on ultra-wide monitors, just one actually sized for
+  // a desktop, not a phone.
   return (
-    <div className="mx-auto w-full max-w-3xl px-5 py-6 sm:px-8 sm:py-8">
+    <div className="mx-auto w-full max-w-3xl px-5 py-6 sm:px-8 sm:py-8 lg:max-w-4xl">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mb-6">
         <p className="m-0 text-[13px] font-semibold text-muted-foreground">
           {greeting()}{user ? `, ${user.name || user.email.split("@")[0]}` : ""}
