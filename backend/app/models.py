@@ -659,7 +659,7 @@ class WorldFeedItem(db.Model):
     __tablename__ = "world_feed_items"
     id = db.Column(db.String(32), primary_key=True, default=_gen_id)
     source = db.Column(db.String(20), nullable=False)  # "hn" | "arxiv" | "wikipedia"
-    category = db.Column(db.String(20), nullable=False)  # "tech" | "physics" | "history"
+    category = db.Column(db.String(20), nullable=False)  # "tech" | "physics" | "history" | "world" | "jobs"
     external_id = db.Column(db.String(255), nullable=False, unique=True, index=True)
     title = db.Column(db.String(300), nullable=False)
     url = db.Column(db.String(500), nullable=True)

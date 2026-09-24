@@ -15,11 +15,21 @@ someone's behalf, no API key to configure before any of this works:
 - NPR News (RSS)                              -> category "world"
 - The Guardian, World section (RSS)           -> category "world"
 - Wikipedia's "on this day" feed              -> category "history"
+- The Guardian, Work & Careers section (RSS)  -> category "jobs"
+- BBC Business (RSS)                          -> category "jobs"
+- Indeed Hiring Lab (RSS)                     -> category "jobs"
+- Fast Company, Work Life section (RSS)       -> category "jobs"
 
 All genuine, editorially-run outlets (BBC, NPR, The Guardian, Ars
 Technica) alongside the raw-source feeds (Hacker News, arXiv, Wikipedia)
 — not one single source standing in for "the news," and not anything
-scraped or generated. Each fetcher is independent and wrapped in its own
+scraped or generated. The "jobs" category is real labor-market reporting
+and research (Guardian's own careers desk, BBC's business desk, Indeed's
+in-house economist team), never a scraped or fabricated job listing — a
+real posting would need a whole different trust model (verifying the
+employer, the listing, expiry) this feed was never built for, and
+promising "verifiable jobs" without that would be worse than not having
+the category at all. Each fetcher is independent and wrapped in its own
 try/except in refresh_world_feed — one source being down or slow costs
 that one source's items for this poll, never the others, and never
 crashes the poll job itself.
@@ -154,6 +164,14 @@ RSS_SOURCES = [
     {"name": "arstechnica", "category": "tech", "url": "https://arstechnica.com/feed/"},
     {"name": "bbc_science", "category": "physics", "url": "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml"},
     {"name": "guardian_physics", "category": "physics", "url": "https://www.theguardian.com/science/physics/rss"},
+    {"name": "guardian_careers", "category": "jobs", "url": "https://www.theguardian.com/money/work-and-careers/rss"},
+    {"name": "bbc_business", "category": "jobs", "url": "https://feeds.bbci.co.uk/news/business/rss.xml"},
+    {"name": "indeed_hiring_lab", "category": "jobs", "url": "https://www.hiringlab.org/feed/"},
+    # Fast Company's own "Work Life" desk — the one source here that
+    # regularly runs the "how job-hunting/hiring actually worked in the
+    # past" retrospective genre alongside current workplace trends, not
+    # just labor-market data like the other three.
+    {"name": "fastcompany_worklife", "category": "jobs", "url": "https://www.fastcompany.com/work-life/rss"},
 ]
 
 

@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import {
   Home, FileText, ScanLine, ClipboardList, Hammer, Settings as SettingsIcon,
   ArrowRight, ChevronRight, CalendarCheck, X, Clock, Sparkles, Bell,
-  MessageCircle, Wrench, Inbox, User, Megaphone, Globe, Cpu, Atom, Landmark,
+  MessageCircle, Wrench, Inbox, User, Megaphone, Globe, Cpu, Atom, Landmark, Briefcase,
   MoreVertical, Trash2, StickyNote, Check, AlertTriangle,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -73,6 +73,7 @@ const FEED_CATEGORY_META = {
   tech: { label: "Technology", Icon: Cpu },
   physics: { label: "Physics", Icon: Atom },
   history: { label: "History", Icon: Landmark },
+  jobs: { label: "Jobs", Icon: Briefcase },
 };
 
 function timeAgo(iso) {

@@ -638,15 +638,15 @@ def delete_news(news_id):
     return jsonify({"success": True, "data": {"deleted": True}}), 200
 
 
-# ── World feed — real, auto-fetched technology/physics/history, on a
-# timer (see utils/world_feed.py). Read-only aside from dismissing an
+# ── World feed — real, auto-fetched technology/physics/history/jobs, on
+# a timer (see utils/world_feed.py). Read-only aside from dismissing an
 # individual item; there's nothing here to "edit." ───────────────────────
 @brand_bp.route("/world-feed", methods=["GET"])
 @limiter.limit("120 per hour")
 def list_world_feed():
     category = request.args.get("category")
     q = WorldFeedItem.query
-    if category in ("world", "tech", "physics", "history"):
+    if category in ("world", "tech", "physics", "history", "jobs"):
         q = q.filter_by(category=category)
     items = q.order_by(WorldFeedItem.fetched_at.desc()).limit(150).all()
     return jsonify({"success": True, "data": [i.to_dict() for i in items]}), 200
