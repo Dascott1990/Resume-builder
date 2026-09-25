@@ -1,6 +1,19 @@
 /**
  * templateLibrary.js — the country-specific template SYSTEM, as data.
  *
+ * CURRENT STATUS: not wired into any UI. It was built for a static
+ * "My Resumes" template gallery that's since been removed — Guest Mode's
+ * AI wizard (guest/GuestMode.js) is the app's only resume editor now, and
+ * it always fills one fixed section structure regardless of who you are
+ * or what job you're applying to. The real next step for this data is
+ * feeding it INTO that AI generation (backend/app/api/resume.py's
+ * PROMPT_TEMPLATE) so it picks the right structure — entry-level vs.
+ * executive vs. technical, etc. — instead of always the same one. Kept
+ * on disk rather than deleted because that's real, checked work (20
+ * genuinely distinct, verified structures); deleted rather than half-
+ * wired-in because a half-used feature is worse than an honestly-unused
+ * file. Revisit before adding anything else here.
+ *
  * The old model (prebuiltResumes.js) was one hand-written resume object per
  * country — real content, but only one *structure* per market, and adding
  * more meant hand-authoring an entire new fictional resume every time.

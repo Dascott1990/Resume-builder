@@ -10,11 +10,11 @@
  * - "Saved" tab: all previously generated resumes, reload & re-download any
  * - Saves to backend: POST /api/v1/resume/generate (Groq)
  *
- * Props: { onClose, onBack }
+ * Props: { onClose }
  */
 import { useState, useEffect, useRef, useCallback, useReducer } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, X, RefreshCw, ScanLine, Bookmark } from "lucide-react";
+import { X, RefreshCw, ScanLine, Bookmark } from "lucide-react";
 import Logo3D from "../Logo3D";
 import { Btn } from "./components/primitives";
 import { LivePreview } from "./components/LivePreview";
@@ -40,7 +40,7 @@ import { useViewport } from "@/lib/useViewport";
 import { useSignupNudge } from "@/lib/useSignupNudge";
 import { SignupNudgeModal } from "../shared/SignupNudgeModal";
 
-export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDesc, pendingLoadResumeId, pendingViewAllResumes }) {
+export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, pendingViewAllResumes }) {
   const { isPhone, isTablet, isDesktop } = useViewport();
   const signupNudge = useSignupNudge();
 
@@ -711,16 +711,6 @@ export default function GuestMode({ onClose, onBack, pendingImport, pendingJobDe
       >
 
         <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden">
-          {/* onBack (→ "My Resumes") is distinct from onClose (→ launcher, full
-              exit). Draft + profile both autosave, so either direction is safe —
-              this just gives people a way OUT of the wizard that isn't also a
-              way out of the whole app. Only rendered when the parent wired it up. */}
-          {onBack && (
-            <button onClick={onBack} aria-label="Back to My Resumes"
-              className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-border bg-muted px-3 text-[12.5px] font-bold text-muted-foreground">
-              <ChevronLeft className="size-3.5" />
-            </button>
-          )}
           <button onClick={requestClose} aria-label="Close Noqeev"
             className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <X className="size-[17px]" />

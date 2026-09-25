@@ -22,7 +22,15 @@ import Logo from "../components/premium/Logo";
 // loading-chunk delay on top of everything else; every screen reached
 // one click deeper than that is fair game.
 const dynamicScreen = (loader) => dynamic(loader, { ssr: false, loading: () => <ScreenLoading /> });
-const Resume = dynamicScreen(() => import("../components/premium/Resume"));
+// "Resume" is the AI-driven Guest Mode wizard — the app's only resume
+// editor now. There used to be a second "My Resumes" mode (a static
+// pre-built template gallery) living in its own components/premium/
+// Resume.js wrapper; it added a whole parallel editor, data model, and a
+// confusing top-level choice for something Guest Mode already does
+// better (real tailored content from your own info + a job posting,
+// not a fictional example to hand-edit) — removed rather than kept
+// around unused.
+const Resume = dynamicScreen(() => import("../components/premium/guest"));
 const Artisans = dynamicScreen(() => import("../components/premium/Artisans"));
 const ArtisanDashboard = dynamicScreen(() => import("../components/premium/artisan/ArtisanDashboard"));
 const ArtisanListingManager = dynamicScreen(() => import("../components/premium/artisan/ArtisanListingManager"));
