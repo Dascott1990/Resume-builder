@@ -123,15 +123,20 @@ body {
 html:has(#noqeev-landing) {
   scroll-behavior: smooth;
   height: auto;
-  /* `proximity`, not `mandatory` — mandatory forces the browser to always
-     finish a scroll at the nearest section boundary even on a small
-     nudge, which reads as fighting the user's own scroll input (and is
-     rough on trackpads/fast wheel flicks). `proximity` only snaps when a
-     scroll gesture already ends close to a boundary, giving the
-     "settles into a full page" feel this landing page's sections
-     (min-h-[100dvh] + scroll-snap-align: start, see each section file)
-     want without ever overriding a deliberate scroll. */
-  scroll-snap-type: y proximity;
+  /* Tried `scroll-snap-type: y proximity` here for the full-screen
+     sections' paging feel — real trackpad testing showed it trapping
+     small scroll gestures near the top: Hero is 100dvh tall, so a series
+     of small wheel ticks (how a trackpad actually scrolls, not one big
+     jump) kept landing "close enough" to y:0 for the browser to snap
+     straight back before any of them could accumulate real distance —
+     scrollY sat pinned around 45-55px through 20 real scroll ticks in
+     testing. Reads exactly like "the navbar won't stay, it keeps
+     scrolling back up." No CSS knob fixes that once sections are this
+     tall; removed rather than left half-broken. The ScrollBlend fade+
+     scale on each section (shared.js) is what actually delivers the
+     "blended professional scroll" now — it tracks continuously against
+     real scroll position and never overrides or fights it the way snap
+     did. */
   /* Hero.js's useScroll({ target: heroRef }) tracks scroll against the
      default container (document.documentElement, i.e. <html>) — with no
      explicit container of its own, framer-motion measures relative to
@@ -203,7 +208,6 @@ select {
   }
   html:has(#noqeev-landing) {
     scroll-behavior: auto;
-    scroll-snap-type: none;
   }
 }
 

@@ -4,7 +4,7 @@ import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW } from "./shared";
 
 export function ArtisanTeaser({ onOpenArtisans }) {
   return (
-    <section id="artisans" className="relative flex min-h-[100dvh] flex-col justify-center py-24 sm:py-28 [scroll-snap-align:start]" style={{ scrollMarginTop: "72px" }}>
+    <section id="artisans" className="relative flex min-h-[100dvh] flex-col justify-center py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal>

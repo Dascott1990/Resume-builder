@@ -5,7 +5,7 @@ import { Reveal, ScrollBlend, SECTION_WRAP } from "./shared";
 
 export function FinalCTA({ onOpen, onOpenDashboard }) {
   return (
-    <section className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-24 sm:py-28 [scroll-snap-align:start]">
+    <section className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-24 sm:py-28">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute top-1/2 left-1/2 size-[600px] -translate-x-1/2 -translate-y-1/2 opacity-40"

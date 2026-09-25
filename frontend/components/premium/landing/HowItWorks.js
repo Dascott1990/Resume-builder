@@ -10,7 +10,7 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="relative flex min-h-[100dvh] flex-col justify-center py-24 sm:py-28 [scroll-snap-align:start]" style={{ scrollMarginTop: "72px" }}>
+    <section id="how-it-works" className="relative flex min-h-[100dvh] flex-col justify-center py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
       <ScrollBlend className={SECTION_WRAP}>
         <Reveal className="mx-auto max-w-xl text-center">
           <span className={EYEBROW}>How it works</span>

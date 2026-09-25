@@ -79,7 +79,7 @@ export function SeeItHappenSection() {
   const inView = useInView(containerRef, { once: true, margin: "-15% 0px -15% 0px" });
 
   return (
-    <section ref={containerRef} className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-20 sm:py-24 [scroll-snap-align:start]">
+    <section ref={containerRef} className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-20 sm:py-24">
       <ScrollBlend className={SECTION_WRAP}>
         <Reveal className="mx-auto max-w-xl text-center">
           <span className={EYEBROW}>See it happen</span>

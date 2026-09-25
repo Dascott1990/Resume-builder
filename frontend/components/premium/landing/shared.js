@@ -24,12 +24,14 @@ export function Reveal({ children, delay = 0, className, y = 56, ...rest }) {
 }
 
 // ── The full-screen-page scroll blend ───────────────────────────────────
-// Each landing section is now a full 100dvh page (see each section file's
-// own `min-h-[100dvh]` + `scroll-snap-align: start` — the actual paging
-// comes from CSS scroll-snap in globals.css, `proximity` not `mandatory`
-// so it settles a section into place without fighting or trapping the
-// user's own scroll input). This wrapper is what makes the STEP BETWEEN
-// pages read as one continuous "blended" motion instead of a hard cut:
+// Each landing section is a full 100dvh page (see each section file's own
+// `min-h-[100dvh]`). CSS scroll-snap was tried here too and pulled —
+// real trackpad testing showed it trapping small scroll gestures near
+// the top of a 100dvh-tall section (each small wheel tick landed "close
+// enough" to the snap point to get pulled straight back), which read as
+// the page fighting a normal scroll rather than helping it. This wrapper
+// is what actually delivers the "blended" page-to-page feel now, with no
+// native snap underneath it to fight the user's own scroll input:
 // content dissolves + scales down slightly as its section leaves the
 // viewport in either direction, and is fully settled (opacity 1, scale 1)
 // only through the middle 40% of its own transit — tracked continuously

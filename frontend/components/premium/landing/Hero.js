@@ -53,7 +53,7 @@ export function Hero({ onOpenDashboard, intensity }) {
     <section
       id="top"
       ref={heroRef}
-      className="relative flex min-h-[100dvh] w-full flex-col justify-center overflow-hidden pt-28 pb-20 sm:pt-32 lg:pt-40 lg:pb-28 [scroll-snap-align:start]"
+      className="relative flex min-h-[100dvh] w-full flex-col justify-center overflow-hidden pt-28 pb-20 sm:pt-32 lg:pt-40 lg:pb-28"
       style={{ scrollMarginTop: "64px" }}
     >
       <motion.div
