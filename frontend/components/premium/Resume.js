@@ -15,8 +15,9 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { Layers, Palette, Check, PanelLeft, FileText, Sparkle, Download, X } from "lucide-react";
+import { Layers, Palette, Check, PanelLeft, FileText, Sparkle, Download, X, Rows3 } from "lucide-react";
 import ResumeGuestMode from "./guest";
+import { Btn } from "./guest/components/primitives";
 import { printPdf } from "./shared/printPdf";
 import { ResumeDocument } from "./shared/ResumeDocument";
 import { LAYOUTS } from "./shared/resumeLayouts/registry";
@@ -28,6 +29,7 @@ import { useCountryDetect } from "@/lib/useCountryDetect";
 import { COUNTRY_NAMES } from "@/lib/countryTemplates";
 import { loadMyResumeDraft, saveMyResumeDraft } from "./myResumeDraft";
 import { getVariantsForCountry, buildResumeFromTemplate } from "./shared/templateLibrary";
+import { TemplateGalleryView } from "./shared/TemplateGalleryView";
 
 // This file's icons were drawn at a slightly thinner default stroke (1.6 vs
 // lucide's default of 2) — preserved here so nothing on screen shifts.
@@ -146,6 +148,7 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, p
   // from the legacy auto-detected RESUMES[key] below, since this picks a
   // whole COUNTRY (to browse its ~20 formats), not one specific resume.
   const [pickerCountry, setPickerCountry] = useState(() => draftAtMount?.pickerCountry || "CA");
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [resumeData,   setResumeData]   = useState(() => draftAtMount?.resumeData || JSON.parse(JSON.stringify(RESUMES["it"])));
   const [style,        setStyle]        = useState(() => draftAtMount?.style || { font: "calibri", fontSize: 11, lineHeight: 1.4, accent: "navy", layout: "classic" });
   const [panel,        setPanel]        = useState("style");
@@ -340,6 +343,9 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, p
                   </button>
                 ))}
               </div>
+              <Btn small variant="ghost" onClick={() => setGalleryOpen(true)} className="w-full">
+                <Rows3 className="size-3.5" /> Browse all templates visually
+              </Btn>
             </div>
             {Object.entries(
               getVariantsForCountry(pickerCountry).reduce((groups, v) => {
@@ -606,6 +612,15 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, p
           </motion.div>
         )}
       </AnimatePresence>
+      <TemplateGalleryView
+        open={galleryOpen}
+        country={pickerCountry}
+        onCountryChange={setPickerCountry}
+        activeId={activeResume}
+        style={style}
+        onSelect={(variantId) => { switchToVariant(variantId); setGalleryOpen(false); }}
+        onClose={() => setGalleryOpen(false)}
+      />
     </div>
   );
 };
