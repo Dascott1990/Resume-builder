@@ -2,7 +2,7 @@
 import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { ShieldCheck, Zap, FileCheck2 } from "lucide-react";
-import { Reveal, SECTION_WRAP, EYEBROW } from "./shared";
+import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW } from "./shared";
 import { ResumeDocument } from "../shared/ResumeDocument";
 import { RESUMES } from "../shared/prebuiltResumes";
 
@@ -79,8 +79,8 @@ export function SeeItHappenSection() {
   const inView = useInView(containerRef, { once: true, margin: "-15% 0px -15% 0px" });
 
   return (
-    <section ref={containerRef} className="relative overflow-hidden py-20 sm:py-24">
-      <div className={SECTION_WRAP}>
+    <section ref={containerRef} className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-20 sm:py-24 [scroll-snap-align:start]">
+      <ScrollBlend className={SECTION_WRAP}>
         <Reveal className="mx-auto max-w-xl text-center">
           <span className={EYEBROW}>See it happen</span>
           <h2 className="m-0 text-[clamp(1.6rem,4vw,2.4rem)] leading-tight font-bold text-foreground">
@@ -113,7 +113,7 @@ export function SeeItHappenSection() {
             </motion.li>
           ))}
         </ul>
-      </div>
+      </ScrollBlend>
     </section>
   );
 }

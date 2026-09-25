@@ -1,11 +1,11 @@
 "use client";
 import { ArrowRight, Clapperboard, Captions } from "lucide-react";
-import { Reveal, SECTION_WRAP, EYEBROW } from "./shared";
+import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW } from "./shared";
 
 export function BrandTeaser({ onOpenDashboard }) {
   return (
-    <section className="relative py-24 sm:py-28">
-      <div className={SECTION_WRAP}>
+    <section className="relative flex min-h-[100dvh] flex-col justify-center py-24 sm:py-28 [scroll-snap-align:start]">
+      <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal>
             <span className={EYEBROW}>Also on Noqeev</span>
@@ -47,7 +47,7 @@ export function BrandTeaser({ onOpenDashboard }) {
             </div>
           </Reveal>
         </div>
-      </div>
+      </ScrollBlend>
     </section>
   );
 }

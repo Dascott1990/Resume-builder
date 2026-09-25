@@ -1,11 +1,11 @@
 "use client";
 import { ArrowRight, Hammer, Star, Phone } from "lucide-react";
-import { Reveal, SECTION_WRAP, EYEBROW } from "./shared";
+import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW } from "./shared";
 
 export function ArtisanTeaser({ onOpenArtisans }) {
   return (
-    <section id="artisans" className="relative py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
-      <div className={SECTION_WRAP}>
+    <section id="artisans" className="relative flex min-h-[100dvh] flex-col justify-center py-24 sm:py-28 [scroll-snap-align:start]" style={{ scrollMarginTop: "72px" }}>
+      <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal>
             <span className={EYEBROW}>Also on Noqeev</span>
@@ -60,7 +60,7 @@ export function ArtisanTeaser({ onOpenArtisans }) {
             </div>
           </Reveal>
         </div>
-      </div>
+      </ScrollBlend>
     </section>
   );
 }

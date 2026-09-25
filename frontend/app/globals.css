@@ -123,6 +123,15 @@ body {
 html:has(#noqeev-landing) {
   scroll-behavior: smooth;
   height: auto;
+  /* `proximity`, not `mandatory` — mandatory forces the browser to always
+     finish a scroll at the nearest section boundary even on a small
+     nudge, which reads as fighting the user's own scroll input (and is
+     rough on trackpads/fast wheel flicks). `proximity` only snaps when a
+     scroll gesture already ends close to a boundary, giving the
+     "settles into a full page" feel this landing page's sections
+     (min-h-[100dvh] + scroll-snap-align: start, see each section file)
+     want without ever overriding a deliberate scroll. */
+  scroll-snap-type: y proximity;
   /* Hero.js's useScroll({ target: heroRef }) tracks scroll against the
      default container (document.documentElement, i.e. <html>) — with no
      explicit container of its own, framer-motion measures relative to
@@ -194,6 +203,7 @@ select {
   }
   html:has(#noqeev-landing) {
     scroll-behavior: auto;
+    scroll-snap-type: none;
   }
 }
 

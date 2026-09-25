@@ -2,7 +2,7 @@
 import { useRef } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Sparkles, ShieldOff, FileCheck2, Hammer, LayoutDashboard, Clapperboard } from "lucide-react";
-import { Reveal, SECTION_WRAP, EYEBROW } from "./shared";
+import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW } from "./shared";
 
 const FEATURES = [
   { Icon: LayoutDashboard, title: "One dashboard for the whole job search" },
@@ -48,8 +48,8 @@ function TiltCard({ children, delay, className }) {
 
 export function WhyNoqeev() {
   return (
-    <section id="features" className="relative py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
-      <div className={SECTION_WRAP}>
+    <section id="features" className="relative flex min-h-[100dvh] flex-col justify-center py-24 sm:py-28 [scroll-snap-align:start]" style={{ scrollMarginTop: "72px" }}>
+      <ScrollBlend className={SECTION_WRAP}>
         <Reveal className="mx-auto max-w-xl text-center">
           <span className={EYEBROW}>Why Noqeev</span>
           <h2 className="m-0 text-[clamp(1.6rem,4vw,2.4rem)] leading-tight font-bold text-foreground">
@@ -83,7 +83,7 @@ export function WhyNoqeev() {
             );
           })}
         </div>
-      </div>
+      </ScrollBlend>
     </section>
   );
 }

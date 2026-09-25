@@ -1,5 +1,6 @@
 "use client";
-import { motion } from "framer-motion";
+import { useRef } from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
 
 // ── Shared scroll-reveal — the "feels like 3D" cue used across every section ──
 // Content rises out of a slight depth (translateY + a few degrees of
@@ -17,6 +18,31 @@ export function Reveal({ children, delay = 0, className, y = 56, ...rest }) {
       className={className}
       {...rest}
     >
+      {children}
+    </motion.div>
+  );
+}
+
+// ── The full-screen-page scroll blend ───────────────────────────────────
+// Each landing section is now a full 100dvh page (see each section file's
+// own `min-h-[100dvh]` + `scroll-snap-align: start` — the actual paging
+// comes from CSS scroll-snap in globals.css, `proximity` not `mandatory`
+// so it settles a section into place without fighting or trapping the
+// user's own scroll input). This wrapper is what makes the STEP BETWEEN
+// pages read as one continuous "blended" motion instead of a hard cut:
+// content dissolves + scales down slightly as its section leaves the
+// viewport in either direction, and is fully settled (opacity 1, scale 1)
+// only through the middle 40% of its own transit — tracked continuously
+// against scroll position (useScroll+useTransform), not a one-shot
+// whileInView, so scrolling back up re-plays it in reverse exactly like
+// scrolling down played it forward.
+export function ScrollBlend({ children, className }) {
+  const ref = useRef(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "center center", "end start"] });
+  const opacity = useTransform(scrollYProgress, [0, 0.3, 0.7, 1], [0, 1, 1, 0]);
+  const scale = useTransform(scrollYProgress, [0, 0.3, 0.7, 1], [0.94, 1, 1, 0.94]);
+  return (
+    <motion.div ref={ref} style={{ opacity, scale }} className={className}>
       {children}
     </motion.div>
   );

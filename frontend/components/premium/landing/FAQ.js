@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { Reveal, SECTION_WRAP, EYEBROW } from "./shared";
+import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW } from "./shared";
 
 const FAQS = [
   { q: "Is Noqeev really free?", a: "Yes — no credit card, no trial, no subscription." },
@@ -29,8 +29,8 @@ function FAQItem({ q, a }) {
 
 export function FAQ() {
   return (
-    <section id="faq" className="relative py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
-      <div className={SECTION_WRAP}>
+    <section id="faq" className="relative flex min-h-[100dvh] flex-col justify-center py-24 sm:py-28 [scroll-snap-align:start]" style={{ scrollMarginTop: "72px" }}>
+      <ScrollBlend className={SECTION_WRAP}>
         <Reveal className="mx-auto max-w-xl text-center">
           <span className={EYEBROW}>Questions</span>
           <h2 className="m-0 text-[clamp(1.6rem,4vw,2.4rem)] leading-tight font-bold text-foreground">
@@ -41,7 +41,7 @@ export function FAQ() {
         <Reveal delay={0.1} className="mx-auto mt-12 max-w-2xl">
           {FAQS.map((f) => <FAQItem key={f.q} {...f} />)}
         </Reveal>
-      </div>
+      </ScrollBlend>
     </section>
   );
 }

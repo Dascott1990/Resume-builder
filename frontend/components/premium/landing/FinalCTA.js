@@ -1,17 +1,17 @@
 "use client";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import { Reveal, SECTION_WRAP } from "./shared";
+import { Reveal, ScrollBlend, SECTION_WRAP } from "./shared";
 
 export function FinalCTA({ onOpen, onOpenDashboard }) {
   return (
-    <section className="relative overflow-hidden py-24 sm:py-28">
+    <section className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-24 sm:py-28 [scroll-snap-align:start]">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute top-1/2 left-1/2 size-[600px] -translate-x-1/2 -translate-y-1/2 opacity-40"
         style={{ background: "radial-gradient(circle, color-mix(in oklch, var(--primary) 14%, transparent) 0%, transparent 70%)" }}
       />
-      <div className={`${SECTION_WRAP} relative`}>
+      <ScrollBlend className={`${SECTION_WRAP} relative`}>
         <Reveal className="mx-auto flex max-w-xl flex-col items-center gap-6 text-center">
           <h2 className="m-0 text-[clamp(1.8rem,5vw,2.75rem)] leading-[1.1] font-bold text-foreground">
             Your next chance starts with one resume.
@@ -32,7 +32,7 @@ export function FinalCTA({ onOpen, onOpenDashboard }) {
             Resume Studio →
           </button>
         </Reveal>
-      </div>
+      </ScrollBlend>
     </section>
   );
 }
