@@ -189,6 +189,40 @@ function AddNoteDialog({ app, open, onClose, onSaved }) {
   );
 }
 
+// Every external link on this screen (a "Worth a look" story, a "What's
+// new" post) is a real, direct publisher URL — never a redirect or a
+// shortened link — but it's still leaving Noqeev, and the news cards in
+// particular are the one place on this screen someone taps into content
+// this app didn't write. A quick, honest confirmation before that jump:
+// which real site it's actually going to, not a vague "are you sure."
+function ExternalLinkDialog({ link, onClose }) {
+  const domain = (() => {
+    try { return new URL(link?.url || "").hostname.replace(/^www\./, ""); }
+    catch { return null; }
+  })();
+
+  const proceed = () => {
+    window.open(link.url, "_blank", "noopener,noreferrer");
+    onClose();
+  };
+
+  return (
+    <Dialog open={!!link} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-[380px]">
+        <DialogHeader><DialogTitle>Leaving Noqeev</DialogTitle></DialogHeader>
+        <p className="m-0 text-[13.5px] leading-relaxed text-muted-foreground">
+          This opens <span className="font-semibold text-foreground">{domain || "an external site"}</span> in a new tab —
+          the real publisher's own link, not a redirect or a shortened one. Noqeev has no control over what's there.
+        </p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={proceed}>Continue{domain ? ` to ${domain}` : ""}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Apply with AI's own item shape (kind: "apply_run") carries a whole `run`
 // record, not the per-thread fields messages use — this is what turns
 // that into the same {icon, title, subtitle} shape the dialog below
@@ -329,6 +363,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
   const recentApps = applications.slice(0, 3);
   const followupCount = applications.filter((a) => a.needs_followup).length;
   const [showAllFeed, setShowAllFeed] = useState(false);
+  const [pendingLink, setPendingLink] = useState(null); // { url } — see ExternalLinkDialog
 
   // max-w-3xl (768px) was sized for mobile, where it never binds — a
   // viewport has to be >=768px wide before this cap even matters, and the
@@ -556,9 +591,12 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
                 <div className="mt-1.5 flex flex-wrap items-center gap-2">
                   <span className="text-[10.5px] text-muted-foreground/60">{timeAgo(u.created_at)}</span>
                   {u.link && (
-                    <a href={u.link} target="_blank" rel="noreferrer" className="text-[10.5px] font-semibold text-primary no-underline">
+                    <button
+                      type="button" onClick={() => setPendingLink({ url: u.link })}
+                      className="border-none bg-transparent p-0 text-[10.5px] font-semibold text-primary [-webkit-tap-highlight-color:transparent]"
+                    >
                       Learn more
-                    </a>
+                    </button>
                   )}
                 </div>
               </div>
@@ -593,9 +631,9 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
             {worldFeed.slice(0, showAllFeed ? 40 : 8).map((item) => {
               const meta = FEED_CATEGORY_META[item.category] || FEED_CATEGORY_META.world;
               return (
-                <a
-                  key={item.id} href={item.url} target="_blank" rel="noreferrer"
-                  className={`glass-surface flex flex-col gap-2 overflow-hidden rounded-xl p-2 no-underline ${showAllFeed ? "" : "w-56 shrink-0"}`}
+                <button
+                  key={item.id} type="button" onClick={() => setPendingLink({ url: item.url })}
+                  className={`glass-surface flex flex-col gap-2 overflow-hidden rounded-xl border-none p-2 text-left [-webkit-tap-highlight-color:transparent] ${showAllFeed ? "" : "w-56 shrink-0"}`}
                 >
                   <NewsCardImage imageUrl={item.image_url} Icon={meta.Icon} />
                   <div className="flex flex-1 flex-col gap-1.5 px-1 pb-1">
@@ -605,12 +643,14 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
                     <p className="m-0 text-[12.5px] leading-snug font-bold text-foreground">{item.title}</p>
                     <span className="mt-auto pt-1 text-[10px] text-muted-foreground/50">{timeAgo(item.published_at || item.fetched_at)}</span>
                   </div>
-                </a>
+                </button>
               );
             })}
           </div>
         </motion.div>
       )}
+
+      <ExternalLinkDialog link={pendingLink} onClose={() => setPendingLink(null)} />
     </div>
   );
 }
