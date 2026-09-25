@@ -23,6 +23,7 @@ import {
   MoreVertical, Trash2, StickyNote, Check, AlertTriangle,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Btn } from "./guest/components/primitives";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -211,8 +212,8 @@ function ExternalLinkDialog({ link, onClose }) {
       <DialogContent className="max-w-[380px]">
         <DialogHeader><DialogTitle>Leaving Noqeev</DialogTitle></DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button variant="outline" onClick={proceed}>Continue{domain ? ` to ${domain}` : ""}</Button>
+          <Btn small variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn small variant="ghost" onClick={proceed}>Continue{domain ? ` to ${domain}` : ""}</Btn>
         </DialogFooter>
       </DialogContent>
     </Dialog>
