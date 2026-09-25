@@ -27,6 +27,7 @@ import Flag3D from "./flag/Flag3D";
 import { useCountryDetect } from "@/lib/useCountryDetect";
 import { COUNTRY_NAMES } from "@/lib/countryTemplates";
 import { loadMyResumeDraft, saveMyResumeDraft } from "./myResumeDraft";
+import { getVariantsForCountry, buildResumeFromTemplate } from "./shared/templateLibrary";
 
 // This file's icons were drawn at a slightly thinner default stroke (1.6 vs
 // lucide's default of 2) — preserved here so nothing on screen shifts.
@@ -141,6 +142,10 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, p
   const [mode,         setMode]         = useState(() => (pendingImport || pendingJobDesc || pendingLoadResumeId || pendingViewAllResumes) ? "guest" : (draftAtMount?.mode || "mine"));
   const [flipDir,      setFlipDir]      = useState(1); // 1 = flipping forward (mine→guest), -1 = flipping back
   const [activeResume, setActiveResume] = useState(() => draftAtMount?.activeResume || "it");
+  // Which country's structure library the Templates panel browses — separate
+  // from the legacy auto-detected RESUMES[key] below, since this picks a
+  // whole COUNTRY (to browse its ~20 formats), not one specific resume.
+  const [pickerCountry, setPickerCountry] = useState(() => draftAtMount?.pickerCountry || "CA");
   const [resumeData,   setResumeData]   = useState(() => draftAtMount?.resumeData || JSON.parse(JSON.stringify(RESUMES["it"])));
   const [style,        setStyle]        = useState(() => draftAtMount?.style || { font: "calibri", fontSize: 11, lineHeight: 1.4, accent: "navy", layout: "classic" });
   const [panel,        setPanel]        = useState("style");
@@ -194,14 +199,26 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, p
   useEffect(() => {
     clearTimeout(draftSaveTimer.current);
     draftSaveTimer.current = setTimeout(() => {
-      saveMyResumeDraft({ mode, activeResume, resumeData, style });
+      saveMyResumeDraft({ mode, activeResume, resumeData, style, pickerCountry });
     }, 300);
     return () => clearTimeout(draftSaveTimer.current);
-  }, [mode, activeResume, resumeData, style]);
+  }, [mode, activeResume, resumeData, style, pickerCountry]);
 
   const switchResume = (key) => {
     setActiveResume(key);
     setResumeData(JSON.parse(JSON.stringify(RESUMES[key])));
+    if (isMobile) setSidebarOpen(false);
+  };
+
+  // Same idea as switchResume, but for the country-specific structure
+  // library (templateLibrary.js) instead of the 9 legacy static resumes —
+  // built on demand rather than looked up, since there are 20 of these per
+  // country rather than a small fixed set.
+  const switchToVariant = (variantId) => {
+    const built = buildResumeFromTemplate(pickerCountry, variantId);
+    if (!built) return;
+    setActiveResume(variantId);
+    setResumeData(built);
     if (isMobile) setSidebarOpen(false);
   };
 
@@ -305,12 +322,62 @@ const Resume = ({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, p
                 </div>
               </div>
             )}
+            {/* Country + structure picker (templateLibrary.js) — plain-
+                language persona questions ("I'm just starting out," "I'm
+                switching careers"), never format jargon, so picking the
+                right one doesn't require already knowing what a
+                "reverse-chronological" resume is. */}
+            <div>
+              <Label>BROWSE FORMATS FOR</Label>
+              <div className="mb-2 flex gap-1.5">
+                {[{ code: "CA", name: "Canada" }, { code: "US", name: "United States" }].map((c) => (
+                  <button key={c.code} type="button" onClick={() => setPickerCountry(c.code)}
+                    aria-pressed={pickerCountry === c.code}
+                    className={`flex-1 rounded-lg border px-2.5 py-2 text-center text-xs font-semibold ${
+                      pickerCountry === c.code ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground"
+                    }`}>
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {Object.entries(
+              getVariantsForCountry(pickerCountry).reduce((groups, v) => {
+                (groups[v.group] ||= []).push(v);
+                return groups;
+              }, {})
+            ).map(([groupLabel, variants]) => (
+              <div key={groupLabel} className="mb-1 flex flex-col gap-1.5">
+                <Label>{groupLabel.toUpperCase()}</Label>
+                {variants.map((v) => {
+                  const active = activeResume === v.id;
+                  return (
+                    <motion.button key={v.id} whileTap={{ scale: 0.97 }} onClick={() => switchToVariant(v.id)}
+                      aria-pressed={active}
+                      className={`box-border flex w-full min-h-[44px] items-center justify-between gap-2 rounded-xl border px-2.5 py-2.5 text-left ${
+                        active ? "border-primary/30 bg-primary/10" : "border-border bg-card"
+                      }`}>
+                      <div className="min-w-0">
+                        <p className={`m-0 text-xs font-semibold ${active ? "text-primary" : "text-foreground"}`}>{v.label}</p>
+                        <p className="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap text-[10.5px] text-muted-foreground">{v.persona}</p>
+                      </div>
+                      {active && (
+                        <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-primary">
+                          <Check size={11} strokeWidth={2.4} className="text-primary-foreground" />
+                        </span>
+                      )}
+                    </motion.button>
+                  );
+                })}
+              </div>
+            ))}
             {/* Grouped, not a flat list — the whole point of adding the
                 international formats was to make each one's convention
                 (or lack of one — no DOB/photo in the US/UK, named referees
                 in Nigeria & Ghana, tabular Persönliche Daten in Germany)
                 obvious at a glance, not something you find out only after
                 clicking in. */}
+            <Label>OTHER FORMATS</Label>
             {REGION_GROUPS.map((group) => (
               <div key={group.label} className="mb-1 flex flex-col gap-1.5">
                 <Label>{group.label}</Label>
