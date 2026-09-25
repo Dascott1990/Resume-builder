@@ -69,14 +69,12 @@ const QUICK_ACTION_COLORS = {
 // Same source /brand/news reads (backend/app/api/brand.py's GET /news and
 // /world-feed — both public reads, no admin gate) — this is the read-only
 // consumer-facing view of the same real content, not a second copy of it.
-// `from`/`to` are this category's own brand-owned gradient — no third-party
-// CDN involved, see CategoryArt below.
 const FEED_CATEGORY_META = {
-  world: { label: "World", Icon: Globe, from: "#1e3a8a", to: "#0891b2" },
-  tech: { label: "Technology", Icon: Cpu, from: "#312e81", to: "#7c3aed" },
-  physics: { label: "Physics", Icon: Atom, from: "#164e63", to: "#0ea5e9" },
-  history: { label: "History", Icon: Landmark, from: "#451a03", to: "#b45309" },
-  jobs: { label: "Jobs", Icon: Briefcase, from: "#064e3b", to: "#059669" },
+  world: { label: "World", Icon: Globe },
+  tech: { label: "Technology", Icon: Cpu },
+  physics: { label: "Physics", Icon: Atom },
+  history: { label: "History", Icon: Landmark },
+  jobs: { label: "Jobs", Icon: Briefcase },
 };
 
 // Fixed (not random) scatter of points so server- and client-rendered markup
@@ -324,28 +322,26 @@ function NotificationsDialog({ open, onClose, items, onOpenItem }) {
   );
 }
 
-// Every "Worth a look" card gets a brand-owned image: this category's own
-// gradient + dot pattern + icon, generated entirely in CSS/SVG. No <img>,
-// no external URL, nothing that can 404, hotlink-block, or come back blank
-// once deployed — pulling each article's own RSS thumbnail looked right in
-// local testing but rendered blank in production (the poller's own
-// dedup means already-stored rows never gain a field added after they
-// were fetched, and a fine-today external CDN can start blocking anytime).
-// A generated category image can't go stale or get blocked, so it's the
-// only thing rendered here now.
+// Every "Worth a look" card gets a brand-owned image: our own muted surface
+// + dot pattern + the category's icon in our one accent color (var(--primary)
+// — same amber used everywhere else in the app, not a different hue per
+// category), generated entirely in CSS/SVG. No <img>, no external URL,
+// nothing that can 404, hotlink-block, or come back blank once deployed —
+// pulling each article's own RSS thumbnail looked right in local testing
+// but rendered blank in production (the poller's own dedup means
+// already-stored rows never gain a field added after they were fetched,
+// and a fine-today external CDN can start blocking anytime). A generated
+// image can't go stale or get blocked, so it's the only thing rendered here.
 function CategoryArt({ meta }) {
-  const { Icon, from, to } = meta;
+  const { Icon } = meta;
   return (
-    <div
-      className="relative flex aspect-[16/10] w-full items-center justify-center overflow-hidden rounded-lg"
-      style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
-    >
+    <div className="relative flex aspect-[16/10] w-full items-center justify-center overflow-hidden rounded-lg bg-muted">
       <svg className="absolute inset-0 h-full w-full" aria-hidden="true">
         {CATEGORY_ART_DOTS.map(([x, y], i) => (
-          <circle key={i} cx={`${x}%`} cy={`${y}%`} r="1.6" fill="#fff" fillOpacity="0.35" />
+          <circle key={i} cx={`${x}%`} cy={`${y}%`} r="1.6" fill="var(--primary)" fillOpacity="0.2" />
         ))}
       </svg>
-      <Icon className="size-7 text-white/90" strokeWidth={1.5} />
+      <Icon className="size-6 text-primary" strokeWidth={1.5} />
     </div>
   );
 }
