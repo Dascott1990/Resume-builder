@@ -69,13 +69,23 @@ const QUICK_ACTION_COLORS = {
 // Same source /brand/news reads (backend/app/api/brand.py's GET /news and
 // /world-feed — both public reads, no admin gate) — this is the read-only
 // consumer-facing view of the same real content, not a second copy of it.
+// `from`/`to` are this category's own brand-owned gradient — no third-party
+// CDN involved, see CategoryArt below.
 const FEED_CATEGORY_META = {
-  world: { label: "World", Icon: Globe },
-  tech: { label: "Technology", Icon: Cpu },
-  physics: { label: "Physics", Icon: Atom },
-  history: { label: "History", Icon: Landmark },
-  jobs: { label: "Jobs", Icon: Briefcase },
+  world: { label: "World", Icon: Globe, from: "#1e3a8a", to: "#0891b2" },
+  tech: { label: "Technology", Icon: Cpu, from: "#312e81", to: "#7c3aed" },
+  physics: { label: "Physics", Icon: Atom, from: "#164e63", to: "#0ea5e9" },
+  history: { label: "History", Icon: Landmark, from: "#451a03", to: "#b45309" },
+  jobs: { label: "Jobs", Icon: Briefcase, from: "#064e3b", to: "#059669" },
 };
+
+// Fixed (not random) scatter of points so server- and client-rendered markup
+// match exactly — same dot-network visual language as the landing page's
+// DotNetworkBackground, just recolored per category here.
+const CATEGORY_ART_DOTS = [
+  [8, 15], [22, 62], [35, 28], [48, 80], [58, 12],
+  [70, 45], [82, 70], [91, 22], [15, 88], [62, 92],
+];
 
 function timeAgo(iso) {
   if (!iso) return "";
@@ -314,29 +324,28 @@ function NotificationsDialog({ open, onClose, items, onOpenItem }) {
   );
 }
 
-// A real thumbnail straight from the source's own RSS feed (see
-// world_feed.py's _rss_item_image) when one exists — never a stock photo
-// or anything generated to fill the slot. Sources that genuinely don't
-// carry one (Hacker News, arXiv, Indeed Hiring Lab) — or a real image URL
-// that happens to 404/hotlink-block by the time someone's browser
-// requests it — fall back to a plain category-icon tile instead of a
-// broken-image icon or a fake photo standing in for a real one.
-function NewsCardImage({ imageUrl, Icon }) {
-  const [failed, setFailed] = useState(false);
-  if (imageUrl && !failed) {
-    return (
-      <img
-        src={imageUrl}
-        alt=""
-        loading="lazy"
-        onError={() => setFailed(true)}
-        className="aspect-[16/10] w-full rounded-lg object-cover"
-      />
-    );
-  }
+// Every "Worth a look" card gets a brand-owned image: this category's own
+// gradient + dot pattern + icon, generated entirely in CSS/SVG. No <img>,
+// no external URL, nothing that can 404, hotlink-block, or come back blank
+// once deployed — pulling each article's own RSS thumbnail looked right in
+// local testing but rendered blank in production (the poller's own
+// dedup means already-stored rows never gain a field added after they
+// were fetched, and a fine-today external CDN can start blocking anytime).
+// A generated category image can't go stale or get blocked, so it's the
+// only thing rendered here now.
+function CategoryArt({ meta }) {
+  const { Icon, from, to } = meta;
   return (
-    <div className="flex aspect-[16/10] w-full items-center justify-center rounded-lg bg-muted">
-      <Icon className="size-5 text-muted-foreground/50" />
+    <div
+      className="relative flex aspect-[16/10] w-full items-center justify-center overflow-hidden rounded-lg"
+      style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
+    >
+      <svg className="absolute inset-0 h-full w-full" aria-hidden="true">
+        {CATEGORY_ART_DOTS.map(([x, y], i) => (
+          <circle key={i} cx={`${x}%`} cy={`${y}%`} r="1.6" fill="#fff" fillOpacity="0.35" />
+        ))}
+      </svg>
+      <Icon className="size-7 text-white/90" strokeWidth={1.5} />
     </div>
   );
 }
@@ -632,7 +641,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
                   key={item.id} type="button" onClick={() => setPendingLink({ url: item.url })}
                   className={`glass-surface flex flex-col gap-2 overflow-hidden rounded-xl border-none p-2 text-left [-webkit-tap-highlight-color:transparent] ${showAllFeed ? "" : "w-56 shrink-0"}`}
                 >
-                  <NewsCardImage imageUrl={item.image_url} Icon={meta.Icon} />
+                  <CategoryArt meta={meta} />
                   <div className="flex flex-1 flex-col gap-1.5 px-1 pb-1">
                     <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-muted-foreground/70 uppercase">
                       <meta.Icon className="size-3" /> {meta.label}
