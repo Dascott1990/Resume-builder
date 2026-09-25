@@ -190,11 +190,11 @@ function AddNoteDialog({ app, open, onClose, onSaved }) {
 }
 
 // Every external link on this screen (a "Worth a look" story, a "What's
-// new" post) is a real, direct publisher URL — never a redirect or a
-// shortened link — but it's still leaving Noqeev, and the news cards in
-// particular are the one place on this screen someone taps into content
-// this app didn't write. A quick, honest confirmation before that jump:
-// which real site it's actually going to, not a vague "are you sure."
+// new" post) is a real, direct publisher URL, never a redirect or a
+// shortened one — but it's still leaving Noqeev. The domain name in the
+// button label already says where it goes; no paragraph explaining that
+// further, and no color on either button — this is a plain confirmation,
+// not a call to action either way.
 function ExternalLinkDialog({ link, onClose }) {
   const domain = (() => {
     try { return new URL(link?.url || "").hostname.replace(/^www\./, ""); }
@@ -210,13 +210,9 @@ function ExternalLinkDialog({ link, onClose }) {
     <Dialog open={!!link} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-[380px]">
         <DialogHeader><DialogTitle>Leaving Noqeev</DialogTitle></DialogHeader>
-        <p className="m-0 text-[13.5px] leading-relaxed text-muted-foreground">
-          This opens <span className="font-semibold text-foreground">{domain || "an external site"}</span> in a new tab —
-          the real publisher's own link, not a redirect or a shortened one. Noqeev has no control over what's there.
-        </p>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={proceed}>Continue{domain ? ` to ${domain}` : ""}</Button>
+          <Button variant="outline" onClick={proceed}>Continue{domain ? ` to ${domain}` : ""}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
