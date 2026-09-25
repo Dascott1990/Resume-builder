@@ -18,7 +18,7 @@ export function BrandTeaser({ onOpenDashboard }) {
             </p>
             <button
               onClick={onOpenDashboard}
-              className="mt-6 flex min-h-[50px] items-center gap-2 rounded-2xl border border-border bg-card px-6 text-[14.5px] font-bold text-foreground [-webkit-tap-highlight-color:transparent]"
+              className="mt-6 flex min-h-[54px] items-center gap-2 rounded-2xl border border-border bg-card px-6 text-[15.5px] font-bold text-foreground [-webkit-tap-highlight-color:transparent]"
             >
               <Clapperboard className="size-4 text-primary" />
               Dashboard

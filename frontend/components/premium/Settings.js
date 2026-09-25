@@ -299,7 +299,7 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOp
         <p className="m-0 text-[17px] font-bold text-foreground">Settings</p>
       </div>
       {onClose && (
-        <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
+        <Button variant="ghost" size="icon" className="size-10" aria-label="Close" onClick={onClose}>
           <X className="size-5" />
         </Button>
       )}

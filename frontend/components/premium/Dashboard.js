@@ -26,7 +26,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Btn } from "./guest/components/primitives";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
 import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
@@ -190,8 +189,8 @@ function AddNoteDialog({ app, open, onClose, onSaved }) {
         <DialogHeader><DialogTitle>Note — {app.role} at {app.company}</DialogTitle></DialogHeader>
         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="What's worth remembering about this one?" autoFocus />
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save note"}</Button>
+          <Btn small variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn small variant="gold" onClick={save} loading={saving}>Save note</Btn>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -824,7 +823,7 @@ export default function Dashboard({ onClose, onNavigate }) {
               <button
                 onClick={() => setNotifOpen(true)}
                 aria-label="Notifications"
-                className="relative flex size-9 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
+                className="relative flex size-10 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
               >
                 <Bell className="size-4" />
                 {/* Red = needs action (an unread message or a stalled
@@ -848,7 +847,7 @@ export default function Dashboard({ onClose, onNavigate }) {
               <button
                 onClick={() => go("settings")}
                 aria-label="Settings"
-                className="flex size-9 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
+                className="flex size-10 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
               >
                 <SettingsIcon className="size-4" />
               </button>
@@ -859,7 +858,7 @@ export default function Dashboard({ onClose, onNavigate }) {
         <main className="min-w-0 flex-1 overflow-y-auto">
           {onClose && (
             <div className="flex justify-end p-4" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}>
-              <button onClick={onClose} aria-label="Close" className="flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground">
+              <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
                 <X className="size-4" />
               </button>
             </div>
@@ -886,7 +885,7 @@ export default function Dashboard({ onClose, onNavigate }) {
         <Logo size={22} />
         <div className="flex items-center gap-2">
           <ThemeToggle compact />
-          <button onClick={() => setNotifOpen(true)} aria-label="Notifications" className="relative flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground">
+          <button onClick={() => setNotifOpen(true)} aria-label="Notifications" className="relative flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <Bell className="size-[15px]" />
             {needsAttention && (
               unread.count > 0 ? (
@@ -898,11 +897,11 @@ export default function Dashboard({ onClose, onNavigate }) {
               )
             )}
           </button>
-          <button onClick={() => go("settings")} aria-label="Settings" className="flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground">
+          <button onClick={() => go("settings")} aria-label="Settings" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <SettingsIcon className="size-[15px]" />
           </button>
           {onClose && (
-            <button onClick={onClose} aria-label="Close" className="flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground">
+            <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
               <X className="size-[17px]" />
             </button>
           )}

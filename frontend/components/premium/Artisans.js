@@ -1171,12 +1171,12 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
       </div>
       <div className="flex items-center gap-1">
         {onOpenArtisanDashboard && (
-          <Button variant="ghost" size="icon" aria-label="Artisan sign in" onClick={onOpenArtisanDashboard} title="Artisan sign in">
+          <Button variant="ghost" size="icon" className="size-10" aria-label="Artisan sign in" onClick={onOpenArtisanDashboard} title="Artisan sign in">
             <Wrench className="size-[17px]" />
           </Button>
         )}
         {onClose && (
-          <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="size-10" aria-label="Close" onClick={onClose}>
             <X className="size-5" />
           </Button>
         )}
