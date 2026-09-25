@@ -35,8 +35,16 @@ const ICON_STROKE = 1.6;
 // ── The four pre-built resumes — moved to shared/prebuiltResumes.js so the
 // landing page's real-example showcase can reuse this same data without
 // pulling this whole file's dependency tree into the marketing bundle.
-// Re-exported here so nothing else in this file needs to change. ──────────
-export { RESUMES } from "./shared/prebuiltResumes";
+// A real import, not just a re-export — this file uses RESUMES directly
+// below (a bare `export { X } from "..."` re-export does NOT bind a local
+// `X`, it only forwards the name to whoever imports it from THIS file, so
+// every use of RESUMES below was throwing "RESUMES is not defined" and
+// crashing the whole editor the instant it mounted). Re-exported too,
+// since nothing outside this file currently needs it that way, but it did
+// before (SeeItHappenSection.js now imports it straight from
+// shared/prebuiltResumes.js instead) — keeping it costs nothing.
+import { RESUMES } from "./shared/prebuiltResumes";
+export { RESUMES };
 
 const REGION_GROUPS = [
   { label: "CANADA · CURRENT FORMAT", keys: ["it", "grocery", "admin", "popeye"] },
