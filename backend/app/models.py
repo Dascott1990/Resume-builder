@@ -664,6 +664,13 @@ class WorldFeedItem(db.Model):
     title = db.Column(db.String(300), nullable=False)
     url = db.Column(db.String(500), nullable=True)
     summary = db.Column(db.String(400), nullable=True)
+    # Pulled straight from the source's own RSS <media:thumbnail>/
+    # <media:content> or (Wikipedia) its REST API's own thumbnail field —
+    # never a stock photo or anything generated to fill the slot. Null
+    # for the sources that genuinely don't carry one (Hacker News, arXiv,
+    # Indeed Hiring Lab) — the frontend falls back to a plain category
+    # treatment there rather than a fabricated image.
+    image_url = db.Column(db.String(600), nullable=True)
     published_at = db.Column(db.DateTime, nullable=True)
     fetched_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -671,6 +678,7 @@ class WorldFeedItem(db.Model):
         return {
             "id": self.id, "source": self.source, "category": self.category,
             "title": self.title, "url": self.url, "summary": self.summary,
+            "image_url": self.image_url,
             "published_at": _iso_utc(self.published_at),
             "fetched_at": _iso_utc(self.fetched_at),
         }

@@ -283,6 +283,33 @@ function NotificationsDialog({ open, onClose, items, onOpenItem }) {
   );
 }
 
+// A real thumbnail straight from the source's own RSS feed (see
+// world_feed.py's _rss_item_image) when one exists — never a stock photo
+// or anything generated to fill the slot. Sources that genuinely don't
+// carry one (Hacker News, arXiv, Indeed Hiring Lab) — or a real image URL
+// that happens to 404/hotlink-block by the time someone's browser
+// requests it — fall back to a plain category-icon tile instead of a
+// broken-image icon or a fake photo standing in for a real one.
+function NewsCardImage({ imageUrl, Icon }) {
+  const [failed, setFailed] = useState(false);
+  if (imageUrl && !failed) {
+    return (
+      <img
+        src={imageUrl}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className="aspect-[16/10] w-full rounded-lg object-cover"
+      />
+    );
+  }
+  return (
+    <div className="flex aspect-[16/10] w-full items-center justify-center rounded-lg bg-muted">
+      <Icon className="size-5 text-muted-foreground/50" />
+    </div>
+  );
+}
+
 function SectionHeader({ children, onViewAll, viewAllLabel = "View all" }) {
   return (
     <div className="mb-3 flex items-center justify-between">
@@ -568,13 +595,16 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
               return (
                 <a
                   key={item.id} href={item.url} target="_blank" rel="noreferrer"
-                  className={`glass-surface flex flex-col gap-1.5 rounded-xl p-3 no-underline ${showAllFeed ? "" : "w-56 shrink-0"}`}
+                  className={`glass-surface flex flex-col gap-2 overflow-hidden rounded-xl p-2 no-underline ${showAllFeed ? "" : "w-56 shrink-0"}`}
                 >
-                  <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-muted-foreground/70 uppercase">
-                    <meta.Icon className="size-3" /> {meta.label}
-                  </span>
-                  <p className="m-0 text-[12.5px] leading-snug font-bold text-foreground">{item.title}</p>
-                  <span className="mt-auto pt-1 text-[10px] text-muted-foreground/50">{timeAgo(item.published_at || item.fetched_at)}</span>
+                  <NewsCardImage imageUrl={item.image_url} Icon={meta.Icon} />
+                  <div className="flex flex-1 flex-col gap-1.5 px-1 pb-1">
+                    <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-muted-foreground/70 uppercase">
+                      <meta.Icon className="size-3" /> {meta.label}
+                    </span>
+                    <p className="m-0 text-[12.5px] leading-snug font-bold text-foreground">{item.title}</p>
+                    <span className="mt-auto pt-1 text-[10px] text-muted-foreground/50">{timeAgo(item.published_at || item.fetched_at)}</span>
+                  </div>
                 </a>
               );
             })}

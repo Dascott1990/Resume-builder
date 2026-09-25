@@ -48,6 +48,11 @@ POLL_SECONDS = 8 * 60  # within the requested 5-10 minute window
 MAX_ITEMS_STORED = 300
 
 _TAG_RE = re.compile(r"<[^>]+>")
+_MEDIA_NS = "{http://search.yahoo.com/mrss/}"
+# A card-sized thumbnail, not a hero image — this only ever renders at a
+# few hundred px wide on the dashboard, so there's no reason to prefer a
+# publisher's full-resolution original over whatever's closest to this.
+_TARGET_IMAGE_WIDTH = 460
 
 
 def _strip_html(text):
@@ -55,6 +60,41 @@ def _strip_html(text):
         return None
     clean = _TAG_RE.sub("", text).strip()
     return clean[:300] or None
+
+
+def _rss_item_image(entry):
+    """A real thumbnail straight from the feed's own <media:thumbnail> or
+    <media:content> (RSS Media extension — see RSS_SOURCES' own comment on
+    the xmlns:media namespace), never fabricated. <media:thumbnail> is
+    usually already a single sensibly-sized image; <media:content> can
+    list the same photo at several widths (Guardian does this), so this
+    picks whichever entry is closest to _TARGET_IMAGE_WIDTH rather than
+    always grabbing the first (often the smallest, blurry-when-scaled-up)
+    or the last (often the largest, unnecessarily heavy to load)."""
+    thumb = entry.find(f"{_MEDIA_NS}thumbnail")
+    if thumb is not None and thumb.get("url"):
+        return thumb.get("url")
+
+    candidates = entry.findall(f"{_MEDIA_NS}content")
+    best_url, best_diff = None, None
+    for c in candidates:
+        url = c.get("url")
+        if not url:
+            continue
+        try:
+            width = int(c.get("width", 0))
+        except ValueError:
+            width = 0
+        diff = abs(width - _TARGET_IMAGE_WIDTH) if width else 10_000  # unlabeled width sorts last, not first
+        if best_diff is None or diff < best_diff:
+            best_url, best_diff = url, diff
+    if best_url:
+        return best_url
+
+    enclosure = entry.find("enclosure")
+    if enclosure is not None and (enclosure.get("type") or "").startswith("image/") and enclosure.get("url"):
+        return enclosure.get("url")
+    return None
 
 
 def _stable_id(*parts):
@@ -79,6 +119,7 @@ def fetch_hn(limit=6):
             "title": d["title"],
             "url": d.get("url") or f"https://news.ycombinator.com/item?id={d['id']}",
             "summary": None,
+            "image_url": None,  # HN's own API has no thumbnail field at all
             "published_at": datetime.utcfromtimestamp(d["time"]) if d.get("time") else None,
         })
     return items
@@ -111,6 +152,7 @@ def fetch_arxiv_physics(limit=4):
             "source": "arxiv", "category": "physics",
             "external_id": f"arxiv-{id_url.rsplit('/', 1)[-1]}",
             "title": title, "url": id_url, "summary": summary or None,
+            "image_url": None,  # preprints don't carry one
             "published_at": published_at,
         })
     return items
@@ -130,6 +172,12 @@ def fetch_wikipedia_on_this_day(limit=5):
             return pages[0]["content_urls"]["desktop"]["page"]
         return "https://en.wikipedia.org/wiki/Portal:Current_events"
 
+    def page_image(e):
+        pages = e.get("pages") or []
+        if pages and pages[0].get("thumbnail"):
+            return pages[0]["thumbnail"].get("source")
+        return None
+
     # Prefer 1900-1999 events specifically (what this feed was asked for),
     # filling the rest of the quota from any other year — "on this day"
     # doesn't always have five from one century.
@@ -147,6 +195,7 @@ def fetch_wikipedia_on_this_day(limit=5):
             "external_id": f"wiki-{_stable_id(now.month, now.day, year, text)}",
             "title": f"{year}: {text}" if year else text,
             "url": page_url(e), "summary": None,
+            "image_url": page_image(e),
             "published_at": None,
         })
     return items
@@ -197,6 +246,7 @@ def fetch_rss(source_name, category, url, limit=5):
             "source": source_name, "category": category,
             "external_id": f"{source_name}-{_stable_id(link)}",
             "title": title, "url": link, "summary": summary,
+            "image_url": _rss_item_image(entry),
             "published_at": published_at,
         })
     return items
