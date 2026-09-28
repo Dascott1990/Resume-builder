@@ -32,6 +32,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import Logo from "@/components/premium/Logo";
 import { AdminSidebar, NAV_GROUPS } from "./AdminSidebar";
+import BroadcastTab from "./BroadcastTab";
 
 function fmtDate(iso) {
   if (!iso) return "—";
@@ -1494,6 +1495,7 @@ export function AdminDashboard({ adminUser, onSignOut }) {
             {activeSection === "artisans" && <ArtisansTab />}
             {activeSection === "vendors" && <VendorsTab />}
             {activeSection === "system" && <SystemTab />}
+            {activeSection === "broadcast" && <BroadcastTab />}
           </div>
         </main>
       </div>

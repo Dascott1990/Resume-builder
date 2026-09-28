@@ -17,7 +17,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   LayoutGrid, Users, FileText, Briefcase, Star, Wrench, Package, Activity,
-  Sparkles, KeyRound, LogOut, Loader2,
+  Megaphone, Sparkles, KeyRound, LogOut, Loader2,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,12 @@ export const NAV_GROUPS = [
     items: [
       { id: "vendors", label: "Vendors", Icon: Package },
       { id: "system", label: "System", Icon: Activity },
+    ],
+  },
+  {
+    label: "Communication",
+    items: [
+      { id: "broadcast", label: "Broadcast", Icon: Megaphone },
     ],
   },
 ];

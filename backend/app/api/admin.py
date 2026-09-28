@@ -44,6 +44,13 @@ POST   /api/v1/admin/resumes/polish-summary — AI-rewrites a resume's summary p
                                                get the equivalent treatment via the existing,
                                                already-public /api/v1/artisans/polish — no new
                                                route needed there, the admin panel just calls it.
+GET    /api/v1/admin/broadcasts/recipients   — recipient count preview for an audience, before sending
+GET    /api/v1/admin/broadcasts              — send history (audit trail), newest first
+GET    /api/v1/admin/broadcasts/<id>         — one broadcast's live sent/failed progress
+POST   /api/v1/admin/broadcasts              — email every user in an audience (customers/artisans/
+                                                everyone); runs in a background thread, see
+                                                _run_broadcast — rate-limited, this is the one admin
+                                                action that reaches real people outside the app
 
 No "admin sets a user's password directly" route on purpose — that would
 mean an admin (or anyone who compromises the admin panel) can silently
@@ -64,15 +71,18 @@ listing regardless of who created it or whether its token was ever kept.
 import json
 import re
 import jwt
+import threading
+import time
 from datetime import date, datetime, timedelta, timezone
+from html import escape as escape_html
 
-from flask import Blueprint, request, jsonify, redirect
+from flask import Blueprint, request, jsonify, redirect, current_app
 
-from app import db
+from app import db, limiter
 from app.models import (
     User, Media, Artisan, Review, JobApplication, JdCapture, CareerProfile,
     ApplicationRun, Vendor, VendorNewsItem, GoogleSearchConsoleCredential, SeoSnapshot,
-    SchedulerStatus,
+    SchedulerStatus, AdminBroadcast,
 )
 from app.middleware.error_handlers import APIError
 from app.utils.auth import require_admin, JWT_SECRET, JWT_ALGORITHM
@@ -81,6 +91,7 @@ from app.utils.vendors import sync_vendor_catalog
 from app.utils import seo_client
 from app.utils.seo_scheduler import fetch_and_store_snapshot
 from app.utils.stripe_client import FRONTEND_URL
+from app.utils.mail import send_email, mail_configured, wrap_email_html
 from app.api.resume import _ai_complete
 
 admin_bp = Blueprint("admin", __name__)
@@ -693,4 +704,148 @@ def system_structure():
         ],
         "tables": tables,
     }}), 200
+
+
+# ── Broadcast: email every user from the admin panel ───────────────────────
+VALID_BROADCAST_AUDIENCES = {"customers", "artisans", "everyone"}
+
+
+def _broadcast_recipients(audience):
+    """Real, distinct email addresses for the given audience — never a
+    guess. "customers" is every User row (email is required at signup, so
+    no filter needed there). "artisans" is every Artisan with a REAL
+    account — password_hash or user_id, the same "either kind counts"
+    rule Artisan.to_dict's own has_account already uses — excluding plain
+    anonymous listings; nobody who only appears in the public directory
+    ever gets an email they never signed up for. "everyone" is the union
+    of both, de-duplicated by email (a customer+artisan-linked account
+    would otherwise receive the same broadcast twice)."""
+    if audience == "customers":
+        return sorted({u.email for u in User.query.filter(User.email.isnot(None)).all() if u.email})
+    if audience == "artisans":
+        rows = Artisan.query.filter(
+            Artisan.email.isnot(None),
+            db.or_(Artisan.password_hash.isnot(None), Artisan.user_id.isnot(None)),
+        ).all()
+        return sorted({a.email for a in rows if a.email})
+    if audience == "everyone":
+        return sorted(set(_broadcast_recipients("customers")) | set(_broadcast_recipients("artisans")))
+    raise APIError("audience must be customers, artisans, or everyone", 400)
+
+
+def _run_broadcast(app, broadcast_id, recipients, subject, message):
+    """Runs in its own background thread (api/apply.py's own threading
+    pattern — see that file's docstring for why this app uses plain
+    threading instead of Celery/RQ), started right after the POST route
+    below returns, so an admin sending to a real user base isn't stuck
+    waiting on hundreds of individual Resend calls inside one HTTP
+    request. Best-effort per recipient, same as every other notification
+    email in this app (see requests.py's _notify_target_artisan) — one
+    bad address shouldn't stop the rest of the send."""
+    with app.app_context():
+        broadcast = db.session.get(AdminBroadcast, broadcast_id)
+        if not broadcast:
+            return
+        # Escaped, then newlines turned into real <br> tags rather than
+        # relying on white-space:pre-wrap — plenty of email clients
+        # (Outlook desktop chief among them) ignore that CSS property
+        # entirely, so this is what actually preserves paragraph breaks
+        # everywhere the message gets opened.
+        safe_message = escape_html(message).replace("\n", "<br>")
+        html = wrap_email_html(subject, f'<p style="color:#444;line-height:1.6;margin:0 0 16px;">{safe_message}</p>')
+
+        sent = 0
+        failed = 0
+        for email in recipients:
+            try:
+                send_email(email, subject, html)
+                sent += 1
+            except Exception as exc:
+                failed += 1
+                print(f"⚠️ Broadcast {broadcast_id}: failed to send to {email}: {exc}")
+            # Progress written every few sends, not every single one — still
+            # frequent enough for the admin UI's polling to look live,
+            # without a DB write per recipient on what could be a long list.
+            if (sent + failed) % 5 == 0 or (sent + failed) == len(recipients):
+                broadcast.sent_count = sent
+                broadcast.failed_count = failed
+                db.session.commit()
+            time.sleep(0.15)  # polite pacing against Resend's own rate limits
+
+        broadcast.sent_count = sent
+        broadcast.failed_count = failed
+        broadcast.status = "done"
+        broadcast.completed_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+
+@admin_bp.route("/broadcasts/recipients", methods=["GET"])
+def broadcast_recipients():
+    """Recipient count preview for the audience currently selected in the
+    compose form — the admin sees exactly how many real people "Send"
+    will reach before it's ever clicked, not after."""
+    require_admin(request)
+    audience = request.args.get("audience", "")
+    count = len(_broadcast_recipients(audience))
+    return jsonify({"success": True, "data": {"count": count}}), 200
+
+
+@admin_bp.route("/broadcasts", methods=["GET"])
+def list_broadcasts():
+    require_admin(request)
+    rows = AdminBroadcast.query.order_by(AdminBroadcast.created_at.desc()).limit(50).all()
+    return jsonify({"success": True, "data": [b.to_dict() for b in rows]}), 200
+
+
+@admin_bp.route("/broadcasts/<broadcast_id>", methods=["GET"])
+def get_broadcast(broadcast_id):
+    """Polled by the admin UI while a send is in progress, for the live
+    sent/failed progress bar."""
+    require_admin(request)
+    b = db.session.get(AdminBroadcast, broadcast_id)
+    if not b:
+        raise APIError("Broadcast not found", 404)
+    return jsonify({"success": True, "data": b.to_dict()}), 200
+
+
+@admin_bp.route("/broadcasts", methods=["POST"])
+@limiter.limit("5 per hour")
+def send_broadcast():
+    """Kicks off a real send to a real audience — rate-limited on purpose
+    (5/hour) since this is the one admin action that reaches outside the
+    app entirely, to however many people match the chosen audience, and
+    can't be recalled once it's sent."""
+    admin = require_admin(request)
+    if not mail_configured():
+        raise APIError("Email isn't configured on this server (RESEND_API_KEY missing)", 503)
+
+    body = request.get_json(force=True) or {}
+    audience = (body.get("audience") or "").strip()
+    subject = (body.get("subject") or "").strip()
+    message = (body.get("body") or "").strip()
+
+    if audience not in VALID_BROADCAST_AUDIENCES:
+        raise APIError("audience must be customers, artisans, or everyone", 400)
+    if not subject or not message:
+        raise APIError("subject and body are required", 400)
+    if len(subject) > 200:
+        raise APIError("subject must be 200 characters or fewer", 400)
+    if len(message) > 5000:
+        raise APIError("body must be 5000 characters or fewer", 400)
+
+    recipients = _broadcast_recipients(audience)
+    if not recipients:
+        raise APIError("No recipients match that audience", 400)
+
+    broadcast = AdminBroadcast(
+        sent_by_email=admin.email, audience=audience, subject=subject, body=message,
+        recipient_count=len(recipients), status="sending",
+    )
+    db.session.add(broadcast)
+    db.session.commit()
+
+    app_obj = current_app._get_current_object()
+    threading.Thread(target=_run_broadcast, args=(app_obj, broadcast.id, recipients, subject, message), daemon=True).start()
+
+    return jsonify({"success": True, "data": broadcast.to_dict()}), 201
 

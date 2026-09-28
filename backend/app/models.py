@@ -1065,3 +1065,47 @@ class SchedulerStatus(db.Model):
             "last_error": self.last_error,
             "last_duration_ms": self.last_duration_ms,
         }
+
+
+class AdminBroadcast(db.Model):
+    """One record per "email all users" send from the admin panel's
+    Broadcast tab (see api/admin.py's send_broadcast) — the audit trail
+    (who sent what, to which audience, when) and the live progress a bulk
+    send needs while it's running.
+
+    sent_by_email is a plain string, not a user_id FK, on purpose: the
+    break-glass admin (see utils/auth.py's BreakGlassAdmin) has no real
+    User row to point at — it only ever carries an id/email minted
+    straight from an env-var-verified token, exactly so admin access
+    survives the database itself being unreachable. A broadcast sent
+    during an outage still needs somewhere to record who sent it.
+
+    Runs in a background thread (api/apply.py's own threading.Thread
+    pattern, not Celery/RQ — see that file's docstring for why), not
+    inline in the request: hundreds of individual Resend API calls would
+    blow well past any reasonable request timeout. sent_count/
+    failed_count update as the thread works through the list, so the
+    admin UI can show real progress instead of a spinner with no
+    indication of how far along a large send actually is.
+    """
+    __tablename__ = "admin_broadcasts"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    sent_by_email = db.Column(db.String(190), nullable=False)
+    audience = db.Column(db.String(20), nullable=False)  # "customers" | "artisans" | "everyone"
+    subject = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    recipient_count = db.Column(db.Integer, nullable=False, default=0)
+    sent_count = db.Column(db.Integer, nullable=False, default=0)
+    failed_count = db.Column(db.Integer, nullable=False, default=0)
+    status = db.Column(db.String(20), nullable=False, default="sending")  # "sending" | "done" | "failed"
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "sent_by_email": self.sent_by_email, "audience": self.audience,
+            "subject": self.subject, "body": self.body,
+            "recipient_count": self.recipient_count, "sent_count": self.sent_count,
+            "failed_count": self.failed_count, "status": self.status,
+            "created_at": _iso_utc(self.created_at), "completed_at": _iso_utc(self.completed_at),
+        }
