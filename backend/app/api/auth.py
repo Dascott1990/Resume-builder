@@ -9,6 +9,7 @@ POST /api/v1/auth/forgot-password
 POST /api/v1/auth/reset-password
 GET  /api/v1/auth/me
 PATCH /api/v1/auth/me
+DELETE /api/v1/auth/me
 POST /api/v1/auth/change-password
 
 Entirely optional layer on top of the anonymous guest_id system already
@@ -28,7 +29,10 @@ from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, request, jsonify
 from app import db, limiter
-from app.models import User, Media, JobApplication, CareerProfile, ApplicationRun
+from app.models import (
+    User, Media, JobApplication, CareerProfile, ApplicationRun,
+    JobRequest, PushSubscription, BrandNews, BrandTask,
+)
 from app.middleware.error_handlers import APIError
 from app.utils.auth import (
     hash_password, verify_password, issue_token, get_scope, require_customer_scope,
@@ -100,6 +104,16 @@ def _migrate_guest_data(guest_id, user_id):
 
 
 def _email_shell(heading, body_html, cta_label, cta_link, footnote):
+    # CASL (Canada's anti-spam law — Noqeev is Ottawa-based) requires
+    # clear sender identification, including a valid physical mailing
+    # address, on commercial electronic messages; there's a real
+    # exemption for purely transactional/relationship messages (which
+    # both emails using this shell — email verification, password reset
+    # — are), but there's no real downside to including it anyway, and
+    # it matches the same address already on the website footer
+    # (Footer.js) rather than only appearing on the site itself. No
+    # unsubscribe link here on purpose: neither email is optional or
+    # recurring — there's nothing to opt out of.
     return f"""
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
       <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
@@ -109,6 +123,9 @@ def _email_shell(heading, body_html, cta_label, cta_link, footnote):
         <a href="{cta_link}" style="background:#f5a623;color:#111;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;display:inline-block;">{cta_label}</a>
       </p>
       <p style="color:#888;font-size:12.5px;line-height:1.5;">{footnote}</p>
+      <p style="color:#aaa;font-size:11px;line-height:1.5;margin-top:20px;border-top:1px solid #eee;padding-top:14px;">
+        Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada
+      </p>
     </div>
     """
 
@@ -423,3 +440,51 @@ def change_password():
     user.password_changed_at = datetime.now(timezone.utc)
     db.session.commit()
     return jsonify({"success": True, "data": {"message": "Password updated", "token": issue_token(user.id)}}), 200
+
+
+def _delete_user_row(user):
+    """Mirrors api/artisans.py's own _delete_artisan_row — same reasoning:
+    SQLite (local dev) doesn't enforce ondelete=CASCADE/SET NULL, only
+    Postgres (prod) does, so every dependent table is handled explicitly
+    here rather than trusting the DB constraint alone to work the same way
+    in both environments.
+
+    JobRequest rows are intentionally kept, not deleted, even though the
+    model's own ondelete="CASCADE" on user_id would otherwise wipe them —
+    same call already made for the artisan side of this exact table
+    (_delete_artisan_row nulls JobRequest.artisan_id, keeps the row): real
+    job/payment/escrow history shouldn't disappear because one party's
+    account did. Only the now-meaningless user_id link is cleared. Review/
+    Message rows have no FK to User at all (keyed by job_request_id), so
+    they're untouched either way.
+
+    PushSubscription/BrandNews/BrandTask are admin/system-scoped tables a
+    regular customer's user_id essentially never appears in (see their own
+    model comments) — nulled defensively rather than assumed empty, so
+    this never 500s on the rare row where it isn't.
+    """
+    JobRequest.query.filter_by(user_id=user.id).update({"user_id": None})
+    PushSubscription.query.filter_by(user_id=user.id).update({"user_id": None})
+    BrandNews.query.filter_by(created_by=user.id).update({"created_by": None})
+    BrandTask.query.filter_by(created_by=user.id).update({"created_by": None})
+    Media.query.filter_by(user_id=user.id).delete()
+    JobApplication.query.filter_by(user_id=user.id).delete()
+    CareerProfile.query.filter_by(user_id=user.id).delete()
+    ApplicationRun.query.filter_by(user_id=user.id).delete()
+    db.session.delete(user)
+    db.session.commit()
+
+
+@auth_bp.route("/me", methods=["DELETE"])
+@limiter.limit("10 per hour")
+def delete_me():
+    """Self-service account deletion — the customer-side counterpart to
+    api/artisans.py's artisan_delete_me. Didn't exist before this; Terms &
+    Conditions already promised "delete your account, at any time," which
+    was only true via a manual email-support request until now."""
+    user_id = require_customer_scope(request)
+    user = db.session.get(User, user_id)
+    if not user:
+        raise APIError("Not signed in", 401)
+    _delete_user_row(user)
+    return jsonify({"success": True}), 200

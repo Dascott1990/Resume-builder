@@ -135,6 +135,19 @@ export function useAuth() {
     return data;
   };
 
+  // Terms & Conditions already promises this is possible "at any time" —
+  // this is what actually makes that true for a signed-in customer,
+  // rather than only via emailing support. Same shape as logout(): clears
+  // the token and rotates this browser to a fresh guest identity, since
+  // the account (and the guest_id's own migrated data, now the deleted
+  // account's) is gone either way.
+  const deleteAccount = async () => {
+    await apiRequest("/api/v1/auth/me", { method: "DELETE" });
+    setToken(null);
+    setUser(null);
+    rotateGuestId();
+  };
+
   const resendVerification = (email) =>
     apiRequest("/api/v1/auth/resend-verification", {
       method: "POST",
@@ -168,6 +181,6 @@ export function useAuth() {
   return {
     user, loading, login, signup, logout, refreshUser,
     verifyEmail, resendVerification, forgotPassword, resetPassword,
-    updateProfile, changePassword,
+    updateProfile, changePassword, deleteAccount,
   };
 }

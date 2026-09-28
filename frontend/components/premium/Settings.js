@@ -42,6 +42,10 @@ import {
   artisanDeleteMe,
 } from "./artisan/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
+import {
+  AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { EmojiPicker } from "./shared/EmojiPicker";
 
 function Section({ icon: Icon, children }) {
@@ -169,7 +173,7 @@ function saveDraftNow(key, data) {
 }
 
 export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOpenArtisanListingManager }) {
-  const { user, loading: authLoading, updateProfile, changePassword, logout } = useAuth();
+  const { user, loading: authLoading, updateProfile, changePassword, logout, deleteAccount } = useAuth();
   const profileDraftAtMount = useRef(loadRecentDraft(SETTINGS_PROFILE_DRAFT_KEY)).current;
   const [name, setName] = useState(() => profileDraftAtMount?.name ?? "");
   const [avatarEmoji, setAvatarEmoji] = useState(() => profileDraftAtMount?.avatarEmoji ?? null);
@@ -225,6 +229,21 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOp
       toast.error(e.message);
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const [confirmDeleteAccountOpen, setConfirmDeleteAccountOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const deleteMyAccount = async () => {
+    setDeletingAccount(true);
+    try {
+      await deleteAccount();
+      clearFormDraft(SETTINGS_PROFILE_DRAFT_KEY);
+      toast.success("Your account has been deleted.");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setDeletingAccount(false);
     }
   };
 
@@ -355,6 +374,37 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOp
               <button type="button" onClick={logout} className="flex items-center gap-1.5 justify-self-start border-none bg-transparent p-0 text-[12.5px] font-semibold text-muted-foreground">
                 <LogOut className="size-3.5" /> Sign out
               </button>
+
+              <div className="border-t border-border pt-3">
+                <AlertDialog open={confirmDeleteAccountOpen} onOpenChange={setConfirmDeleteAccountOpen}>
+                  <AlertDialogTrigger asChild>
+                    <button
+                      type="button"
+                      disabled={deletingAccount}
+                      className="flex items-center gap-1.5 justify-self-start border-none bg-transparent p-0 text-[12.5px] font-bold text-destructive disabled:opacity-50"
+                    >
+                      {deletingAccount ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                      {deletingAccount ? "Deleting…" : "Delete my account"}
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This can't be undone — your saved resumes, job tracker, and profile are permanently
+                        deleted. Any job requests you've made stay on record for the artisans involved, with
+                        your name removed from them.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction variant="destructive" onClick={deleteMyAccount}>
+                        Delete account
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </Card>
           )}
         </div>
