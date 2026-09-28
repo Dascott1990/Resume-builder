@@ -401,7 +401,11 @@ export default function Home() {
   if (view === "artisan-dashboard") {
     return (
       <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("artisans")}>
-        <ArtisanDashboard onClose={() => setView("artisans")} onOpenListingManager={() => setView("artisan-listing-manager")} />
+        <ArtisanDashboard
+          onClose={() => setView("artisans")}
+          onOpenListingManager={() => setView("artisan-listing-manager")}
+          onOpenSettings={() => setView("settings")}
+        />
       </ErrorBoundary>
     );
   }

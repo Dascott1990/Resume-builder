@@ -74,6 +74,11 @@ export const artisanMarkThreadRead = (jobId) => apiRequest(`/api/v1/messages/thr
 
 export const artisanUnreadCount = () => apiRequest("/api/v1/messages/unread-count", { headers: authHeaders() });
 
+// The per-thread breakdown behind that single count — what the dashboard's
+// Messages tab actually lists (customer name, trade, preview, per-job
+// unread badge), not just a bare number.
+export const artisanUnreadThreads = () => apiRequest("/api/v1/messages/unread", { headers: authHeaders() });
+
 // Edits the signed-in artisan's own listing directly via their session —
 // the fix for the old edit_token-only gap (see Settings.js).
 export const artisanUpdateProfile = (fields) => apiRequest("/api/v1/artisans/me", {

@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import {
   Loader2, MapPin, Clock, X, Wrench, RefreshCw, ClipboardList, Hammer,
   CheckCircle2, Inbox, Star, MessageCircle, Banknote, Trash2, Camera,
+  Home, User, Phone, Mail, Pencil,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import { truncateBio, tintFor, initialsOf, avatarPhotoUrl } from "../shared/arti
 import Emoji3D from "../shared/Emoji3D";
 import StarRating from "../shared/StarRating";
 import DeleteListingDialog from "../shared/DeleteListingDialog";
+import { BottomNav } from "../shared/BottomNav";
 import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
 import ArtisanAuth from "./ArtisanAuth";
 import JobDetailDialog from "./JobDetailDialog";
@@ -40,7 +42,8 @@ import {
   artisanAcceptRequest, artisanDeclineRequest, artisanCompleteRequest,
   artisanProposeTime, artisanConfirmTime,
   artisanGetThread, artisanPostMessage, artisanMarkThreadRead, artisanUnreadCount,
-  artisanReviews, artisanConnectOnboard, artisanConnectStatus, artisanDeleteMe,
+  artisanUnreadThreads, artisanReviews, artisanConnectOnboard, artisanConnectStatus,
+  artisanDeleteMe,
 } from "./api";
 
 function timeAgo(iso) {
@@ -149,7 +152,7 @@ function CompactJobCard({ j, onOpen }) {
   );
 }
 
-export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
+export default function ArtisanDashboard({ onClose, onOpenListingManager, onOpenSettings }) {
   const [signedIn, setSignedIn] = useState(null); // null = checking
   const [artisan, setArtisan] = useState(null);
   const [pool, setPool] = useState(null);
@@ -159,6 +162,15 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
   const [refreshing, setRefreshing] = useState(false);
   const [openId, setOpenId] = useState(null); // job id whose detail dialog is open, or null
   const [unread, setUnread] = useState(0);
+  // Bottom-nav tab: "dashboard" (everything this screen always showed),
+  // plus the two new ones — "messages" (every accepted/completed job's
+  // conversation, one place instead of only reachable by opening each
+  // job's own detail dialog) and "profile" (a quick read-only summary,
+  // pointing at the real editor in Settings rather than duplicating that
+  // form here — see this file's own "Manage my listing" comment above for
+  // why fields already live there).
+  const [tab, setTab] = useState("dashboard");
+  const [unreadThreads, setUnreadThreads] = useState([]);
   const [reviews, setReviews] = useState(null);
   const [payoutStatus, setPayoutStatus] = useState(null); // { payouts_enabled, onboarding_started } | null while loading
   const [connectingPayouts, setConnectingPayouts] = useState(false);
@@ -211,13 +223,18 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
     }
   };
 
-  // Unread badge on the header — a slower, separate poll from the message
-  // thread's own 4s cadence (see MessageThread.js): this only needs to
-  // feel current, not live, while no specific thread is open.
+  // Unread badge on the header (and now the Messages tab's own nav badge)
+  // — a slower, separate poll from the message thread's own 4s cadence
+  // (see MessageThread.js): this only needs to feel current, not live,
+  // while no specific thread is open. Threads (the per-job breakdown, for
+  // the Messages tab's list) piggyback on the same poll rather than
+  // running a second interval for what's really one fetch of related data.
   useEffect(() => {
     if (!signedIn) return;
     let cancelled = false;
-    const poll = () => artisanUnreadCount().then((d) => !cancelled && setUnread(d.count)).catch(() => {});
+    const poll = () => Promise.all([artisanUnreadCount(), artisanUnreadThreads()])
+      .then(([count, threads]) => { if (!cancelled) { setUnread(count.count); setUnreadThreads(threads); } })
+      .catch(() => {});
     poll();
     const interval = setInterval(poll, 25000);
     return () => { cancelled = true; clearInterval(interval); };
@@ -393,12 +410,26 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
   const openJob = [...inProgress, ...history].find((j) => j.id === openId) || null;
   const tint = tintFor(artisan?.name || "?");
 
+  // Every accepted/completed job IS a conversation (messaging only opens
+  // once a job's accepted — see backend's post_message) — no separate
+  // "conversations" list to fetch, just the same jobs already loaded
+  // above, joined against the unread-threads poll for a badge/preview.
+  const conversations = [...inProgress, ...history];
+  const unreadByJob = Object.fromEntries(unreadThreads.map((t) => [t.job_request_id, t]));
+
+  const NAV_ITEMS = [
+    { id: "dashboard", Icon: Home, label: "Dashboard" },
+    { id: "messages", Icon: MessageCircle, label: "Messages", badge: unread },
+    { id: "profile", Icon: User, label: "Profile" },
+  ];
+
   return (
     <div
       className="flex h-full flex-col overflow-hidden bg-background text-foreground"
     >
       {header}
 
+      {tab === "dashboard" && <>
       {/* Availability is the single most important fact on this screen —
           it decides whether any customer can reach this artisan at all —
           so it gets real visual weight: a glowing ring around the avatar
@@ -540,7 +571,7 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
 
       <div
         className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5"
-        style={{ paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))" }}
+        style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}
       >
         <div className="flex items-center justify-between">
           <SectionLabel icon={ClipboardList}>REQUESTS FOR YOU ({pool?.length ?? 0})</SectionLabel>
@@ -652,6 +683,120 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
           />
         )}
       </div>
+      </>}
+
+      {/* Messages tab — every accepted/completed job's conversation in one
+          list instead of only reachable by opening that specific job's own
+          detail dialog. Tapping a row opens the exact same JobDetailDialog
+          (below, outside this tab's conditional so it can open regardless
+          of which tab is active) — no separate chat UI, just a faster way
+          into the one that already exists. */}
+      {tab === "messages" && (
+        <div
+          className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-5 pt-4"
+          style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}
+        >
+          <SectionLabel icon={MessageCircle}>MESSAGES</SectionLabel>
+          {conversations.length === 0 && (
+            <EmptyRow icon={Inbox}>Conversations open once you've accepted a job — nothing yet.</EmptyRow>
+          )}
+          {conversations.map((j) => {
+            const thread = unreadByJob[j.id];
+            return (
+              <Card
+                key={j.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setOpenId(j.id)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenId(j.id); } }}
+                className="cursor-pointer flex-row items-center gap-3 p-3.5"
+              >
+                <div className={`flex size-10 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-bold ${tintFor(j.contact_name || "?")}`}>
+                  {initialsOf(j.contact_name || "?")}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-[13.5px] font-bold text-foreground">{j.contact_name || "Customer"}</span>
+                    {thread?.unread_count > 0 && (
+                      <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10.5px] font-bold text-primary-foreground">
+                        {thread.unread_count > 9 ? "9+" : thread.unread_count}
+                      </span>
+                    )}
+                  </div>
+                  <p className="m-0 truncate text-[12px] text-muted-foreground">
+                    {thread?.preview || `${j.trade} — tap to view conversation`}
+                  </p>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Profile tab — a quick read-only summary, not a second copy of the
+          real editor (see "Manage my listing" above: profile fields are
+          edited in the app's shared Settings screen; duplicating that form
+          here would just be two places that can drift out of sync). */}
+      {tab === "profile" && (
+        <div
+          className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 pt-4"
+          style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}
+        >
+          <SectionLabel icon={User}>PROFILE</SectionLabel>
+          <Card className="grid gap-3 p-4">
+            <div className="flex items-center gap-3">
+              <div className={`flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisan?.has_avatar_photo || artisan?.avatar_emoji ? "" : "font-mono text-base font-bold"} ${tint}`}>
+                {artisan?.has_avatar_photo ? (
+                  <img src={avatarPhotoUrl(artisan.id, artisan.avatar_photo_version)} alt="" className="size-full object-cover" />
+                ) : artisan?.avatar_emoji ? (
+                  <Emoji3D emoji={artisan.avatar_emoji} size={56} />
+                ) : (
+                  initialsOf(artisan?.name || "?")
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="m-0 truncate text-[15px] font-bold text-foreground">{artisan?.name}</p>
+                <p className="m-0 text-[12.5px] text-muted-foreground">{artisan?.trade}{artisan?.years_experience ? ` · ${artisan.years_experience} yrs` : ""}</p>
+              </div>
+            </div>
+            {artisan?.city && (
+              <div className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+                <MapPin className="size-3.5 shrink-0" /> {artisan.city}
+              </div>
+            )}
+            {artisan?.phone && (
+              <div className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+                <Phone className="size-3.5 shrink-0" /> {artisan.phone}
+              </div>
+            )}
+            {artisan?.email && (
+              <div className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+                <Mail className="size-3.5 shrink-0" /> {artisan.email}
+              </div>
+            )}
+            {artisan?.bio && (
+              <p className="m-0 border-t border-border pt-3 text-[12.5px] leading-relaxed text-foreground">{artisan.bio}</p>
+            )}
+            <div className="flex items-center gap-2 border-t border-border pt-3">
+              {artisan?.rating_count > 0 ? (
+                <>
+                  <StarRating readOnly value={artisan.rating_avg} size="size-3.5" />
+                  <span className="text-[12px] text-muted-foreground">
+                    {artisan.rating_avg.toFixed(1)} ({artisan.rating_count} rating{artisan.rating_count === 1 ? "" : "s"})
+                  </span>
+                </>
+              ) : (
+                <span className="text-[12px] text-muted-foreground">No ratings yet</span>
+              )}
+            </div>
+          </Card>
+          {onOpenSettings && (
+            <Btn small variant="ghost" onClick={onOpenSettings}>
+              <Pencil className="size-3.5" /> Edit profile
+            </Btn>
+          )}
+        </div>
+      )}
 
       <JobDetailDialog
         open={!!openJob}
@@ -666,6 +811,8 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
         onSendMessage={artisanPostMessage}
         onMarkMessagesRead={artisanMarkThreadRead}
       />
+
+      <BottomNav items={NAV_ITEMS} active={tab} onChange={setTab} />
     </div>
   );
 }
