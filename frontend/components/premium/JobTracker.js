@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 const STATUSES = [
   { id: "applied", label: "Applied", className: "border-border text-muted-foreground" },
   { id: "interview", label: "Interview", className: "border-primary/30 bg-primary/10 text-primary" },
-  { id: "offer", label: "Offer", className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" },
+  { id: "offer", label: "Offer", className: "border-success/30 bg-success/10 text-success" },
   { id: "rejected", label: "Rejected", className: "border-destructive/30 bg-destructive/10 text-destructive" },
 ];
 const statusMeta = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0];

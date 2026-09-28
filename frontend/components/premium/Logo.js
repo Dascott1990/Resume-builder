@@ -76,7 +76,14 @@ export { MARK_VIEWBOX, MARK_POINTS, MARK_PATH, MARK_STROKE };
  */
 export function LogoMark({
   size = 28,
-  color = "var(--primary)",
+  // Fixed brand gold, deliberately NOT var(--primary) — the theme system
+  // went fully neutral (see globals.css's own comment on --primary), but
+  // the mark's whole design is this specific bronze-to-gold gradient (see
+  // this file's own top comment); the actual brand identity mark stays
+  // colorful regardless of theme, same convention virtually every real
+  // product follows (Slack/Discord/Spotify all keep a colorful logo in an
+  // otherwise neutral or dark UI).
+  color = "#f59e0b",
   style,
   className,
   title = "Noqeev",

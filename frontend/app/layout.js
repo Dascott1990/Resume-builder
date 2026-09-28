@@ -2,7 +2,6 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import OfflineBanner from "@/components/premium/shared/OfflineBanner";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
-import { ACCENT_INIT_SCRIPT } from "@/lib/accentColor";
 import { BRIGHTNESS_INIT_SCRIPT } from "@/lib/brightness";
 import { ServiceWorkerRegister } from "./ServiceWorkerRegister";
 import { KeepAlive } from "./KeepAlive";
@@ -70,19 +69,16 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Blocking, runs before hydration — reads the stored theme, or
-            (see lib/theme.js's THEME_INIT_SCRIPT/resolveTheme) follows the
-            OS's prefers-color-scheme when no explicit choice has been made
-            yet, and sets the "dark" class immediately so the very first
-            paint already matches. Without this, the server always renders
-            dark (it has no way to know either the browser's localStorage
-            or its OS setting), and a light-mode visitor would see a flash
-            of dark before React mounts and corrects it. */}
+        {/* Blocking, runs before hydration — reads the stored theme mode, or
+            (see lib/theme.js's THEME_INIT_SCRIPT/resolveEffectiveTheme)
+            follows the OS's prefers-color-scheme when the mode is "system"
+            (explicit or, same thing, nothing stored yet), and sets the
+            "dark" class immediately so the very first paint already
+            matches. Without this, the server always renders dark (it has
+            no way to know either the browser's localStorage or its OS
+            setting), and a light-mode visitor would see a flash of dark
+            before React mounts and corrects it. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-        {/* Same reasoning, one property lower — the stored accent color
-            (default amber) applied before first paint via inline style
-            overrides on the CSS custom properties globals.css defines. */}
-        <script dangerouslySetInnerHTML={{ __html: ACCENT_INIT_SCRIPT }} />
         {/* Same reasoning again, for the screen brightness overlay below —
             sets the two CSS variables its opacity reads from before first
             paint, so reopening the app at a saved dim/boost level doesn't

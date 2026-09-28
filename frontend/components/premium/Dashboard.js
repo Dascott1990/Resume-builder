@@ -48,7 +48,7 @@ const NAV_ITEMS = [
 const STATUS_META = {
   applied: { label: "Applied", className: "text-muted-foreground" },
   interview: { label: "Interview", className: "text-primary" },
-  offer: { label: "Offer", className: "text-emerald-500" },
+  offer: { label: "Offer", className: "text-success" },
   rejected: { label: "Rejected", className: "text-destructive" },
 };
 // Same 4 statuses JobTracker.js's own STATUSES array uses (this is that

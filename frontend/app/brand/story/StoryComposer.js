@@ -134,7 +134,7 @@ function relativeTime(ts) {
 const SEVERITY_LABEL = { critical: "Critical", moderate: "Moderate", minor: "Minor" };
 const SEVERITY_STYLE = {
   critical: "border-destructive/30 bg-destructive/[0.05] text-destructive",
-  moderate: "border-amber-500/30 bg-amber-500/[0.06] text-amber-600 dark:text-amber-400",
+  moderate: "border-warning/30 bg-warning/[0.06] text-warning",
   minor: "border-border bg-transparent text-muted-foreground",
 };
 
@@ -167,7 +167,7 @@ function QualityReportPanel({ report, onSeekTo }) {
     <div className="grid gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Quality check</span>
-        <div className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-bold ${ready ? "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-600 dark:text-emerald-400" : "border-amber-500/30 bg-amber-500/[0.08] text-amber-600 dark:text-amber-400"}`}>
+        <div className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-bold ${ready ? "border-success/30 bg-success/[0.08] text-success" : "border-warning/30 bg-warning/[0.08] text-warning"}`}>
           {ready ? <CheckCircle2 className="size-3.5" /> : <AlertTriangle className="size-3.5" />}
           {score}/100 — {ready ? "Ready to post" : "Needs review"}
         </div>

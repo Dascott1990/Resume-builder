@@ -38,7 +38,7 @@ import MessageThread from "../messages/MessageThread";
 
 const STATUS_META = {
   requested: { label: "Waiting for a response", icon: Clock, className: "border-primary/30 bg-primary/10 text-primary", accent: "var(--primary)" },
-  accepted: { label: "Accepted", icon: CheckCircle2, className: "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[var(--success,#22c55e)]", accent: "var(--success, #22c55e)" },
+  accepted: { label: "Accepted", icon: CheckCircle2, className: "border-[var(--success)]/30 bg-[var(--success)]/10 text-[var(--success)]", accent: "var(--success)" },
   completed: { label: "Completed", icon: CheckCircle2, className: "border-border bg-muted text-muted-foreground", accent: "var(--muted-foreground)" },
   declined: { label: "Declined", icon: Ban, className: "border-destructive/30 bg-destructive/10 text-destructive", accent: "var(--destructive)" },
   cancelled: { label: "Cancelled", icon: X, className: "border-border bg-muted text-muted-foreground/60", accent: "var(--muted-foreground)" },
@@ -52,7 +52,7 @@ const STATUS_META = {
 const PAYMENT_STATUS_META = {
   unpaid: { label: "Unpaid", className: "border-border bg-muted text-muted-foreground" },
   held: { label: "Escrow held", className: "border-primary/30 bg-primary/10 text-primary" },
-  released: { label: "Released", className: "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[var(--success,#22c55e)]" },
+  released: { label: "Released", className: "border-[var(--success)]/30 bg-[var(--success)]/10 text-[var(--success)]" },
   refunded: { label: "Refunded", className: "border-border bg-muted text-muted-foreground" },
 };
 

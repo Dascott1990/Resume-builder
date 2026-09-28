@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import { applyTheme, getStoredTheme } from "@/lib/theme";
+import { applyTheme, resolveMode } from "@/lib/theme";
 
 // Always mounted (see layout.js), unlike useTheme() itself — that hook
 // only runs inside whatever screen happens to call it, so a route that
@@ -10,9 +10,10 @@ import { applyTheme, getStoredTheme } from "@/lib/theme";
 // mounted for the whole session, so "my phone flips to dark while the
 // app's already open" actually works everywhere, not just on some screens.
 //
-// No-ops the instant an explicit choice exists (see theme.js's
-// resolveTheme/setStoredTheme) — from then on the OS no longer drives
-// this tab, same as any native app's "System" vs. "Light"/"Dark" setting.
+// No-ops whenever the mode is an explicit "light"/"dark" (see theme.js's
+// resolveMode/setStoredMode) — from then on the OS no longer drives this
+// tab. Only "system" mode (explicit or, same thing, nothing stored yet)
+// keeps this listener live.
 export function ThemeSync() {
   useEffect(() => {
     let mql;
@@ -22,7 +23,7 @@ export function ThemeSync() {
       return;
     }
     const onChange = (e) => {
-      if (getStoredTheme()) return;
+      if (resolveMode() !== "system") return;
       applyTheme(e.matches ? "dark" : "light");
     };
     mql.addEventListener("change", onChange);

@@ -57,8 +57,8 @@ function BreakGlassLogin({ onSignedIn }) {
   };
 
   return (
-    <form onSubmit={submit} className="mt-5 space-y-4 rounded-xl border border-dashed border-amber-500/40 bg-amber-500/[0.04] p-5">
-      <p className="m-0 flex items-center gap-1.5 text-[12px] font-semibold text-amber-600 dark:text-amber-400">
+    <form onSubmit={submit} className="mt-5 space-y-4 rounded-xl border border-dashed border-warning/40 bg-warning/[0.04] p-5">
+      <p className="m-0 flex items-center gap-1.5 text-[12px] font-semibold text-warning">
         <KeyRound className="size-3.5" /> Emergency access
       </p>
       <div className="space-y-1.5">
@@ -70,7 +70,7 @@ function BreakGlassLogin({ onSignedIn }) {
         <Input id="bg-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" />
       </div>
       {error && <p className="m-0 text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={busy} variant="outline" className="w-full border-amber-500/40">
+      <Button type="submit" disabled={busy} variant="outline" className="w-full border-warning/40">
         {busy ? <Loader2 className="size-4 animate-spin" /> : "Sign in with emergency access"}
       </Button>
     </form>

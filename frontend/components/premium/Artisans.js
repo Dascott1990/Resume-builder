@@ -322,19 +322,19 @@ function TradeChips({ active, onSelect }) {
 // card layouts below rather than duplicated per variant.
 function AvailableBadge({ small }) {
   return (
-    <Badge variant="outline" className={`gap-1 rounded-full border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 pl-1.5 text-[10px] font-bold text-[var(--success,#22c55e)] ${small ? "px-1.5 py-0" : ""}`}>
+    <Badge variant="outline" className={`gap-1 rounded-full border-[var(--success)]/30 bg-[var(--success)]/10 pl-1.5 text-[10px] font-bold text-[var(--success)] ${small ? "px-1.5 py-0" : ""}`}>
       <span className="relative flex size-[7px] shrink-0 items-center justify-center">
         <motion.span
           aria-hidden="true"
           initial={{ scale: 1, opacity: 0.6 }}
           animate={{ scale: 2.4, opacity: 0 }}
           transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut" }}
-          className="absolute inset-0 rounded-full bg-[var(--success,#22c55e)]"
+          className="absolute inset-0 rounded-full bg-[var(--success)]"
         />
         <motion.span
           animate={{ opacity: [1, 0.4, 1] }}
           transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-          className="relative size-[5px] rounded-full bg-[var(--success,#22c55e)]"
+          className="relative size-[5px] rounded-full bg-[var(--success)]"
         />
       </span>
       Available
@@ -438,7 +438,7 @@ function ArtisanCard({ a, isMine, onOpen, onEdit, onDelete, variant = "list", is
             {a.has_account && a.is_available && (
               <span
                 aria-label="Available now"
-                className="absolute top-2.5 left-2.5 size-3 rounded-full border-2 border-white/95 bg-[var(--success,#22c55e)] shadow-[0_1px_4px_rgba(0,0,0,0.4)]"
+                className="absolute top-2.5 left-2.5 size-3 rounded-full border-2 border-white/95 bg-[var(--success)] shadow-[0_1px_4px_rgba(0,0,0,0.4)]"
               />
             )}
 

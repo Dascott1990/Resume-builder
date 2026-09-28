@@ -26,9 +26,12 @@ export function avatarPhotoUrl(artisanId, version) {
   return `${API_BASE}/api/v1/artisans/${artisanId}/avatar-photo${v}`;
 }
 
-// Kept off amber on purpose — amber is the app's one primary/brand accent,
-// so these categorical avatar tints use a separate palette to avoid
-// visually colliding with it.
+// Purely decorative categorical variety — a consistent, distinguishable
+// tint per person (picked by hashing their name), not a status signal.
+// Deliberately NOT drawn from the 4 fixed semantic tokens (destructive/
+// success/warning/info) — those mean something specific (danger/success/
+// warning/info) and reusing one here for "person #2's avatar" would be
+// actively misleading, not simplification.
 const AVATAR_TINTS = [
   "border-blue-500/25 bg-blue-500/10 text-blue-400",
   "border-emerald-500/25 bg-emerald-500/10 text-emerald-400",

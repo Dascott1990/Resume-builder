@@ -20,15 +20,19 @@ import { toast } from "sonner";
 import { apiRequest } from "../../shared/api";
 import { Btn } from "./primitives";
 
+// medium/"Worth fixing" used --primary here before the theme system went
+// neutral — that read as a real "pay attention" severity signal, which a
+// neutral primary can no longer carry, so it's --warning now: a real,
+// fixed semantic color, not a stand-in for the app's old brand accent.
 const SEVERITY_META = {
   high: { label: "Fix this", className: "border-destructive/30 bg-destructive/10 text-destructive" },
-  medium: { label: "Worth fixing", className: "border-primary/30 bg-primary/10 text-primary" },
+  medium: { label: "Worth fixing", className: "border-warning/30 bg-warning/10 text-warning" },
   low: { label: "Minor", className: "border-border bg-muted text-muted-foreground" },
 };
 
 function scoreColor(score) {
-  if (score >= 80) return "var(--success, #22c55e)";
-  if (score >= 50) return "var(--primary)";
+  if (score >= 80) return "var(--success)";
+  if (score >= 50) return "var(--warning)";
   return "var(--destructive)";
 }
 
@@ -120,7 +124,7 @@ export function AtsScoreModal({ open, onClose, resume, jobDescription, onApply }
                 </div>
                 <p className="m-0 text-[13px] leading-relaxed text-foreground">
                   {fixResult && typeof startScore === "number" && startScore !== shown.score ? (
-                    <span className="mb-1 flex items-center gap-1.5 text-[11.5px] font-bold text-[var(--success,#22c55e)]">
+                    <span className="mb-1 flex items-center gap-1.5 text-[11.5px] font-bold text-[var(--success)]">
                       {startScore} <ArrowRight className="size-3" /> {shown.score}
                     </span>
                   ) : null}
@@ -166,7 +170,7 @@ export function AtsScoreModal({ open, onClose, resume, jobDescription, onApply }
               )}
 
               {applied ? (
-                <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[var(--success,#22c55e)]">
+                <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[var(--success)]">
                   <CheckCircle2 className="size-4" /> Applied to your resume
                 </div>
               ) : (

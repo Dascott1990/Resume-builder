@@ -1,23 +1,18 @@
 /**
- * accentColor.js — shared constants + the actual DOM-mutating logic for
- * the app's brand accent color. Same framework-agnostic split as theme.js
- * (no React), so the exact same code runs both from the blocking <script>
- * in layout.js (before hydration, to avoid a flash of the wrong color)
- * and from useAccentColor.js afterward.
+ * accentColor.js — the app used to let users pick a brand accent color
+ * that recolored --primary/--ring/--sidebar-primary app-wide (Settings'
+ * old AccentColorPicker, lib/useAccentColor.js, and a blocking init
+ * script in layout.js). Removed in favor of one neutral, non-overridable
+ * theme (see globals.css's own comment on --primary) — a light/dark
+ * choice no longer changes the app's accent, because there isn't one to
+ * change anymore.
  *
- * Device-local only, deliberately — same as light/dark mode, not synced
- * to the account. Everyone (including signed-out guests) can pick a
- * color without needing to be signed in, and it doesn't require a
- * backend field for something that's purely a display preference.
- *
- * globals.css hardcodes the same amber hex across six custom properties
- * (--primary, --ring, --sidebar-primary, --sidebar-ring, plus the two
- * -foreground pairs) — setting all six as inline styles on <html>
- * overrides the stylesheet in both light and dark mode at once, since
- * both themes already use the identical amber value there.
+ * ACCENT_COLORS survives here as plain data only, for app/brand/
+ * SignatureTheme.js's unrelated use as a curated list of brand-safe
+ * colors to suggest for social post templates — that's about content the
+ * user creates, not the app's own theme, so it's untouched by any of the
+ * above.
  */
-export const ACCENT_KEY = "noqeev_accent_color";
-
 export const ACCENT_COLORS = [
   { id: "amber", label: "Amber", primary: "#f59e0b", foreground: "#1c1206" },
   { id: "red", label: "Red", primary: "#ef4444", foreground: "#2c0a0a" },
@@ -27,44 +22,3 @@ export const ACCENT_COLORS = [
   { id: "purple", label: "Purple", primary: "#a855f7", foreground: "#1c0a2c" },
   { id: "pink", label: "Pink", primary: "#ec4899", foreground: "#2c0a1c" },
 ];
-
-export const DEFAULT_ACCENT = "amber";
-
-const PRIMARY_VARS = ["--primary", "--ring", "--sidebar-primary", "--sidebar-ring"];
-const FOREGROUND_VARS = ["--primary-foreground", "--sidebar-primary-foreground"];
-
-export function getStoredAccent() {
-  try {
-    const v = window.localStorage.getItem(ACCENT_KEY);
-    return ACCENT_COLORS.some((c) => c.id === v) ? v : null;
-  } catch {
-    return null;
-  }
-}
-
-export function applyAccent(id) {
-  const color = ACCENT_COLORS.find((c) => c.id === id) || ACCENT_COLORS.find((c) => c.id === DEFAULT_ACCENT);
-  const root = document.documentElement;
-  PRIMARY_VARS.forEach((v) => root.style.setProperty(v, color.primary));
-  FOREGROUND_VARS.forEach((v) => root.style.setProperty(v, color.foreground));
-}
-
-export function setStoredAccent(id) {
-  try { window.localStorage.setItem(ACCENT_KEY, id); } catch { /* best-effort */ }
-}
-
-// Plain string, run as a blocking <script> in layout.js's <head> — has to
-// execute before hydration, so this is intentionally a hand-kept
-// duplicate of the logic above, not a shared function call (same reasoning
-// as theme.js's THEME_INIT_SCRIPT).
-export const ACCENT_INIT_SCRIPT = `(function(){try{
-var colors=${JSON.stringify(ACCENT_COLORS)};
-var id=localStorage.getItem("${ACCENT_KEY}");
-var c=null;
-for(var i=0;i<colors.length;i++){if(colors[i].id===id){c=colors[i];break;}}
-if(!c){for(var j=0;j<colors.length;j++){if(colors[j].id==="${DEFAULT_ACCENT}"){c=colors[j];break;}}}
-if(!c)return;
-var r=document.documentElement;
-["--primary","--ring","--sidebar-primary","--sidebar-ring"].forEach(function(v){r.style.setProperty(v,c.primary);});
-["--primary-foreground","--sidebar-primary-foreground"].forEach(function(v){r.style.setProperty(v,c.foreground);});
-}catch(e){}})();`;

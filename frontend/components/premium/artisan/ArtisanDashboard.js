@@ -57,7 +57,7 @@ function timeAgo(iso) {
 }
 
 const STATUS_META = {
-  accepted: { label: "Accepted", className: "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[var(--success,#22c55e)]" },
+  accepted: { label: "Accepted", className: "border-[var(--success)]/30 bg-[var(--success)]/10 text-[var(--success)]" },
   completed: { label: "Completed", className: "border-border bg-muted text-muted-foreground" },
 };
 
@@ -411,8 +411,8 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
         <Card
           className="relative flex flex-row items-center justify-between gap-3 overflow-hidden p-3.5 transition-colors"
           style={artisan?.is_available ? {
-            borderColor: "color-mix(in oklch, var(--success, #22c55e) 35%, var(--border))",
-            background: "color-mix(in oklch, var(--success, #22c55e) 6%, var(--card))",
+            borderColor: "color-mix(in oklch, var(--success) 35%, var(--border))",
+            background: "color-mix(in oklch, var(--success) 6%, var(--card))",
           } : undefined}
         >
           {/* Ambient glow, not just a border tint — purely decorative
@@ -424,7 +424,7 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
               animate={{ opacity: [0.5, 0.85, 0.5] }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
               className="pointer-events-none absolute -top-10 -left-6 size-32 rounded-full blur-3xl"
-              style={{ background: "var(--success, #22c55e)" }}
+              style={{ background: "var(--success)" }}
             />
           )}
 
@@ -441,13 +441,13 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
                   animate={{ scale: 1.7, opacity: 0 }}
                   transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut" }}
                   className="absolute inset-0 rounded-full"
-                  style={{ background: "var(--success, #22c55e)" }}
+                  style={{ background: "var(--success)" }}
                 />
               )}
               <div
                 className={`relative flex size-11 items-center justify-center overflow-hidden rounded-full border transition-all duration-500 ${artisan?.has_avatar_photo || artisan?.avatar_emoji ? "" : "font-mono text-sm font-bold"} ${tint} ${!artisan?.is_available ? "opacity-50 grayscale" : ""}`}
                 style={artisan?.is_available ? {
-                  boxShadow: "0 0 0 3px color-mix(in oklch, var(--success,#22c55e) 25%, transparent), 0 0 18px color-mix(in oklch, var(--success,#22c55e) 40%, transparent)",
+                  boxShadow: "0 0 0 3px color-mix(in oklch, var(--success) 25%, transparent), 0 0 18px color-mix(in oklch, var(--success) 40%, transparent)",
                 } : undefined}
               >
                 {artisan?.has_avatar_photo ? (
@@ -465,12 +465,12 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
             </div>
           </div>
           <div className="relative flex shrink-0 items-center gap-2.5">
-            <span className={`flex items-center gap-1.5 font-mono text-[10.5px] font-bold tracking-[0.1em] ${artisan?.is_available ? "text-[var(--success,#22c55e)]" : "text-muted-foreground/60"}`}>
+            <span className={`flex items-center gap-1.5 font-mono text-[10.5px] font-bold tracking-[0.1em] ${artisan?.is_available ? "text-[var(--success)]" : "text-muted-foreground/60"}`}>
               {artisan?.is_available && (
                 <motion.span
                   animate={{ opacity: [1, 0.35, 1] }}
                   transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-                  className="size-[7px] shrink-0 rounded-full bg-[var(--success,#22c55e)]"
+                  className="size-[7px] shrink-0 rounded-full bg-[var(--success)]"
                 />
               )}
               {artisan?.is_available ? "LIVE" : "OFF"}
@@ -527,11 +527,11 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
           </Card>
         ) : payoutStatus?.payouts_enabled ? (
           <Card className="mt-2.5 flex flex-row items-center gap-3 p-3.5" style={{
-            borderColor: "color-mix(in oklch, var(--success, #22c55e) 35%, var(--border))",
-            background: "color-mix(in oklch, var(--success, #22c55e) 6%, var(--card))",
+            borderColor: "color-mix(in oklch, var(--success) 35%, var(--border))",
+            background: "color-mix(in oklch, var(--success) 6%, var(--card))",
           }}>
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--success,#22c55e)]/15">
-              <CheckCircle2 className="size-[16px] text-[var(--success,#22c55e)]" />
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--success)]/15">
+              <CheckCircle2 className="size-[16px] text-[var(--success)]" />
             </div>
             <p className="m-0 text-[13px] font-bold text-foreground">Payouts ready — escrowed jobs can be released to you.</p>
           </Card>
@@ -609,7 +609,7 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager }) {
                     <div className="flex items-center gap-1.5">
                       <StarRating readOnly value={r.stars} size="size-3" />
                       {r.verified && (
-                        <Badge variant="outline" className="rounded-full border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[9px] font-bold text-[var(--success,#22c55e)]">
+                        <Badge variant="outline" className="rounded-full border-[var(--success)]/30 bg-[var(--success)]/10 text-[9px] font-bold text-[var(--success)]">
                           Verified job
                         </Badge>
                       )}

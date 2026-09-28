@@ -232,7 +232,7 @@ function PostRow({ post, token, onChanged }) {
       <div className="mt-2 flex flex-wrap gap-1.5">
         {post.handles.map((h) => (
           <button key={h.id} type="button" onClick={() => toggle(h.brand_handle_id, !h.posted)} disabled={busyHandle === h.brand_handle_id}
-            className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${h.posted ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-400" : "border-border bg-transparent text-muted-foreground"}`}>
+            className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${h.posted ? "border-success/30 bg-success/10 text-success" : "border-border bg-transparent text-muted-foreground"}`}>
             {busyHandle === h.brand_handle_id ? <Loader2 className="size-3 animate-spin" /> : h.posted ? <Check className="size-3" /> : null}
             {PLATFORM_LABELS[h.platform] || h.platform} — {h.handle_name}
           </button>

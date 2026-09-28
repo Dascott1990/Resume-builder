@@ -28,7 +28,7 @@ export default function SchedulingRow({ job, viewerIsArtisan, onProposeTime, onC
 
   if (job.scheduled_confirmed) {
     return (
-      <div className="flex items-center gap-1.5 rounded-lg border border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 px-2.5 py-2 text-[12.5px] font-semibold text-[var(--success,#22c55e)]">
+      <div className="flex items-center gap-1.5 rounded-lg border border-[var(--success)]/30 bg-[var(--success)]/10 px-2.5 py-2 text-[12.5px] font-semibold text-[var(--success)]">
         <Check className="size-3.5 shrink-0" /> Scheduled for {formatScheduled(job.scheduled_at)}
       </div>
     );

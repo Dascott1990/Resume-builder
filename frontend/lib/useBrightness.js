@@ -2,8 +2,8 @@
 /**
  * useBrightness.js — reactive access to the screen brightness the blocking
  * <script> in layout.js already applied before this component tree even
- * mounted. Mirrors useAccentColor.js exactly, one level down (a numeric
- * 0-200 value instead of a color id).
+ * mounted. Same shape as useTheme.js, one level down (a numeric 0-200
+ * value instead of a light/dark/system mode).
  */
 import { useCallback, useEffect, useState } from "react";
 import {

@@ -369,8 +369,8 @@ function ReviewScreen({ run, onSubmitted, onCancelled }) {
       </div>
 
       {unfillable.length > 0 && (
-        <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5">
-          <p className="m-0 mb-1.5 flex items-center gap-1.5 text-[12.5px] font-bold text-amber-500">
+        <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 p-3.5">
+          <p className="m-0 mb-1.5 flex items-center gap-1.5 text-[12.5px] font-bold text-warning">
             <AlertTriangle className="size-3.5" /> Needs your attention before submitting
           </p>
           {unfillable.map((f, i) => (

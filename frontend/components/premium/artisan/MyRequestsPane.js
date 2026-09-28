@@ -29,7 +29,7 @@ import { getThread, postMessage, markThreadRead } from "../messages/api";
 
 const STATUS_META = {
   requested: { label: "Pending", className: "border-primary/30 bg-primary/10 text-primary" },
-  accepted: { label: "Accepted", className: "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[var(--success,#22c55e)]" },
+  accepted: { label: "Accepted", className: "border-[var(--success)]/30 bg-[var(--success)]/10 text-[var(--success)]" },
   completed: { label: "Completed", className: "border-border bg-muted text-muted-foreground" },
   declined: { label: "Declined", className: "border-destructive/30 bg-destructive/10 text-destructive" },
   cancelled: { label: "Cancelled", className: "border-border bg-muted text-muted-foreground/60" },

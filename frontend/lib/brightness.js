@@ -66,7 +66,7 @@ export function setStoredBrightness(value) {
 // Plain string, run as a blocking <script> in layout.js's <head> — has to
 // execute before hydration, so this is intentionally a hand-kept duplicate
 // of the logic above, not a shared function call (same reasoning as
-// theme.js's THEME_INIT_SCRIPT / accentColor.js's ACCENT_INIT_SCRIPT).
+// theme.js's own THEME_INIT_SCRIPT).
 export const BRIGHTNESS_INIT_SCRIPT = `(function(){try{
 var v=parseFloat(localStorage.getItem("${BRIGHTNESS_KEY}"));
 if(!isFinite(v))v=${DEFAULT_BRIGHTNESS};

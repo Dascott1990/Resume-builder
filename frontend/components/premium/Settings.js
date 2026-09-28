@@ -22,7 +22,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
   Settings as SettingsIcon, X, User, Wrench, Palette, LogOut, KeyRound,
-  CheckCircle2, Loader2, Check, Bell, Trash2,
+  CheckCircle2, Loader2, Bell, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -31,10 +31,9 @@ import { Switch } from "@/components/ui/switch";
 import { Field, Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import Emoji3D from "./shared/Emoji3D";
-import { ThemeToggle } from "./shared/ThemeToggle";
+import { ThemeModePicker } from "./shared/ThemeToggle";
 import { tintFor, initialsOf, avatarPhotoUrl } from "./shared/artisanDisplay";
 import { useAuth } from "@/lib/useAuth";
-import { useAccentColor } from "@/lib/useAccentColor";
 import { useBrightness } from "@/lib/useBrightness";
 import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
 import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
@@ -107,33 +106,6 @@ function ChangePasswordForm({ onSubmit }) {
         <Btn small variant="gold" disabled={submitting} loading={submitting} onClick={submit}>Update password</Btn>
         <Btn small variant="ghost" disabled={submitting} onClick={() => setOpen(false)}>Cancel</Btn>
       </div>
-    </div>
-  );
-}
-
-// Device-local, not account data — see accentColor.js. Every color already
-// has a foreground pair tuned for contrast against it, same as the
-// swatch's own fill, so the selected check mark stays readable on all 7.
-function AccentColorPicker() {
-  const { accent, setAccent, colors } = useAccentColor();
-  return (
-    <div className="flex flex-wrap gap-2.5">
-      {colors.map((c) => (
-        <button
-          key={c.id}
-          type="button"
-          aria-label={c.label}
-          aria-pressed={accent === c.id}
-          onClick={() => setAccent(c.id)}
-          className="flex size-9 shrink-0 items-center justify-center rounded-full transition-transform active:scale-90"
-          style={{
-            background: c.primary,
-            boxShadow: accent === c.id ? `0 0 0 2px var(--card), 0 0 0 4px ${c.primary}` : "none",
-          }}
-        >
-          {accent === c.id && <Check className="size-4" style={{ color: c.foreground }} />}
-        </button>
-      ))}
     </div>
   );
 }
@@ -323,11 +295,7 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOp
         <div>
           <Section icon={Palette}>APPEARANCE</Section>
           <Card className="grid gap-3 p-3.5">
-            <ThemeToggle />
-            <div className="border-t border-border pt-3">
-              <p className="m-0 mb-2 text-[12px] font-semibold text-muted-foreground">Accent color</p>
-              <AccentColorPicker />
-            </div>
+            <ThemeModePicker />
             <div className="border-t border-border pt-3">
               <BrightnessSlider />
             </div>
@@ -359,7 +327,7 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOp
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="min-w-0 truncate text-[12px] text-muted-foreground">{user.email}</span>
-                    {user.email_verified && <CheckCircle2 className="size-3 shrink-0 text-[var(--success,#22c55e)]" />}
+                    {user.email_verified && <CheckCircle2 className="size-3 shrink-0 text-[var(--success)]" />}
                   </div>
                 </div>
               </div>
@@ -423,7 +391,7 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOp
                   variant="outline"
                   className={`shrink-0 gap-1 rounded-full text-[10px] font-bold ${
                     artisan.is_available
-                      ? "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[var(--success,#22c55e)]"
+                      ? "border-[var(--success)]/30 bg-[var(--success)]/10 text-[var(--success)]"
                       : "border-border bg-muted text-muted-foreground"
                   }`}
                 >

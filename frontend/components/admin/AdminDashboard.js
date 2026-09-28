@@ -129,9 +129,9 @@ function StatCard({ icon: Icon, label, value }) {
 // the panel (admin/not, verified/not, vendor category, job status, …) —
 // replaces a mix of raw text and ad hoc <Badge> usage scattered per tab.
 const CHIP_TONES = {
-  good: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  good: "bg-success/10 text-success",
   neutral: "bg-muted text-muted-foreground",
-  warning: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  warning: "bg-warning/10 text-warning",
   bad: "bg-destructive/10 text-destructive",
 };
 function StatusChip({ tone = "neutral", children }) {
@@ -1218,7 +1218,7 @@ function timeAgo(iso) {
 
 function StatusPill({ ok, okLabel, badLabel }) {
   return (
-    <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] font-bold ${ok ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive"}`}>
+    <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] font-bold ${ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
       {ok ? <CheckCircle2 className="size-3.5" /> : <XCircle className="size-3.5" />}
       {ok ? okLabel : badLabel}
     </span>

@@ -27,15 +27,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* :root = light theme. The old values here were shadcn's generic scaffold
-   defaults (grayscale --primary, never actually seen by anyone — layout.js
-   hardcoded the "dark" class on <html> unconditionally, so :root's colors
-   were dead code). Now that dark mode is an actual toggle instead of the
-   only option, these need to be real: the same amber --primary as .dark
-   (the one constant that has to survive both themes — every gold CTA,
-   icon tile, and accent in the app is built assuming this exact color),
-   with everything else re-tuned for contrast against a light background
-   instead of ported wholesale from a dark-mode assumption. */
+/* :root = light theme. Neutral system: --primary/--ring/--sidebar-primary
+   (and their -foreground pairs) are no longer a user-pickable brand color
+   — they're plain references to --foreground/--background, which is the
+   whole point of "neutral": a primary button is just high-contrast text-
+   on-surface, identical treatment to reading text, and it flips
+   automatically with light/dark for free since it's a reference, not a
+   literal. The only colors that vary independently of this neutral system
+   are the 4 fixed semantic tokens below (--destructive/--success/
+   --warning/--info) — deliberately still real hues, never neutral, since
+   they carry meaning (danger/success/warning/info) that a gray tone can't. */
 :root {
   --taskbar-height: 0px;
   --font-sans: "Helvetica Neue", Arial, system-ui, sans-serif;
@@ -54,31 +55,37 @@
   --card-foreground: oklch(0.16 0.01 60);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.16 0.01 60);
-  --primary: #f59e0b;
-  --primary-foreground: #1c1206;
-  /* --primary itself, used as TEXT color (not a button/icon fill) directly
-     on this light background, computes to 2.09:1 — fails WCAG AA (needs
-     4.5:1 for text, 3:1 even for large text/icons). Verified by real OKLCH
-     -> sRGB -> relative-luminance math, not eyeballed. Fine as a solid
-     fill (primary-foreground on top of it is 8.59:1) — the failure is
-     amber-as-text specifically. This darker shade (4.88:1, passes AA)
-     is for exactly that case; --primary itself is unchanged since most of
-     its usage is fills/icons, not body text. Dark mode's --primary
-     already passes at 9.22:1 as text, so --primary-text there is
-     identical to --primary — no separate value needed. */
-  --primary-text: #b45309;
+  --primary: var(--foreground);
+  --primary-foreground: var(--background);
+  /* Always AA-safe by construction now — --primary-text used to be a
+     separate darker shade because raw amber-as-text failed WCAG AA
+     (2.09:1). Now that --primary IS --foreground, it's exactly the same
+     color the rest of the app's body text already uses, so there's no
+     separate contrast case to solve for. */
+  --primary-text: var(--foreground);
   --secondary: oklch(0.96 0.006 80);
   --secondary-foreground: oklch(0.2 0.01 60);
   --muted: oklch(0.96 0.006 80);
   --muted-foreground: oklch(0.48 0.012 60);
   --accent: oklch(0.96 0.006 80);
   --accent-foreground: oklch(0.2 0.01 60);
+  /* ── Fixed semantic colors — same in both themes' hue, never overridable,
+     never neutral. Light/dark each still get their own shade per color
+     (darker fill + white text on the bright light background; brighter
+     fill + dark text on the near-black background, so the fill itself
+     stays legible against its page) — the exact pattern --destructive/
+     --success already used, extended to --warning/--info here so all 4
+     follow one consistent rule. */
   --destructive: oklch(0.55 0.22 27);
   --success: #16a34a;
   --success-foreground: #ffffff;
+  --warning: #d97706;
+  --warning-foreground: #ffffff;
+  --info: #2563eb;
+  --info-foreground: #ffffff;
   --border: oklch(0.9 0.006 80);
   --input: oklch(0.93 0.006 80);
-  --ring: #f59e0b;
+  --ring: var(--primary);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -87,12 +94,12 @@
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0.003 80);
   --sidebar-foreground: oklch(0.16 0.01 60);
-  --sidebar-primary: #f59e0b;
-  --sidebar-primary-foreground: #1c1206;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-accent: oklch(0.96 0.006 80);
   --sidebar-accent-foreground: oklch(0.2 0.01 60);
   --sidebar-border: oklch(0.9 0.006 80);
-  --sidebar-ring: #f59e0b;
+  --sidebar-ring: var(--primary);
 }
 
 * {
@@ -233,6 +240,10 @@ select {
   --color-destructive: var(--destructive);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -264,8 +275,9 @@ select {
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: var(--foreground);
+  --primary-foreground: var(--background);
+  --primary-text: var(--foreground);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -275,15 +287,13 @@ select {
   --destructive: oklch(0.704 0.191 22.216);
   --success: #22c55e;
   --success-foreground: #052e12;
-  --primary: #f59e0b;
-  --primary-foreground: #1c1206;
-  /* Already passes as text here (9.22:1 against this dark background) —
-     same token as --primary, not a separate darker shade like light
-     mode needs (see the light :root's own --primary-text comment). */
-  --primary-text: #f59e0b;
+  --warning: #f59e0b;
+  --warning-foreground: #451a03;
+  --info: #3b82f6;
+  --info-foreground: #172554;
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: #f59e0b;
+  --ring: var(--primary);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -291,12 +301,12 @@ select {
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: var(--primary);
 }
 
 @layer base {

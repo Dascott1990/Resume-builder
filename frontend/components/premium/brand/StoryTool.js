@@ -32,9 +32,9 @@ import { recordWebm, recordGif } from "./storyClientExport";
 import { workspaceFetch } from "./workspaceApi";
 
 function scoreColor(score) {
-  if (score >= 85) return "text-emerald-400 border-emerald-400/30 bg-emerald-400/10";
-  if (score >= 60) return "text-amber-400 border-amber-400/30 bg-amber-400/10";
-  return "text-red-400 border-red-400/30 bg-red-400/10";
+  if (score >= 85) return "text-success border-success/30 bg-success/10";
+  if (score >= 60) return "text-warning border-warning/30 bg-warning/10";
+  return "text-destructive border-destructive/30 bg-destructive/10";
 }
 
 export function StoryTool({ token, accent = DEFAULT_ACCENT }) {

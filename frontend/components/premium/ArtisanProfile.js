@@ -243,11 +243,11 @@ export default function ArtisanProfile({
               variant="outline"
               className={`gap-1 rounded-full text-[10px] font-bold ${
                 artisan.is_available
-                  ? "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[var(--success,#22c55e)]"
+                  ? "border-[var(--success)]/30 bg-[var(--success)]/10 text-[var(--success)]"
                   : "border-border bg-muted text-muted-foreground"
               }`}
             >
-              <span className={`size-[5px] rounded-full ${artisan.is_available ? "bg-[var(--success,#22c55e)]" : "bg-muted-foreground/50"}`} />
+              <span className={`size-[5px] rounded-full ${artisan.is_available ? "bg-[var(--success)]" : "bg-muted-foreground/50"}`} />
               {artisan.is_available ? "Available now" : "Not accepting requests"}
             </Badge>
           )}
@@ -353,7 +353,7 @@ export default function ArtisanProfile({
                 <div className="flex items-center gap-1.5">
                   <StarRating readOnly value={r.stars} size="size-3.5" />
                   {r.verified && (
-                    <Badge variant="outline" className="rounded-full border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/10 text-[9.5px] font-bold text-[var(--success,#22c55e)]">
+                    <Badge variant="outline" className="rounded-full border-[var(--success)]/30 bg-[var(--success)]/10 text-[9.5px] font-bold text-[var(--success)]">
                       Verified job
                     </Badge>
                   )}
