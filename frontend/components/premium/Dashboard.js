@@ -827,41 +827,37 @@ export default function Dashboard({ onClose, onNavigate }) {
             )}
           </div>
 
+          {/* Notifications only, not a second Settings button — the
+              profile-or-sign-in card right above this already goes there
+              (with a real avatar once signed in), so a separate gear icon
+              here would be two controls doing one job. One destination,
+              one door in. */}
           <div className="flex items-center justify-between border-t border-border p-3">
             <ThemeToggle compact />
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setNotifOpen(true)}
-                aria-label="Notifications"
-                className="relative flex size-10 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
-              >
-                <Bell className="size-4" />
-                {/* Red = needs action (an unread message or a stalled
-                    application — see needsAttention above), not just a
-                    flat count with no severity signal. A real unread-
-                    message count still shows when that's the reason;
-                    a plain dot covers the "stalled application, no new
-                    message" case, which has no natural number of its own
-                    here (see the stat row's own dot + the nudge banner
-                    for that count instead). */}
-                {needsAttention && (
-                  unread.count > 0 ? (
-                    <span className="absolute top-1 right-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
-                      {unread.count > 9 ? "9+" : unread.count}
-                    </span>
-                  ) : (
-                    <span className="absolute top-1 right-1 size-2.5 rounded-full bg-destructive" />
-                  )
-                )}
-              </button>
-              <button
-                onClick={() => go("settings")}
-                aria-label="Settings"
-                className="flex size-10 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
-              >
-                <SettingsIcon className="size-4" />
-              </button>
-            </div>
+            <button
+              onClick={() => setNotifOpen(true)}
+              aria-label="Notifications"
+              className="relative flex size-10 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
+            >
+              <Bell className="size-4" />
+              {/* Red = needs action (an unread message or a stalled
+                  application — see needsAttention above), not just a
+                  flat count with no severity signal. A real unread-
+                  message count still shows when that's the reason;
+                  a plain dot covers the "stalled application, no new
+                  message" case, which has no natural number of its own
+                  here (see the stat row's own dot + the nudge banner
+                  for that count instead). */}
+              {needsAttention && (
+                unread.count > 0 ? (
+                  <span className="absolute top-1 right-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
+                    {unread.count > 9 ? "9+" : unread.count}
+                  </span>
+                ) : (
+                  <span className="absolute top-1 right-1 size-2.5 rounded-full bg-destructive" />
+                )
+              )}
+            </button>
           </div>
         </aside>
 
