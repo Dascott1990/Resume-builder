@@ -37,7 +37,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Logo, { LogoMark, MARK_PATH, MARK_STROKE } from "@/components/premium/Logo";
 import { BottomNav } from "@/components/premium/shared/BottomNav";
-import { Sparkles, Type, Clapperboard, Camera, Archive, ArrowLeft, TrendingUp, CalendarClock, Loader2, MoreHorizontal, Check } from "lucide-react";
+import { Sparkles, Type, Layers, Clapperboard, Camera, Archive, ArrowLeft, TrendingUp, CalendarClock, Loader2, MoreHorizontal, Check } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Section } from "./BrandSection";
 import { LogoDownloads } from "./LogoDownloads";
@@ -191,7 +191,7 @@ function AtAGlanceStrip() {
 const ZONES = [
   { id: "today", Icon: CalendarClock, label: "Today" },
   { id: "assets", Icon: Sparkles, label: "Assets" },
-  { id: "create", Icon: Type, label: "Create" },
+  { id: "create", Icon: Layers, label: "Create" },
   { id: "story", Icon: Clapperboard, label: "Story" },
   { id: "capture", Icon: Camera, label: "Capture" },
 ];

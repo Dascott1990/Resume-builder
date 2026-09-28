@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import {
   Loader2, RefreshCw, Trash2, ShieldCheck, ShieldOff,
   Users, FileText, Briefcase, Star, Wrench, LayoutGrid, Pencil, Mail, Plus, X, Sparkles,
-  Newspaper, ExternalLink, Server, Database, CheckCircle2, XCircle, ChevronDown, Table2, Activity, Menu,
+  Newspaper, ExternalLink, Server, Bug, CheckCircle2, XCircle, ChevronDown, Table2, Activity, Menu,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { Button } from "@/components/ui/button";
@@ -1279,7 +1279,7 @@ function SystemTab() {
               <a href={health.links.render} target="_blank" rel="noreferrer"><Server className="size-3.5" /> Render <ExternalLink className="size-3" /></a>
             </Button>
             <Button variant="outline" size="sm" asChild>
-              <a href={health.links.sentry} target="_blank" rel="noreferrer"><Database className="size-3.5" /> Sentry <ExternalLink className="size-3" /></a>
+              <a href={health.links.sentry} target="_blank" rel="noreferrer"><Bug className="size-3.5" /> Sentry <ExternalLink className="size-3" /></a>
             </Button>
           </div>
 

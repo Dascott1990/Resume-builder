@@ -14,7 +14,7 @@
  * sub-zone the way /brand/page.js's five-zone BottomNav does.
  */
 import { useEffect, useState } from "react";
-import { ArrowLeft, Sparkles, Type, Archive, Wrench, Layers, Clapperboard, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Sparkles, Type, Archive, Download, CalendarClock, Layers, Clapperboard, AlertTriangle } from "lucide-react";
 import Logo, { LogoMark, MARK_PATH, MARK_STROKE } from "@/components/premium/Logo";
 import { Section } from "@/app/brand/BrandSection";
 import { apiRequest } from "@/components/premium/shared/api";
@@ -122,10 +122,10 @@ function ToolsZone({ token, workspace }) {
       <Section icon={Clapperboard} eyebrow="Create" title="Story" open={open.story} onOpenChange={() => toggle("story")}>
         <StoryTool token={token} />
       </Section>
-      <Section icon={Sparkles} eyebrow="Assets" title="Download & share" open={open.downloads} onOpenChange={() => toggle("downloads")}>
+      <Section icon={Download} eyebrow="Assets" title="Download & share" open={open.downloads} onOpenChange={() => toggle("downloads")}>
         <LogoDownloads />
       </Section>
-      <Section icon={Wrench} eyebrow="Plan" title="Scheduler" open={open.scheduler} onOpenChange={() => toggle("scheduler")}>
+      <Section icon={CalendarClock} eyebrow="Plan" title="Scheduler" open={open.scheduler} onOpenChange={() => toggle("scheduler")}>
         <SchedulerTool token={token} workspace={workspace} />
       </Section>
     </div>

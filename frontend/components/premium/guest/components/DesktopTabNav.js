@@ -1,10 +1,10 @@
 "use client";
-import { Sparkles, Palette, Layout, Settings } from "lucide-react";
+import { Sparkles, Palette, FileText, Settings } from "lucide-react";
 
 const VIEWS = [
   { id: "new",       Icon: Sparkles, label: "Build" },
   { id: "style",     Icon: Palette,  label: "Style" },
-  { id: "templates", Icon: Layout,   label: "Saved" },
+  { id: "templates", Icon: FileText, label: "Saved" },
   { id: "settings",  Icon: Settings, label: "Settings" },
 ];
 

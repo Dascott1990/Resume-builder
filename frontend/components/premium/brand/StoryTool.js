@@ -19,7 +19,7 @@
  */
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Sparkles, Download, Film, ImageIcon, Gauge } from "lucide-react";
+import { Loader2, Sparkles, Film, ImageIcon, Gauge } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { ClipTimeline } from "@/app/brand/story/ClipTimeline";
 import { PreviewPlayer } from "@/app/brand/story/PreviewPlayer";

@@ -1,12 +1,12 @@
 "use client";
 import { motion } from "framer-motion";
-import { Sparkles, Palette, Eye, Layout, Settings } from "lucide-react";
+import { Sparkles, Palette, Eye, FileText, Settings } from "lucide-react";
 
 const VIEWS = [
   { id: "new",       Icon: Sparkles, label: "Build" },
   { id: "style",     Icon: Palette,  label: "Style" },
   { id: "preview",   Icon: Eye,      label: "Preview" },
-  { id: "templates", Icon: Layout,   label: "Saved" },
+  { id: "templates", Icon: FileText, label: "Saved" },
   { id: "settings",  Icon: Settings, label: "Settings" },
 ];
 

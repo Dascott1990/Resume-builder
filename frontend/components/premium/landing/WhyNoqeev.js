@@ -1,13 +1,16 @@
 "use client";
 import { useRef } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { Sparkles, ShieldOff, FileCheck2, Hammer, LayoutDashboard, Clapperboard } from "lucide-react";
+import { Sparkles, ShieldCheck, FileCheck2, Hammer, LayoutDashboard, Clapperboard } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW } from "./shared";
 
 const FEATURES = [
   { Icon: LayoutDashboard, title: "One dashboard for the whole job search" },
   { Icon: Sparkles, title: "AI that reads the job, not just your title" },
-  { Icon: ShieldOff, title: "Anonymous by default. Account optional." },
+  // ShieldCheck, not ShieldOff — this is a privacy WIN (no account wall),
+  // and a slashed shield reads as "unprotected," the opposite point.
+  // Matches SeeItHappenSection.js's identical claim, same icon.
+  { Icon: ShieldCheck, title: "Anonymous by default. Account optional." },
   { Icon: FileCheck2, title: "Real files, not a locked preview" },
   { Icon: Hammer, title: "A real trade directory too" },
   { Icon: Clapperboard, title: "A posts-and-video studio for your search" },

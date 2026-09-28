@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
-  X, Sparkles, Check, Loader2, AlertTriangle, ExternalLink, RefreshCw,
+  X, Sparkles, Check, Loader2, AlertTriangle,
 } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import { Btn } from "./guest/components/primitives";
