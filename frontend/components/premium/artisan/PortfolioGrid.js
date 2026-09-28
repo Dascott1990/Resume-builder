@@ -9,8 +9,8 @@
  * about the existing data, not a separate field invented for this.
  *
  * Takes photos/upload/remove/move as props rather than calling
- * usePortfolioPhotos itself — ArtisanListingManager.js owns that one
- * fetch so it can factor photo count into the profile-completion
+ * usePortfolioPhotos itself — ArtisanDashboard.js's Profile tab owns that
+ * one fetch so it can factor photo count into the profile-completion
  * checklist without a second, redundant hook instance.
  */
 import { useRef, useState } from "react";

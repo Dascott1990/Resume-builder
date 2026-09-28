@@ -16,3 +16,9 @@ export const postMessage = (jobId, body) => apiRequest(`/api/v1/messages/threads
 export const markThreadRead = (jobId) => apiRequest(`/api/v1/messages/threads/${jobId}/read`, { method: "POST" });
 
 export const getUnreadCount = () => apiRequest("/api/v1/messages/unread-count");
+
+// The per-thread breakdown behind that single count — same shape as
+// artisan/api.js's artisanUnreadThreads, what the customer-facing
+// Messages tab lists (artisan name, trade, preview, per-job unread
+// badge) instead of just a bare number.
+export const getUnreadThreads = () => apiRequest("/api/v1/messages/unread");

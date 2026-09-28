@@ -1,14 +1,26 @@
 "use client";
 /**
- * ArtisanDashboard.js — an artisan's home base once signed in: toggle
- * availability, see requests addressed to them, accept/decline, and
- * manage in-progress/completed jobs. Gated by ArtisanAuth until a token
- * exists (see lib/artisanAuthToken.js).
+ * ArtisanDashboard.js — an artisan's one and only home base once signed in.
+ * A bottom nav, same shape as the customer-facing "Hire an artisan" side
+ * (see Artisans.js), with three tabs:
+ *   - Dashboard: toggle availability, triage incoming requests, track
+ *     in-progress/completed jobs, payouts, reputation.
+ *   - Messages: every accepted/completed job's conversation in one list.
+ *   - Profile: the one place to list, edit, and delete — photo, fields,
+ *     portfolio, notifications, password, sign out, delete listing. This
+ *     used to be split across a separate ArtisanListingManager.js screen
+ *     and duplicated again in the app's generic Settings.js; both are gone
+ *     now in favor of one tab that does all of it.
+ * Gated by ArtisanAuth until a token exists (see lib/artisanAuthToken.js).
+ * No props — this mounts as the entire body of Artisans.js's "I'm an
+ * artisan" persona (see that file), which supplies the shared header and
+ * persona switch above it; everything artisan-specific stays self-
+ * contained in this file and its own imports, not scattered elsewhere.
  *
  * Two card treatments on purpose: the "Requests for you" pool is a triage
  * list — one-tap Accept/Decline right on the card, no dialog in the way.
  * In-progress/completed jobs open JobDetailDialog for anything beyond the
- * summary (contact info, scheduling, and later messages/payment).
+ * summary (contact info, scheduling, messages/payment).
  *
  * The availability status card is pinned above the scrolling job list
  * (not inside it) — same fix as ArtisanProfile.js/JobDetailDialog.js's
@@ -16,35 +28,45 @@
  * even reach this artisan shouldn't scroll out of view once there are
  * enough job cards to fill the screen.
  */
-import { forwardRef, useEffect, useState } from "react";
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Loader2, MapPin, Clock, X, Wrench, RefreshCw, ClipboardList, Hammer,
+  Loader2, MapPin, Clock, ChevronLeft, Wrench, RefreshCw, ClipboardList, Hammer,
   CheckCircle2, Inbox, Star, MessageCircle, Banknote, Trash2, Camera,
-  Home, User, Phone, Mail, Pencil,
+  Home, User, Phone, Mail, Check, Bell, LogOut,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Btn } from "../guest/components/primitives";
+import { Btn, Field } from "../guest/components/primitives";
 import { truncateBio, tintFor, initialsOf, avatarPhotoUrl } from "../shared/artisanDisplay";
 import Emoji3D from "../shared/Emoji3D";
 import StarRating from "../shared/StarRating";
 import DeleteListingDialog from "../shared/DeleteListingDialog";
+import ChangePasswordForm from "../shared/ChangePasswordForm";
+import { EmojiPicker } from "../shared/EmojiPicker";
 import { BottomNav } from "../shared/BottomNav";
+import { TRADES } from "../shared/trades";
 import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
 import ArtisanAuth from "./ArtisanAuth";
+import ArtisanProfile from "../ArtisanProfile";
 import JobDetailDialog from "./JobDetailDialog";
+import PortfolioGrid from "./PortfolioGrid";
+import { usePortfolioPhotos } from "./usePortfolioPhotos";
 import {
   artisanMe, artisanSetAvailability, artisanPool, artisanAccepted,
   artisanAcceptRequest, artisanDeclineRequest, artisanCompleteRequest,
   artisanProposeTime, artisanConfirmTime,
   artisanGetThread, artisanPostMessage, artisanMarkThreadRead, artisanUnreadCount,
   artisanUnreadThreads, artisanReviews, artisanConnectOnboard, artisanConnectStatus,
-  artisanDeleteMe,
+  artisanDeleteMe, artisanUpdateProfile, artisanUploadAvatarPhoto, artisanDeleteAvatarPhoto,
+  artisanChangePassword,
 } from "./api";
+
+const BIO_MAX = 600;
+const EDITABLE_FIELDS = ["name", "trade", "city", "phone", "email", "years_experience", "bio", "avatar_emoji"];
 
 function timeAgo(iso) {
   if (!iso) return "";
@@ -152,9 +174,10 @@ function CompactJobCard({ j, onOpen }) {
   );
 }
 
-export default function ArtisanDashboard({ onClose, onOpenListingManager, onOpenSettings }) {
+export default function ArtisanDashboard() {
   const [signedIn, setSignedIn] = useState(null); // null = checking
   const [artisan, setArtisan] = useState(null);
+  const [form, setForm] = useState(null); // Profile tab's editable draft, synced from `artisan` on load/save
   const [pool, setPool] = useState(null);
   const [accepted, setAccepted] = useState(null);
   const [togglingAvail, setTogglingAvail] = useState(false);
@@ -163,22 +186,33 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager, onOpen
   const [openId, setOpenId] = useState(null); // job id whose detail dialog is open, or null
   const [unread, setUnread] = useState(0);
   // Bottom-nav tab: "dashboard" (everything this screen always showed),
-  // plus the two new ones — "messages" (every accepted/completed job's
-  // conversation, one place instead of only reachable by opening each
-  // job's own detail dialog) and "profile" (a quick read-only summary,
-  // pointing at the real editor in Settings rather than duplicating that
-  // form here — see this file's own "Manage my listing" comment above for
-  // why fields already live there).
+  // "messages" (every accepted/completed job's conversation, one place
+  // instead of only reachable by opening each job's own detail dialog),
+  // and "profile" (list/edit/delete/account, all of it — see file header).
   const [tab, setTab] = useState("dashboard");
   const [unreadThreads, setUnreadThreads] = useState([]);
   const [reviews, setReviews] = useState(null);
   const [payoutStatus, setPayoutStatus] = useState(null); // { payouts_enabled, onboarding_started } | null while loading
   const [connectingPayouts, setConnectingPayouts] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+
+  // Profile tab editing state — merged in from the old ArtisanListingManager.js.
+  const [saving, setSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarFileInputRef = useRef(null);
+  const cityFieldRef = useRef(null);
+  const yearsFieldRef = useRef(null);
+  const bioFieldRef = useRef(null);
+  const photosSectionRef = useRef(null);
+
+  const { photos, uploading: photoUploading, upload: uploadPhoto, remove: removePhoto, move: movePhoto } =
+    usePortfolioPhotos(artisan?.id, null);
 
   const loadAll = async () => {
     try {
       const [me, poolData, acceptedData] = await Promise.all([artisanMe(), artisanPool(), artisanAccepted()]);
       setArtisan(me);
+      setForm(me);
       setPool(poolData);
       setAccepted(acceptedData);
       setSignedIn(true);
@@ -223,12 +257,12 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager, onOpen
     }
   };
 
-  // Unread badge on the header (and now the Messages tab's own nav badge)
-  // — a slower, separate poll from the message thread's own 4s cadence
-  // (see MessageThread.js): this only needs to feel current, not live,
-  // while no specific thread is open. Threads (the per-job breakdown, for
-  // the Messages tab's list) piggyback on the same poll rather than
-  // running a second interval for what's really one fetch of related data.
+  // Unread badge on the Messages tab — a slower, separate poll from the
+  // message thread's own 4s cadence (see MessageThread.js): this only
+  // needs to feel current, not live, while no specific thread is open.
+  // Threads (the per-job breakdown, for the Messages tab's list) piggyback
+  // on the same poll rather than running a second interval for what's
+  // really one fetch of related data.
   useEffect(() => {
     if (!signedIn) return;
     let cancelled = false;
@@ -341,12 +375,6 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager, onOpen
     setArtisan(null);
   };
 
-  // The same delete action also lives in Settings' Artisan Account card —
-  // duplicated here on purpose, not left as the only copy there. This
-  // dashboard is where an artisan actually manages their real listing day
-  // to day; requiring them to separately discover the app's general
-  // Settings screen just to find "delete my listing" is exactly the kind
-  // of gap that gets reported as "I don't know where to remove it."
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const deleteListing = async () => {
@@ -364,34 +392,87 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager, onOpen
     }
   };
 
-  const header = (
-    <div
-      className="relative flex shrink-0 items-center justify-between overflow-hidden px-5 pb-3.5"
-      style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
-    >
-      <motion.div
-        aria-hidden="true"
-        animate={{ opacity: [0.1, 0.2, 0.1] }}
-        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-        className="pointer-events-none absolute top-[-60%] left-[-10%] size-[280px]"
-        style={{ background: "radial-gradient(circle, color-mix(in oklch, var(--primary) 16%, transparent) 0%, transparent 70%)" }}
-      />
-      <div className="relative flex items-center gap-2">
-        <Wrench className="size-4 text-primary" />
-        <p className="m-0 text-[17px] font-bold text-foreground">Artisan dashboard</p>
-        {unread > 0 && (
-          <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10.5px] font-bold text-primary-foreground">
-            {unread > 9 ? "9+" : unread}
-          </span>
-        )}
-      </div>
-      {onClose && (
-        <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose} className="relative">
-          <X className="size-5" />
-        </Button>
-      )}
-    </div>
-  );
+  // ── Profile tab: list/edit/delete, all of it ─────────────────────────
+  const isDirty = useMemo(() => {
+    if (!artisan || !form) return false;
+    return EDITABLE_FIELDS.some((k) => (form[k] ?? "") !== (artisan[k] ?? ""));
+  }, [artisan, form]);
+
+  // What's actually missing, computed from real saved fields — no
+  // separate "completion" model to drift out of sync with the profile
+  // itself. Each item focuses the field it's about when tapped.
+  const checklist = useMemo(() => {
+    if (!artisan) return [];
+    return [
+      { done: artisan.has_avatar_photo || !!artisan.avatar_emoji, label: "Add a profile photo", onGo: () => avatarFileInputRef.current?.click() },
+      { done: !!artisan.city, label: "Add your city", onGo: () => { cityFieldRef.current?.scrollIntoView({ block: "center" }); cityFieldRef.current?.focus(); } },
+      { done: artisan.years_experience != null, label: "Add years of experience", onGo: () => { yearsFieldRef.current?.scrollIntoView({ block: "center" }); yearsFieldRef.current?.focus(); } },
+      { done: !!artisan.bio, label: "Write a short bio", onGo: () => { bioFieldRef.current?.scrollIntoView({ block: "center" }); bioFieldRef.current?.focus(); } },
+      { done: (photos?.length || 0) > 0, label: "Upload a photo of your work", onGo: () => photosSectionRef.current?.scrollIntoView({ block: "start" }) },
+    ];
+  }, [artisan, photos]);
+  const doneCount = checklist.filter((c) => c.done).length;
+  const profileComplete = checklist.length > 0 && doneCount === checklist.length;
+
+  const saveProfile = async () => {
+    setSaving(true);
+    try {
+      const updated = await artisanUpdateProfile({
+        name: form.name, trade: form.trade, city: form.city,
+        phone: form.phone, email: form.email,
+        years_experience: form.years_experience, bio: form.bio,
+        avatar_emoji: form.avatar_emoji,
+      });
+      setArtisan(updated);
+      setForm(updated);
+      toast.success("Saved");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const uploadAvatar = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast.error("Only image files are allowed."); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Photo must be 5MB or smaller."); return; }
+    setAvatarUploading(true);
+    try {
+      const updated = await artisanUploadAvatarPhoto(file);
+      setArtisan(updated);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const removeAvatar = async () => {
+    setAvatarUploading(true);
+    try {
+      const updated = await artisanDeleteAvatarPhoto();
+      setArtisan(updated);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  // Instant, not bundled into a "Save" button — a preference toggle should
+  // behave like the availability Switch above (takes effect immediately),
+  // not sit half-changed until someone remembers to save.
+  const toggleNotify = async (field, checked) => {
+    const previous = artisan[field];
+    setArtisan((a) => ({ ...a, [field]: checked }));
+    try {
+      await artisanUpdateProfile({ [field]: checked });
+    } catch (e) {
+      setArtisan((a) => ({ ...a, [field]: previous }));
+      toast.error(e.message);
+    }
+  };
 
   if (signedIn === null) {
     return (
@@ -402,7 +483,24 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager, onOpen
   }
 
   if (!signedIn) {
-    return <ArtisanAuth onClose={onClose} onSuccess={loadAll} />;
+    return <ArtisanAuth onSuccess={loadAll} />;
+  }
+
+  // Real preview, not a mockup — the exact screen a customer opens,
+  // rendered with isMine=false so it shows what they'd actually see
+  // (Message/Request footer, no edit controls) instead of a read-only
+  // clone that could drift from the real thing.
+  if (previewing) {
+    return (
+      <div className="relative h-full">
+        <ArtisanProfile artisan={artisan} isMine={false} onBack={() => setPreviewing(false)} />
+        <div className="pointer-events-none absolute top-0 right-0 left-0 flex justify-center pt-[max(0.5rem,env(safe-area-inset-top))]">
+          <span className="rounded-full bg-foreground px-3 py-1 text-[11px] font-medium text-background shadow-lg">
+            Previewing as a customer
+          </span>
+        </div>
+      </div>
+    );
   }
 
   const inProgress = (accepted || []).filter((j) => j.status === "accepted");
@@ -424,11 +522,7 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager, onOpen
   ];
 
   return (
-    <div
-      className="flex h-full flex-col overflow-hidden bg-background text-foreground"
-    >
-      {header}
-
+    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
       {tab === "dashboard" && <>
       {/* Availability is the single most important fact on this screen —
           it decides whether any customer can reach this artisan at all —
@@ -438,7 +532,7 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager, onOpen
           avatar itself desaturated when off. Pinned outside the scrolling
           list below (see the file-level comment) so it never scrolls out
           of view. */}
-      <div className="shrink-0 px-5 pb-3.5">
+      <div className="shrink-0 px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-3.5">
         <Card
           className="relative flex flex-row items-center justify-between gap-3 overflow-hidden p-3.5 transition-colors"
           style={artisan?.is_available ? {
@@ -509,28 +603,6 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager, onOpen
             <Switch checked={!!artisan?.is_available} disabled={togglingAvail} onCheckedChange={toggleAvailability} />
           </div>
         </Card>
-
-        {/* The one real entry point into everything about how this
-            listing actually presents — profile fields and the work
-            portfolio, both previously only reachable by digging into the
-            app's generic Settings screen (fields) or opening your own
-            PUBLIC listing from Browse (photos). Right under the status
-            card someone actually looks at first. */}
-        {onOpenListingManager && (
-          <button
-            type="button"
-            onClick={onOpenListingManager}
-            className="mt-2.5 flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-card px-3.5 py-3 text-left"
-          >
-            <span className="flex items-center gap-2.5">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Camera className="size-3.5" />
-              </span>
-              <span className="text-[13px] font-bold text-foreground">Manage my listing</span>
-            </span>
-            <span className="text-[11.5px] font-semibold text-muted-foreground">Profile &amp; photos →</span>
-          </button>
-        )}
 
         {/* Where escrow actually lands — a job's payment can't be
             released to this artisan (see JobDetailDialog.js's "Release
@@ -659,29 +731,6 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager, onOpen
             </div>
           )}
         </Card>
-
-        <button type="button" onClick={signOut} className="justify-self-center border-none bg-transparent p-2 text-[12.5px] font-semibold text-muted-foreground">
-          Sign out
-        </button>
-
-        {artisan && (
-          <DeleteListingDialog
-            name={artisan.name}
-            open={confirmDeleteOpen}
-            onOpenChange={setConfirmDeleteOpen}
-            onConfirm={deleteListing}
-            trigger={
-              <button
-                type="button"
-                disabled={deleting}
-                className="flex items-center gap-1.5 justify-self-center border-none bg-transparent p-2 text-[12.5px] font-bold text-destructive disabled:opacity-50"
-              >
-                {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
-                {deleting ? "Removing…" : "Delete my listing"}
-              </button>
-            }
-          />
-        )}
       </div>
       </>}
 
@@ -693,7 +742,7 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager, onOpen
           into the one that already exists. */}
       {tab === "messages" && (
         <div
-          className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-5 pt-4"
+          className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-5 pt-[max(1.25rem,env(safe-area-inset-top))]"
           style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}
         >
           <SectionLabel icon={MessageCircle}>MESSAGES</SectionLabel>
@@ -733,68 +782,195 @@ export default function ArtisanDashboard({ onClose, onOpenListingManager, onOpen
         </div>
       )}
 
-      {/* Profile tab — a quick read-only summary, not a second copy of the
-          real editor (see "Manage my listing" above: profile fields are
-          edited in the app's shared Settings screen; duplicating that form
-          here would just be two places that can drift out of sync). */}
-      {tab === "profile" && (
+      {/* Profile tab — the one place to list, edit, and delete. Photo,
+          name/trade/city/years/phone/email/bio, portfolio, and a preview
+          of exactly what a customer sees (see the previewing early-return
+          above) — merged in from the old ArtisanListingManager.js —
+          followed by account-level controls that used to live in a
+          duplicate copy on Settings.js's artisan card: notifications,
+          password, sign out, delete listing. */}
+      {tab === "profile" && form && (
         <div
-          className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 pt-4"
+          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pt-[max(1.25rem,env(safe-area-inset-top))]"
           style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}
         >
           <SectionLabel icon={User}>PROFILE</SectionLabel>
-          <Card className="grid gap-3 p-4">
-            <div className="flex items-center gap-3">
-              <div className={`flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisan?.has_avatar_photo || artisan?.avatar_emoji ? "" : "font-mono text-base font-bold"} ${tint}`}>
-                {artisan?.has_avatar_photo ? (
-                  <img src={avatarPhotoUrl(artisan.id, artisan.avatar_photo_version)} alt="" className="size-full object-cover" />
-                ) : artisan?.avatar_emoji ? (
-                  <Emoji3D emoji={artisan.avatar_emoji} size={56} />
-                ) : (
-                  initialsOf(artisan?.name || "?")
-                )}
+
+          {!profileComplete && (
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[12.5px] font-semibold text-foreground">Profile {Math.round((doneCount / checklist.length) * 100)}% complete</span>
+                <span className="text-[11.5px] text-muted-foreground">{doneCount}/{checklist.length}</span>
               </div>
-              <div className="min-w-0">
-                <p className="m-0 truncate text-[15px] font-bold text-foreground">{artisan?.name}</p>
-                <p className="m-0 text-[12.5px] text-muted-foreground">{artisan?.trade}{artisan?.years_experience ? ` · ${artisan.years_experience} yrs` : ""}</p>
+              <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${(doneCount / checklist.length) * 100}%` }} />
+              </div>
+              <div className="grid gap-1">
+                {checklist.filter((c) => !c.done).map((c) => (
+                  <button
+                    key={c.label}
+                    type="button"
+                    onClick={c.onGo}
+                    className="flex items-center justify-between gap-2 border-none bg-transparent px-0 py-1 text-left text-[13px] text-foreground"
+                  >
+                    {c.label}
+                    <ChevronLeft className="size-3.5 rotate-180 text-muted-foreground" />
+                  </button>
+                ))}
               </div>
             </div>
-            {artisan?.city && (
-              <div className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
-                <MapPin className="size-3.5 shrink-0" /> {artisan.city}
-              </div>
-            )}
-            {artisan?.phone && (
-              <div className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
-                <Phone className="size-3.5 shrink-0" /> {artisan.phone}
-              </div>
-            )}
-            {artisan?.email && (
-              <div className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
-                <Mail className="size-3.5 shrink-0" /> {artisan.email}
-              </div>
-            )}
-            {artisan?.bio && (
-              <p className="m-0 border-t border-border pt-3 text-[12.5px] leading-relaxed text-foreground">{artisan.bio}</p>
-            )}
-            <div className="flex items-center gap-2 border-t border-border pt-3">
-              {artisan?.rating_count > 0 ? (
-                <>
-                  <StarRating readOnly value={artisan.rating_avg} size="size-3.5" />
-                  <span className="text-[12px] text-muted-foreground">
-                    {artisan.rating_avg.toFixed(1)} ({artisan.rating_count} rating{artisan.rating_count === 1 ? "" : "s"})
-                  </span>
-                </>
+          )}
+
+          <div className="flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={() => avatarFileInputRef.current?.click()}
+              disabled={avatarUploading}
+              aria-label={artisan.has_avatar_photo ? "Change profile photo" : "Add a profile photo"}
+              className={`relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisan.has_avatar_photo || form.avatar_emoji ? "" : "font-mono text-xl font-bold"} ${tintFor(artisan.name)}`}
+            >
+              {avatarUploading ? (
+                <Loader2 className="size-5 animate-spin" />
+              ) : artisan.has_avatar_photo ? (
+                <img src={avatarPhotoUrl(artisan.id, artisan.avatar_photo_version)} alt="" className="size-full object-cover" />
+              ) : form.avatar_emoji ? (
+                <Emoji3D emoji={form.avatar_emoji} size={80} />
               ) : (
-                <span className="text-[12px] text-muted-foreground">No ratings yet</span>
+                initialsOf(artisan.name)
+              )}
+              <span className="absolute right-0 bottom-0 flex size-6 items-center justify-center rounded-full border border-background bg-foreground text-background">
+                <Camera className="size-3" />
+              </span>
+            </button>
+            <div className="flex items-center gap-3">
+              {artisan.has_avatar_photo && (
+                <button type="button" onClick={removeAvatar} disabled={avatarUploading} className="border-none bg-transparent p-0 text-[12.5px] text-muted-foreground disabled:opacity-50">
+                  Remove photo
+                </button>
+              )}
+              {!artisan.has_avatar_photo && (
+                <EmojiPicker value={form.avatar_emoji} onChange={(e) => setForm((f) => ({ ...f, avatar_emoji: e }))} />
               )}
             </div>
-          </Card>
-          {onOpenSettings && (
-            <Btn small variant="ghost" onClick={onOpenSettings}>
-              <Pencil className="size-3.5" /> Edit profile
+            <input
+              ref={avatarFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => { uploadAvatar(e.target.files?.[0]); e.target.value = ""; }}
+            />
+          </div>
+
+          <Field label="Name" value={form.name || ""} onChange={(v) => setForm((f) => ({ ...f, name: v }))} />
+          <div className="-mt-2.5">
+            <div className="mb-1.5 text-[13.5px] font-bold tracking-wide text-foreground">Trade</div>
+            <Select value={form.trade} onValueChange={(v) => setForm((f) => ({ ...f, trade: v }))}>
+              <SelectTrigger className="h-[52px] w-full rounded-[10px] text-base">
+                <SelectValue placeholder="Select a trade" />
+              </SelectTrigger>
+              <SelectContent>
+                {TRADES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <div className="mb-1.5 flex items-baseline justify-between">
+                <span className="text-[13.5px] font-bold tracking-wide text-foreground">City</span>
+                <span className="text-xs text-muted-foreground/60">optional</span>
+              </div>
+              <input
+                ref={cityFieldRef}
+                value={form.city || ""}
+                onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                className="h-[52px] w-full rounded-[10px] border border-input bg-transparent px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+            <div>
+              <div className="mb-1.5 text-[13.5px] font-bold tracking-wide text-foreground">Years experience</div>
+              <input
+                ref={yearsFieldRef}
+                type="number"
+                value={form.years_experience ?? ""}
+                onChange={(e) => setForm((f) => ({ ...f, years_experience: e.target.value }))}
+                className="h-[52px] w-full rounded-[10px] border border-input bg-transparent px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+          </div>
+          <Field label="Phone" type="tel" value={form.phone || ""} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
+          <Field label="Email" hint="optional" type="email" value={form.email || ""} onChange={(v) => setForm((f) => ({ ...f, email: v }))} />
+
+          <div>
+            <div className="mb-1.5 flex items-baseline justify-between">
+              <span className="text-[13.5px] font-bold tracking-wide text-foreground">Bio</span>
+              <span className="text-xs text-muted-foreground/60">{(form.bio || "").length}/{BIO_MAX}</span>
+            </div>
+            <textarea
+              ref={bioFieldRef}
+              rows={3}
+              maxLength={BIO_MAX}
+              value={form.bio || ""}
+              onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
+              className="min-h-[52px] w-full resize-y rounded-[10px] border border-input bg-transparent p-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+
+          {isDirty && (
+            <Btn small variant="gold" disabled={saving} loading={saving} onClick={saveProfile} className="justify-self-start">
+              <Check className="size-3.5" /> {saving ? "Saving…" : "Save changes"}
             </Btn>
           )}
+
+          <div ref={photosSectionRef} className="border-t border-border pt-4">
+            <PortfolioGrid artisanId={artisan.id} photos={photos} uploading={photoUploading} upload={uploadPhoto} remove={removePhoto} move={movePhoto} />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setPreviewing(true)}
+            className="w-full border-none bg-transparent p-0 text-center text-[13px] font-medium text-primary"
+          >
+            Preview as a customer
+          </button>
+
+          <div className="grid gap-2.5 rounded-lg border border-border p-3.5">
+            <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-muted-foreground">
+              <Bell className="size-3" /> NOTIFICATIONS
+            </span>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[12.5px] text-foreground">New job requests</span>
+              <Switch checked={artisan.notify_new_request} onCheckedChange={(c) => toggleNotify("notify_new_request", c)} />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[12.5px] text-foreground">New messages</span>
+              <Switch checked={artisan.notify_new_message} onCheckedChange={(c) => toggleNotify("notify_new_message", c)} />
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-3">
+            <ChangePasswordForm onSubmit={artisanChangePassword} />
+          </div>
+
+          <button type="button" onClick={signOut} className="flex items-center gap-1.5 justify-self-center border-none bg-transparent p-2 text-[12.5px] font-semibold text-muted-foreground">
+            <LogOut className="size-3.5" /> Sign out
+          </button>
+
+          <DeleteListingDialog
+            name={artisan.name}
+            open={confirmDeleteOpen}
+            onOpenChange={setConfirmDeleteOpen}
+            onConfirm={deleteListing}
+            trigger={
+              <button
+                type="button"
+                disabled={deleting}
+                className="flex items-center gap-1.5 justify-self-center border-none bg-transparent p-2 text-[12.5px] font-bold text-destructive disabled:opacity-50"
+              >
+                {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                {deleting ? "Removing…" : "Delete my listing"}
+              </button>
+            }
+          />
         </div>
       )}
 

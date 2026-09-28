@@ -21,13 +21,11 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Settings as SettingsIcon, X, User, Wrench, Palette, LogOut, KeyRound,
-  CheckCircle2, Loader2, Bell, Trash2,
+  Settings as SettingsIcon, X, User, Wrench, Palette, LogOut,
+  CheckCircle2, Loader2, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Field, Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import Emoji3D from "./shared/Emoji3D";
@@ -37,11 +35,8 @@ import { useAuth } from "@/lib/useAuth";
 import { useBrightness } from "@/lib/useBrightness";
 import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
 import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
-import {
-  artisanMe, artisanUpdateProfile, artisanChangePassword,
-  artisanDeleteMe,
-} from "./artisan/api";
-import DeleteListingDialog from "./shared/DeleteListingDialog";
+import { artisanMe } from "./artisan/api";
+import ChangePasswordForm from "./shared/ChangePasswordForm";
 import {
   AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
   AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
@@ -66,51 +61,6 @@ function SignInPrompt({ icon: Icon, title, body, ctaLabel, onCta }) {
       <p className="m-0 max-w-[240px] text-[12.5px] leading-relaxed text-muted-foreground">{body}</p>
       <Btn small variant="gold" onClick={onCta}>{ctaLabel}</Btn>
     </Card>
-  );
-}
-
-// Shared by both the customer and artisan account cards — same fields,
-// same validation, just a different onSubmit(current, next) call.
-function ChangePasswordForm({ onSubmit }) {
-  const [open, setOpen] = useState(false);
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  if (!open) {
-    return (
-      <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-1.5 border-none bg-transparent p-0 text-[12.5px] font-bold text-primary">
-        <KeyRound className="size-3.5" /> Change password
-      </button>
-    );
-  }
-
-  const submit = async () => {
-    if (next.length < 8) { toast.error("New password must be at least 8 characters"); return; }
-    if (next !== confirm) { toast.error("New passwords don't match"); return; }
-    setSubmitting(true);
-    try {
-      await onSubmit(current, next);
-      toast.success("Password updated");
-      setOpen(false); setCurrent(""); setNext(""); setConfirm("");
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="grid gap-2.5 rounded-lg border border-border p-3">
-      <Field label="Current password" type="password" value={current} onChange={setCurrent} placeholder="••••••••" autoComplete="current-password" />
-      <Field label="New password" type="password" value={next} onChange={setNext} placeholder="At least 8 characters" autoComplete="new-password" />
-      <Field label="Confirm new password" type="password" value={confirm} onChange={setConfirm} placeholder="Retype new password" autoComplete="new-password" />
-      <div className="flex gap-2">
-        <Btn small variant="gold" disabled={submitting} loading={submitting} onClick={submit}>Update password</Btn>
-        <Btn small variant="ghost" disabled={submitting} onClick={() => setOpen(false)}>Cancel</Btn>
-      </div>
-    </div>
   );
 }
 
@@ -172,7 +122,7 @@ function saveDraftNow(key, data) {
   saveFormDraft(key, { savedAt: Date.now(), data });
 }
 
-export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOpenArtisanListingManager }) {
+export default function Settings({ onClose, onOpenLogin, onOpenArtisan }) {
   const { user, loading: authLoading, updateProfile, changePassword, logout, deleteAccount } = useAuth();
   const profileDraftAtMount = useRef(loadRecentDraft(SETTINGS_PROFILE_DRAFT_KEY)).current;
   const [name, setName] = useState(() => profileDraftAtMount?.name ?? "");
@@ -244,42 +194,6 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOp
       toast.error(e.message);
     } finally {
       setDeletingAccount(false);
-    }
-  };
-
-  // Instant, not bundled into a "Save" button — a preference toggle should
-  // behave like ArtisanDashboard.js's availability Switch (takes effect
-  // immediately), not sit half-changed until someone remembers to save.
-  const toggleArtisanNotify = async (field, checked) => {
-    const previous = artisan[field];
-    setArtisan((a) => ({ ...a, [field]: checked }));
-    try {
-      await artisanUpdateProfile({ [field]: checked });
-    } catch (e) {
-      setArtisan((a) => ({ ...a, [field]: previous }));
-      toast.error(e.message);
-    }
-  };
-
-  const artisanSignOut = () => {
-    setArtisanToken(null);
-    setArtisan(null);
-    toast.success("Signed out");
-  };
-
-  const [confirmDeleteArtisanOpen, setConfirmDeleteArtisanOpen] = useState(false);
-  const [deletingArtisan, setDeletingArtisan] = useState(false);
-  const deleteArtisanAccount = async () => {
-    setDeletingArtisan(true);
-    try {
-      await artisanDeleteMe();
-      setArtisanToken(null);
-      setArtisan(null);
-      toast.success("Your listing has been taken down.");
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setDeletingArtisan(false);
     }
   };
 
@@ -409,6 +323,11 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOp
           )}
         </div>
 
+        {/* Everything about running the artisan side of the account (edit
+            listing, photos, notifications, password, delete, sign out) now
+            lives entirely on the artisan dashboard's own Profile tab — see
+            artisan/ArtisanDashboard.js — instead of a second, easy-to-forget
+            copy here. This card is just a summary + the one door in. */}
         <div>
           <Section icon={Wrench}>ARTISAN ACCOUNT</Section>
           {artisanLoading ? (
@@ -419,7 +338,7 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOp
             <SignInPrompt
               icon={Wrench} title="No artisan account"
               body="Get job requests"
-              ctaLabel="Sign in" onCta={onOpenArtisanAuth}
+              ctaLabel="Get started" onCta={onOpenArtisan}
             />
           ) : (
             <Card className="grid gap-3 p-3.5">
@@ -437,79 +356,10 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisanAuth, onOp
                   <p className="m-0 truncate text-[13.5px] font-bold text-foreground">{artisan.name}</p>
                   <p className="m-0 text-[12px] text-muted-foreground">{artisan.trade}</p>
                 </div>
-                <Badge
-                  variant="outline"
-                  className={`shrink-0 gap-1 rounded-full text-[10px] font-bold ${
-                    artisan.is_available
-                      ? "border-[var(--success)]/30 bg-[var(--success)]/10 text-[var(--success)]"
-                      : "border-border bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {artisan.is_available ? "Available" : "Off"}
-                </Badge>
               </div>
-
-              <div className="grid gap-2 rounded-lg border border-border p-3">
-                <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-muted-foreground">
-                  <Bell className="size-3" /> NOTIFICATIONS
-                </span>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[12.5px] text-foreground">New job requests</span>
-                  <Switch
-                    checked={artisan.notify_new_request}
-                    onCheckedChange={(checked) => toggleArtisanNotify("notify_new_request", checked)}
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[12.5px] text-foreground">New messages</span>
-                  <Switch
-                    checked={artisan.notify_new_message}
-                    onCheckedChange={(checked) => toggleArtisanNotify("notify_new_message", checked)}
-                  />
-                </div>
-              </div>
-
-              <div className="border-t border-border pt-3">
-                <ChangePasswordForm onSubmit={artisanChangePassword} />
-              </div>
-
-              {/* Profile fields and the work portfolio moved to their own
-                  real "manage my listing" screen (ArtisanListingManager.js)
-                  instead of living here as a second, easy-to-forget copy —
-                  this card is now a summary + the doors into where each
-                  thing actually gets managed. */}
-              {onOpenArtisanListingManager && (
-                <button type="button" onClick={onOpenArtisanListingManager} className="flex items-center gap-1 justify-self-start border-none bg-transparent p-0 text-[12.5px] font-bold text-primary">
-                  Manage my listing (profile &amp; photos) →
-                </button>
-              )}
-
-              <button type="button" onClick={onOpenArtisanAuth} className="flex items-center gap-1 justify-self-start border-none bg-transparent p-0 text-[12.5px] font-bold text-primary">
-                Manage requests &amp; availability →
-              </button>
-
-              <button type="button" onClick={artisanSignOut} className="flex items-center gap-1.5 justify-self-start border-none bg-transparent p-0 text-[12.5px] font-semibold text-muted-foreground">
-                <LogOut className="size-3.5" /> Sign out
-              </button>
-
-              <div className="border-t border-border pt-3">
-                <DeleteListingDialog
-                  name={artisan.name}
-                  open={confirmDeleteArtisanOpen}
-                  onOpenChange={setConfirmDeleteArtisanOpen}
-                  onConfirm={deleteArtisanAccount}
-                  trigger={
-                    <button
-                      type="button"
-                      disabled={deletingArtisan}
-                      className="flex items-center gap-1.5 justify-self-start border-none bg-transparent p-0 text-[12.5px] font-bold text-destructive disabled:opacity-50"
-                    >
-                      {deletingArtisan ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
-                      {deletingArtisan ? "Removing…" : "Delete my listing"}
-                    </button>
-                  }
-                />
-              </div>
+              <Btn small variant="gold" onClick={onOpenArtisan} className="justify-self-start">
+                Manage my listing →
+              </Btn>
             </Card>
           )}
         </div>

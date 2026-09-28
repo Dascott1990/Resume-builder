@@ -10,11 +10,15 @@
  * already carries its own WebGL-support check and three-layer fallback to
  * the flat 2D mark, so reusing it here costs nothing new and keeps every
  * "welcome" moment in the app speaking the same visual language.
+ *
+ * No header/close of its own — this only ever renders as the sign-in gate
+ * inside ArtisanDashboard.js, which is itself embedded under Artisans.js's
+ * shared header + persona switch (see that file); a second header here
+ * would just duplicate that chrome.
  */
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { X, Wrench } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field, Btn } from "../guest/components/primitives";
 import { TermsConsent } from "@/components/shared/TermsConsent";
@@ -25,7 +29,7 @@ import { artisanSignup, artisanLogin } from "./api";
 
 const emptySignup = { name: "", trade: "", city: "", phone: "", email: "", password: "" };
 
-export default function ArtisanAuth({ onClose, onSuccess }) {
+export default function ArtisanAuth({ onSuccess }) {
   const [mode, setMode] = useState("login"); // "login" | "signup"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -84,7 +88,7 @@ export default function ArtisanAuth({ onClose, onSuccess }) {
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="absolute inset-0 z-50 flex flex-col overflow-y-auto bg-background font-sans"
+      className="relative flex h-full flex-col overflow-y-auto bg-background font-sans"
     >
       <motion.div
         aria-hidden="true"
@@ -94,21 +98,7 @@ export default function ArtisanAuth({ onClose, onSuccess }) {
         style={{ background: "radial-gradient(circle, color-mix(in oklch, var(--primary) 18%, transparent) 0%, transparent 70%)" }}
       />
 
-      <div
-        className="relative flex shrink-0 items-center justify-between px-5 pb-5"
-        style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
-      >
-        <div className="flex items-center gap-2 text-[12.5px] font-bold tracking-wide text-muted-foreground">
-          <Wrench className="size-3.5" /> ARTISAN
-        </div>
-        {onClose && (
-          <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
-            <X className="size-[17px]" />
-          </button>
-        )}
-      </div>
-
-      <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-6 pb-16">
+      <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-6 py-10">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.05 }}>
           <div className="mb-4 flex size-16 items-center justify-center">
             <Logo3D style={{ width: 64, height: 64, display: "block" }} />

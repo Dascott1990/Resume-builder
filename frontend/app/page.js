@@ -32,8 +32,6 @@ const dynamicScreen = (loader) => dynamic(loader, { ssr: false, loading: () => <
 // around unused.
 const Resume = dynamicScreen(() => import("../components/premium/guest"));
 const Artisans = dynamicScreen(() => import("../components/premium/Artisans"));
-const ArtisanDashboard = dynamicScreen(() => import("../components/premium/artisan/ArtisanDashboard"));
-const ArtisanListingManager = dynamicScreen(() => import("../components/premium/artisan/ArtisanListingManager"));
 const Settings = dynamicScreen(() => import("../components/premium/Settings"));
 const Login = dynamicScreen(() => import("../components/premium/auth/Login"));
 const Signup = dynamicScreen(() => import("../components/premium/auth/Signup"));
@@ -70,7 +68,7 @@ const ENTERED_KEY = "noqeev_entered_app";
 // sensible landing spot for those two).
 const VIEW_KEY = "noqeev_last_view";
 const RESTORABLE_VIEWS = new Set([
-  "dashboard", "resume", "cvscan", "jobtracker", "apply", "settings", "artisans", "artisan-dashboard", "artisan-listing-manager", "brand-workspace",
+  "dashboard", "resume", "cvscan", "jobtracker", "apply", "settings", "artisans", "brand-workspace",
 ]);
 
 // The branding workspace has no account to restore into — RESTORABLE_VIEWS
@@ -92,7 +90,7 @@ function restoreView() {
 }
 
 export default function Home() {
-  const [view, setView] = useState("launcher"); // "launcher" | "dashboard" | "login" | "signup" | "resume" | "artisans" | "artisan-dashboard" | "cvscan" | "jobtracker" | "apply" | "settings"
+  const [view, setView] = useState("launcher"); // "launcher" | "dashboard" | "login" | "signup" | "resume" | "artisans" | "cvscan" | "jobtracker" | "apply" | "settings"
   // Bumped on "Try Again" (and on any fresh entry into the studio) to force
   // a new <Resume> instance instead of reusing whatever was mounted before.
   const [sessionId, setSessionId] = useState(0);
@@ -132,6 +130,13 @@ export default function Home() {
   // instead of Browse. Cleared on every other path into "artisans" so a
   // stale deep-link never resurfaces on an unrelated later visit.
   const [artisansInitialTab, setArtisansInitialTab] = useState(null);
+  // Same idea, for the OTHER persona: set by Dashboard.js's notification
+  // bell (an artisan-side unread item) and Settings.js's "Manage my
+  // listing" button, so either lands directly on the "I'm an artisan"
+  // side instead of Browse. There's no separate "artisan-dashboard" view
+  // anymore — that experience lives entirely inside Artisans.js now (see
+  // that file), reached this way instead of a second top-level screen.
+  const [artisansInitialPersona, setArtisansInitialPersona] = useState(null);
   // The branding workspace's own access token — set from the ?ws= deep
   // link (mount effect below) or restored from WORKSPACE_TOKEN_KEY,
   // never anywhere else. No login means this literally IS the session.
@@ -304,11 +309,11 @@ export default function Home() {
           }}
           onNavigate={(id, opts) => {
             setArtisansInitialTab(id === "artisans" ? opts?.tab || null : null);
+            setArtisansInitialPersona(id === "artisans" ? opts?.persona || null : null);
             if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes });
             else if (id === "scan") setView("cvscan");
             else if (id === "jobtracker") setView("jobtracker");
             else if (id === "artisans") setView("artisans");
-            else if (id === "artisan-dashboard") setView("artisan-dashboard");
             else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); setView("apply"); }
             else if (id === "settings") setView("settings");
           }}
@@ -379,8 +384,7 @@ export default function Home() {
         <Settings
           onClose={() => setView("dashboard")}
           onOpenLogin={() => setView("login")}
-          onOpenArtisanAuth={() => setView("artisan-dashboard")}
-          onOpenArtisanListingManager={() => setView("artisan-listing-manager")}
+          onOpenArtisan={() => { setArtisansInitialPersona("artisan"); setView("artisans"); }}
         />
       </ErrorBoundary>
     );
@@ -391,29 +395,9 @@ export default function Home() {
       <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
         <Artisans
           onClose={() => setView("dashboard")}
-          onOpenArtisanDashboard={() => setView("artisan-dashboard")}
           initialTab={artisansInitialTab}
+          initialPersona={artisansInitialPersona}
         />
-      </ErrorBoundary>
-    );
-  }
-
-  if (view === "artisan-dashboard") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("artisans")}>
-        <ArtisanDashboard
-          onClose={() => setView("artisans")}
-          onOpenListingManager={() => setView("artisan-listing-manager")}
-          onOpenSettings={() => setView("settings")}
-        />
-      </ErrorBoundary>
-    );
-  }
-
-  if (view === "artisan-listing-manager") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("artisan-dashboard")}>
-        <ArtisanListingManager onClose={() => setView("artisan-dashboard")} />
       </ErrorBoundary>
     );
   }

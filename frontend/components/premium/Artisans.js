@@ -13,7 +13,7 @@
  * badge, tap-to-call) instead of a flat text list, and loading/empty are
  * real states instead of a blank screen.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon, Heart, SlidersHorizontal, MessageCircle, Loader2, Zap, Wind, Trees, Blocks, Truck, PaintRoller, Droplets, Home as HomeIcon, Navigation } from "lucide-react";
@@ -40,7 +40,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TRADES_WITH_ALL } from "./shared/trades";
 import MyRequestsPane from "./artisan/MyRequestsPane";
-import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
+import ArtisanDashboard from "./artisan/ArtisanDashboard";
 import ArtisanMapLoader from "./artisan/ArtisanMapLoader";
 import { getUnreadCount } from "./messages/api";
 
@@ -58,6 +58,7 @@ const PERSONAS = [
 const HIRE_TABS = [
   { id: "browse", Icon: Search, label: "Browse" },
   { id: "requests", Icon: ClipboardList, label: "My requests" },
+  { id: "messages", Icon: MessageCircle, label: "Messages" },
 ];
 
 const MY_IDS_KEY = "noqeev_my_artisan_ids";
@@ -94,32 +95,21 @@ const SORTS = [
 ];
 
 const emptyForm = { name: "", trade: "", city: "", phone: "", email: "", years_experience: "", bio: "" };
-// A 7-field listing form (including free-text bio) with no persistence
-// at all was lost outright on a refresh — same class of bug as the
-// Guest Mode resume editor, fixed the same way (see useGuestDraft.js).
-const ARTISAN_FORM_DRAFT_KEY = "resumeBuilder:artisanListingDraft:v1";
 
+// getMyIds/getMyArtisanToken read what a past self-listing (the old,
+// account-free "list yourself" flow — see startEdit below) already saved
+// to this browser; there's no create path left to write new entries here.
 const getMyIds = () => {
   try { return JSON.parse(localStorage.getItem(MY_IDS_KEY) || "[]"); }
   catch { return []; }
 };
-const addMyId = (id) => {
-  const ids = getMyIds();
-  if (!ids.includes(id)) localStorage.setItem(MY_IDS_KEY, JSON.stringify([...ids, id]));
-};
 
-// The backend hands back edit_token exactly once, in the create response
-// (see backend/app/api/artisans.py) — it's the only thing that proves
-// "I'm the one who listed this" for a listing created with no account.
-// Without saving it, every PATCH/DELETE this browser later sends for its
-// own listing 403s forever; there'd be no way to prove ownership again.
+// The backend handed back edit_token exactly once, in that old create
+// response (see backend/app/api/artisans.py) — it's the only thing that
+// proves "I'm the one who listed this" for a listing with no account.
 const getMyTokens = () => {
   try { return JSON.parse(localStorage.getItem(MY_TOKENS_KEY) || "{}"); }
   catch { return {}; }
-};
-const saveMyToken = (id, token) => {
-  if (!token) return;
-  localStorage.setItem(MY_TOKENS_KEY, JSON.stringify({ ...getMyTokens(), [id]: token }));
 };
 export const getMyArtisanToken = (id) => getMyTokens()[id];
 
@@ -572,7 +562,7 @@ function SkeletonCard() {
   );
 }
 
-function EmptyState({ trade, onListYourself }) {
+function EmptyState({ trade, onGetListed }) {
   return (
     <div className="grid justify-items-center gap-2.5 px-5 py-10 text-center">
       <div className="flex size-11 items-center justify-center rounded-full border border-border bg-card">
@@ -581,8 +571,8 @@ function EmptyState({ trade, onListYourself }) {
       <p className="m-0 text-sm font-bold text-foreground">
         {trade && trade !== "All" ? `No ${trade}s listed yet` : "No artisans yet"}
       </p>
-      <Btn small variant="ghost" icon="Plus" onClick={onListYourself}>
-        List yourself
+      <Btn small variant="ghost" icon="Plus" onClick={onGetListed}>
+        Get listed
       </Btn>
     </div>
   );
@@ -622,31 +612,26 @@ function Field({ label, required, hint, value, onChange, placeholder, type = "te
   );
 }
 
-export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }) {
+export default function Artisans({ onClose, initialTab, initialPersona }) {
   const { isDesktop } = useViewport();
-  // Read once, synchronously, before first render — same pattern as
-  // GuestMode.js's own draftAtMount.
-  const artisanDraftAtMount = useRef(loadFormDraft(ARTISAN_FORM_DRAFT_KEY)).current;
-  // Restoring the "artisan" persona only when there's an actual in-progress
-  // form to show for it (some field actually filled in, or mid-edit of an
-  // existing listing) — otherwise every returning visitor would get
-  // dropped onto "List yourself" instead of Browse for no reason, since
-  // the saved draft object always exists once anyone's ever typed
-  // anything here, empty or not.
-  const hasDraftContent = artisanDraftAtMount?.editingId || Object.values(artisanDraftAtMount?.form || {}).some((v) => String(v || "").trim());
-  const [persona, setPersona] = useState(() => (hasDraftContent ? "artisan" : "hire")); // "hire" | "artisan"
+  // initialPersona — set by Dashboard.js's notification bell and
+  // Settings.js's "Manage my listing" button, so either lands directly on
+  // the artisan side instead of Browse.
+  const [persona, setPersona] = useState(initialPersona === "artisan" ? "artisan" : "hire"); // "hire" | "artisan"
   // initialTab — set by Dashboard.js's notification bell (a click on a
-  // customer-side unread item lands here directly instead of on Browse,
-  // same reasoning as onOpenArtisanDashboard existing for the artisan
-  // side already).
-  const [tab, setTab] = useState(initialTab === "requests" ? "requests" : "browse"); // sub-tab within the "hire" persona: "browse" | "requests"
+  // customer-side unread item lands here directly instead of on Browse).
+  const [tab, setTab] = useState(initialTab === "requests" ? "requests" : "browse"); // sub-tab within the "hire" persona: "browse" | "requests" | "messages"
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [myIds, setMyIds] = useState([]);
-  const [form, setForm] = useState(() => artisanDraftAtMount?.form || emptyForm);
-  const [editingId, setEditingId] = useState(() => artisanDraftAtMount?.editingId ?? null);
+  // Editing an existing self-listed (no-account) listing — see startEdit
+  // below. There's no create path anymore: "I'm an artisan" always leads
+  // to real sign-in/sign-up (ArtisanDashboard/ArtisanAuth) now, so this
+  // form only ever opens pre-filled for an edit already in progress.
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [polishing, setPolishing] = useState(false);
@@ -741,20 +726,6 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
 
   const toggleFavorite = (id) => setFavIds(toggleFavoriteId(id));
 
-  // Debounced, same 300ms shape as useGuestDraft.js — an
-  // empty/reset form still gets saved (harmless, just overwrites the old
-  // draft with the same empty shape), which is what makes the explicit
-  // clearFormDraft calls after a successful submit actually matter instead
-  // of racing this effect back in.
-  const artisanDraftSaveTimer = useRef(null);
-  useEffect(() => {
-    clearTimeout(artisanDraftSaveTimer.current);
-    artisanDraftSaveTimer.current = setTimeout(() => {
-      saveFormDraft(ARTISAN_FORM_DRAFT_KEY, { form, editingId });
-    }, 300);
-    return () => clearTimeout(artisanDraftSaveTimer.current);
-  }, [form, editingId]);
-
   // Unread-message badge on "My requests" — a slower, separate poll from
   // an open thread's own 4s cadence (see MessageThread.js): this only
   // needs to feel current, not live, while no specific thread is open.
@@ -843,8 +814,6 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
     setPersona("artisan");
   };
 
-  const startCreate = () => { setEditingId(null); setForm(emptyForm); setError(null); setPersona("artisan"); };
-
   const remove = async (id) => {
     try {
       await apiRequest(`/api/v1/artisans/${id}`, {
@@ -875,6 +844,9 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
     }
   };
 
+  // No create branch — there's no create entry point left in this form
+  // (see startEdit above and the file header comment), so this only ever
+  // patches a listing that's already being edited.
   const submit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -887,27 +859,14 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
     }
     setSubmitting(true);
     try {
-      if (editingId) {
-        await apiRequest(`/api/v1/artisans/${editingId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", "X-Edit-Token": getMyArtisanToken(editingId) || "" },
-          body: JSON.stringify(form),
-        });
-        toast.success("Listing updated.");
-      } else {
-        const data = await apiRequest("/api/v1/artisans", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        });
-        addMyId(data.id);
-        saveMyToken(data.id, data.edit_token);
-        setMyIds(getMyIds());
-        toast.success("You're listed.");
-      }
+      await apiRequest(`/api/v1/artisans/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "X-Edit-Token": getMyArtisanToken(editingId) || "" },
+        body: JSON.stringify(form),
+      });
+      toast.success("Listing updated.");
       setForm(emptyForm);
       setEditingId(null);
-      clearFormDraft(ARTISAN_FORM_DRAFT_KEY);
       setPersona("hire");
       setTab("browse");
       await load(trade);
@@ -1058,7 +1017,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
           )}
           {!loading && visibleList.length === 0 && (
             <div className={view === "grid" ? "col-span-2" : ""}>
-              <EmptyState trade={trade} onListYourself={startCreate} />
+              <EmptyState trade={trade} onGetListed={() => setPersona("artisan")} />
             </div>
           )}
           {!loading && visibleList.map((a) => (
@@ -1081,28 +1040,25 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
     </motion.div>
   );
 
+  // Only ever reached via startEdit (an existing, account-free listing —
+  // see this file's header comment) — there's no create path left, so
+  // this always renders in "edit" mode.
   const formPane = (
     <motion.form key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onSubmit={submit} className="grid gap-3 overflow-y-auto">
-      {editingId && (
-        <button
-          type="button"
-          onClick={() => { setEditingId(null); setForm(emptyForm); setPersona("hire"); setTab("browse"); }}
-          className="flex items-center gap-1 justify-self-start border-none bg-transparent p-0 text-xs text-muted-foreground"
-        >
-          <ChevronLeft className="size-3" /> Cancel edit
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => { setEditingId(null); setForm(emptyForm); setPersona("hire"); setTab("browse"); }}
+        className="flex items-center gap-1 justify-self-start border-none bg-transparent p-0 text-xs text-muted-foreground"
+      >
+        <ChevronLeft className="size-3" /> Cancel edit
+      </button>
 
       <div className="mb-1 flex items-center gap-3">
         <IconTile icon={Hammer} size="sm" />
         <div>
-          <p className="m-0 text-[17px] font-bold text-foreground">
-            {editingId ? "Edit your listing" : "List yourself"}
-          </p>
-          <p className="m-0 text-[12px] text-muted-foreground">
-            {editingId ? "Live immediately" : "No account required"}
-          </p>
+          <p className="m-0 text-[17px] font-bold text-foreground">Edit your listing</p>
+          <p className="m-0 text-[12px] text-muted-foreground">Live immediately</p>
         </div>
       </div>
 
@@ -1166,15 +1122,10 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
       style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
     >
       <div className="flex items-center gap-3">
-        <IconTile icon={Hammer} size="sm" />
-        <p className="m-0 text-[17px] font-bold text-foreground">Find an Artisan</p>
+        <IconTile icon={persona === "hire" ? Hammer : Wrench} size="sm" />
+        <p className="m-0 text-[17px] font-bold text-foreground">{persona === "hire" ? "Find an Artisan" : "Artisan"}</p>
       </div>
       <div className="flex items-center gap-1">
-        {onOpenArtisanDashboard && (
-          <Button variant="ghost" size="icon" className="size-10" aria-label="Artisan sign in" onClick={onOpenArtisanDashboard} title="Artisan sign in">
-            <Wrench className="size-[17px]" />
-          </Button>
-        )}
         {onClose && (
           <Button variant="ghost" size="icon" className="size-10" aria-label="Close" onClick={onClose}>
             <X className="size-5" />
@@ -1197,24 +1148,14 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
     </motion.div>
   );
 
-  const hireTabs = HIRE_TABS.map((t) => t.id === "requests" ? { ...t, badge: unread } : t);
-
-  const artisanPane = (
-    <motion.div key="artisan" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-      {onOpenArtisanDashboard && (
-        <button
-          type="button"
-          onClick={onOpenArtisanDashboard}
-          className="flex shrink-0 items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-3 text-left"
-        >
-          <span className="text-[13px] font-bold text-primary">Already listed? Sign in to receive job requests</span>
-          <Wrench className="size-4 shrink-0 text-primary" />
-        </button>
-      )}
-      {formPane}
+  const messagesPane = (
+    <motion.div key="messages" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="flex min-h-0 flex-1 flex-col gap-3">
+      <MyRequestsPane mode="messages" />
     </motion.div>
   );
+
+  const hireTabs = HIRE_TABS.map((t) => t.id === "messages" ? { ...t, badge: unread } : t);
 
   const personaSwitch = (
     <div className="flex shrink-0 justify-center px-5 pb-3">
@@ -1250,20 +1191,28 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
         {personaSwitch}
         {persona === "hire" && <TopTabNav items={hireTabs} active={tab} onChange={onNavChange} />}
         {persona === "artisan" ? (
-          // Full-width, single column — there's no list-to-select-from
-          // concept here, so the browse persona's right-pane placeholder
-          // ("Select an artisan to view their profile") doesn't apply and
-          // would just be a confusing non-sequitur next to a listing form.
-          <div className="mx-auto w-full max-w-[480px] flex-1 overflow-y-auto p-5">
-            {errorBanner}
-            {artisanPane}
-          </div>
+          editingId ? (
+            // Full-width, single column, narrow-and-centered like any
+            // other form — no list-to-select-from concept applies here.
+            <div className="mx-auto w-full max-w-[480px] flex-1 overflow-y-auto p-5">
+              {errorBanner}
+              {formPane}
+            </div>
+          ) : (
+            // ArtisanDashboard owns its own full-bleed layout and bottom
+            // nav (Dashboard/Messages/Profile) — no split-pane/max-width
+            // wrapper here, same reasoning the browse persona doesn't
+            // apply to it: there's no list-to-select-from concept.
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <ArtisanDashboard />
+            </div>
+          )
         ) : (
           <div className="flex min-h-0 flex-1 overflow-hidden">
             <div className="flex w-[380px] shrink-0 flex-col gap-3.5 overflow-hidden border-r border-border p-5">
               {errorBanner}
               <AnimatePresence mode="wait">
-                {tab === "browse" ? (catView === "home" ? homePane : resultsPane) : requestsPane}
+                {tab === "browse" ? (catView === "home" ? homePane : resultsPane) : tab === "messages" ? messagesPane : requestsPane}
               </AnimatePresence>
             </div>
             <div className="min-w-0 flex-1 overflow-y-auto">
@@ -1302,19 +1251,29 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
           className="flex h-full flex-col overflow-hidden bg-background text-foreground">
           {header}
           {personaSwitch}
-          <div
-            className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-5"
-            // BottomNav's real footprint is ~80px (12px offset + ~66px bar) —
-            // 86px left only a 6px buffer, the thinnest margin in the app
-            // (Dashboard.js uses 96px, GuestMode.js uses 116px). Matched to
-            // Dashboard.js's own value here for consistency.
-            style={{ paddingBottom: persona === "hire" ? "calc(96px + env(safe-area-inset-bottom, 0px))" : "env(safe-area-inset-bottom, 0px)" }}
-          >
-            {errorBanner}
-            <AnimatePresence mode="wait">
-              {persona === "artisan" ? artisanPane : tab === "browse" ? (catView === "home" ? homePane : resultsPane) : requestsPane}
-            </AnimatePresence>
-          </div>
+          {persona === "artisan" && !editingId ? (
+            // ArtisanDashboard owns its own full-bleed layout, internal
+            // per-tab scrolling, and bottom nav (Dashboard/Messages/
+            // Profile) — no padded/scrolling wrapper or hire's BottomNav
+            // here, it would just double up on both.
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <ArtisanDashboard />
+            </div>
+          ) : (
+            <div
+              className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-5"
+              // BottomNav's real footprint is ~80px (12px offset + ~66px bar) —
+              // 86px left only a 6px buffer, the thinnest margin in the app
+              // (Dashboard.js uses 96px, GuestMode.js uses 116px). Matched to
+              // Dashboard.js's own value here for consistency.
+              style={{ paddingBottom: persona === "hire" ? "calc(96px + env(safe-area-inset-bottom, 0px))" : "env(safe-area-inset-bottom, 0px)" }}
+            >
+              {errorBanner}
+              <AnimatePresence mode="wait">
+                {persona === "artisan" ? formPane : tab === "browse" ? (catView === "home" ? homePane : resultsPane) : tab === "messages" ? messagesPane : requestsPane}
+              </AnimatePresence>
+            </div>
+          )}
           {persona === "hire" && <BottomNav items={hireTabs} active={tab} onChange={onNavChange} />}
         </motion.div>
       )}

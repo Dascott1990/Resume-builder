@@ -1,9 +1,9 @@
 "use client";
 /**
  * EmojiPicker.js — a small avatar-emoji grid, shared by every screen that
- * lets someone set an emoji avatar (Settings.js's customer AND artisan
- * profile sections, ArtisanListingManager.js) — extracted so all three
- * pick from the same set and behave identically instead of drifting.
+ * lets someone set an emoji avatar (Settings.js's customer profile,
+ * artisan/ArtisanDashboard.js's Profile tab) — extracted so both pick
+ * from the same set and behave identically instead of drifting.
  */
 import { useState } from "react";
 import { Smile } from "lucide-react";

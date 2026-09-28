@@ -713,7 +713,7 @@ export default function Dashboard({ onClose, onNavigate }) {
   const openNotification = (item) => {
     setNotifOpen(false);
     if (item.kind === "apply_run") { go("apply", { runId: item.run.id }); return; }
-    if (item.viewer_role === "artisan") go("artisan-dashboard");
+    if (item.viewer_role === "artisan") go("artisans", { persona: "artisan" });
     else go("artisans", { tab: "requests" });
   };
 

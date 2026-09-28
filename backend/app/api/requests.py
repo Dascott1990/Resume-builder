@@ -145,10 +145,21 @@ def my_requests():
         .all()
     } if items else set()
 
+    # One batch lookup for the artisan's own name — the customer-facing
+    # Messages tab (Artisans.js) needs to show WHO each conversation is
+    # with; to_dict() itself only carries artisan_id, and this is the
+    # only route that currently needs the name attached, so it's added
+    # here rather than on the shared to_dict().
+    artisan_ids = {j.artisan_id for j in items if j.artisan_id}
+    artisan_names = {
+        a.id: a.name for a in Artisan.query.filter(Artisan.id.in_(artisan_ids)).all()
+    } if artisan_ids else {}
+
     data = []
     for j in items:
         d = j.to_dict()
         d["reviewed"] = j.id in reviewed_ids
+        d["artisan_name"] = artisan_names.get(j.artisan_id)
         data.append(d)
     return jsonify({"success": True, "data": data}), 200
 

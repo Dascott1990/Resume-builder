@@ -19,13 +19,13 @@
  */
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, MapPin, Clock, RefreshCw, ClipboardList } from "lucide-react";
+import { Loader2, MapPin, Clock, RefreshCw, ClipboardList, MessageCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "../shared/api";
-import { truncateBio } from "../shared/artisanDisplay";
+import { truncateBio, tintFor, initialsOf } from "../shared/artisanDisplay";
 import JobDetailDialog from "./JobDetailDialog";
-import { getThread, postMessage, markThreadRead } from "../messages/api";
+import { getThread, postMessage, markThreadRead, getUnreadThreads } from "../messages/api";
 
 const STATUS_META = {
   requested: { label: "Pending", className: "border-primary/30 bg-primary/10 text-primary" },
@@ -35,7 +35,15 @@ const STATUS_META = {
   cancelled: { label: "Cancelled", className: "border-border bg-muted text-muted-foreground/60" },
 };
 
-export default function MyRequestsPane() {
+// mode="requests" (default) — every request, the full card treatment,
+// unchanged. mode="messages" — the same items/dialog/handlers, just
+// filtered to accepted/completed (messaging only opens once a job's
+// accepted — same rule the artisan side's Messages tab follows) and
+// rendered as a conversation list (who, unread badge, last-message
+// preview) instead of a job-status card. One data source, one dialog,
+// one set of handlers either way — this is a different ENTRY POINT into
+// the same screen, not a second copy of the request-management logic.
+export default function MyRequestsPane({ mode = "requests" }) {
   const [items, setItems] = useState(null); // null = loading
   const [openId, setOpenId] = useState(null); // job id whose detail dialog is open, or null
   const [busy, setBusy] = useState(false);
@@ -43,6 +51,7 @@ export default function MyRequestsPane() {
   const [refreshing, setRefreshing] = useState(false);
   const [payBusy, setPayBusy] = useState(false);
   const [releaseBusy, setReleaseBusy] = useState(false);
+  const [unreadThreads, setUnreadThreads] = useState([]);
 
   const load = () => {
     setRefreshing(true);
@@ -52,6 +61,18 @@ export default function MyRequestsPane() {
       .finally(() => setRefreshing(false));
   };
   useEffect(() => { load(); }, []);
+
+  // Same slower/separate-poll reasoning as every other unread badge in
+  // this app (see ArtisanDashboard.js's own comment) — only needed in
+  // "messages" mode, where each row's badge/preview actually uses it.
+  useEffect(() => {
+    if (mode !== "messages") return;
+    let cancelled = false;
+    const poll = () => getUnreadThreads().then((t) => !cancelled && setUnreadThreads(t)).catch(() => {});
+    poll();
+    const interval = setInterval(poll, 25000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [mode]);
 
   const openJob = items?.find((j) => j.id === openId) || null;
 
@@ -144,11 +165,19 @@ export default function MyRequestsPane() {
     }
   };
 
+  const conversations = (items || []).filter((j) => j.status === "accepted" || j.status === "completed");
+  const unreadByJob = Object.fromEntries(unreadThreads.map((t) => [t.job_request_id, t]));
+  const rows = mode === "messages" ? conversations : items;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2.5">
       <div className="flex shrink-0 items-center justify-between">
         <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">
-          <ClipboardList className="size-3" /> MY REQUESTS ({items?.length ?? 0})
+          {mode === "messages" ? (
+            <><MessageCircle className="size-3" /> MESSAGES ({conversations.length})</>
+          ) : (
+            <><ClipboardList className="size-3" /> MY REQUESTS ({items?.length ?? 0})</>
+          )}
         </span>
         <button type="button" onClick={load} className="flex items-center gap-1 border-none bg-transparent p-0 text-[11.5px] font-semibold text-muted-foreground">
           <RefreshCw className={`size-3 ${refreshing ? "animate-spin" : ""}`} /> Refresh
@@ -172,13 +201,52 @@ export default function MyRequestsPane() {
           <div className="flex flex-col items-center gap-2.5 py-10">
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
           </div>
-        ) : items.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="grid justify-items-center gap-2 px-1 py-10 text-center">
-            <p className="m-0 text-sm font-bold text-foreground">No requests yet</p>
+            <p className="m-0 text-sm font-bold text-foreground">
+              {mode === "messages" ? "No conversations yet" : "No requests yet"}
+            </p>
+            {mode === "messages" && (
+              <p className="m-0 text-[12.5px] text-muted-foreground">Conversations open once an artisan accepts your request.</p>
+            )}
+          </div>
+        ) : mode === "messages" ? (
+          <div className="grid gap-2.5 pb-1">
+            {rows.map((j) => {
+              const thread = unreadByJob[j.id];
+              const name = j.artisan_name || j.trade;
+              return (
+                <Card
+                  key={j.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setOpenId(j.id)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenId(j.id); } }}
+                  className="cursor-pointer flex-row items-center gap-3 p-3.5"
+                >
+                  <div className={`flex size-10 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-bold ${tintFor(name)}`}>
+                    {initialsOf(name)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate text-[13.5px] font-bold text-foreground">{name}</span>
+                      {thread?.unread_count > 0 && (
+                        <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10.5px] font-bold text-primary-foreground">
+                          {thread.unread_count > 9 ? "9+" : thread.unread_count}
+                        </span>
+                      )}
+                    </div>
+                    <p className="m-0 truncate text-[12px] text-muted-foreground">
+                      {thread?.preview || `${j.trade} — tap to view conversation`}
+                    </p>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         ) : (
           <div className="grid gap-2.5 pb-1">
-            {items.map((j) => {
+            {rows.map((j) => {
               const meta = STATUS_META[j.status] || STATUS_META.requested;
               return (
                 <Card

@@ -39,7 +39,7 @@ export function usePortfolioPhotos(artisanId, editToken) {
       .then(setPhotos)
       .catch(() => setPhotos([]));
   };
-  // ArtisanListingManager.js calls this before its own artisanMe() fetch
+  // ArtisanDashboard.js calls this before its own artisanMe() fetch
   // resolves (artisanId is undefined for that first render) — skip the
   // request rather than hitting .../artisans/undefined/photos.
   useEffect(load, [artisanId]);
