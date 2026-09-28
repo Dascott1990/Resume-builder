@@ -34,7 +34,7 @@ import { toast } from "sonner";
 import {
   Loader2, MapPin, Clock, ChevronLeft, Wrench, RefreshCw, ClipboardList, Hammer,
   CheckCircle2, Inbox, Star, MessageCircle, Banknote, Trash2, Camera,
-  Home, User, Phone, Mail, Check, Bell, LogOut,
+  Home, User, Phone, Check, Bell, LogOut,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
@@ -55,6 +55,7 @@ import ArtisanAuth from "./ArtisanAuth";
 import ArtisanQuickSetup from "./ArtisanQuickSetup";
 import ArtisanProfile from "../ArtisanProfile";
 import JobDetailDialog from "./JobDetailDialog";
+import MessageThreadDialog from "./MessageThreadDialog";
 import PortfolioGrid from "./PortfolioGrid";
 import { usePortfolioPhotos } from "./usePortfolioPhotos";
 import {
@@ -192,6 +193,7 @@ export default function ArtisanDashboard({ onArtisanChange }) {
   const [actingId, setActingId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [openId, setOpenId] = useState(null); // job id whose detail dialog is open, or null
+  const [threadOpenId, setThreadOpenId] = useState(null); // job id whose MessageThreadDialog is open, or null — the Messages tab's own, separate from openId
   const [unread, setUnread] = useState(0);
   // Bottom-nav tab: "dashboard" (everything this screen always showed),
   // "messages" (every accepted/completed job's conversation, one place
@@ -549,6 +551,7 @@ export default function ArtisanDashboard({ onArtisanChange }) {
   const inProgress = (accepted || []).filter((j) => j.status === "accepted");
   const history = (accepted || []).filter((j) => j.status === "completed");
   const openJob = [...inProgress, ...history].find((j) => j.id === openId) || null;
+  const threadJob = [...inProgress, ...history].find((j) => j.id === threadOpenId) || null;
   const tint = tintFor(artisan?.name || "?");
 
   // Every accepted/completed job IS a conversation (messaging only opens
@@ -779,10 +782,11 @@ export default function ArtisanDashboard({ onArtisanChange }) {
 
       {/* Messages tab — every accepted/completed job's conversation in one
           list instead of only reachable by opening that specific job's own
-          detail dialog. Tapping a row opens the exact same JobDetailDialog
-          (below, outside this tab's conditional so it can open regardless
-          of which tab is active) — no separate chat UI, just a faster way
-          into the one that already exists. */}
+          detail dialog. Tapping a row opens MessageThreadDialog (its own
+          state, threadOpenId — separate from the Dashboard tab's openId/
+          JobDetailDialog below): a dedicated chat screen, not the same
+          scheduling/escrow dialog the Dashboard tab's cards open. See
+          JobDetailDialog.js's own header comment for why they're split. */}
       {tab === "messages" && (
         <div
           className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-5 pt-[max(1.25rem,env(safe-area-inset-top))]"
@@ -799,8 +803,8 @@ export default function ArtisanDashboard({ onArtisanChange }) {
                 key={j.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => setOpenId(j.id)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenId(j.id); } }}
+                onClick={() => setThreadOpenId(j.id)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setThreadOpenId(j.id); } }}
                 className="cursor-pointer flex-row items-center gap-3 p-3.5"
               >
                 <div className={`flex size-10 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-bold ${tintFor(j.contact_name || "?")}`}>
@@ -1026,6 +1030,13 @@ export default function ArtisanDashboard({ onArtisanChange }) {
         onProposeTime={proposeTime}
         onConfirmTime={confirmTime}
         onComplete={complete}
+      />
+
+      <MessageThreadDialog
+        open={!!threadJob}
+        onClose={() => setThreadOpenId(null)}
+        job={threadJob}
+        viewerIsArtisan
         onFetchMessages={artisanGetThread}
         onSendMessage={artisanPostMessage}
         onMarkMessagesRead={artisanMarkThreadRead}

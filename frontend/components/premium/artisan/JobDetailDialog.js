@@ -1,14 +1,20 @@
 "use client";
 /**
- * JobDetailDialog.js — everything past a job's compact summary: full
- * description, contact info, scheduling, messages, and (customer side)
- * leaving a review once complete. Built as the shared home for this so
- * Phase 3's messages and Phase 4's payment status have somewhere to slot
- * in later without redesigning the cards again — both MyRequestsPane.js
- * (customer) and ArtisanDashboard.js (artisan) open this for anything
- * beyond a compact card; the artisan's "Requests for you" pool is the one
- * exception, which stays one-tap Accept/Decline with no dialog (that's a
- * triage list, not something worth an extra tap to act on).
+ * JobDetailDialog.js — everything about MANAGING a job past its compact
+ * summary: full description, scheduling, escrow/payment, mark-complete/
+ * cancel, contact info, and (customer side) leaving a review once
+ * complete. Both MyRequestsPane.js (customer) and ArtisanDashboard.js
+ * (artisan) open this for anything beyond a compact card; the artisan's
+ * "Requests for you" pool is the one exception, which stays one-tap
+ * Accept/Decline with no dialog (that's a triage list, not something
+ * worth an extra tap to act on).
+ *
+ * Deliberately does NOT include the conversation itself anymore — that
+ * used to be embedded here too, but "My requests" (this dialog) and
+ * "Messages" (MessageThreadDialog.js) both opening the same job just
+ * created two different chat boxes for one conversation depending on
+ * which tab you came from. This screen is now purely job management;
+ * MessageThreadDialog.js is purely the chat, one home for each.
  *
  * Visually this is the same "artisan brand" language as ArtisanDashboard/
  * ArtisanAuth — IconTile trade icon, mono tracking-wide section labels
@@ -18,13 +24,13 @@
  * Cancel request) live in a sticky footer pinned below the scrolling
  * content — same fix as ArtisanProfile.js's bottom contact sheet: reaching
  * the other party or taking the one action that matters shouldn't require
- * scrolling past a long message thread to find it.
+ * scrolling past the rest of the content to find it.
  */
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   MapPin, Clock, CheckCircle2, Hammer, Phone, Mail, CalendarClock,
-  MessageCircle, Star, X, Ban, FileText, Banknote, Lock,
+  Star, X, Ban, FileText, Banknote, Lock,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +40,6 @@ import { IconTile } from "../shared/IconTile";
 import { formatPhone } from "../shared/artisanDisplay";
 import SchedulingRow from "./SchedulingRow";
 import ReviewForm from "../shared/ReviewForm";
-import MessageThread from "../messages/MessageThread";
 
 const STATUS_META = {
   requested: { label: "Waiting for a response", icon: Clock, className: "border-primary/30 bg-primary/10 text-primary", accent: "var(--primary)" },
@@ -73,7 +78,6 @@ export default function JobDetailDialog({
   onProposeTime, onConfirmTime, onComplete, onCancel,
   onPay, payBusy, onReleasePayment, releaseBusy,
   reviewed, onSubmitReview, reviewSubmitting,
-  onFetchMessages, onSendMessage, onMarkMessagesRead,
 }) {
   const [reviewOpen, setReviewOpen] = useState(false);
 
@@ -147,19 +151,6 @@ export default function JobDetailDialog({
               <Section icon={CalendarClock}>SCHEDULE</Section>
               <SchedulingRow job={job} viewerIsArtisan={viewerIsArtisan} busy={busy}
                 onProposeTime={onProposeTime} onConfirmTime={onConfirmTime} />
-            </div>
-          )}
-
-          {showContact && onFetchMessages && (
-            <div className="mb-3.5">
-              <Section icon={MessageCircle}>MESSAGES</Section>
-              <MessageThread
-                jobId={job.id}
-                viewerIsArtisan={viewerIsArtisan}
-                onFetch={onFetchMessages}
-                onSend={onSendMessage}
-                onMarkRead={onMarkMessagesRead}
-              />
             </div>
           )}
 

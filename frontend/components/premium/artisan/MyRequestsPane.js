@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "../shared/api";
 import { truncateBio, tintFor, initialsOf } from "../shared/artisanDisplay";
 import JobDetailDialog from "./JobDetailDialog";
+import MessageThreadDialog from "./MessageThreadDialog";
 import { getThread, postMessage, markThreadRead, getUnreadThreads } from "../messages/api";
 
 const STATUS_META = {
@@ -281,26 +282,39 @@ export default function MyRequestsPane({ mode = "requests" }) {
         )}
       </div>
 
-      <JobDetailDialog
-        open={!!openJob}
-        onClose={() => setOpenId(null)}
-        job={openJob}
-        viewerIsArtisan={false}
-        busy={busy}
-        onProposeTime={proposeTime}
-        onConfirmTime={confirmTime}
-        onCancel={cancel}
-        onPay={pay}
-        payBusy={payBusy}
-        onReleasePayment={releasePayment}
-        releaseBusy={releaseBusy}
-        reviewed={openJob?.reviewed}
-        onSubmitReview={submitReview}
-        reviewSubmitting={reviewSubmitting}
-        onFetchMessages={getThread}
-        onSendMessage={postMessage}
-        onMarkMessagesRead={markThreadRead}
-      />
+      {/* Two different screens for two different jobs, not one dialog
+          trying to be both — see JobDetailDialog.js's own header comment.
+          mode fixes which one this instance ever opens, so openId/openJob
+          can stay one shared piece of state either way. */}
+      {mode === "messages" ? (
+        <MessageThreadDialog
+          open={!!openJob}
+          onClose={() => setOpenId(null)}
+          job={openJob}
+          viewerIsArtisan={false}
+          onFetchMessages={getThread}
+          onSendMessage={postMessage}
+          onMarkMessagesRead={markThreadRead}
+        />
+      ) : (
+        <JobDetailDialog
+          open={!!openJob}
+          onClose={() => setOpenId(null)}
+          job={openJob}
+          viewerIsArtisan={false}
+          busy={busy}
+          onProposeTime={proposeTime}
+          onConfirmTime={confirmTime}
+          onCancel={cancel}
+          onPay={pay}
+          payBusy={payBusy}
+          onReleasePayment={releasePayment}
+          releaseBusy={releaseBusy}
+          reviewed={openJob?.reviewed}
+          onSubmitReview={submitReview}
+          reviewSubmitting={reviewSubmitting}
+        />
+      )}
     </div>
   );
 }

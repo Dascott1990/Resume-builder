@@ -1,11 +1,18 @@
 "use client";
 /**
- * MessageThread.js — the chat UI for one job, slotted into
- * JobDetailDialog.js for accepted/completed jobs. Deliberately API-agnostic
- * (takes onFetch/onSend/onMarkRead callbacks) — the same component renders
- * for both the customer (MyRequestsPane.js, plain apiRequest) and the
- * artisan (ArtisanDashboard.js, X-Artisan-Token) sides; only the wiring
- * differs, same pattern SchedulingRow.js already uses.
+ * MessageThread.js — the chat UI for one job, filling MessageThreadDialog
+ * (see ../artisan/MessageThreadDialog.js) — the dedicated, chat-only screen
+ * behind both sides' "Messages" tab. Deliberately API-agnostic (takes
+ * onFetch/onSend/onMarkRead callbacks) — the same component renders for
+ * both the customer (plain apiRequest) and the artisan (X-Artisan-Token)
+ * sides; only the wiring differs, same pattern SchedulingRow.js already
+ * uses.
+ *
+ * Used to also render (much smaller, capped height) inside
+ * JobDetailDialog.js alongside scheduling/escrow/status — pulled out of
+ * there so "My requests" stays purely about adjustments/schedule/escrow
+ * and "Messages" is purely the conversation, not two chat boxes for the
+ * same job in two different places.
  *
  * Polls every 4s while mounted — see the marketplace plan's stack-decision
  * table for why polling instead of WebSockets. Stops on unmount.
@@ -67,10 +74,10 @@ export default function MessageThread({ jobId, viewerIsArtisan, onFetch, onSend,
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div
         ref={scrollRef}
-        className="flex max-h-[220px] flex-col gap-1.5 overflow-y-auto rounded-lg border border-border bg-card/50 p-2.5 [-webkit-overflow-scrolling:touch]"
+        className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto rounded-lg border border-border bg-card/50 p-2.5 [-webkit-overflow-scrolling:touch]"
       >
         {messages.length === 0 && (
           <p className="m-0 py-3 text-center text-[12px] text-muted-foreground">No messages yet — say hello.</p>
