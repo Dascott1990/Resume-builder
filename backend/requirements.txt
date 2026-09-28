@@ -1,6 +1,15 @@
 Flask==3.0.3
 Flask-Cors==4.0.1
 Flask-SQLAlchemy==3.1.1
+# Pinned explicitly, not left to Flask-SQLAlchemy's own transitive range —
+# a real production incident: SQLAlchemy 2.1.1 changed its default
+# PostgreSQL driver resolution for a bare "postgresql://" URL (no
+# "+psycopg2"/"+psycopg" suffix — see DATABASE_URL) to prefer psycopg
+# (v3), which isn't installed here, only psycopg2-binary is — the app
+# crashed on boot with "ModuleNotFoundError: No module named 'psycopg'."
+# 2.0.51 is what local dev has run against this whole project, confirmed
+# working correctly with psycopg2-binary.
+SQLAlchemy==2.0.51
 requests==2.32.3
 certifi==2025.1.31
 python-dotenv==1.0.1
