@@ -20,6 +20,14 @@ export const artisanLogin = (email, password) => apiRequest("/api/v1/artisans/lo
   body: JSON.stringify({ email, password }),
 });
 
+// The SSO bridge — deliberately no X-Artisan-Token here (there isn't one
+// yet, that's the whole point): this rides on the customer session's own
+// Authorization header, which apiRequest already attaches to every call
+// (see its own comment above). Backend checks that customer's email is
+// verified and matches an existing artisan account before ever issuing a
+// token — see api/artisans.py's artisan_login_via_customer.
+export const artisanLoginViaCustomer = () => apiRequest("/api/v1/artisans/login-via-customer", { method: "POST" });
+
 export const artisanMe = () => apiRequest("/api/v1/artisans/me", { headers: authHeaders() });
 
 export const artisanSetAvailability = (is_available) => apiRequest("/api/v1/artisans/me/availability", {

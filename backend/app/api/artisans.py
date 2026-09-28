@@ -11,9 +11,9 @@ from flask import Blueprint, request, jsonify, send_file
 from sqlalchemy import func
 from app import db, limiter
 from flask_limiter.util import get_remote_address
-from app.models import Artisan, ArtisanPhoto, Review, JobRequest
+from app.models import Artisan, ArtisanPhoto, Review, JobRequest, User
 from app.middleware.error_handlers import APIError
-from app.utils.auth import get_admin_user, get_artisan_scope, require_artisan_scope, hash_password, verify_password, issue_token
+from app.utils.auth import get_admin_user, get_artisan_scope, require_artisan_scope, require_customer_scope, hash_password, verify_password, issue_token
 from app.utils.geocoding import geocode_city, haversine_km
 from app.utils.ratings import recompute_rating
 from app.utils.uploads import validate_upload
@@ -320,6 +320,32 @@ def artisan_login():
     # a free enumeration oracle, same reasoning as the User login route.
     if not a or not verify_password(password, a.password_hash):
         raise APIError("Incorrect email or password", 401)
+
+    return jsonify({"success": True, "data": {"artisan": a.to_dict(), "token": issue_token(a.id, role="artisan")}}), 200
+
+
+@artisans_bp.route("/login-via-customer", methods=["POST"])
+@limiter.limit("20 per hour")
+def artisan_login_via_customer():
+    """SSO bridge: a signed-in, email-VERIFIED customer whose email matches
+    an existing artisan account gets signed into that artisan account too
+    — no artisan password ever entered. The verified email itself is the
+    proof of ownership, the same trust artisan_signup's own account
+    already rests on (that route skips email verification entirely — see
+    its own comment). Gated on email_verified specifically so a customer
+    who merely TYPED someone else's email (unverified) can't ride in on
+    it; only a customer who actually proved control of the inbox can.
+    404s (not silently no-ops) when there's no matching artisan account,
+    same "just tell the frontend plainly" shape as every other lookup
+    here — the frontend falls back to the normal sign-in/signup screen."""
+    user_id = require_customer_scope(request)
+    user = db.session.get(User, user_id)
+    if not user or not user.email_verified:
+        raise APIError("Verify your email to link an artisan account", 403)
+
+    a = Artisan.query.filter(Artisan.email == user.email, Artisan.password_hash.isnot(None)).first()
+    if not a:
+        raise APIError("No artisan account found for this email", 404)
 
     return jsonify({"success": True, "data": {"artisan": a.to_dict(), "token": issue_token(a.id, role="artisan")}}), 200
 

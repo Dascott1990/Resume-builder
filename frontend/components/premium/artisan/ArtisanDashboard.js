@@ -62,7 +62,7 @@ import {
   artisanGetThread, artisanPostMessage, artisanMarkThreadRead, artisanUnreadCount,
   artisanUnreadThreads, artisanReviews, artisanConnectOnboard, artisanConnectStatus,
   artisanDeleteMe, artisanUpdateProfile, artisanUploadAvatarPhoto, artisanDeleteAvatarPhoto,
-  artisanChangePassword,
+  artisanChangePassword, artisanLoginViaCustomer,
 } from "./api";
 
 const BIO_MAX = 600;
@@ -223,8 +223,17 @@ export default function ArtisanDashboard({ onArtisanChange }) {
   };
 
   useEffect(() => {
-    if (getArtisanToken()) loadAll();
-    else setSignedIn(false);
+    if (getArtisanToken()) { loadAll(); return; }
+    // No artisan session yet — if there's already a signed-in, verified
+    // customer whose email matches an existing artisan account (see
+    // artisanLoginViaCustomer's own backend comment), sign straight into
+    // it instead of showing a sign-in screen for an account they already
+    // have. Any failure here — not signed in as a customer, unverified
+    // email, no matching account — is just "nothing to auto-sign into,"
+    // so it falls through to the normal ArtisanAuth screen silently.
+    artisanLoginViaCustomer()
+      .then((data) => { setArtisanToken(data.token); loadAll(); })
+      .catch(() => setSignedIn(false));
   }, []);
 
   // Reports the signed-in artisan (or null, once signed out/deleted) up to
