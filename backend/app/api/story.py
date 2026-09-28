@@ -317,6 +317,9 @@ def _run_render_job(job_id, clip_bytes, caption_bytes, caption_frame_bytes, capt
                   <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
                   <h2 style="color:#111;margin:0 0 12px;">Your story is ready</h2>
                   <p style="color:#444;line-height:1.6;margin:0 0 4px;">Attached — ready to post.</p>
+                  <p style="color:#aaa;font-size:11px;line-height:1.5;margin-top:20px;border-top:1px solid #eee;padding-top:14px;">
+                    Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada
+                  </p>
                 </div>""",
                 attachment=(filename, out_bytes, ext),
             )

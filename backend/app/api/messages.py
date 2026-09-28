@@ -102,6 +102,9 @@ def _notify_new_message(job, msg):
               <h2 style="color:#111;margin:0 0 12px;">New message</h2>
               <p style="color:#444;line-height:1.6;margin:0 0 16px;">{msg.body}</p>
               <p style="color:#888;font-size:12.5px;line-height:1.5;">Sign in to reply.</p>
+              <p style="color:#aaa;font-size:11px;line-height:1.5;margin-top:20px;border-top:1px solid #eee;padding-top:14px;">
+                Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada
+              </p>
             </div>
             """,
         )

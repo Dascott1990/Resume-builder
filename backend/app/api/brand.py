@@ -539,6 +539,9 @@ def email_asset():
       <h2 style="color:#111;margin:0 0 12px;">Ready to post</h2>
       <p style="color:#444;line-height:1.6;margin:0 0 4px;">{note or attach_count_note}</p>
       <p style="color:#888;font-size:12.5px;line-height:1.5;">Generated from /brand.</p>
+      <p style="color:#aaa;font-size:11px;line-height:1.5;margin-top:20px;border-top:1px solid #eee;padding-top:14px;">
+        Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada
+      </p>
     </div>
     """
     try:

@@ -74,6 +74,9 @@ def check_due_scheduled_posts():
                   <ul style="color:#444;line-height:1.7;margin:0 0 16px;padding-left:20px;">{_handle_lines(post)}</ul>
                   <p style="margin:0 0 16px;"><a href="{workspace_link}" style="color:#f59e0b;font-weight:700;">Open your branding workspace</a></p>
                   <p style="color:#888;font-size:13px;margin:0;">Mark each handle done there once you have — the reminder clears once every one is.</p>
+                  <p style="color:#aaa;font-size:11px;line-height:1.5;margin-top:20px;border-top:1px solid #eee;padding-top:14px;">
+                    Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada
+                  </p>
                 </div>""",
             )
             emailed += 1
