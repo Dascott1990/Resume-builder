@@ -19,13 +19,15 @@ import { toast } from "sonner";
 import {
   Home, FileText, ScanLine, ClipboardList, Hammer, Settings as SettingsIcon,
   ArrowRight, ChevronRight, CalendarCheck, X, Clock, Sparkles, Bell,
-  MessageCircle, Wrench, Inbox, User, Megaphone, Globe, Cpu, Atom, Landmark, Briefcase,
+  MessageCircle, Wrench, Inbox, Megaphone, Globe, Cpu, Atom, Landmark, Briefcase,
   MoreVertical, Trash2, StickyNote, Check, AlertTriangle,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Btn } from "./guest/components/primitives";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
+import { tintFor, initialsOf } from "./shared/artisanDisplay";
+import Emoji3D from "./shared/Emoji3D";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
 import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
@@ -798,14 +800,22 @@ export default function Dashboard({ onClose, onNavigate }) {
               create an account) rather than decoration for its own sake. */}
           <div className="flex-1 px-3 pt-2">
             {user ? (
-              <div className="flex items-center gap-2.5 rounded-xl border border-border bg-muted/40 p-3">
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
-                  <User className="size-4" />
+              // Real avatar (emoji, or initials — customers have no photo
+              // upload, unlike artisans), not a generic person icon — and
+              // actually clickable now, into the one place that IS "your
+              // profile" today (Settings.js's own ACCOUNT card handles both
+              // viewing and editing it, no separate Profile screen exists).
+              <button
+                onClick={() => go("settings")}
+                className="flex w-full items-center gap-2.5 rounded-xl border border-border bg-muted/40 p-3 text-left [-webkit-tap-highlight-color:transparent] hover:border-primary/30"
+              >
+                <div className={`flex size-8 shrink-0 items-center justify-center rounded-full border ${user.avatar_emoji ? "" : "font-mono text-xs font-bold"} ${tintFor(user.name || user.email)}`}>
+                  {user.avatar_emoji ? <Emoji3D emoji={user.avatar_emoji} size={32} /> : initialsOf(user.name || user.email)}
                 </div>
                 <div className="min-w-0">
                   <p className="m-0 truncate text-[12.5px] font-bold text-foreground">{user.name || user.email}</p>
                 </div>
-              </div>
+              </button>
             ) : (
               <button
                 onClick={() => go("settings")}
@@ -897,8 +907,20 @@ export default function Dashboard({ onClose, onNavigate }) {
               )
             )}
           </button>
-          <button onClick={() => go("settings")} aria-label="Settings" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
-            <SettingsIcon className="size-[15px]" />
+          {/* Real avatar once signed in — same swap as the desktop sidebar's
+              own profile card above, and the artisan side's header
+              (ArtisanDashboard.js/Artisans.js) — falls back to the plain
+              gear icon signed out, when there's no photo to show. */}
+          <button
+            onClick={() => go("settings")}
+            aria-label="Settings"
+            className={user ? `flex size-10 items-center justify-center rounded-full border ${tintFor(user.name || user.email)}` : "flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground"}
+          >
+            {user ? (
+              user.avatar_emoji ? <Emoji3D emoji={user.avatar_emoji} size={40} /> : <span className="font-mono text-xs font-bold">{initialsOf(user.name || user.email)}</span>
+            ) : (
+              <SettingsIcon className="size-[15px]" />
+            )}
           </button>
           {onClose && (
             <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
