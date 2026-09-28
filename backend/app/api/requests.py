@@ -10,7 +10,7 @@ import stripe
 from flask import Blueprint, request, jsonify
 from sqlalchemy import update
 from app import db, limiter
-from app.models import Artisan, JobRequest, Review
+from app.models import Artisan, JobRequest, Review, User
 from app.middleware.error_handlers import APIError
 from app.utils.auth import get_scope, get_artisan_scope, require_artisan_scope, require_customer_scope
 from app.utils.mail import send_email
@@ -88,7 +88,11 @@ def create_request():
     target = db.session.get(Artisan, target_artisan_id)
     if not target:
         raise APIError("Artisan not found", 404)
-    if not target.password_hash:
+    # Same "either kind of real account counts" fix as Artisan.to_dict's
+    # own has_account — a customer-linked, passwordless artisan (see
+    # api/artisans.py's artisan_signup_via_customer) can receive requests
+    # exactly like a password-holding one.
+    if not target.password_hash and not target.user_id:
         raise APIError("This artisan hasn't set up an account to receive requests", 400)
     if not target.is_available:
         raise APIError("This artisan isn't accepting requests right now", 400)
@@ -100,6 +104,22 @@ def create_request():
     # fine for read/cancel/schedule (those stay on get_scope) — this only
     # tightens where NEW requests can come from.
     user_id = require_customer_scope(request)
+
+    # Can't request your own listing — whether this exact artisan account
+    # is linked to this customer (Artisan.user_id) or was set up
+    # independently under the same verified email. The whole request/
+    # accept/message flow assumes two different people on the two ends;
+    # nothing downstream (accept, schedule, pay yourself) makes sense
+    # otherwise, and the frontend has no business relying on a hidden
+    # button alone to prevent this — see ArtisanProfile.js's own "this is
+    # you" check for the other half of this fix.
+    requester = db.session.get(User, user_id)
+    is_self = target.user_id == user_id or (
+        requester and requester.email_verified and target.email
+        and requester.email.lower() == target.email.lower()
+    )
+    if is_self:
+        raise APIError("You can't send a job request to your own listing.", 400)
 
     job = JobRequest(
         user_id=user_id,

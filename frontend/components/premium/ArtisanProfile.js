@@ -28,6 +28,8 @@ import RequestJobModal from "./artisan/RequestJobModal";
 import StarRating from "./shared/StarRating";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tapFeedback } from "@/lib/haptics";
+import { getArtisanToken } from "@/lib/artisanAuthToken";
+import { artisanMe } from "./artisan/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -94,6 +96,24 @@ export default function ArtisanProfile({
   const [stars, setStars] = useState(0);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Separate from isMine (that's the anonymous-listing edit_token kind of
+  // ownership) — this is "the browser viewing this is ALSO currently
+  // signed into this exact real artisan account." Caught the same bug the
+  // backend's create_request now also rejects: nothing stopped someone
+  // from messaging/requesting their own listing before, since isMine had
+  // no idea a real artisan session even existed. Fetch-once per artisan
+  // id, not tied to isMine at all — an anonymous listing can't be "you"
+  // this way since it has no session to hold in the first place.
+  const [isSelfArtisan, setIsSelfArtisan] = useState(false);
+  useEffect(() => {
+    if (!getArtisanToken()) { setIsSelfArtisan(false); return; }
+    let cancelled = false;
+    artisanMe().then((me) => { if (!cancelled) setIsSelfArtisan(me.id === artisan.id); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [artisan.id]);
+  // Whichever kind of "this is you" applies, the customer-facing contact
+  // sheet/reviews/call-links below don't make sense to show either way.
+  const hideContact = isMine || isSelfArtisan;
 
   const loadReviews = () => {
     setReviewsLoading(true);
@@ -109,7 +129,7 @@ export default function ArtisanProfile({
   // create_request) — most existing listings are the anonymous "list
   // yourself" kind with no account, for which Call/Text/Email is and
   // stays the only path. is_available is the artisan's own on/off switch.
-  const canRequest = !isMine && artisan.has_account && artisan.is_available;
+  const canRequest = !hideContact && artisan.has_account && artisan.is_available;
 
   // "Message" has no standalone backend of its own — real in-app messaging
   // only exists once a request is accepted (job-scoped threads, see
@@ -120,7 +140,7 @@ export default function ArtisanProfile({
   // honest fallback as the Request button: submitting a request IS the
   // real first step toward a conversation in this product today.
   const handleMessage = async () => {
-    if (!isMine && onMessage) {
+    if (!hideContact && onMessage) {
       setMessageChecking(true);
       try {
         const mine = await apiRequest("/api/v1/requests/mine");
@@ -194,12 +214,24 @@ export default function ArtisanProfile({
         )}
       </div>
 
+      {/* A clear notice, not just silently missing buttons — same "warn,
+          don't just quietly block" this file's own create_request fix on
+          the backend now also enforces server-side either way. */}
+      {isSelfArtisan && (
+        <div className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5">
+          <ClipboardList className="size-3.5 shrink-0 text-muted-foreground/60" />
+          <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">
+            This is your own listing — switch to "I'm an artisan" to manage it.
+          </p>
+        </div>
+      )}
+
       {/* Hero: the artisan's own portfolio, not a small circular avatar —
           heart/share float over its top-right corner, same corner
           positions a product-detail hero uses them in. */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }} className="relative">
         <PhotoPortfolio artisan={artisan} isMine={isMine} editToken={editToken} />
-        {!isMine && (
+        {!hideContact && (
           <div className="absolute top-3 right-3 flex gap-2">
             <button
               type="button"
@@ -238,7 +270,7 @@ export default function ArtisanProfile({
               gets the same signal the artisan sees about themselves,
               instead of only discovering it once the Request button
               does or doesn't appear. */}
-          {!isMine && artisan.has_account && (
+          {!hideContact && artisan.has_account && (
             <Badge
               variant="outline"
               className={`gap-1 rounded-full text-[10px] font-bold ${
@@ -279,7 +311,7 @@ export default function ArtisanProfile({
 
       <ExpandableBio text={artisan.bio} />
 
-      {!isMine && (
+      {!hideContact && (
         <div className="rounded-2xl border border-foreground/10 bg-card/95 p-3.5 shadow-[0_8px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl supports-backdrop-filter:bg-card/75 dark:shadow-[0_10px_36px_rgba(0,0,0,0.4),0_1px_0_rgba(255,255,255,0.06)_inset]">
           {myRating != null ? (
             <div className="flex items-center gap-2">
@@ -372,7 +404,7 @@ export default function ArtisanProfile({
           before, just moved out of the sticky sheet below (which now
           stays to exactly Message + Request) and into the scrolling
           column as the "other ways to reach them" fallback. */}
-      {!isMine && (
+      {!hideContact && (
         <div className="grid gap-2">
           <Section icon={Phone}>OTHER WAYS TO REACH {artisan.name.split(" ")[0].toUpperCase()}</Section>
           <div className={artisan.email ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
@@ -404,7 +436,7 @@ export default function ArtisanProfile({
           page footer (no size/quantity/cart concept applies here). Pinned
           outside the scrolling column above so reaching the artisan never
           requires scrolling past photos/bio/reviews to find it. */}
-      {!isMine && (
+      {!hideContact && (
         <motion.div
           initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
           transition={{ type: "spring", damping: 24, stiffness: 300 }}

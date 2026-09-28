@@ -43,6 +43,8 @@ import MyRequestsPane from "./artisan/MyRequestsPane";
 import ArtisanDashboard from "./artisan/ArtisanDashboard";
 import ArtisanMapLoader from "./artisan/ArtisanMapLoader";
 import { getUnreadCount } from "./messages/api";
+import { getArtisanToken } from "@/lib/artisanAuthToken";
+import { artisanMe } from "./artisan/api";
 
 const PAGE_SIZE = 20;
 
@@ -708,6 +710,17 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
 
   const pickTrade = (t) => { setTrade(t); setCatView("results"); };
 
+  // "Is the browser ALSO currently signed into this exact card's real
+  // artisan account" — same self-request bug ArtisanProfile.js's own
+  // isSelfArtisan and the backend's create_request now both guard
+  // against, just checked once here for the whole Browse list instead of
+  // per-card. Only fetched if an artisan session actually exists.
+  const [myArtisanId, setMyArtisanId] = useState(null);
+  useEffect(() => {
+    if (!getArtisanToken()) return;
+    artisanMe().then((me) => setMyArtisanId(me.id)).catch(() => {});
+  }, []);
+
   // Message quick-action: check for an already-accepted job with this
   // artisan first (real thread lives on "My requests" — see
   // ArtisanProfile.js's identical handleMessage for the full reasoning);
@@ -716,6 +729,7 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
   // even possible (no account / not available) since Call/Text/Email
   // only live there.
   const quickMessage = async (a) => {
+    if (a.id === myArtisanId) { toast.error("That's your own listing."); return; }
     if (!(a.has_account && a.is_available)) { setViewingArtisan(a); return; }
     setMessagingId(a.id);
     try {
@@ -1026,7 +1040,7 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
             </div>
           )}
           {!loading && visibleList.map((a) => (
-            <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id)} variant={view === "grid" ? "grid" : "list"}
+            <ArtisanCard key={a.id} a={a} isMine={myIds.includes(a.id) || a.id === myArtisanId} variant={view === "grid" ? "grid" : "list"}
               onOpen={setViewingArtisan} onEdit={startEdit} onDelete={remove}
               isFavorite={favIds.includes(a.id)} onToggleFavorite={view === "grid" ? toggleFavorite : undefined}
               onMessage={view === "grid" ? quickMessage : undefined} messagingId={messagingId} />
