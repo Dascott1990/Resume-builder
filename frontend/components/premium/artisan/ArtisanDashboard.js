@@ -174,7 +174,7 @@ function CompactJobCard({ j, onOpen }) {
   );
 }
 
-export default function ArtisanDashboard() {
+export default function ArtisanDashboard({ onArtisanChange }) {
   const [signedIn, setSignedIn] = useState(null); // null = checking
   const [artisan, setArtisan] = useState(null);
   const [form, setForm] = useState(null); // Profile tab's editable draft, synced from `artisan` on load/save
@@ -226,6 +226,16 @@ export default function ArtisanDashboard() {
     if (getArtisanToken()) loadAll();
     else setSignedIn(false);
   }, []);
+
+  // Reports the signed-in artisan (or null, once signed out/deleted) up to
+  // whoever's hosting this screen — Artisans.js uses it to show a real
+  // avatar in the shared header instead of a generic icon, same as every
+  // other avatar in the app (photo → emoji → initials). Read-only mirror
+  // of `artisan`, not a second fetch — this dashboard stays the one source
+  // of truth for it.
+  useEffect(() => {
+    onArtisanChange?.(artisan);
+  }, [artisan, onArtisanChange]);
 
   // The artisan's own public reputation — the same rating/reviews a
   // customer sees on ArtisanProfile.js, surfaced here too so they don't

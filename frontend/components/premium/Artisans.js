@@ -618,6 +618,11 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
   // Settings.js's "Manage my listing" button, so either lands directly on
   // the artisan side instead of Browse.
   const [persona, setPersona] = useState(initialPersona === "artisan" ? "artisan" : "hire"); // "hire" | "artisan"
+  // Mirrored from ArtisanDashboard's own `artisan` state (via its
+  // onArtisanChange prop) purely so the shared header below can show a
+  // real avatar once signed in — null while signed out/loading, when the
+  // header falls back to the generic Wrench icon.
+  const [signedInArtisan, setSignedInArtisan] = useState(null);
   // initialTab — set by Dashboard.js's notification bell (a click on a
   // customer-side unread item lands here directly instead of on Browse).
   const [tab, setTab] = useState(initialTab === "requests" ? "requests" : "browse"); // sub-tab within the "hire" persona: "browse" | "requests" | "messages"
@@ -1121,9 +1126,27 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
       className="flex shrink-0 items-center justify-between px-5 pb-3.5"
       style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
     >
-      <div className="flex items-center gap-3">
-        <IconTile icon={persona === "hire" ? Hammer : Wrench} size="sm" />
-        <p className="m-0 text-[17px] font-bold text-foreground">{persona === "hire" ? "Find an Artisan" : "Artisan"}</p>
+      <div className="flex min-w-0 items-center gap-3">
+        {persona === "artisan" && signedInArtisan ? (
+          // The real, signed-in artisan's own avatar — same photo → emoji →
+          // initials precedence as every other avatar in the app (see
+          // ArtisanCard/ArtisanDashboard's status card) — instead of a
+          // generic icon once there's an actual person behind this screen.
+          <div className={`flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full border ${signedInArtisan.has_avatar_photo || signedInArtisan.avatar_emoji ? "" : "font-mono text-xs font-bold"} ${tintFor(signedInArtisan.name || "?")}`}>
+            {signedInArtisan.has_avatar_photo ? (
+              <img src={avatarPhotoUrl(signedInArtisan.id, signedInArtisan.avatar_photo_version)} alt="" className="size-full object-cover" />
+            ) : signedInArtisan.avatar_emoji ? (
+              <Emoji3D emoji={signedInArtisan.avatar_emoji} size={32} />
+            ) : (
+              initialsOf(signedInArtisan.name || "?")
+            )}
+          </div>
+        ) : (
+          <IconTile icon={persona === "hire" ? Hammer : Wrench} size="sm" />
+        )}
+        <p className="m-0 min-w-0 truncate text-[17px] font-bold text-foreground">
+          {persona === "hire" ? "Find an Artisan" : signedInArtisan?.name || "Artisan"}
+        </p>
       </div>
       <div className="flex items-center gap-1">
         {onClose && (
@@ -1204,7 +1227,7 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
             // wrapper here, same reasoning the browse persona doesn't
             // apply to it: there's no list-to-select-from concept.
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <ArtisanDashboard />
+              <ArtisanDashboard onArtisanChange={setSignedInArtisan} />
             </div>
           )
         ) : (
@@ -1257,7 +1280,7 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
             // Profile) — no padded/scrolling wrapper or hire's BottomNav
             // here, it would just double up on both.
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <ArtisanDashboard />
+              <ArtisanDashboard onArtisanChange={setSignedInArtisan} />
             </div>
           ) : (
             <div
