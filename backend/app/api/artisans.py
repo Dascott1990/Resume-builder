@@ -293,6 +293,11 @@ def artisan_signup():
         name=name, trade=trade, phone=phone, email=email,
         city=body.get("city"), bio=body.get("bio"),
         years_experience=_clean_years_experience(body.get("years_experience")),
+        # Optional: the frontend passes the signer's existing customer-
+        # profile emoji here (if any) so a brand-new artisan account
+        # starts looking like the same person instead of a blank slate —
+        # see ArtisanAuth.js's doSignup. Same cleanup as PATCH /me.
+        avatar_emoji=_clean_emoji(body.get("avatar_emoji")),
         edit_token=secrets.token_urlsafe(24),
         password_hash=hash_password(password),
         is_available=False,

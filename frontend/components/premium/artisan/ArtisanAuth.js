@@ -16,7 +16,7 @@
  * shared header + persona switch (see that file); a second header here
  * would just duplicate that chrome.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,9 +25,10 @@ import { TermsConsent } from "@/components/shared/TermsConsent";
 import Logo3D from "../Logo3D";
 import { TRADES } from "../shared/trades";
 import { setArtisanToken } from "@/lib/artisanAuthToken";
+import { useAuth } from "@/lib/useAuth";
 import { artisanSignup, artisanLogin } from "./api";
 
-const emptySignup = { name: "", trade: "", city: "", phone: "", email: "", password: "" };
+const emptySignup = { name: "", trade: "", city: "", phone: "", email: "", password: "", avatar_emoji: null };
 
 export default function ArtisanAuth({ onSuccess }) {
   const [mode, setMode] = useState("login"); // "login" | "signup"
@@ -37,6 +38,24 @@ export default function ArtisanAuth({ onSuccess }) {
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Already signed in as a customer (entirely optional — most of the app
+  // is guest-mode, see useAuth.js's own header) — reuse that identity so
+  // becoming an artisan doesn't mean retyping a name/email you already
+  // gave once, and the new listing starts with the same face instead of a
+  // blank one. Only ever fills a field that's still at its untouched
+  // default, so it never clobbers something already typed.
+  const { user } = useAuth();
+  useEffect(() => {
+    if (!user) return;
+    setEmail((v) => v || user.email || "");
+    setForm((f) => ({
+      ...f,
+      name: f.name || user.name || "",
+      email: f.email || user.email || "",
+      avatar_emoji: f.avatar_emoji ?? user.avatar_emoji ?? null,
+    }));
+  }, [user]);
 
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -111,6 +130,14 @@ export default function ArtisanAuth({ onSuccess }) {
               ? "Sign in to see and accept job requests near you."
               : "Get notified when someone nearby needs your trade — accept the ones you want."}
           </p>
+          {/* Transparency for the prefill above, not silent magic — this is
+              still a separate account/password (see file header comment),
+              just started from a name/photo you've already given once. */}
+          {mode === "signup" && user && (
+            <p className="m-0 mt-2 text-[12px] font-semibold text-primary">
+              Continuing as {user.name || user.email} — pick a password for this listing below.
+            </p>
+          )}
         </motion.div>
 
         {mode === "login" ? (
