@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Home, FileText, ScanLine, ClipboardList, Hammer, Settings as SettingsIcon,
+  Home, FileText, ScanLine, ClipboardList, Hammer, Bookmark, Settings as SettingsIcon,
   ArrowRight, ChevronRight, CalendarCheck, X, Clock, Sparkles, Bell,
   MessageCircle, Wrench, Inbox, Megaphone, Globe, Cpu, Atom, Landmark, Briefcase,
   MoreVertical, Trash2, StickyNote, Check, AlertTriangle,
@@ -39,12 +39,29 @@ import { ThemeToggle } from "./shared/ThemeToggle";
 import { Skeleton } from "@/components/ui/skeleton";
 import Logo from "./Logo";
 
+// Desktop sidebar — the full set. Room isn't the constraint there the way
+// it is in a floating mobile bar, so every top-level screen stays one
+// click away.
 const NAV_ITEMS = [
   { id: "home", Icon: Home, label: "Home" },
   { id: "resume", Icon: FileText, label: "Resume" },
   { id: "scan", Icon: ScanLine, label: "Scan" },
   { id: "jobtracker", Icon: ClipboardList, label: "Tracker" },
   { id: "artisans", Icon: Hammer, label: "Artisans" },
+];
+
+// Mobile bottom nav — three, not five. Scan/Tracker/Artisan already have
+// their own big, labeled tiles right on Home (the Quick Actions row) —
+// pinning them a second time in the one bar that's on screen for every
+// single mobile screen just adds noise without adding a new way to reach
+// anything. "Saved" opens the exact same "View all resumes" mode the
+// Recent Resumes section's own link already uses (see the onChange
+// handler below) — not a new screen, just a direct door into Resume's
+// own Saved tab instead of Build-then-tap-Saved.
+const MOBILE_NAV_ITEMS = [
+  { id: "home", Icon: Home, label: "Home" },
+  { id: "resume", Icon: FileText, label: "Resume" },
+  { id: "saved", Icon: Bookmark, label: "Saved" },
 ];
 
 const STATUS_META = {
@@ -930,7 +947,11 @@ export default function Dashboard({ onClose, onNavigate }) {
         <DashboardContent {...contentProps} />
       </div>
 
-      <BottomNav items={NAV_ITEMS} active="home" onChange={go} />
+      <BottomNav
+        items={MOBILE_NAV_ITEMS}
+        active="home"
+        onChange={(id) => id === "saved" ? go("resume", { viewAllResumes: true }) : go(id)}
+      />
       <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={openNotification} />
       <AddNoteDialog app={noteApp} open={!!noteApp} onClose={() => setNoteApp(null)} onSaved={onNoteSaved} />
     </motion.div>
