@@ -1,16 +1,15 @@
 "use client";
 /**
  * ResumeDocument.js — the one component that actually renders a resume,
- * for both "My Resumes" (Resume.js) and Guest Mode AI (guest/GuestMode.js).
- * Replaces what used to be two separately-maintained, near-identical
- * implementations (Resume.js's own `Preview`, guest/components/
+ * used by Guest Mode AI (guest/GuestMode.js). Originally replaced what
+ * used to be two separately-maintained, near-identical implementations
+ * (the old "My Resumes" mode's own `Preview`, and guest/components/
  * LivePreview.js) — same reasoning as blockBuilders.js's file-level
  * comment: one place to fix, one place to add a new layout.
  *
- * Callers keep their own page size (Letter vs A4 — "My Resumes" and Guest
- * Mode intentionally differ here) and page-sheet chrome (shadow/corner
- * styling also intentionally differs) by passing them in as props, not by
- * this component assuming one or the other.
+ * Callers pass their own page size and page-sheet chrome (shadow/corner
+ * styling) as props rather than this component assuming one fixed look,
+ * since a future caller may still want its own.
  */
 import React from "react";
 import { FONTS, ACCENTS } from "../guest/constants";

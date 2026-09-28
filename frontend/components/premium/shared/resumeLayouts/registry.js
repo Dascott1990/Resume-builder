@@ -1,7 +1,6 @@
-// registry.js — the single list of real visual resume layouts. Both
-// "My Resumes" (Resume.js) and Guest Mode AI (guest/GuestMode.js) read
-// this same list for their template pickers, so a new layout only ever
-// needs to be added here once.
+// registry.js — the single list of real visual resume layouts that Guest
+// Mode AI's (guest/GuestMode.js) template picker reads, so a new layout
+// only ever needs to be added here once.
 export const LAYOUTS = [
   {
     id: "classic",

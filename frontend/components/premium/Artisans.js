@@ -96,7 +96,7 @@ const SORTS = [
 const emptyForm = { name: "", trade: "", city: "", phone: "", email: "", years_experience: "", bio: "" };
 // A 7-field listing form (including free-text bio) with no persistence
 // at all was lost outright on a refresh — same class of bug as the
-// resume editors, fixed the same way (see myResumeDraft.js).
+// Guest Mode resume editor, fixed the same way (see useGuestDraft.js).
 const ARTISAN_FORM_DRAFT_KEY = "resumeBuilder:artisanListingDraft:v1";
 
 const getMyIds = () => {
@@ -625,7 +625,7 @@ function Field({ label, required, hint, value, onChange, placeholder, type = "te
 export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }) {
   const { isDesktop } = useViewport();
   // Read once, synchronously, before first render — same pattern as
-  // GuestMode.js's own draftAtMount / myResumeDraft.js.
+  // GuestMode.js's own draftAtMount.
   const artisanDraftAtMount = useRef(loadFormDraft(ARTISAN_FORM_DRAFT_KEY)).current;
   // Restoring the "artisan" persona only when there's an actual in-progress
   // form to show for it (some field actually filled in, or mid-edit of an
@@ -741,7 +741,7 @@ export default function Artisans({ onClose, onOpenArtisanDashboard, initialTab }
 
   const toggleFavorite = (id) => setFavIds(toggleFavoriteId(id));
 
-  // Debounced, same 300ms shape as myResumeDraft.js/useGuestDraft.js — an
+  // Debounced, same 300ms shape as useGuestDraft.js — an
   // empty/reset form still gets saved (harmless, just overwrites the old
   // draft with the same empty shape), which is what makes the explicit
   // clearFormDraft calls after a successful submit actually matter instead
