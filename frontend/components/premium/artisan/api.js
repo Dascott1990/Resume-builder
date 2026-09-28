@@ -28,6 +28,17 @@ export const artisanLogin = (email, password) => apiRequest("/api/v1/artisans/lo
 // token — see api/artisans.py's artisan_login_via_customer.
 export const artisanLoginViaCustomer = () => apiRequest("/api/v1/artisans/login-via-customer", { method: "POST" });
 
+// The one-tap "Are you an artisan?" path — same no-X-Artisan-Token
+// reasoning as the login bridge above (this rides on the customer
+// session). body is just { trade, phone, city? } — name/email/avatar all
+// come from the customer record itself on the backend. See
+// api/artisans.py's artisan_signup_via_customer.
+export const artisanSignupViaCustomer = (body) => apiRequest("/api/v1/artisans/signup-via-customer", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
 export const artisanMe = () => apiRequest("/api/v1/artisans/me", { headers: authHeaders() });
 
 export const artisanSetAvailability = (is_available) => apiRequest("/api/v1/artisans/me/availability", {

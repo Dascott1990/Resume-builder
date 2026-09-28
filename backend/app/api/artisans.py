@@ -308,6 +308,47 @@ def artisan_signup():
     return jsonify({"success": True, "data": {"artisan": a.to_dict(), "token": issue_token(a.id, role="artisan")}}), 201
 
 
+@artisans_bp.route("/signup-via-customer", methods=["POST"])
+@limiter.limit("8 per hour")
+def artisan_signup_via_customer():
+    """The one-tap "Are you an artisan?" path — for a customer who's
+    already signed in and has no artisan account yet, same spirit as
+    artisan_login_via_customer for one who already does. No password, no
+    re-typed name/email: those come straight from the verified customer
+    session (see that route's own comment on why email_verified is the
+    gate), and the ONLY new information genuinely needed to become an
+    artisan — trade and phone — is all this route asks for. Sets user_id
+    so every later visit signs straight back in via login-via-customer,
+    no separate credential ever created for this artisan account."""
+    user_id = require_customer_scope(request)
+    user = db.session.get(User, user_id)
+    if not user or not user.email_verified:
+        raise APIError("Verify your email to list yourself as an artisan", 403)
+
+    existing = Artisan.query.filter_by(user_id=user.id).first()
+    if existing:
+        return jsonify({"success": True, "data": {"artisan": existing.to_dict(), "token": issue_token(existing.id, role="artisan")}}), 200
+
+    body = request.get_json(force=True) or {}
+    trade, phone = body.get("trade"), body.get("phone")
+    if not (trade and phone):
+        raise APIError("Trade and phone are required", 400)
+
+    a = Artisan(
+        name=user.name or user.email, trade=trade, phone=phone,
+        email=user.email, city=body.get("city"),
+        years_experience=_clean_years_experience(body.get("years_experience")),
+        avatar_emoji=_clean_emoji(user.avatar_emoji),
+        edit_token=secrets.token_urlsafe(24),
+        user_id=user.id,
+        is_available=False,
+    )
+    _apply_geocode(a, body.get("city"))
+    db.session.add(a)
+    db.session.commit()
+    return jsonify({"success": True, "data": {"artisan": a.to_dict(), "token": issue_token(a.id, role="artisan")}}), 201
+
+
 @artisans_bp.route("/login", methods=["POST"])
 @limiter.limit("10 per minute")
 def artisan_login():
@@ -343,9 +384,26 @@ def artisan_login_via_customer():
     if not user or not user.email_verified:
         raise APIError("Verify your email to link an artisan account", 403)
 
-    a = Artisan.query.filter(Artisan.email == user.email, Artisan.password_hash.isnot(None)).first()
+    # Exact, unambiguous link first (see Artisan.user_id — set by
+    # artisan_signup_via_customer, or once here on first match below) —
+    # this is what makes every return visit skip straight to sign-in with
+    # no email-matching heuristic at all. Only falls back to matching by
+    # email against a PASSWORD-holding account for an artisan who signed
+    # up independently (real password) but happens to share this email —
+    # deliberately NEVER matches a passwordless anonymous listing (see
+    # api/artisans.py's create_artisan): that one was never verified as
+    # belonging to anyone, so an email coincidence there proves nothing.
+    a = Artisan.query.filter_by(user_id=user.id).first()
     if not a:
-        raise APIError("No artisan account found for this email", 404)
+        a = Artisan.query.filter(Artisan.email == user.email, Artisan.password_hash.isnot(None)).first()
+        if not a:
+            raise APIError("No artisan account found for this email", 404)
+        # First time this password-holding account is reached via the
+        # customer bridge — link it permanently so it shows up by user_id
+        # (not email-matching) on every visit after this one, same as an
+        # account created through signup-via-customer from the start.
+        a.user_id = user.id
+        db.session.commit()
 
     return jsonify({"success": True, "data": {"artisan": a.to_dict(), "token": issue_token(a.id, role="artisan")}}), 200
 

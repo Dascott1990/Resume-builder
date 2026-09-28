@@ -50,7 +50,9 @@ import { EmojiPicker } from "../shared/EmojiPicker";
 import { BottomNav } from "../shared/BottomNav";
 import { TRADES } from "../shared/trades";
 import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
+import { useAuth } from "@/lib/useAuth";
 import ArtisanAuth from "./ArtisanAuth";
+import ArtisanQuickSetup from "./ArtisanQuickSetup";
 import ArtisanProfile from "../ArtisanProfile";
 import JobDetailDialog from "./JobDetailDialog";
 import PortfolioGrid from "./PortfolioGrid";
@@ -175,7 +177,13 @@ function CompactJobCard({ j, onOpen }) {
 }
 
 export default function ArtisanDashboard({ onArtisanChange }) {
+  const { user: customerUser } = useAuth();
   const [signedIn, setSignedIn] = useState(null); // null = checking
+  // Set when the sign-in gate below finds a verified customer session but
+  // no linked artisan account yet — shows the one-tap ArtisanQuickSetup
+  // instead of the full ArtisanAuth form (see that gate's own comment).
+  // "Use a different artisan account" forces the full form anyway.
+  const [needsQuickSetup, setNeedsQuickSetup] = useState(false);
   const [artisan, setArtisan] = useState(null);
   const [form, setForm] = useState(null); // Profile tab's editable draft, synced from `artisan` on load/save
   const [pool, setPool] = useState(null);
@@ -233,7 +241,14 @@ export default function ArtisanDashboard({ onArtisanChange }) {
     // so it falls through to the normal ArtisanAuth screen silently.
     artisanLoginViaCustomer()
       .then((data) => { setArtisanToken(data.token); loadAll(); })
-      .catch(() => setSignedIn(false));
+      .catch((e) => {
+        // 404 specifically means "verified customer session, just no
+        // linked artisan account yet" — everything else (401/403: no
+        // customer session at all, or an unverified email) has nothing
+        // to offer a one-tap setup for, so it's the plain sign-in screen.
+        if (e.status === 404) setNeedsQuickSetup(true);
+        setSignedIn(false);
+      });
   }, []);
 
   // Reports the signed-in artisan (or null, once signed out/deleted) up to
@@ -502,6 +517,15 @@ export default function ArtisanDashboard({ onArtisanChange }) {
   }
 
   if (!signedIn) {
+    if (needsQuickSetup) {
+      return (
+        <ArtisanQuickSetup
+          customerName={customerUser?.name}
+          onSuccess={loadAll}
+          onUseDifferentAccount={() => setNeedsQuickSetup(false)}
+        />
+      );
+    }
     return <ArtisanAuth onSuccess={loadAll} />;
   }
 

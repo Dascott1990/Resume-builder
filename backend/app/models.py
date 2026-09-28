@@ -128,6 +128,17 @@ class Artisan(db.Model):
     password_hash = db.Column(db.String(255), nullable=True)
     # Same reasoning as User.password_changed_at above.
     password_changed_at = db.Column(db.DateTime, nullable=True)
+    # The OTHER way into this same account layer, alongside password_hash —
+    # set only when this artisan was created (or later linked) FROM an
+    # already-signed-in customer session (see api/artisans.py's
+    # artisan_signup_via_customer and artisan_login_via_customer). An
+    # artisan row can have a password, this link, both, or neither (a
+    # plain anonymous listing) — whichever exists is enough to sign in.
+    # SET NULL on the customer account's deletion, not CASCADE: deleting
+    # an unrelated resume-builder identity shouldn't take a real, possibly
+    # payout-enabled business listing down with it — it just becomes
+    # unlinked, same as it would be if this column never existed.
+    user_id = db.Column(db.String(32), db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     is_available = db.Column(db.Boolean, nullable=True)
     # Best-effort geocode of `city` (see utils/geocoding.py), set on save —
     # NULL on every row until it's (re)saved after this shipped, and NULL
@@ -179,7 +190,13 @@ class Artisan(db.Model):
             "city": self.city, "phone": self.phone, "email": self.email,
             "bio": self.bio, "years_experience": self.years_experience,
             "rating_avg": self.rating_avg, "rating_count": self.rating_count or 0,
-            "has_account": self.password_hash is not None,
+            # A real, sign-in-able account either way — password or the
+            # customer-session link (see user_id above) both count. This is
+            # what gates whether a customer even sees a Request button (see
+            # ArtisanProfile.js's canRequest), so a customer-linked artisan
+            # with no password needs to read as "real" here too, not just
+            # a listing.
+            "has_account": self.password_hash is not None or self.user_id is not None,
             "is_available": bool(self.is_available),
             "lat": self.lat, "lng": self.lng, "avatar_emoji": self.avatar_emoji,
             "has_avatar_photo": self.avatar_photo_data is not None,
