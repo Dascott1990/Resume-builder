@@ -13,7 +13,7 @@
  * badge, tap-to-call) instead of a flat text list, and loading/empty are
  * real states instead of a blank screen.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -145,7 +145,7 @@ const toggleFavoriteId = (id) => {
 // on demand. The dot marks "a non-default filter is active" the same way
 // a cart badge marks "something's in here" — visible at a glance without
 // opening the panel to check.
-function SearchBar({ value, onChange, onFocus, filtersOpen, onToggleFilters, filterActive }) {
+function SearchBar({ value, onChange, onFocus, onBlur, filtersOpen, onToggleFilters, filterActive }) {
   return (
     <div className="flex min-w-0 shrink-0 items-center gap-2">
       <div className="relative min-w-0 flex-1">
@@ -154,6 +154,7 @@ function SearchBar({ value, onChange, onFocus, filtersOpen, onToggleFilters, fil
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onFocus={onFocus}
+          onBlur={onBlur}
           placeholder="Search by name, trade, or city"
           className="h-11 rounded-full pl-9"
         />
@@ -672,11 +673,26 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
   // Location starts hidden on the home pane — saves the vertical space it
   // would otherwise take above the category shelves, so the shelves (the
   // actual point of this screen) are visible sooner instead of buried
-  // under a location chip nobody's touched yet. Revealed the moment
-  // someone focuses the search input, not on every render after — a
-  // one-way reveal, not a toggle, so it doesn't flicker shut again if
-  // they tap away without typing anything.
+  // under a location chip nobody's touched yet. A real toggle: focusing
+  // search reveals it, blurring away hides it again 150ms later — debounced,
+  // not instant, because blurring the search input is also literally what
+  // happens the moment someone clicks FROM it INTO the location chip it
+  // just revealed (native blur-before-click ordering). revealLocation()
+  // cancels that pending hide if focus lands anywhere back inside the
+  // revealed block within the window — including the city-edit input's own
+  // autoFocus, which is what actually saves the "click the chip to edit
+  // the city" path: blur schedules the hide, then that input mounts and
+  // autofocuses, which re-triggers revealLocation() before the 150ms is up.
   const [locationRevealed, setLocationRevealed] = useState(false);
+  const locationHideTimer = useRef(null);
+  const revealLocation = () => {
+    if (locationHideTimer.current) { clearTimeout(locationHideTimer.current); locationHideTimer.current = null; }
+    setLocationRevealed(true);
+  };
+  const scheduleHideLocation = () => {
+    locationHideTimer.current = setTimeout(() => setLocationRevealed(false), 150);
+  };
+  useEffect(() => () => { if (locationHideTimer.current) clearTimeout(locationHideTimer.current); }, []);
   // Set to the artisan's id while the quick-message button's own
   // accepted-job check is in flight — a spinner on that ONE card's
   // button, not a global loading state.
@@ -917,7 +933,20 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
   // Yolda-style — one screen before the individual-artisan results grid.
   // Typing a search or tapping a category is what actually reveals
   // results; this itself makes no /artisans call of its own.
-  const homePane = (
+  //
+  // Browse everyone is a function, not a plain JSX constant, because the
+  // button at its own end renders differently per breakpoint: on mobile it
+  // scrolls inline with everything else (fine — there's little enough
+  // content that "the bottom" is never far away); on desktop the sidebar
+  // panel is tall enough that leaving it inline would put it below three
+  // scrollable shelves, so the desktop branch below instead renders it as
+  // a real fixed footer OUTSIDE this scrolling area (showBrowseButton
+  // false here) — sticky positioning can't do this on its own for an
+  // element this early in a long scroll region, it only holds an element
+  // in place once its natural position is already near the container's
+  // own bottom, not "float at the bottom of the viewport for the whole
+  // page," so pulling it out of the scroll flow entirely is what actually works.
+  const makeHomePane = (showBrowseButton) => (
     <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pb-1">
       <h2 className="m-0 text-[22px] leading-tight font-bold text-foreground">I need help with</h2>
@@ -925,14 +954,15 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
       <SearchBar
         value={query}
         onChange={(v) => { setQuery(v); if (v.trim()) setCatView("results"); }}
-        onFocus={() => setLocationRevealed(true)}
+        onFocus={revealLocation}
+        onBlur={scheduleHideLocation}
         filtersOpen={false}
         filterActive={false}
         onToggleFilters={() => setCatView("results")}
       />
 
       {locationRevealed && (
-        <>
+        <div onMouseDown={revealLocation} onFocus={revealLocation} onBlur={scheduleHideLocation} className="contents">
           {editingCity ? (
             <div className="flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 p-3">
               <MapPin className="size-4 shrink-0 text-primary" />
@@ -953,7 +983,7 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
           )}
 
           <RecentLocations cities={recentLocations.filter((c) => c !== homeCity)} onPick={(c) => setHomeCity(c)} />
-        </>
+        </div>
       )}
 
       {/* Both of these moved up here, above the category shelves, on
@@ -986,13 +1016,19 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
       </button>
 
-      <Btn small variant="ghost" onClick={() => setCatView("results")} className="w-full">
-        Browse everyone
-      </Btn>
+      {showBrowseButton && (
+        <Btn small variant="ghost" onClick={() => setCatView("results")} className="w-full">
+          Browse everyone
+        </Btn>
+      )}
 
       <CategoryShelves onPick={pickTrade} />
     </motion.div>
   );
+  const homePane = makeHomePane(true);
+  // Desktop's own version never shows the inline button — see the browse
+  // footer rendered alongside the sidebar itself, below.
+  const homePaneNoBrowseButton = makeHomePane(false);
 
   const resultsPane = (
     <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -1281,8 +1317,20 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
             <div className="flex w-[380px] shrink-0 flex-col gap-3.5 overflow-hidden border-r border-border p-5">
               {errorBanner}
               <AnimatePresence mode="wait">
-                {tab === "browse" ? (catView === "home" ? homePane : resultsPane) : tab === "messages" ? messagesPane : requestsPane}
+                {tab === "browse" ? (catView === "home" ? homePaneNoBrowseButton : resultsPane) : tab === "messages" ? messagesPane : requestsPane}
               </AnimatePresence>
+              {/* Fixed at the bottom of the sidebar itself, not scrolling
+                  with the shelves above it — plain CSS sticky can't do this
+                  for a button that starts out near the TOP of a long
+                  scrolling area (it only takes effect once the element's own
+                  natural position is already near the container's bottom
+                  edge), so this is a real sibling outside the scroll area
+                  instead, same idea BottomNav already uses on mobile. */}
+              {tab === "browse" && catView === "home" && (
+                <Btn small variant="ghost" onClick={() => setCatView("results")} className="w-full shrink-0">
+                  Browse everyone
+                </Btn>
+              )}
             </div>
             <div className="min-w-0 flex-1 overflow-y-auto">
               {viewingArtisan ? (
