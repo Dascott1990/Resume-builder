@@ -24,13 +24,16 @@ by email even when nobody's looking at that badge right when it's due.
 """
 import os
 from datetime import datetime, timezone
+from html import escape as escape_html
 
 FRONTEND_URL = (os.environ.get("FRONTEND_URL") or "http://localhost:3000").rstrip("/")
 
 
 def _handle_lines(post):
+    # escape_html — platform/handle_name are admin-entered free text
+    # (BrandHandle), not app-authored copy.
     return "".join(
-        f'<li>{h.handle.platform if h.handle else "?"} — {h.handle.handle_name if h.handle else "?"}</li>'
+        f"<li>{escape_html(h.handle.platform if h.handle else '?')} — {escape_html(h.handle.handle_name if h.handle else '?')}</li>"
         for h in post.handles
     )
 
@@ -46,7 +49,7 @@ def check_due_scheduled_posts():
     (api/cron.py) to report back to whatever triggered it."""
     from app import db
     from app.models import ScheduledPost
-    from app.utils.mail import send_email, mail_configured
+    from app.utils.mail import send_email, mail_configured, wrap_email_html
 
     if not mail_configured():
         return {"checked": 0, "emailed": 0, "skipped": "mail not configured"}
@@ -67,17 +70,13 @@ def check_due_scheduled_posts():
         try:
             send_email(
                 recipient, f"Noqeev — time to post: {post.title}",
-                f"""<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
-                  <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
-                  <h2 style="color:#111;margin:0 0 12px;">Time to post: {post.title}</h2>
-                  <p style="color:#444;line-height:1.6;margin:0 0 12px;">Scheduled for right about now. Post it to:</p>
-                  <ul style="color:#444;line-height:1.7;margin:0 0 16px;padding-left:20px;">{_handle_lines(post)}</ul>
-                  <p style="margin:0 0 16px;"><a href="{workspace_link}" style="color:#f59e0b;font-weight:700;">Open your branding workspace</a></p>
-                  <p style="color:#888;font-size:13px;margin:0;">Mark each handle done there once you have — the reminder clears once every one is.</p>
-                  <p style="color:#aaa;font-size:11px;line-height:1.5;margin-top:20px;border-top:1px solid #eee;padding-top:14px;">
-                    Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada
-                  </p>
-                </div>""",
+                wrap_email_html(
+                    f"Time to post: {escape_html(post.title)}",
+                    f"""<p style="margin:0 0 12px;">Scheduled for right about now. Post it to:</p>
+                    <ul style="margin:0;padding-left:20px;">{_handle_lines(post)}</ul>""",
+                    "Open your branding workspace", workspace_link,
+                    "Mark each handle done there once you have — the reminder clears once every one is.",
+                ),
             )
             emailed += 1
         except Exception as exc:

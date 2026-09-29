@@ -58,6 +58,7 @@ import base64
 import json
 import re
 from datetime import datetime, timedelta, timezone
+from html import escape as escape_html
 
 from flask import Blueprint, request, jsonify
 
@@ -66,7 +67,7 @@ from app.middleware.error_handlers import APIError
 from app.models import BrandNews, BrandTask, PushSubscription, WorldFeedItem
 from app.utils.ai_client import ai_complete
 from app.utils.auth import require_brand_key
-from app.utils.mail import send_email
+from app.utils.mail import send_email, wrap_email_html
 from app.utils.push import VAPID_PUBLIC_KEY, push_configured, send_push_to_all
 from app.utils.task_reminders import build_ics, next_occurrence
 
@@ -533,17 +534,11 @@ def email_asset():
         attachments = (filename, image_bytes, mime_subtype)
         attach_count_note = "A post's attached and ready to ship."
 
-    body_html = f"""
-    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
-      <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
-      <h2 style="color:#111;margin:0 0 12px;">Ready to post</h2>
-      <p style="color:#444;line-height:1.6;margin:0 0 4px;">{note or attach_count_note}</p>
-      <p style="color:#888;font-size:12.5px;line-height:1.5;">Generated from /brand.</p>
-      <p style="color:#aaa;font-size:11px;line-height:1.5;margin-top:20px;border-top:1px solid #eee;padding-top:14px;">
-        Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada
-      </p>
-    </div>
-    """
+    body_html = wrap_email_html(
+        "Ready to post",
+        f'<p style="margin:0;">{escape_html(note) if note else attach_count_note}</p>',
+        footnote="Generated from /brand.",
+    )
     try:
         send_email(to_email, "Noqeev — ready to post", body_html, attachment=attachments)
     except Exception as exc:

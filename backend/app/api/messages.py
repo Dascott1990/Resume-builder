@@ -9,14 +9,18 @@ this app runs single-worker on Render, and Flask-SocketIO needs
 eventlet/gevent + sticky sessions that don't fit that deployment without
 real infra changes.
 """
+import os
+from html import escape as escape_html
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from app import db, limiter
 from app.models import Artisan, JobRequest, Message
 from app.middleware.error_handlers import APIError
 from app.utils.auth import get_scope, get_artisan_scope
-from app.utils.mail import send_email
+from app.utils.mail import send_email, wrap_email_html
 from app.api.requests import _job_side
+
+FRONTEND_URL = (os.environ.get("FRONTEND_URL") or "http://localhost:3000").rstrip("/")
 
 messages_bp = Blueprint("messages", __name__)
 
@@ -96,17 +100,20 @@ def _notify_new_message(job, msg):
         send_email(
             recipient,
             f"New message about your {job.trade} request",
-            f"""
-            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
-              <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
-              <h2 style="color:#111;margin:0 0 12px;">New message</h2>
-              <p style="color:#444;line-height:1.6;margin:0 0 16px;">{msg.body}</p>
-              <p style="color:#888;font-size:12.5px;line-height:1.5;">Sign in to reply.</p>
-              <p style="color:#aaa;font-size:11px;line-height:1.5;margin-top:20px;border-top:1px solid #eee;padding-top:14px;">
-                Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada
-              </p>
-            </div>
-            """,
+            wrap_email_html(
+                "New message",
+                # escape_html — msg.body is a real chat message, someone
+                # else's raw user input, not app-authored text like every
+                # other call site's body_html; interpolating it unescaped
+                # would let HTML/script in a message render in the
+                # recipient's mail client instead of showing as plain text.
+                # Newlines -> <br>, not white-space:pre-wrap — Outlook
+                # desktop ignores that CSS property (same fix admin.py's
+                # broadcast email already uses).
+                f'<p style="margin:0;">{escape_html(msg.body).replace(chr(10), "<br>")}</p>',
+                "Open Noqeev", FRONTEND_URL,
+                "Sign in to reply.",
+            ),
         )
     except Exception as exc:
         print(f"⚠️ Could not send message notification for job {job.id}: {exc}")

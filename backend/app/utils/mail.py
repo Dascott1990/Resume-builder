@@ -26,6 +26,19 @@ RESEND_API_URL = "https://api.resend.com/emails"
 # sender is ever needed without a code change.
 MAIL_FROM = os.environ.get("MAIL_FROM", "Noqeev <noreply@noqeev.com>")
 
+# Same per-file convention every other module reads this from (auth.py,
+# schedule_reminders.py) rather than one shared constant — matched here,
+# not "fixed," since this isn't the file to go relitigate that in.
+FRONTEND_URL = (os.environ.get("FRONTEND_URL") or "http://localhost:3000").rstrip("/")
+# A static, transparent-background PNG render of Logo.js's own mark +
+# wordmark (public/email-logo.png) — pixel-matched to the real in-app
+# logo (same MARK_PATH geometry, same bronze-to-gold gradient, same
+# self-hosted Unbounded wordmark font), not a redrawn approximation. A
+# real hosted image, not inline SVG: Outlook desktop's rendering engine
+# (Word, not a browser) has no SVG support at all, so an <img src> is
+# the only logo format guaranteed to actually show up there.
+LOGO_URL = f"{FRONTEND_URL}/email-logo.png"
+
 
 def mail_configured():
     """Same shape as utils/push.py's push_configured() — a guard a
@@ -80,22 +93,64 @@ def send_email(to, subject, html_body, attachment=None):
         raise RuntimeError(f"Resend API error ({res.status_code}): {detail}")
 
 
-def wrap_email_html(heading, body_html):
-    """The one visual shell every transactional email in this app already
-    hand-copies inline (auth verification/reset, job-request/message
-    notifications, brand-post email export, schedule reminders) — NOQEEV
-    wordmark, a heading, body content, the same muted footer with the
-    company address. Extracted here for api/admin.py's broadcast emails
-    (a new, 7th call site) rather than becoming an 8th inline copy; the
-    existing 6 are untouched — this only affects new email HTML, not a
-    retroactive refactor of what already works."""
+def wrap_email_html(heading, body_html, cta_label=None, cta_link=None, footnote=None):
+    """The one visual shell every transactional email in this app sends
+    through — previously seven near-identical hand-copies of the same
+    plain bold-text "NOQEEV" + heading + footer shell, independently
+    pasted into auth.py, messages.py, requests.py, brand.py, story.py,
+    schedule_reminders.py, and admin.py's broadcast tool, each one free
+    to drift from the others. One real template now: the actual logo
+    image (LOGO_URL above, not text standing in for it), a gold accent
+    bar, and a consistent footer carrying the company's real mailing
+    address (CASL — Canada's anti-spam law; Noqeev is Ottawa-based).
+
+    cta_label/cta_link are optional together — pass both for a real
+    button, leave both out for a plain body-only email (a message
+    notification has nothing to click but "sign in", for instance).
+    footnote is small print below the button/body — a link's expiry, a
+    "didn't request this?" disclaimer, that kind of thing.
+
+    Table-based layout, every style inline, no external stylesheet, no
+    inline SVG, no CSS gradient — deliberately: this has to render
+    correctly in Outlook's Word-based engine, not just modern browsers,
+    and Word supports none of those. The gold accent is a flat color for
+    the same reason (a gradient here would just silently not paint in
+    Outlook, leaving a blank bar instead of degrading gracefully)."""
+    cta_html = ""
+    if cta_label and cta_link:
+        cta_html = f"""
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 0;">
+          <tr>
+            <td style="background-color:#f59e0b;border-radius:10px;">
+              <a href="{cta_link}" style="display:inline-block;padding:13px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:14.5px;font-weight:700;color:#14151a;text-decoration:none;">{cta_label}</a>
+            </td>
+          </tr>
+        </table>
+        """
+    footnote_html = f'<p style="margin:20px 0 0;color:#888;font-size:12.5px;line-height:1.6;">{footnote}</p>' if footnote else ""
+
     return f"""
-    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
-      <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
-      <h2 style="color:#111;margin:0 0 12px;">{heading}</h2>
-      {body_html}
-      <p style="color:#aaa;font-size:11px;line-height:1.5;margin-top:20px;border-top:1px solid #eee;padding-top:14px;">
-        Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada
-      </p>
-    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f1ea;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:16px;border:1px solid #e8e3d8;">
+            <tr><td style="height:6px;line-height:6px;font-size:0;background-color:#f59e0b;border-radius:16px 16px 0 0;">&nbsp;</td></tr>
+            <tr>
+              <td style="padding:36px 36px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+                <img src="{LOGO_URL}" alt="Noqeev" width="140" style="display:block;height:auto;margin:0 0 28px;border:0;" />
+                <h1 style="margin:0 0 14px;color:#14151a;font-size:21px;font-weight:800;line-height:1.3;">{heading}</h1>
+                <div style="color:#444;font-size:14.5px;line-height:1.65;">{body_html}</div>
+                {cta_html}
+                {footnote_html}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 36px 28px;border-top:1px solid #eee;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+                <p style="margin:0;color:#aaa;font-size:11px;line-height:1.6;">Noqeev Technology &middot; 305 Rideau St, Ottawa, ON, Canada</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
     """

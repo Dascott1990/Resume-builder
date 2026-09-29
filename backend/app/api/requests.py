@@ -6,6 +6,7 @@ happened when the customer picked who to ask, so there's no pool of
 candidates to filter, only one recipient per request.
 """
 from datetime import datetime, timezone
+from html import escape as escape_html
 import stripe
 from flask import Blueprint, request, jsonify
 from sqlalchemy import update
@@ -13,7 +14,7 @@ from app import db, limiter
 from app.models import Artisan, JobRequest, Review, User
 from app.middleware.error_handlers import APIError
 from app.utils.auth import get_scope, get_artisan_scope, require_artisan_scope, require_customer_scope
-from app.utils.mail import send_email
+from app.utils.mail import send_email, wrap_email_html
 from app.utils.ratings import recompute_rating
 from app.utils.stripe_client import stripe_configured, FRONTEND_URL
 
@@ -39,21 +40,21 @@ def _notify_target_artisan(job, artisan):
     if artisan.notify_new_request is False:
         return
     try:
+        # escape_html — city/description are the customer's own free-text
+        # input, not app-authored copy; interpolating either unescaped
+        # would let HTML/script in a job request render in the artisan's
+        # mail client instead of showing as plain text.
+        location = escape_html(job.city) if job.city else "Not specified"
         send_email(
             artisan.email,
             f"New {job.trade} request from a customer",
-            f"""
-            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
-              <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
-              <h2 style="color:#111;margin:0 0 12px;">New job request</h2>
-              <p style="color:#444;line-height:1.6;margin:0 0 4px;"><b>Location:</b> {job.city or 'Not specified'}</p>
-              <p style="color:#444;line-height:1.6;margin:0 0 16px;">{job.description}</p>
-              <p style="color:#888;font-size:12.5px;line-height:1.5;">Sign in to your artisan dashboard to accept or decline. Manage notification preferences anytime in Settings.</p>
-              <p style="color:#aaa;font-size:11px;line-height:1.5;margin-top:20px;border-top:1px solid #eee;padding-top:14px;">
-                Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada
-              </p>
-            </div>
-            """,
+            wrap_email_html(
+                "New job request",
+                f"""<p style="margin:0 0 12px;"><b>Location:</b> {location}</p>
+                <p style="margin:0;">{escape_html(job.description).replace(chr(10), "<br>")}</p>""",
+                "Open artisan dashboard", FRONTEND_URL,
+                "Sign in to accept or decline. Manage notification preferences anytime in Settings.",
+            ),
         )
     except Exception as exc:
         print(f"⚠️ Could not notify artisan {artisan.id} ({artisan.email}) of job request {job.id}: {exc}")

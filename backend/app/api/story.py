@@ -52,7 +52,7 @@ from flask import Blueprint, request, jsonify, send_file
 
 from app import limiter
 from app.middleware.error_handlers import APIError
-from app.utils.mail import send_email
+from app.utils.mail import send_email, wrap_email_html
 from app.utils.ai_client import groq_transcribe
 from app.utils.video_quality import analyze_rendered_video
 
@@ -313,14 +313,7 @@ def _run_render_job(job_id, clip_bytes, caption_bytes, caption_frame_bytes, capt
         try:
             send_email(
                 email_to, "Noqeev — your story is ready",
-                f"""<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
-                  <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
-                  <h2 style="color:#111;margin:0 0 12px;">Your story is ready</h2>
-                  <p style="color:#444;line-height:1.6;margin:0 0 4px;">Attached — ready to post.</p>
-                  <p style="color:#aaa;font-size:11px;line-height:1.5;margin-top:20px;border-top:1px solid #eee;padding-top:14px;">
-                    Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada
-                  </p>
-                </div>""",
+                wrap_email_html("Your story is ready", '<p style="margin:0;">Attached — ready to post.</p>'),
                 attachment=(filename, out_bytes, ext),
             )
         except Exception as exc:
