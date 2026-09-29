@@ -34,7 +34,7 @@ import { toast } from "sonner";
 import {
   Loader2, MapPin, Clock, ChevronLeft, Wrench, RefreshCw, ClipboardList, Hammer,
   CheckCircle2, Inbox, Star, MessageCircle, Banknote, Trash2, Camera,
-  Home, User, Phone, Check, Bell, LogOut, ShieldCheck, ShieldAlert, FileUp,
+  Home, User, Phone, Check, Bell, LogOut, ShieldCheck, ShieldAlert, FileUp, Copy,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
@@ -42,6 +42,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Btn, Field } from "../guest/components/primitives";
 import { truncateBio, tintFor, initialsOf, avatarPhotoUrl } from "../shared/artisanDisplay";
+import { artisanSlug } from "@/lib/slugify";
 import Emoji3D from "../shared/Emoji3D";
 import StarRating from "../shared/StarRating";
 import DeleteListingDialog from "../shared/DeleteListingDialog";
@@ -1071,6 +1072,27 @@ export default function ArtisanDashboard({ onArtisanChange }) {
             className="w-full border-none bg-transparent p-0 text-center text-[13px] font-medium text-primary"
           >
             Preview as a customer
+          </button>
+
+          {/* The real, public, indexable URL for this listing (see
+              app/artisan/[slug]/page.js) — the whole point of it existing
+              is that an artisan can hand it out themselves (Instagram bio,
+              a text to a customer, a QR code at a market stall), so it
+              needs to be one tap to grab, not something they have to know
+              to construct. */}
+          <button
+            type="button"
+            onClick={() => {
+              const url = `${window.location.origin}/artisan/${artisanSlug(artisan)}`;
+              navigator.clipboard.writeText(url).then(
+                () => toast.success("Public profile link copied"),
+                () => toast.error("Couldn't copy — try again")
+              );
+            }}
+            className="flex w-full items-center justify-center gap-1.5 border-none bg-transparent p-0 text-center text-[13px] font-medium text-primary"
+          >
+            <Copy className="size-3.5" />
+            Copy your public profile link
           </button>
 
           <div className="grid gap-2.5 rounded-lg border border-border p-3.5">

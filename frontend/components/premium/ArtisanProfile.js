@@ -30,6 +30,7 @@ import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tapFeedback } from "@/lib/haptics";
 import { getArtisanToken } from "@/lib/artisanAuthToken";
 import { artisanMe } from "./artisan/api";
+import { artisanSlug } from "@/lib/slugify";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -155,12 +156,17 @@ export default function ArtisanProfile({
 
   const share = async () => {
     const text = `${artisan.name} — ${artisan.trade}${artisan.city ? ` in ${artisan.city}` : ""} on Noqeev`;
+    // The real, public, indexable URL (app/artisan/[slug]/page.js) — this
+    // button existed before that page did, sharing text with no link back
+    // to Noqeev at all. Every share is now a real backlink/referral, not
+    // just a mention.
+    const url = `${window.location.origin}/artisan/${artisanSlug(artisan)}`;
     if (navigator.share) {
-      try { await navigator.share({ title: artisan.name, text }); } catch { /* cancelled — not an error */ }
+      try { await navigator.share({ title: artisan.name, text, url }); } catch { /* cancelled — not an error */ }
       return;
     }
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(`${text} — ${url}`);
       toast.success("Copied to clipboard");
     } catch {
       toast.error("Couldn't share — try copying manually.");

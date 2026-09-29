@@ -108,10 +108,22 @@ export default function PrivacyPolicyPage() {
       <h2>Your choices and rights</h2>
       <p>
         You can access, correct, or request deletion of your personal information at any time by
-        emailing <a href="mailto:support@noqeev.com">support@noqeev.com</a>. We'll respond within a
-        reasonable time and verify your identity before acting on a request tied to an account.
-        Anonymous, guest-only usage can be cleared simply by clearing your browser's local storage
-        — there's no account to delete.
+        emailing <a href="mailto:support@noqeev.com">support@noqeev.com</a>, or directly from your
+        account's Settings ("Delete my account") — no need to email us just for that. We'll respond
+        within a reasonable time and verify your identity before acting on a request tied to an
+        account. Anonymous, guest-only usage can be cleared simply by clearing your browser's local
+        storage — there's no account to delete.
+      </p>
+      <p>
+        If you're in the European Economic Area or the UK, the <strong>GDPR</strong> gives you these
+        same access, correction, and deletion rights explicitly (including the right to erasure —
+        "the right to be forgotten"), plus the right to lodge a complaint with your local data
+        protection authority. If you're a California resident, the <strong>CCPA/CPRA</strong> gives
+        you the right to know what we collect and request its deletion; we do not sell personal
+        information, so there's nothing to opt out of. If you're in Canada, <strong>PIPEDA</strong>{" "}
+        governs how we handle your data and gives you the right to access it and challenge its
+        accuracy. These are the same rights described above — this paragraph just names the specific
+        laws behind them, since the requests themselves work identically no matter where you are.
       </p>
 
       <h2>Data retention</h2>
