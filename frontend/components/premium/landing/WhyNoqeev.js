@@ -24,7 +24,7 @@ export function WhyNoqeev() {
       <SectionGlow color="amber" side="left" />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
-          <Reveal className={`${CARD} flex flex-col`}>
+          <Reveal className={`${CARD} order-2 flex flex-col lg:order-1`}>
             {FEATURES.map((f, i) => (
               <div key={f.title} className={`flex items-start gap-3.5 py-3 ${i > 0 ? "border-t border-border" : ""}`}>
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10">
@@ -35,7 +35,10 @@ export function WhyNoqeev() {
             ))}
           </Reveal>
 
-          <Reveal delay={0.1}>
+          {/* order-1 on mobile so the words sit at the top of the stack,
+              same as Hero — the card only goes above the text at lg,
+              where it's genuinely sitting beside it, not above it. */}
+          <Reveal delay={0.1} className="order-1 lg:order-2">
             <span className={EYEBROW}>Why Noqeev</span>
             <h2 className="m-0 text-[clamp(1.6rem,4vw,2.4rem)] leading-tight font-bold text-foreground">
               Built to get you hired, not to collect your data.

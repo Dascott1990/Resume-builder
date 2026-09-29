@@ -10,11 +10,13 @@ export function FinalCTA({ onOpen, onOpenDashboard, onOpenArtisans }) {
       <SectionGlow color="amber" side="left" />
       <ScrollBlend className={`${SECTION_WRAP} relative`}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
-          <Reveal className={`${CARD} flex items-center justify-center`}>
+          <Reveal className={`${CARD} order-2 flex items-center justify-center lg:order-1`}>
             <LogoMark size={88} />
           </Reveal>
 
-          <Reveal delay={0.1} className="flex flex-col items-start gap-6">
+          {/* order-1 on mobile so the words sit at the top of the stack,
+              same as Hero — the card only goes above the text at lg. */}
+          <Reveal delay={0.1} className="order-1 flex flex-col items-start gap-6 lg:order-2">
             <h2 className="m-0 text-[clamp(1.8rem,5vw,2.5rem)] leading-[1.1] font-bold text-foreground">
               Build a resume, or find an artisan. No account required to start.
             </h2>
