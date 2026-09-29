@@ -23,46 +23,6 @@ export function ArtisanTeaser({ onOpenArtisans }) {
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal>
-            <span className={EYEBROW}>Also on Noqeev</span>
-            <h2 className="m-0 text-[clamp(1.6rem,4vw,2.2rem)] leading-tight font-bold text-foreground">
-              A local artisan network.
-            </h2>
-            <LocationPill className="mt-3" />
-            <p className="m-0 mt-3 max-w-sm text-[14.5px] leading-relaxed text-muted-foreground">
-              Browse and message tradespeople directly, or describe the problem by voice or
-              photo and speak to someone on the phone instead.
-            </p>
-
-            <ul className="m-0 mt-5 flex list-none flex-col gap-2.5 p-0">
-              {TRUST.map(({ Icon, label }) => (
-                <li key={label} className="flex items-center gap-2.5 text-[13px] font-semibold text-foreground">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                    <Icon className="size-3.5" />
-                  </span>
-                  {label}
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <button
-                onClick={onOpenArtisans}
-                className="flex min-h-[54px] items-center gap-2 rounded-2xl border border-border bg-card px-6 text-[15.5px] font-bold text-foreground [-webkit-tap-highlight-color:transparent]"
-              >
-                <Hammer className="size-4 text-primary" />
-                Find an Artisan
-                <ArrowRight className="size-4" />
-              </button>
-              <button
-                onClick={() => router.push("/help")}
-                className="flex min-h-[54px] items-center rounded-2xl border-none bg-transparent px-2 text-[14px] font-bold text-primary-text [-webkit-tap-highlight-color:transparent]"
-              >
-                Simplified booking mode →
-              </button>
-            </div>
-          </Reveal>
-
-          <Reveal delay={0.1}>
             {/* Illustrative example, not a live listing — deliberately generic
                 name/number (555 = the standard non-working placeholder) so
                 this mockup never gets confused with a real person's info.
@@ -105,6 +65,46 @@ export function ArtisanTeaser({ onOpenArtisans }) {
                 <Phone className="size-3.5" />
                 (555) 019-0142
               </div>
+            </div>
+          </Reveal>
+
+          <Reveal delay={0.1}>
+            <span className={EYEBROW}>Also on Noqeev</span>
+            <h2 className="m-0 text-[clamp(1.6rem,4vw,2.2rem)] leading-tight font-bold text-foreground">
+              A local artisan network.
+            </h2>
+            <LocationPill className="mt-3" />
+            <p className="m-0 mt-3 max-w-sm text-[14.5px] leading-relaxed text-muted-foreground">
+              Browse and message tradespeople directly, or describe the problem by voice or
+              photo and speak to someone on the phone instead.
+            </p>
+
+            <ul className="m-0 mt-5 flex list-none flex-col gap-2.5 p-0">
+              {TRUST.map(({ Icon, label }) => (
+                <li key={label} className="flex items-center gap-2.5 text-[13px] font-semibold text-foreground">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                    <Icon className="size-3.5" />
+                  </span>
+                  {label}
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                onClick={onOpenArtisans}
+                className="flex min-h-[54px] items-center gap-2 rounded-2xl border border-border bg-card px-6 text-[15.5px] font-bold text-foreground [-webkit-tap-highlight-color:transparent]"
+              >
+                <Hammer className="size-4 text-primary" />
+                Find an Artisan
+                <ArrowRight className="size-4" />
+              </button>
+              <button
+                onClick={() => router.push("/help")}
+                className="flex min-h-[54px] items-center rounded-2xl border-none bg-transparent px-2 text-[14px] font-bold text-primary-text [-webkit-tap-highlight-color:transparent]"
+              >
+                Simplified booking mode →
+              </button>
             </div>
           </Reveal>
         </div>

@@ -2,23 +2,23 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW } from "./shared";
+import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD } from "./shared";
 
 const FAQS = [
-  { q: "Is Noqeev really free?", a: "Yes — no credit card, no trial, no subscription. Hiring an artisan still means paying the artisan directly for their work, held safely until the job's done." },
+  { q: "Is Noqeev really free?", a: "Yes. No credit card, no trial, no subscription. Hiring an artisan still means paying the artisan directly for their work, held safely until the job's done." },
   { q: "Do I need to create an account?", a: "No. Your draft lives in your browser. Signing in just syncs it across devices." },
-  { q: "How does resume tailoring actually work?", a: "Paste the job posting — it matches your background to the posting's own keywords." },
+  { q: "How does resume tailoring actually work?", a: "Paste the job posting and it matches your background to the posting's own keywords." },
   { q: "What files do I get, and can I edit them?", a: "An editable .docx and a clean PDF. No watermark, no locked preview." },
-  { q: "Does Auto Apply submit applications for me?", a: "No. It fills out the real application form and shows you exactly what it entered — nothing is ever sent without you reviewing and confirming it first." },
-  { q: "Is the Artisan directory anonymous too?", a: "Yes — no account needed to browse or to list yourself. Booking, messaging, and paying an artisan do require signing in." },
-  { q: "What does the verified badge on an artisan mean?", a: "Our team has personally reviewed that artisan's government ID and proof of insurance before approving it — it isn't automatic, and not every listing has gone through it yet." },
-  { q: "How does payment protection work when I hire someone?", a: "You agree on a price up front. It's held by Noqeev, not the artisan, until you confirm the job is finished — only then does it get released." },
+  { q: "Does Auto Apply submit applications for me?", a: "No. It fills out the real application form and shows you exactly what it entered. Nothing is ever sent without you reviewing and confirming it first." },
+  { q: "Is the Artisan directory anonymous too?", a: "Yes. No account needed to browse or to list yourself. Booking, messaging, and paying an artisan do require signing in." },
+  { q: "What does the verified badge on an artisan mean?", a: "Our team has personally reviewed that artisan's government ID and proof of insurance before approving it. It isn't automatic, and not every listing has gone through it yet." },
+  { q: "How does payment protection work when I hire someone?", a: "You agree on a price up front. It's held by Noqeev, not the artisan, until you confirm the job is finished. Only then does it get released." },
 ];
 
 function FAQItem({ q, a }) {
   const [open, setOpen] = useState(false);
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="border-b border-border py-4">
+    <Collapsible open={open} onOpenChange={setOpen} className="border-b border-border py-4 last:border-b-0 last:pb-0">
       <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 border-none bg-transparent p-0 text-left [-webkit-tap-highlight-color:transparent]">
         <span className="text-[14.5px] font-bold text-foreground">{q}</span>
         <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
@@ -34,16 +34,18 @@ export function FAQ() {
   return (
     <section id="faq" className="relative flex min-h-[100dvh] flex-col justify-center py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
       <ScrollBlend className={SECTION_WRAP}>
-        <Reveal className="mx-auto max-w-xl text-center">
-          <span className={EYEBROW}>Questions</span>
-          <h2 className="m-0 text-[clamp(1.6rem,4vw,2.4rem)] leading-tight font-bold text-foreground">
-            How Noqeev actually works.
-          </h2>
-        </Reveal>
+        <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2 lg:gap-16">
+          <Reveal>
+            <span className={EYEBROW}>Questions</span>
+            <h2 className="m-0 text-[clamp(1.6rem,4vw,2.4rem)] leading-tight font-bold text-foreground">
+              How Noqeev actually works.
+            </h2>
+          </Reveal>
 
-        <Reveal delay={0.1} className="mx-auto mt-12 max-w-2xl">
-          {FAQS.map((f) => <FAQItem key={f.q} {...f} />)}
-        </Reveal>
+          <Reveal delay={0.1} className={CARD}>
+            {FAQS.map((f) => <FAQItem key={f.q} {...f} />)}
+          </Reveal>
+        </div>
       </ScrollBlend>
     </section>
   );

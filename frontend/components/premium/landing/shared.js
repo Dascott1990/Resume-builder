@@ -76,3 +76,9 @@ export function LocationPill({ className }) {
 // contrast math; this eyebrow label is real text on every section that
 // uses it, not an icon or button fill, so it needs the accessible variant.
 export const EYEBROW = "mb-3 block font-mono text-[11px] font-bold tracking-[0.22em] text-primary-text uppercase";
+
+// The single "visual card" surface every alternating landing section uses
+// for its non-text half — one shared shape so the left/right/left/right
+// rhythm down the page reads as one consistent system, not five one-off
+// panels.
+export const CARD = "rounded-2xl border border-border bg-card p-6 sm:p-8";

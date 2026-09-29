@@ -56,7 +56,7 @@ export function ThreeDIntensityControl({ intensity, setIntensity }) {
         // (confirmed live: a first attempt with other words split between
         // "3D" and the percent still failed this) wants the visible
         // sequence intact so voice-control users can say what they see.
-        aria-label={`3D ${pct}% — adjust effect intensity`}
+        aria-label={`3D ${pct}%, adjust effect intensity`}
         aria-expanded={open}
         className="flex h-11 items-center gap-2 rounded-full border border-white/[0.12] bg-card/90 px-4 text-[12.5px] font-bold text-foreground shadow-[0_10px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl"
       >
