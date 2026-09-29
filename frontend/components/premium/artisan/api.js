@@ -147,6 +147,19 @@ export const artisanDeleteAvatarPhoto = () => apiRequest("/api/v1/artisans/me/av
   headers: authHeaders(),
 });
 
+// Both documents in one submission — see backend/app/api/artisans.py's
+// /me/verification for why they're required together, not one at a time.
+export const artisanSubmitVerification = (idFile, insuranceFile) => {
+  const formData = new FormData();
+  formData.append("id_doc", idFile);
+  formData.append("insurance_doc", insuranceFile);
+  return apiRequest("/api/v1/artisans/me/verification", {
+    method: "POST",
+    headers: authHeaders(),
+    body: formData,
+  });
+};
+
 // Public route (same one ArtisanProfile.js uses for a customer's view of
 // this artisan) — no X-Artisan-Token needed, just the artisan's own id.
 export const artisanReviews = (artisanId, limit = 3) =>

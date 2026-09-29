@@ -34,7 +34,7 @@ import { toast } from "sonner";
 import {
   Loader2, MapPin, Clock, ChevronLeft, Wrench, RefreshCw, ClipboardList, Hammer,
   CheckCircle2, Inbox, Star, MessageCircle, Banknote, Trash2, Camera,
-  Home, User, Phone, Check, Bell, LogOut,
+  Home, User, Phone, Check, Bell, LogOut, ShieldCheck, ShieldAlert, FileUp,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
@@ -65,6 +65,7 @@ import {
   artisanGetThread, artisanPostMessage, artisanMarkThreadRead, artisanUnreadCount,
   artisanUnreadThreads, artisanReviews, artisanConnectOnboard, artisanConnectStatus,
   artisanDeleteMe, artisanUpdateProfile, artisanUploadAvatarPhoto, artisanDeleteAvatarPhoto,
+  artisanSubmitVerification,
   artisanChangePassword, artisanLoginViaCustomer,
 } from "./api";
 
@@ -212,6 +213,15 @@ export default function ArtisanDashboard({ onArtisanChange }) {
   const avatarFileInputRef = useRef(null);
   const cityFieldRef = useRef(null);
   const yearsFieldRef = useRef(null);
+  // Verification — see backend/app/api/artisans.py's /me/verification.
+  // Both files are picked before anything's sent (submitVerification
+  // below requires both together), so this is local draft state, not
+  // uploaded on selection the way the single avatar photo is.
+  const [idDocFile, setIdDocFile] = useState(null);
+  const [insuranceDocFile, setInsuranceDocFile] = useState(null);
+  const [submittingVerification, setSubmittingVerification] = useState(false);
+  const idDocInputRef = useRef(null);
+  const insuranceDocInputRef = useRef(null);
   const bioFieldRef = useRef(null);
   const photosSectionRef = useRef(null);
 
@@ -493,6 +503,22 @@ export default function ArtisanDashboard({ onArtisanChange }) {
       toast.error(e.message);
     } finally {
       setAvatarUploading(false);
+    }
+  };
+
+  const submitVerification = async () => {
+    if (!idDocFile || !insuranceDocFile) { toast.error("Choose both a government ID and proof of insurance."); return; }
+    setSubmittingVerification(true);
+    try {
+      const updated = await artisanSubmitVerification(idDocFile, insuranceDocFile);
+      setArtisan(updated);
+      setIdDocFile(null);
+      setInsuranceDocFile(null);
+      toast.success("Submitted — we'll review it and let you know.");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSubmittingVerification(false);
     }
   };
 
@@ -970,6 +996,73 @@ export default function ArtisanDashboard({ onArtisanChange }) {
 
           <div ref={photosSectionRef} className="border-t border-border pt-4">
             <PortfolioGrid artisanId={artisan.id} photos={photos} uploading={photoUploading} upload={uploadPhoto} remove={removePhoto} move={movePhoto} />
+          </div>
+
+          {/* Get Verified — a real, human-reviewed pipeline (see backend/
+              app/api/artisans.py's /me/verification and admin.py's review
+              queue), NOT an automated background-check API. An admin
+              looks at these two documents and approves or rejects by
+              hand; only "verified" unlocks the trust badge customers see
+              (ArtisanSeniorHelp.js, ArtisanProfile.js). */}
+          <div className="border-t border-border pt-4">
+            <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-muted-foreground">
+              <ShieldCheck className="size-3" /> GET VERIFIED
+            </span>
+
+            {artisan.verification_status === "verified" && (
+              <div className="mt-2.5 flex items-center gap-2.5 rounded-lg border border-success/30 bg-success/10 p-3.5">
+                <ShieldCheck className="size-5 shrink-0 text-success" />
+                <p className="m-0 text-[13px] font-semibold text-foreground">
+                  Verified — your ID and insurance were reviewed and approved. Customers see this on your profile.
+                </p>
+              </div>
+            )}
+
+            {artisan.verification_status === "pending" && (
+              <div className="mt-2.5 flex items-center gap-2.5 rounded-lg border border-border bg-muted/40 p-3.5">
+                <Loader2 className="size-5 shrink-0 animate-spin text-muted-foreground" />
+                <p className="m-0 text-[13px] font-semibold text-foreground">
+                  Submitted — our team is reviewing your documents.
+                </p>
+              </div>
+            )}
+
+            {(!artisan.verification_status || artisan.verification_status === "unverified" || artisan.verification_status === "rejected") && (
+              <div className="mt-2.5 flex flex-col gap-2.5">
+                {artisan.verification_status === "rejected" && (
+                  <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 p-3.5">
+                    <ShieldAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
+                    <p className="m-0 text-[13px] text-foreground">
+                      {artisan.verification_notes || "Your last submission wasn't approved."} Upload new documents to try again.
+                    </p>
+                  </div>
+                )}
+                <p className="m-0 text-[12.5px] text-muted-foreground">
+                  Upload a government ID and proof of insurance to get a verified badge customers see when you're matched to them.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => idDocInputRef.current?.click()}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-border bg-transparent px-3.5 py-3 text-left text-[13px] font-semibold text-foreground"
+                >
+                  {idDocFile ? idDocFile.name : "Government ID"}
+                  <FileUp className="size-3.5 shrink-0 text-muted-foreground" />
+                </button>
+                <input ref={idDocInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => setIdDocFile(e.target.files?.[0] || null)} />
+                <button
+                  type="button"
+                  onClick={() => insuranceDocInputRef.current?.click()}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-border bg-transparent px-3.5 py-3 text-left text-[13px] font-semibold text-foreground"
+                >
+                  {insuranceDocFile ? insuranceDocFile.name : "Proof of insurance"}
+                  <FileUp className="size-3.5 shrink-0 text-muted-foreground" />
+                </button>
+                <input ref={insuranceDocInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => setInsuranceDocFile(e.target.files?.[0] || null)} />
+                <Btn small variant="gold" disabled={submittingVerification || !idDocFile || !insuranceDocFile} loading={submittingVerification} onClick={submitVerification}>
+                  Submit for review
+                </Btn>
+              </div>
+            )}
           </div>
 
           <button

@@ -68,6 +68,7 @@ exempt everywhere else in this file — get_admin_user(request) short-
 circuits _authorize_edit, so the admin panel can always moderate any
 listing regardless of who created it or whether its token was ever kept.
 """
+import io
 import json
 import re
 import jwt
@@ -76,7 +77,7 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from html import escape as escape_html
 
-from flask import Blueprint, request, jsonify, redirect, current_app
+from flask import Blueprint, request, jsonify, redirect, current_app, send_file
 
 from app import db, limiter
 from app.models import (
@@ -400,6 +401,90 @@ def delete_review(review_id):
     recompute_rating(artisan_id)
     db.session.commit()
     return jsonify({"success": True}), 200
+
+
+# ── Artisan verification — the manual review queue behind the trust badge
+# ArtisanSeniorHelp.js and ArtisanProfile.js show. There is no automated
+# background-check vendor wired into this app (no Checkr/Certn/etc.
+# account) — an admin looks at the two uploaded documents (submitted via
+# POST /api/v1/artisans/me/verification) and approves or rejects by hand.
+# Both document-serving routes are admin-only, unlike avatar-photo's public
+# route — a government ID and proof of insurance are private documents,
+# never meant for a plain <img src> anyone can hit. ─────────────────────────
+def _serialize_verification_row(a):
+    return {
+        "id": a.id, "name": a.name, "trade": a.trade, "city": a.city,
+        "verification_status": a.verification_status or "unverified",
+        "verification_submitted_at": a.verification_submitted_at.isoformat() if a.verification_submitted_at else None,
+        "verification_reviewed_at": a.verification_reviewed_at.isoformat() if a.verification_reviewed_at else None,
+        "verification_notes": a.verification_notes,
+        "has_id_doc": a.verification_id_doc_data is not None,
+        "has_insurance_doc": a.verification_insurance_doc_data is not None,
+    }
+
+
+@admin_bp.route("/artisans/verification-queue", methods=["GET"])
+def list_verification_queue():
+    """Defaults to just "pending" (the actual queue an admin needs to work
+    through) — ?status=verified or ?status=rejected pulls up the other
+    piles for reference, and ?status=all pulls every artisan regardless of
+    whether they've ever submitted anything."""
+    require_admin(request)
+    status = request.args.get("status", "pending")
+    q = Artisan.query
+    if status != "all":
+        if status == "unverified":
+            q = q.filter(db.or_(Artisan.verification_status.is_(None), Artisan.verification_status == "unverified"))
+        else:
+            q = q.filter(Artisan.verification_status == status)
+    items = q.order_by(Artisan.verification_submitted_at.desc().nullslast(), Artisan.created_at.desc()).all()
+    return jsonify({"success": True, "data": [_serialize_verification_row(a) for a in items]}), 200
+
+
+@admin_bp.route("/artisans/<artisan_id>/verification/id-doc", methods=["GET"])
+def get_verification_id_doc(artisan_id):
+    require_admin(request)
+    a = db.session.get(Artisan, artisan_id)
+    if not a or not a.verification_id_doc_data:
+        raise APIError("Document not found", 404)
+    # no_cache, not the long max_age avatar-photo uses — this is a
+    # private document behind an admin auth check on every fetch, not
+    # something that should ever sit in a shared/browser cache.
+    return send_file(io.BytesIO(a.verification_id_doc_data), mimetype=a.verification_id_doc_mime_type, max_age=0)
+
+
+@admin_bp.route("/artisans/<artisan_id>/verification/insurance-doc", methods=["GET"])
+def get_verification_insurance_doc(artisan_id):
+    require_admin(request)
+    a = db.session.get(Artisan, artisan_id)
+    if not a or not a.verification_insurance_doc_data:
+        raise APIError("Document not found", 404)
+    return send_file(io.BytesIO(a.verification_insurance_doc_data), mimetype=a.verification_insurance_doc_mime_type, max_age=0)
+
+
+@admin_bp.route("/artisans/<artisan_id>/verification", methods=["PATCH"])
+def review_verification(artisan_id):
+    """The actual human decision — approve or reject what was submitted.
+    "verified" is the ONLY status that unlocks the trust badge anywhere in
+    the app (see Artisan.to_dict's verification_status), so this is the
+    one route in the whole system that can turn it on."""
+    admin = require_admin(request)
+    a = db.session.get(Artisan, artisan_id)
+    if not a:
+        raise APIError("Artisan not found", 404)
+
+    body = request.get_json(force=True) or {}
+    status = body.get("status")
+    if status not in ("verified", "rejected"):
+        raise APIError('status must be "verified" or "rejected"', 400)
+    if a.verification_status != "pending":
+        raise APIError("Only a pending submission can be reviewed", 400)
+
+    a.verification_status = status
+    a.verification_notes = (body.get("notes") or "").strip()[:500] or None
+    a.verification_reviewed_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return jsonify({"success": True, "data": _serialize_verification_row(a)}), 200
 
 
 # ── Vendors — the third-party services registry. Rows starting with

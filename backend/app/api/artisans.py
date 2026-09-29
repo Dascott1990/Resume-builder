@@ -414,7 +414,17 @@ def artisan_me():
     a = db.session.get(Artisan, artisan_id)
     if not a:
         raise APIError("Artisan account not found", 404)
-    return jsonify({"success": True, "data": a.to_dict()}), 200
+    # verification_notes and the submitted/reviewed timestamps are
+    # deliberately NOT in to_dict() (that's also the shape public browse/
+    # profile responses use — a rejection note has no business leaking to
+    # every visitor) — added here on top of it instead, since this is the
+    # one response that's genuinely just-for-the-artisan-themselves.
+    return jsonify({"success": True, "data": {
+        **a.to_dict(),
+        "verification_notes": a.verification_notes,
+        "verification_submitted_at": a.verification_submitted_at.isoformat() if a.verification_submitted_at else None,
+        "verification_reviewed_at": a.verification_reviewed_at.isoformat() if a.verification_reviewed_at else None,
+    }}), 200
 
 
 @artisans_bp.route("/me/availability", methods=["PATCH"])
@@ -539,6 +549,41 @@ def get_avatar_photo(artisan_id):
     if not a or not a.avatar_photo_data:
         raise APIError("Avatar photo not found", 404)
     return send_file(io.BytesIO(a.avatar_photo_data), mimetype=a.avatar_photo_mime_type, max_age=3600)
+
+
+@artisans_bp.route("/me/verification", methods=["POST"])
+def artisan_submit_verification():
+    """Submit (or resubmit after a rejection) a government ID and proof of
+    insurance for manual review — see Artisan.verification_status's own
+    comment for why this is a human review, not an automated API call.
+    Both files are required together: a real verification needs proof of
+    BOTH identity and insurance, not one or the other, and a partial
+    submission would leave verification_status in an ambiguous state.
+    Always resets to "pending" (clearing any previous rejection notes) —
+    new documents need a fresh look, not the old verdict carried forward."""
+    artisan_id = require_artisan_scope(request)
+    a = db.session.get(Artisan, artisan_id)
+    if not a:
+        raise APIError("Artisan account not found", 404)
+
+    id_file = request.files.get("id_doc")
+    insurance_file = request.files.get("insurance_doc")
+    if not id_file or not insurance_file:
+        raise APIError("Upload both a government ID and proof of insurance", 400)
+
+    id_data = validate_upload(id_file, allowed_mimetypes=("image/", "application/pdf"), max_bytes=MAX_PHOTO_BYTES)
+    insurance_data = validate_upload(insurance_file, allowed_mimetypes=("image/", "application/pdf"), max_bytes=MAX_PHOTO_BYTES)
+
+    a.verification_id_doc_data = id_data
+    a.verification_id_doc_mime_type = id_file.mimetype
+    a.verification_insurance_doc_data = insurance_data
+    a.verification_insurance_doc_mime_type = insurance_file.mimetype
+    a.verification_status = "pending"
+    a.verification_submitted_at = datetime.now(timezone.utc)
+    a.verification_reviewed_at = None
+    a.verification_notes = None
+    db.session.commit()
+    return jsonify({"success": True, "data": a.to_dict()}), 200
 
 
 def _clean_pagination(default_limit, max_limit):

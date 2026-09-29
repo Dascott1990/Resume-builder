@@ -19,7 +19,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { ChevronLeft, MapPin, Phone, MessageSquare, Mail, RefreshCw, ClipboardList, Star, MessageCircle, Heart, Share2 } from "lucide-react";
+import { ChevronLeft, MapPin, Phone, MessageSquare, Mail, RefreshCw, ClipboardList, Star, MessageCircle, Heart, Share2, ShieldCheck } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import { formatPhone } from "./shared/artisanDisplay";
 import { Btn } from "./guest/components/primitives";
@@ -308,6 +308,23 @@ export default function ArtisanProfile({
           <span className="text-[13px] text-muted-foreground">No ratings yet — be the first</span>
         )}
       </motion.div>
+
+      {/* Real, not decorative — only renders once an admin has approved
+          this artisan's submitted ID + proof of insurance (Artisan.
+          verification_status === "verified", see backend/app/api/
+          admin.py's review_verification and the Get Verified section of
+          ArtisanDashboard.js). No badge at all for anyone who hasn't
+          gone through review, rather than a generic one true for every
+          listing regardless of whether it means anything. */}
+      {artisan.verification_status === "verified" && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.18 }}
+          className="flex items-center gap-2 rounded-xl border border-success/25 bg-success/10 px-3.5 py-2.5"
+        >
+          <ShieldCheck className="size-4 shrink-0 text-success" />
+          <span className="text-[12.5px] font-bold text-foreground">ID &amp; insurance verified by Noqeev</span>
+        </motion.div>
+      )}
 
       <ExpandableBio text={artisan.bio} />
 

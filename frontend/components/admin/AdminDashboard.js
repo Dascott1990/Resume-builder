@@ -23,6 +23,7 @@ import {
   Newspaper, ExternalLink, Server, Bug, CheckCircle2, XCircle, ChevronDown, Table2, Activity, Menu,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
+import { getToken } from "@/lib/authToken";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1041,6 +1042,190 @@ function ArtisansTab() {
   );
 }
 
+// ── Verification — the human review queue behind the trust badge
+// ArtisanSeniorHelp.js/ArtisanProfile.js show (backend/app/api/admin.py's
+// /artisans/verification-queue + /artisans/<id>/verification). No
+// automated background-check vendor is wired in anywhere in this app —
+// an admin looks at the two documents an artisan submitted and approves
+// or rejects by hand; this tab is that review UI. ──────────────────────────
+function VerificationDocViewer({ artisanId, kind, label }) {
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [contentType, setContentType] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let url;
+    let cancelled = false;
+    setLoading(true);
+    setError(false);
+    // A plain <img src> can't carry an Authorization header, and this
+    // document is deliberately never served by a public route (see
+    // admin.py) — fetched as a blob with the admin's own token instead,
+    // same shape shared/api.js's apiRequest uses, just not going through
+    // it since this response is raw file bytes, not the {success,data}
+    // envelope every other endpoint returns.
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/admin/artisans/${artisanId}/verification/${kind}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Couldn't load this document");
+        if (!cancelled) setContentType(res.headers.get("content-type"));
+        return res.blob();
+      })
+      .then((blob) => { if (!cancelled) { url = URL.createObjectURL(blob); setBlobUrl(url); } })
+      .catch(() => { if (!cancelled) setError(true); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
+  }, [artisanId, kind]);
+
+  if (loading) {
+    return <div className="flex h-32 items-center justify-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>;
+  }
+  if (error || !blobUrl) {
+    return <p className="m-0 py-4 text-center text-sm text-muted-foreground">Couldn't load this document.</p>;
+  }
+  if (contentType?.startsWith("image/")) {
+    return <img src={blobUrl} alt={label} className="max-h-80 w-full rounded-lg border border-border object-contain" />;
+  }
+  return (
+    <a href={blobUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm font-semibold text-primary">
+      <FileText className="size-4" /> Open {label} (PDF) in a new tab
+    </a>
+  );
+}
+
+const VERIFICATION_STATUS_TONE = { pending: "warning", verified: "good", rejected: "bad", unverified: "neutral" };
+
+function VerificationTab() {
+  const [statusFilter, setStatusFilter] = useState("pending");
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [reviewing, setReviewing] = useState(null);
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiRequest(`/api/v1/admin/artisans/verification-queue?status=${statusFilter}`);
+      setRows(data);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openReview = (row) => { setReviewing(row); setNotes(""); };
+
+  const decide = async (status) => {
+    setBusy(true);
+    try {
+      await apiRequest(`/api/v1/admin/artisans/${reviewing.id}/verification`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, notes }),
+      });
+      toast.success(status === "verified" ? "Approved — the badge is live on their profile now." : "Rejected.");
+      setReviewing(null);
+      load();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <TabHeader
+        title="Artisan verification"
+        onRefresh={load}
+        refreshing={loading}
+        extra={
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="verified">Verified</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="unverified">Unverified</SelectItem>
+              <SelectItem value="all">All</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      />
+      <AdminTable
+        loading={loading}
+        emptyLabel="Nothing here."
+        rows={rows}
+        columns={[
+          { key: "name", label: "Name" },
+          { key: "trade", label: "Trade" },
+          { key: "submitted", label: "Submitted", render: (a) => fmtDate(a.verification_submitted_at) },
+          {
+            key: "verification_status", label: "Status",
+            render: (a) => <StatusChip tone={VERIFICATION_STATUS_TONE[a.verification_status] || "neutral"}>{a.verification_status}</StatusChip>,
+          },
+          {
+            key: "actions", label: "",
+            render: (a) => (
+              <div className="flex justify-end">
+                <Button size="sm" variant="outline" disabled={!a.has_id_doc && !a.has_insurance_doc} onClick={() => openReview(a)}>
+                  Review
+                </Button>
+              </div>
+            ),
+          },
+        ]}
+      />
+
+      <Dialog open={!!reviewing} onOpenChange={(o) => !o && setReviewing(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader><DialogTitle>{reviewing?.name} — verification</DialogTitle></DialogHeader>
+          {reviewing && (
+            <div className="space-y-4">
+              <div>
+                <p className="m-0 mb-1.5 text-xs font-bold text-muted-foreground">GOVERNMENT ID</p>
+                {reviewing.has_id_doc
+                  ? <VerificationDocViewer artisanId={reviewing.id} kind="id-doc" label="ID" />
+                  : <p className="m-0 text-sm text-muted-foreground">Not submitted.</p>}
+              </div>
+              <div>
+                <p className="m-0 mb-1.5 text-xs font-bold text-muted-foreground">PROOF OF INSURANCE</p>
+                {reviewing.has_insurance_doc
+                  ? <VerificationDocViewer artisanId={reviewing.id} kind="insurance-doc" label="insurance document" />
+                  : <p className="m-0 text-sm text-muted-foreground">Not submitted.</p>}
+              </div>
+              {reviewing.verification_status === "pending" ? (
+                <div className="space-y-1.5">
+                  <Label>Notes (shown to the artisan if you reject)</Label>
+                  <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
+                </div>
+              ) : reviewing.verification_notes && (
+                <p className="m-0 text-sm text-muted-foreground">Notes: {reviewing.verification_notes}</p>
+              )}
+            </div>
+          )}
+          {reviewing?.verification_status === "pending" && (
+            <DialogFooter>
+              <Button variant="outline" onClick={() => decide("rejected")} disabled={busy}>
+                {busy ? <Loader2 className="size-3.5 animate-spin" /> : "Reject"}
+              </Button>
+              <Button onClick={() => decide("verified")} disabled={busy}>
+                {busy ? <Loader2 className="size-3.5 animate-spin" /> : "Approve"}
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ── Vendors — the third-party services registry (backend/app/api/
 // admin.py's /vendors routes). "Detected" rows came from real env-var
 // presence at boot (see backend/app/utils/vendors.py's CATALOG) — the
@@ -1493,6 +1678,7 @@ export function AdminDashboard({ adminUser, onSignOut }) {
             {activeSection === "applications" && <ApplicationsTab />}
             {activeSection === "reviews" && <ReviewsTab />}
             {activeSection === "artisans" && <ArtisansTab />}
+            {activeSection === "verification" && <VerificationTab />}
             {activeSection === "vendors" && <VendorsTab />}
             {activeSection === "system" && <SystemTab />}
             {activeSection === "broadcast" && <BroadcastTab />}

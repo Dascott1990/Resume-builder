@@ -194,6 +194,31 @@ class Artisan(db.Model):
     # columns addition; treated as 0 in to_dict below.
     avatar_photo_version = db.Column(db.Integer, nullable=True)
 
+    # Manual, human-reviewed verification (ID + proof of insurance) — see
+    # api/artisans.py's /me/verification (submit) and api/admin.py's
+    # verification queue (review). There is no automated background-check
+    # API wired into this app (no Checkr/Certn/etc. account exists) — an
+    # admin looks at the uploaded documents themselves and approves or
+    # rejects. NULL/"unverified" is the default every artisan starts at;
+    # only "verified" unlocks the trust badge on the frontend (see
+    # ArtisanSeniorHelp.js and ArtisanProfile.js) — this is the one field
+    # that badge is allowed to trust, precisely so nothing else can imply
+    # "checked" without an admin having actually looked.
+    verification_status = db.Column(db.String(20), nullable=True)  # None/"unverified" | "pending" | "verified" | "rejected"
+    # Same physical storage choice as avatar_photo_data above (Postgres
+    # LargeBinary) — these are private documents, never served by a public
+    # route (see admin.py's doc-viewing routes, both require_admin-gated).
+    verification_id_doc_data = db.Column(db.LargeBinary, nullable=True)
+    verification_id_doc_mime_type = db.Column(db.String(100), nullable=True)
+    verification_insurance_doc_data = db.Column(db.LargeBinary, nullable=True)
+    verification_insurance_doc_mime_type = db.Column(db.String(100), nullable=True)
+    verification_submitted_at = db.Column(db.DateTime, nullable=True)
+    verification_reviewed_at = db.Column(db.DateTime, nullable=True)
+    # The admin's own note — a rejection reason the artisan should see
+    # (surfaced on their own /me, never on the public to_dict below), or
+    # just an internal record of what was checked.
+    verification_notes = db.Column(db.String(500), nullable=True)
+
     def to_dict(self):
         return {
             "id": self.id, "name": self.name, "trade": self.trade,
@@ -214,6 +239,12 @@ class Artisan(db.Model):
             "notify_new_request": self.notify_new_request is not False,
             "notify_new_message": self.notify_new_message is not False,
             "stripe_payouts_enabled": bool(self.stripe_payouts_enabled),
+            # Public-safe on purpose — this is exactly what a customer-
+            # facing trust badge needs to check. verification_notes and
+            # the raw document bytes are deliberately NEVER in this dict;
+            # see artisan_me() in api/artisans.py for the artisan's own
+            # fuller view of their own verification state.
+            "verification_status": self.verification_status or "unverified",
         }
 
 
