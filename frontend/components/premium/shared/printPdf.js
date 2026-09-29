@@ -1,3 +1,17 @@
+import { toast } from "sonner";
+
+// "Download PDF" doesn't write a file directly — it opens the browser's own
+// Print dialog via window.print() below, and nothing actually saves unless
+// the person explicitly picks "Save as PDF" as the destination inside that
+// OS/browser UI. That's invisible from here (there's no JS callback for
+// "they picked Save as PDF vs a real printer vs Cancel"), and on a first
+// use it's easy to miss entirely — the dialog looks like it's offering to
+// print to a physical printer, not save a file, especially on mobile where
+// "Save as PDF" isn't always the obviously-highlighted option. This toast
+// is the fix for that specific failure mode: not code, guidance, right
+// before the dialog most likely to be misread appears.
+const PDF_INSTRUCTION = "A print screen will open — choose \"Save as PDF\" as the destination, then tap Save.";
+
 // ── PDF: text-based via browser print (preserves selectable text) ─────────────
 // We inject a dedicated print stylesheet and isolate the preview element.
 // Result: clean text PDF — every word is selectable and copyable.
@@ -82,6 +96,7 @@ export function printPdf(previewEl) {
     }
   `;
   document.head.appendChild(style);
+  toast.info(PDF_INSTRUCTION, { duration: 8000 });
   window.print();
 
   setTimeout(() => {
@@ -145,6 +160,7 @@ export function printCoverLetterPdf(coverLetter, contact) {
     }
   `;
   document.head.appendChild(style);
+  toast.info(PDF_INSTRUCTION, { duration: 8000 });
   window.print();
 
   setTimeout(() => {
