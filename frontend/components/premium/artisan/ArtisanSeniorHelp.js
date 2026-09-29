@@ -69,7 +69,7 @@ const CHECKLIST_ISSUES = [
   { id: "leak", label: "Leaking Pipe", trade: "Plumber" },
   { id: "door", label: "Broken Door or Lock", trade: "Carpenter" },
   { id: "switch", label: "Light Switch Not Working", trade: "Electrician" },
-  { id: "hvac", label: "Heating or Cooling Not Working", trade: "HVAC" },
+  { id: "hvac", label: "Heating or Cooling Not Working", trade: "HVAC Contractor" },
   { id: "other", label: "Something Else", trade: "Handyman" },
 ];
 
@@ -299,7 +299,17 @@ export default function ArtisanSeniorHelp({ onClose }) {
       <main className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
         {/* ══════════════ STEP 1 — Landing ══════════════ */}
         {step === 1 && (
-          <div className="flex flex-col gap-4">
+          // min-h-full + justify-center: with only two buttons and a
+          // heading, this is shorter than the screen on most phones —
+          // left top-aligned, that read as unfinished, a block of content
+          // floating above a large gap before the footer. Centered in the
+          // available space instead, so it reads as a deliberate,
+          // composed screen regardless of device height. Steps 2/3 have
+          // enough content to fill or exceed the screen, so they don't
+          // get this treatment — centering content taller than its
+          // container is a real flexbox+overflow footgun (browsers can
+          // clip the start of it when scrolled), not just unnecessary.
+          <div className="flex min-h-full flex-col justify-center gap-4">
             <h2 ref={revealHeadingRef} tabIndex={-1} className="text-[22px] font-extrabold text-black outline-none">
               What do you need?
             </h2>
@@ -312,10 +322,14 @@ export default function ArtisanSeniorHelp({ onClose }) {
               <span className="text-[14px] font-semibold text-white/95">Tap here to describe your issue</span>
             </button>
 
+            {/* "Call Support" alone, not "Call Support / Book Over Phone"
+                — the longer label wrapped to an orphaned lone word ("Phone")
+                on its own second line, and the number right below it
+                already says what the call is for. */}
             <a href={`tel:${SUPPORT_PHONE_TEL}`} className={`${BIG_BTN} min-h-[88px] flex-col gap-0.5 border-black bg-white text-black`}>
               <span className="flex flex-wrap items-center justify-center gap-2.5 text-center text-[22px] font-extrabold">
                 <Phone className="size-7" aria-hidden="true" />
-                Call Support / Book Over Phone
+                Call Support to Book
               </span>
               <span className="text-[16px] font-bold">{SUPPORT_PHONE_DISPLAY}</span>
             </a>
@@ -392,10 +406,11 @@ export default function ArtisanSeniorHelp({ onClose }) {
               )}
             </div>
 
-            {/* Guided checklist */}
+            {/* Guided checklist — gap-4 (16px), not gap-3: the spec's own
+                minimum spacing between tap targets, previously under it. */}
             <div>
               <p className="mb-3 text-[18px] font-bold text-black">Or just pick what's wrong:</p>
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-4">
                 {CHECKLIST_ISSUES.map((issue) => {
                   const selected = issueId === issue.id;
                   return (
@@ -415,15 +430,6 @@ export default function ArtisanSeniorHelp({ onClose }) {
                 })}
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={findMatch}
-              disabled={!canContinue}
-              className={`${BIG_BTN} border-[#0f4a1e] bg-[#1e7e34] text-white disabled:border-black/15 disabled:bg-black/10 disabled:text-black/40`}
-            >
-              Find My Match
-            </button>
           </div>
         )}
 
@@ -443,8 +449,11 @@ export default function ArtisanSeniorHelp({ onClose }) {
                 <p className="text-[18px] font-semibold leading-relaxed text-black">
                   We don't have a match nearby right now. Call support and we'll help you directly.
                 </p>
-                <a href={`tel:${SUPPORT_PHONE_TEL}`} className={`${BIG_BTN} border-black bg-white text-black`}>
-                  <Phone className="size-6" aria-hidden="true" /> Call Support — {SUPPORT_PHONE_DISPLAY}
+                <a href={`tel:${SUPPORT_PHONE_TEL}`} className={`${BIG_BTN} min-h-[88px] flex-col gap-0.5 border-black bg-white text-black`}>
+                  <span className="flex items-center gap-2.5 text-[20px] font-extrabold">
+                    <Phone className="size-6" aria-hidden="true" /> Call Support
+                  </span>
+                  <span className="text-[16px] font-bold">{SUPPORT_PHONE_DISPLAY}</span>
                 </a>
               </div>
             )}
@@ -551,6 +560,26 @@ export default function ArtisanSeniorHelp({ onClose }) {
           </div>
         )}
       </main>
+
+      {/* Find My Match — pinned outside the scrollable area, not the last
+          item in it. Step 2 has 7 stacked controls above it (voice, photo,
+          5 checklist buttons); leaving the primary action at the bottom of
+          that scroll meant it was routinely off-screen, invisible until
+          someone happened to scroll past everything else. A real flex
+          sibling here (shrink-0, same as the trust footer below it) keeps
+          it reachable in one tap regardless of scroll position. */}
+      {step === 2 && (
+        <div className="shrink-0 border-t-2 border-black/10 bg-white px-5 py-3.5">
+          <button
+            type="button"
+            onClick={findMatch}
+            disabled={!canContinue}
+            className={`${BIG_BTN} border-[#0f4a1e] bg-[#1e7e34] text-white disabled:border-black/15 disabled:bg-black/10 disabled:text-black/40`}
+          >
+            Find My Match
+          </button>
+        </div>
+      )}
 
       {/* Trust footer — a real flex sibling pinned below the scroll area
           (not CSS position:fixed), so it can never end up drawn on top of

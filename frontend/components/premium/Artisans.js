@@ -17,7 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, ChevronRight, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon, Heart, SlidersHorizontal, MessageCircle, Loader2, Zap, Wind, Trees, Blocks, Truck, PaintRoller, Droplets, Home as HomeIcon, Navigation } from "lucide-react";
+import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, ChevronRight, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon, Heart, SlidersHorizontal, MessageCircle, Loader2, Zap, Wind, Trees, Blocks, Truck, PaintRoller, Droplets, Home as HomeIcon, Navigation, Lock, Sparkles, HardHat } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tintFor, initialsOf, formatPhone, truncateBio, formatDistance, avatarPhotoUrl } from "./shared/artisanDisplay";
@@ -39,7 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TRADES_WITH_ALL } from "./shared/trades";
+import { TRADES_WITH_ALL, POPULAR_TRADES } from "./shared/trades";
 import MyRequestsPane from "./artisan/MyRequestsPane";
 import ArtisanDashboard from "./artisan/ArtisanDashboard";
 import ArtisanMapLoader from "./artisan/ArtisanMapLoader";
@@ -80,13 +80,16 @@ const TRADE_ICONS = {
   Carpenter: Hammer,
   Electrician: Zap,
   Handyman: Wrench,
-  HVAC: Wind,
-  Landscaper: Trees,
+  "HVAC Contractor": Wind,
+  "Landscaping Company": Trees,
   Mason: Blocks,
-  Mover: Truck,
+  "Moving Company": Truck,
   Painter: PaintRoller,
   Plumber: Droplets,
-  Roofer: HomeIcon,
+  "Roofing Specialist": HomeIcon,
+  Locksmith: Lock,
+  "Cleaning Company": Sparkles,
+  "General Contractor": HardHat,
 };
 
 const HOME_CITY_KEY = "noqeev_artisan_home_city";
@@ -213,6 +216,15 @@ function LocationChip({ city, onOpen }) {
 // backend ?trade= param already use) and drops straight into the results
 // grid for it — no separate "category" concept on the backend, this is
 // exactly the existing filter with a bigger, friendlier front door.
+//
+// POPULAR_TRADES (shared/trades.js), not the full ~50-item TRADES list —
+// that grew into a real directory-sized taxonomy, and rendering all of it
+// as icon tiles here would be an overwhelming wall, not a front door
+// (most of it has no real icon either, everything past what's mapped
+// below just falls back to the same generic Hammer, which reads as
+// broken at that quantity). The full list is still one tap away via
+// "Browse everyone" below into TradeChips, a horizontally-scrolling
+// control actually built for an arbitrary-length list.
 function CategoryGrid({ onPick }) {
   return (
     // sm:grid-cols-5 used to escalate at a plain viewport-width breakpoint
@@ -220,12 +232,12 @@ function CategoryGrid({ onPick }) {
     // browse panel's narrow ~340px sidebar (see the isDesktop branch
     // below), not the full viewport. A wide viewport with a narrow actual
     // container squeezed 5 columns into ~64px cells, too narrow for
-    // "Electrician"/"Landscaper" to wrap anywhere but mid-word, leaving a
-    // single orphan letter stranded on its own line. grid-cols-4
+    // "Electrician"/"Landscaping Company" to wrap anywhere but mid-word,
+    // leaving a single orphan letter stranded on its own line. grid-cols-4
     // everywhere gives every cell the same ~80px+ width this already
     // works fine at on mobile, in both contexts this same grid renders in.
     <div className="grid grid-cols-4 gap-2.5">
-      {TRADES_WITH_ALL.filter((t) => t !== "All").map((t) => {
+      {POPULAR_TRADES.map((t) => {
         const Icon = TRADE_ICONS[t] || Hammer;
         return (
           <button

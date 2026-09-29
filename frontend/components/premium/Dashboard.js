@@ -397,7 +397,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
           <QuickAction Icon={Sparkles} label="Auto Apply" color="amber" onClick={() => go("apply")} />
           <QuickAction Icon={ScanLine} label="CV Scan" color="neutral" onClick={() => go("scan")} />
           <QuickAction Icon={ClipboardList} label="Tracker" color="neutral" onClick={() => go("jobtracker")} />
-          <QuickAction Icon={Hammer} label="Artisan" color="neutral" onClick={() => go("artisans")} />
+          <QuickAction Icon={Hammer} label="Artisans" color="neutral" onClick={() => go("artisans")} />
         </div>
         {/* A second, additive door into the same "hire an artisan" side —
             not a replacement of the full marketplace above, which stays
