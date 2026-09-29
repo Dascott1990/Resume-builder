@@ -14,9 +14,10 @@
  * real states instead of a blank screen.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon, Heart, SlidersHorizontal, MessageCircle, Loader2, Zap, Wind, Trees, Blocks, Truck, PaintRoller, Droplets, Home as HomeIcon, Navigation } from "lucide-react";
+import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, ChevronRight, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon, Heart, SlidersHorizontal, MessageCircle, Loader2, Zap, Wind, Trees, Blocks, Truck, PaintRoller, Droplets, Home as HomeIcon, Navigation } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tintFor, initialsOf, formatPhone, truncateBio, formatDistance, avatarPhotoUrl } from "./shared/artisanDisplay";
@@ -615,6 +616,7 @@ function Field({ label, required, hint, value, onChange, placeholder, type = "te
 }
 
 export default function Artisans({ onClose, initialTab, initialPersona }) {
+  const router = useRouter();
   const { isDesktop } = useViewport();
   // initialPersona — set by Dashboard.js's notification bell and
   // Settings.js's "Manage my listing" button, so either lands directly on
@@ -955,6 +957,28 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
         <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">WHAT DO YOU NEED?</p>
         <CategoryGrid onPick={pickTrade} />
       </div>
+
+      {/* Same additive door as Dashboard.js's Home card — this is the
+          other place someone likely to want it actually is: already
+          looking to hire, about to hit a browse-and-filter directory that
+          isn't built for "find someone fast with minimal typing." Routes
+          to the real /help URL (not an in-app view) since Artisans.js has
+          no onNavigate prop to reach other SPA screens through — see
+          app/help/page.js. */}
+      <button
+        type="button"
+        onClick={() => router.push("/help")}
+        className="flex w-full items-center gap-3 rounded-2xl border border-border bg-muted/60 p-3.5 text-left [-webkit-tap-highlight-color:transparent]"
+      >
+        <div className="flex size-[38px] shrink-0 items-center justify-center rounded-[26%] bg-foreground/[0.08] text-foreground">
+          <Wrench className="size-[18px]" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="m-0 text-[12.5px] font-bold leading-tight text-foreground">Booking for a parent or grandparent?</p>
+          <p className="m-0 mt-0.5 text-[10.5px] text-muted-foreground">Try our simple mode — voice, photo, one call</p>
+        </div>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+      </button>
 
       <Btn small variant="ghost" onClick={() => setCatView("results")} className="justify-self-center">
         Browse everyone

@@ -403,13 +403,26 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
             not a replacement of the full marketplace above, which stays
             the default for everyone. Points at ArtisanSeniorHelp.js's
             voice/photo/checklist flow instead of the browse-and-filter
-            directory. */}
+            directory. A real card, not a footnote link — the previous
+            12px text link under the grid was easy to miss entirely, and
+            the actual audience for this (often an adult child finding it
+            for a parent, not someone hunting through Quick Actions) needs
+            it to read as a real option, not a hidden extra. Still sized
+            and weighted below the primary "Build a resume" card, which
+            stays the default for most visitors. */}
         <button
           type="button"
           onClick={() => go("artisan-help")}
-          className="mt-2 block w-full border-none bg-transparent p-0 text-left text-[12px] font-bold text-primary [-webkit-tap-highlight-color:transparent]"
+          className="mt-2.5 flex w-full items-center gap-3 rounded-2xl border border-border bg-muted/60 p-3.5 text-left [-webkit-tap-highlight-color:transparent]"
         >
-          Simple mode for seniors →
+          <div className="flex size-[38px] shrink-0 items-center justify-center rounded-[26%] bg-foreground/[0.08] text-foreground">
+            <Wrench className="size-[18px]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="m-0 text-[12.5px] font-bold leading-tight text-foreground">Booking for a parent or grandparent?</p>
+            <p className="m-0 mt-0.5 text-[10.5px] text-muted-foreground">Try our simple mode. voice, photo, one call</p>
+          </div>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
         </button>
       </motion.div>
 
