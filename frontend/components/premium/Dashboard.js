@@ -18,7 +18,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
   Home, FileText, ScanLine, ClipboardList, Hammer, Settings as SettingsIcon,
-  ArrowRight, ChevronRight, CalendarCheck, X, Clock, Sparkles, Bell,
+  ArrowRight, ChevronRight, CalendarCheck, X, Clock, Bell,
   MessageCircle, Wrench, Inbox, Megaphone,
   MoreVertical, Trash2, StickyNote, Check, AlertTriangle,
 } from "lucide-react";
@@ -36,6 +36,7 @@ import { apiRequest } from "./shared/api";
 import { apiListSaved, apiDelete } from "./guest/api";
 import { BottomNav } from "./shared/BottomNav";
 import { ThemeToggle } from "./shared/ThemeToggle";
+import { QUICK_ACTION_ART } from "./shared/quickActionArt";
 import { Skeleton } from "@/components/ui/skeleton";
 import Logo from "./Logo";
 
@@ -78,14 +79,10 @@ const STATUS_META = {
 // screen's own compact order for the per-row "mark status" menu.
 const STATUS_ORDER = ["applied", "interview", "offer", "rejected"];
 
-// One accent, used once: Apply with AI is the flagship feature and gets
-// the brand primary; every other quick action shares the same neutral
-// treatment and is told apart by its glyph and label, not an arbitrary
-// hue — a rainbow-per-icon row reads as a kids' app, not this one.
-const QUICK_ACTION_COLORS = {
-  amber: "border-primary/25 bg-primary/10 text-primary",
-  neutral: "border-border bg-muted/60 text-muted-foreground",
-};
+// Each quick action now gets its own small illustrated tile (see shared/
+// quickActionArt.js) — the same colored-illustration language
+// Artisans.js's category shelves use — rather than one shared neutral
+// treatment told apart only by glyph + label.
 
 function timeAgo(iso) {
   if (!iso) return "";
@@ -140,15 +137,19 @@ function StatCard({ label, value, Icon, loading, needsAttention }) {
 // bordered-card look; min-h-[2lh] on the label reserves the same two-
 // line-height block whether that label wraps once or twice, so all four
 // tiles end at the same bottom edge instead of a crooked row.
-function QuickAction({ Icon, label, onClick, color = "amber" }) {
+function QuickAction({ art, label, onClick }) {
+  const { bg, Svg } = QUICK_ACTION_ART[art];
   return (
     <motion.button
       whileTap={{ scale: 0.96 }}
       onClick={onClick}
       className="flex flex-col items-center gap-1.5 rounded-2xl border-none bg-card/60 p-3 [-webkit-tap-highlight-color:transparent]"
     >
-      <span className={`flex size-12 items-center justify-center rounded-full border ${QUICK_ACTION_COLORS[color]}`}>
-        <Icon className="size-[19px]" />
+      <span
+        className="flex size-12 items-center justify-center rounded-2xl shadow-[0_8px_18px_-10px_rgba(0,0,0,0.3)]"
+        style={{ background: bg }}
+      >
+        <Svg size={24} />
       </span>
       <span className="flex min-h-[2lh] items-start justify-center text-center text-[11px] leading-tight font-semibold text-foreground">
         {label}
@@ -384,20 +385,19 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
           actions under the balance. Always shown regardless of whether
           there's any data yet: these are navigation shortcuts, not
           content, so "nothing tracked yet" doesn't apply to them the way
-          it does to the stats/activity below. One neutral treatment for
-          all four, told apart by icon + label — see QUICK_ACTION_COLORS —
-          except Apply with AI, the one flagship feature that keeps the
-          brand accent. */}
+          it does to the stats/activity below. Each gets its own colored
+          illustrated tile now (see shared/quickActionArt.js) rather than
+          one shared neutral treatment. */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }} className="mb-6">
         {/* grid grid-cols-4, not flex — a flex row's leftover space
             distributes unevenly between gaps; a 4-column grid gives every
             tile the exact same width and every gap the exact same size,
             same pattern as the stats row's own grid-cols-3 below. */}
-        <div className="grid grid-cols-4 gap-3">
-          <QuickAction Icon={Sparkles} label="Auto Apply" color="amber" onClick={() => go("apply")} />
-          <QuickAction Icon={ScanLine} label="CV Scan" color="neutral" onClick={() => go("scan")} />
-          <QuickAction Icon={ClipboardList} label="Tracker" color="neutral" onClick={() => go("jobtracker")} />
-          <QuickAction Icon={Hammer} label="Artisans" color="neutral" onClick={() => go("artisans")} />
+        <div className="grid grid-cols-4 gap-2 sm:gap-3">
+          <QuickAction art="apply" label="Auto Apply" onClick={() => go("apply")} />
+          <QuickAction art="scan" label="CV Scan" onClick={() => go("scan")} />
+          <QuickAction art="tracker" label="Tracker" onClick={() => go("jobtracker")} />
+          <QuickAction art="artisans" label="Artisans" onClick={() => go("artisans")} />
         </div>
         {/* A second, additive door into the same "hire an artisan" side —
             not a replacement of the full marketplace above, which stays
