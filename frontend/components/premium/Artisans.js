@@ -145,7 +145,7 @@ const toggleFavoriteId = (id) => {
 // on demand. The dot marks "a non-default filter is active" the same way
 // a cart badge marks "something's in here" — visible at a glance without
 // opening the panel to check.
-function SearchBar({ value, onChange, filtersOpen, onToggleFilters, filterActive }) {
+function SearchBar({ value, onChange, onFocus, filtersOpen, onToggleFilters, filterActive }) {
   return (
     <div className="flex min-w-0 shrink-0 items-center gap-2">
       <div className="relative min-w-0 flex-1">
@@ -153,6 +153,7 @@ function SearchBar({ value, onChange, filtersOpen, onToggleFilters, filterActive
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onFocus={onFocus}
           placeholder="Search by name, trade, or city"
           className="h-11 rounded-full pl-9"
         />
@@ -668,6 +669,14 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
   const [homeCityDraft, setHomeCityDraft] = useState("");
   const [editingCity, setEditingCity] = useState(false);
   const [recentLocations, setRecentLocations] = useState([]);
+  // Location starts hidden on the home pane — saves the vertical space it
+  // would otherwise take above the category shelves, so the shelves (the
+  // actual point of this screen) are visible sooner instead of buried
+  // under a location chip nobody's touched yet. Revealed the moment
+  // someone focuses the search input, not on every render after — a
+  // one-way reveal, not a toggle, so it doesn't flicker shut again if
+  // they tap away without typing anything.
+  const [locationRevealed, setLocationRevealed] = useState(false);
   // Set to the artisan's id while the quick-message button's own
   // accepted-job check is in flight — a spinner on that ONE card's
   // button, not a global loading state.
@@ -916,31 +925,36 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
       <SearchBar
         value={query}
         onChange={(v) => { setQuery(v); if (v.trim()) setCatView("results"); }}
+        onFocus={() => setLocationRevealed(true)}
         filtersOpen={false}
         filterActive={false}
         onToggleFilters={() => setCatView("results")}
       />
 
-      {editingCity ? (
-        <div className="flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 p-3">
-          <MapPin className="size-4 shrink-0 text-primary" />
-          <Input
-            autoFocus
-            value={homeCityDraft}
-            onChange={(e) => setHomeCityDraft(e.target.value)}
-            placeholder="City or neighborhood"
-            className="h-9 border-none bg-transparent px-0 shadow-none focus-visible:ring-0"
-            onKeyDown={(e) => { if (e.key === "Enter") { setHomeCity(homeCityDraft.trim()); setEditingCity(false); } }}
-          />
-          <Btn small variant="gold" onClick={() => { setHomeCity(homeCityDraft.trim()); setEditingCity(false); }}>
-            Save
-          </Btn>
-        </div>
-      ) : (
-        <LocationChip city={homeCity} onOpen={() => { setHomeCityDraft(homeCity); setEditingCity(true); }} />
-      )}
+      {locationRevealed && (
+        <>
+          {editingCity ? (
+            <div className="flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 p-3">
+              <MapPin className="size-4 shrink-0 text-primary" />
+              <Input
+                autoFocus
+                value={homeCityDraft}
+                onChange={(e) => setHomeCityDraft(e.target.value)}
+                placeholder="City or neighborhood"
+                className="h-9 border-none bg-transparent px-0 shadow-none focus-visible:ring-0"
+                onKeyDown={(e) => { if (e.key === "Enter") { setHomeCity(homeCityDraft.trim()); setEditingCity(false); } }}
+              />
+              <Btn small variant="gold" onClick={() => { setHomeCity(homeCityDraft.trim()); setEditingCity(false); }}>
+                Save
+              </Btn>
+            </div>
+          ) : (
+            <LocationChip city={homeCity} onOpen={() => { setHomeCityDraft(homeCity); setEditingCity(true); }} />
+          )}
 
-      <RecentLocations cities={recentLocations.filter((c) => c !== homeCity)} onPick={(c) => setHomeCity(c)} />
+          <RecentLocations cities={recentLocations.filter((c) => c !== homeCity)} onPick={(c) => setHomeCity(c)} />
+        </>
+      )}
 
       {/* Both of these moved up here, above the category shelves, on
           purpose — they used to sit at the very bottom of this pane, below
