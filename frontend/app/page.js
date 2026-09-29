@@ -45,12 +45,31 @@ const BrandWorkspaceView = dynamicScreen(() => import("../components/premium/bra
 // Same pulsing-logo treatment as the !mounted gate below, not a generic
 // spinner — a chunk fetch is usually near-instant on a warm cache, but
 // when it isn't, this should still feel like part of the same product.
+// The one loading state every screen transition in this app shows —
+// between a nav click and the target screen's chunk finishing (below,
+// via dynamicScreen's own `loading:`) and before first hydration (the
+// !mounted gate further down, which used to hand-duplicate this same
+// markup instead of sharing it). A plain opacity pulse read as "waiting,"
+// not "something's happening" — the sweep crossing the mark reads as a
+// literal scan, which is also just a more honest match for what's
+// actually going on (loading a real content bundle, not sitting idle).
+// Still just two GPU-cheap transform/opacity animations, nothing that
+// risks feeling slower than the load it's covering for.
 function ScreenLoading() {
   return (
     <div className="flex h-[100dvh] w-full items-center justify-center bg-background">
-      <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}>
-        <Logo size={28} />
-      </motion.div>
+      <div className="relative overflow-hidden">
+        <motion.div animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}>
+          <Logo size={28} />
+        </motion.div>
+        <motion.div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2"
+          style={{ background: "linear-gradient(90deg, transparent, color-mix(in oklch, var(--primary) 55%, transparent), transparent)" }}
+          animate={{ x: ["0%", "260%"] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </div>
     </div>
   );
 }
@@ -258,13 +277,7 @@ export default function Home() {
   }, [mounted, view]);
 
   if (!mounted) {
-    return (
-      <div className="flex h-[100dvh] w-full items-center justify-center bg-background">
-        <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}>
-          <Logo size={28} />
-        </motion.div>
-      </div>
-    );
+    return <ScreenLoading />;
   }
 
   const openResume = (resumeId, { viewAllResumes = false } = {}) => {
