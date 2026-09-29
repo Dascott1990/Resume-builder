@@ -1,10 +1,9 @@
 "use client";
 import { motion } from "framer-motion";
-import { Sparkles, Palette, Eye, FileText, Settings } from "lucide-react";
+import { Sparkles, Eye, FileText, Settings } from "lucide-react";
 
 const VIEWS = [
   { id: "new",       Icon: Sparkles, label: "Build" },
-  { id: "style",     Icon: Palette,  label: "Style" },
   { id: "preview",   Icon: Eye,      label: "Preview" },
   { id: "templates", Icon: FileText, label: "Saved" },
   { id: "settings",  Icon: Settings, label: "Settings" },
@@ -35,19 +34,17 @@ const VIEWS = [
 // freezes at whatever value it was mid-transition, i.e. a blank screen that
 // never recovers. Plain index-driven `left`/`width` has no cross-component
 // state to leave dangling, so it can't wedge anything on unmount.
-// Style is a special case (see StyleBottomSheet.js): tapping it never
-// switches mobileView to "panel" like the other tabs — it opens a sheet
-// over the always-visible preview instead, so mobileView stays "preview"
-// the whole time it's open. Highlighting has to check styleSheetOpen
-// directly rather than the panel/preview split every other tab uses.
-function isActive(v, tab, mobileView, styleSheetOpen) {
-  if (v.id === "style") return tab === "style" && styleSheetOpen;
-  if (v.id === "preview") return mobileView === "preview" && !(tab === "style" && styleSheetOpen);
+// Style isn't one of these tabs (see the floating button GuestMode.js
+// renders directly over its preview canvas, and StyleBottomSheet.js for
+// what it opens) — it stays highlighted as "Preview" the whole time the
+// style sheet is open over it, since that's still the screen underneath.
+function isActive(v, tab, mobileView) {
+  if (v.id === "preview") return mobileView === "preview";
   return mobileView === "panel" && tab === v.id;
 }
 
-export function MobileNav({ tab, mobileView, styleSheetOpen, navHidden, onNavigate }) {
-  const activeIndex = VIEWS.findIndex((v) => isActive(v, tab, mobileView, styleSheetOpen));
+export function MobileNav({ tab, mobileView, navHidden, onNavigate }) {
+  const activeIndex = VIEWS.findIndex((v) => isActive(v, tab, mobileView));
   const slot = 100 / VIEWS.length;
 
   return (
@@ -69,7 +66,7 @@ export function MobileNav({ tab, mobileView, styleSheetOpen, navHidden, onNaviga
         />
       )}
       {VIEWS.map(v => {
-        const active = isActive(v, tab, mobileView, styleSheetOpen);
+        const active = isActive(v, tab, mobileView);
         return (
           <motion.button key={v.id} role="tab" aria-selected={active} onClick={() => onNavigate(v.id)}
             whileTap={{ scale: 0.9 }}

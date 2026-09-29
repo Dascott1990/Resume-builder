@@ -14,7 +14,7 @@
  */
 import { useState, useEffect, useRef, useCallback, useReducer } from "react";
 import { motion } from "framer-motion";
-import { X, RefreshCw, ScanLine, Bookmark } from "lucide-react";
+import { X, RefreshCw, ScanLine, Bookmark, Palette } from "lucide-react";
 import Logo3D from "../Logo3D";
 import { Btn } from "./components/primitives";
 import { LivePreview } from "./components/LivePreview";
@@ -396,9 +396,14 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
       const data = await apiGetSaved(id);
       dispatch({ type: "SET", resume: { contact: data.contact || {}, sections: data.sections || [], keywords: data.keywords || [], saved_id: id } });
       setGenResult({ keywords: data.keywords || [], saved_id: id, job_location: data.job_location });
-      // Saved records only ever store the resume itself — clear any cover
-      // letter / apply-info left over from a previous Optimize in this session.
-      setCoverLetter(""); setInterviewTips([]); setApplication(null); setPackageOpen(false);
+      // A resume saved via Optimize persisted the whole package server-side
+      // (see /optimize's Media.file_data in api/resume.py) — GET /<id>
+      // returns it all back, so restore it here too. A plain Generate-only
+      // save has none of these fields, so they correctly fall back to empty.
+      // Not auto-opening the package modal (packageOpen stays false) — this
+      // is just reopening a saved resume, not a freshly-generated one; the
+      // "Review & Download" button in ResultStep is enough to reach it.
+      setCoverLetter(data.cover_letter || ""); setInterviewTips(data.interview_tips || []); setApplication(data.application || null); setPackageOpen(false);
       setTab("new"); setStep(3);
     } catch (e) {
       setError("Could not load: " + e.message);
@@ -775,9 +780,28 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
           // base view here (never the form panel), with StyleBottomSheet
           // floating over it — same "see it change immediately" outcome
           // showSplit gives tablet/desktop, just via a sheet instead of a
-          // side-by-side column, since a phone has no room for both.
-          <div className="flex flex-1 flex-col overflow-hidden">
+          // side-by-side column, since a phone has no room for both. The
+          // entry point is a small floating button pinned to the preview
+          // itself (not a bottom-nav tab — see MobileNav.js) so it's only
+          // ever on screen where it's actually relevant, and it opens the
+          // same partial-height sheet, never a full-screen cover, so the
+          // resume being styled stays visible underneath the whole time.
+          <div className="relative flex flex-1 flex-col overflow-hidden">
             {tab === "style" ? PreviewCanvas() : (mobileView === "panel" ? PanelContent() : PreviewCanvas())}
+            {mobileView === "preview" && !(tab === "style" && styleSheetOpen) && (
+              <button
+                type="button"
+                onClick={() => { setTab("style"); setStyleSheetOpen(true); }}
+                aria-label="Style this resume"
+                className="absolute right-3 z-30 flex items-center gap-1.5 rounded-full border border-white/[0.14] px-4 py-2.5 text-[13px] font-bold text-foreground shadow-[0_10px_28px_rgba(0,0,0,0.35)] backdrop-blur-[20px] [-webkit-tap-highlight-color:transparent]"
+                style={{
+                  bottom: "calc(128px + env(safe-area-inset-bottom, 0px))",
+                  background: "color-mix(in oklch, var(--card) 85%, transparent)",
+                }}
+              >
+                <Palette className="size-4 text-primary" /> Style
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -787,11 +811,9 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
           <MobileNav
             tab={tab}
             mobileView={mobileView}
-            styleSheetOpen={styleSheetOpen}
             navHidden={navHidden}
             onNavigate={(id) => {
               if (id === "preview") { setStyleSheetOpen(false); setMobileView("preview"); return; }
-              if (id === "style") { setTab("style"); setMobileView("preview"); setStyleSheetOpen(true); return; }
               setStyleSheetOpen(false);
               setTab(id);
               setMobileView("panel");
