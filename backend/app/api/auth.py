@@ -25,6 +25,8 @@ otherwise.
 import os
 import re
 import secrets
+import hashlib
+import requests
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, request, jsonify
@@ -250,6 +252,81 @@ def resend_verification():
     return jsonify({"success": True, "data": {"message": "If that account needs verifying, a new link is on its way."}}), 200
 
 
+def _device_fingerprint(request):
+    """Stand-in for 'this specific browser/device' — no client-side install
+    ID exists anywhere in this app, and adding one just for this would mean
+    a new thing to persist and send on every request. The User-Agent string
+    is already sent on every request for free; it's not a strong identity
+    (two people on the same phone model/browser version collide), but it's
+    good enough to tell 'the same browser as last time' from 'something
+    else entirely' for a best-effort security nudge, not an access gate."""
+    ua = request.headers.get("User-Agent", "")
+    return hashlib.sha256(ua.encode()).hexdigest()[:16]
+
+
+def _client_ip(request):
+    # Same header Render/most proxies set — first entry is the original
+    # client, everything after is the proxy chain (see _notify_break_glass_
+    # login above, which reads the same header the same way).
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    return (forwarded.split(",")[0].strip() if forwarded else request.remote_addr) or None
+
+
+def _lookup_region(ip):
+    """Best-effort 'City, Country' for an IP via a free, keyless geolocation
+    API — there's no geo-IP provider configured for this app (see
+    CRUX_API_KEY in .env, which is Chrome UX Report, unrelated), and standing
+    one up just for this alert isn't worth a new paid dependency. A short
+    timeout plus a blanket except means a slow/unreachable lookup just
+    silently skips the region half of the check — device-only comparison
+    still runs, and login itself is NEVER blocked by this failing."""
+    if not ip or ip in ("127.0.0.1", "::1", "localhost"):
+        return None
+    try:
+        res = requests.get(
+            f"http://ip-api.com/json/{ip}",
+            params={"fields": "status,city,country"},
+            timeout=1.5,
+        )
+        data = res.json()
+        if data.get("status") != "success":
+            return None
+        city, country = data.get("city"), data.get("country")
+        if city and country:
+            return f"{city}, {country}"
+        return country or city or None
+    except Exception:
+        return None
+
+
+def _notify_new_login(user, request, is_new_device, is_new_region, region, ip):
+    """Best-effort alert for a login from a device or region this account
+    hasn't used before — mirrors _notify_break_glass_login's shape (same
+    email shell, same 'never block the thing it's reporting on' contract).
+    Only ever called for the 2nd+ login on an account (see login() below) —
+    a brand-new account's very first login has nothing to compare against
+    yet, so it's never itself treated as 'new'."""
+    when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    what = []
+    if is_new_device:
+        what.append("a new device or browser")
+    if is_new_region:
+        what.append("a new location")
+    where = f" ({region})" if region else ""
+    send_email(
+        user.email,
+        "New login to your Noqeev account",
+        _email_shell(
+            "New login detected",
+            f"Your account was just signed into from {' and '.join(what)}{where} at {when}"
+            f"{f', IP {ip}' if ip else ''}. If this was you, no action is needed.",
+            "Secure my account", FRONTEND_URL,
+            "If this wasn't you, change your password immediately from Settings — "
+            "that signs every other session still using the old password out.",
+        ),
+    )
+
+
 @auth_bp.route("/login", methods=["POST"])
 @limiter.limit("10 per minute")
 def login():
@@ -273,7 +350,28 @@ def login():
     _, guest_id = get_scope(request)
     if guest_id:
         _migrate_guest_data(guest_id, user.id)
-        db.session.commit()
+
+    # New-device/new-region alert. Gated on `known` being non-empty so a
+    # brand-new account's first-ever login (nothing recorded yet) is never
+    # itself flagged as "new" — only the 2nd+ login gets compared against
+    # history. Computing the fingerprint/region and sending the email never
+    # blocks or fails the login itself (see the broad except below).
+    try:
+        device = _device_fingerprint(request)
+        ip = _client_ip(request)
+        region = _lookup_region(ip)
+        known = user.known_logins or []
+        if known:
+            is_new_device = device not in {k.get("device") for k in known}
+            is_new_region = bool(region) and region not in {k.get("region") for k in known if k.get("region")}
+            if is_new_device or is_new_region:
+                _notify_new_login(user, request, is_new_device, is_new_region, region, ip)
+        known.append({"device": device, "region": region, "ip": ip, "last_seen": _utcnow().isoformat()})
+        user.known_logins = known[-20:]
+    except Exception as exc:
+        print(f"⚠️ New-login check failed (login still succeeded): {exc}")
+
+    db.session.commit()
 
     return jsonify({"success": True, "data": {"user": user.to_dict(), "token": issue_token(user.id)}}), 200
 

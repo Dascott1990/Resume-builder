@@ -62,6 +62,16 @@ class User(db.Model):
     # existing admin flipping this on someone else from inside the admin
     # panel itself (PATCH /api/v1/admin/users/<id>).
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    # Rolling history of where this account has actually signed in from —
+    # NULL/empty means "no login recorded yet" (a brand-new account, or one
+    # that predates this column), which login() in api/auth.py treats as
+    # "nothing to compare against yet," not as a surprise. Each entry is
+    # {"device": <sha256 of the User-Agent, 16 hex chars>, "region": "City,
+    # Country" or null, "ip": "1.2.3.4", "last_seen": ISO timestamp} — see
+    # login()'s _device_fingerprint/_lookup_region for how these are built.
+    # Capped to the most recent 20 so this can't grow unbounded on an
+    # account that's logged in from many places over years.
+    known_logins = db.Column(db.JSON, nullable=True)
 
     def to_dict(self):
         return {
