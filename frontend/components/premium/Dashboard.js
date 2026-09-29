@@ -13,11 +13,11 @@
  * shared component and visual language Artisans.js already uses, so the
  * whole app's navigation vocabulary stays one thing, not several.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Home, FileText, ScanLine, ClipboardList, Hammer, Bookmark, Settings as SettingsIcon,
+  Home, FileText, ScanLine, ClipboardList, Hammer, Settings as SettingsIcon,
   ArrowRight, ChevronRight, CalendarCheck, X, Clock, Sparkles, Bell,
   MessageCircle, Wrench, Inbox, Megaphone, Globe, Cpu, Atom, Landmark, Briefcase,
   MoreVertical, Trash2, StickyNote, Check, AlertTriangle,
@@ -50,19 +50,20 @@ const NAV_ITEMS = [
   { id: "artisans", Icon: Hammer, label: "Artisans" },
 ];
 
-// Mobile bottom nav — three, not five. Scan/Tracker/Artisan already have
-// their own big, labeled tiles right on Home (the Quick Actions row) —
-// pinning them a second time in the one bar that's on screen for every
-// single mobile screen just adds noise without adding a new way to reach
-// anything. "Saved" opens the exact same "View all resumes" mode the
-// Recent Resumes section's own link already uses (see the onChange
-// handler below) — not a new screen, just a direct door into Resume's
-// own Saved tab instead of Build-then-tap-Saved.
+// Mobile bottom nav — two, not three. Resume/Scan/Tracker/Artisan already
+// have their own big, labeled tiles right on Home (the primary "Build a
+// resume" card plus the Quick Actions row) — pinning Resume a second time
+// in the one bar that's on screen for every single mobile screen just adds
+// noise without adding a new way to reach anything. "News" doesn't open a
+// separate screen — it scrolls the current Home screen down to the "What's
+// new"/"Worth a look" sections (see the onChange handler below and
+// NEWS_SECTION_ID), the same content that's already there, just one tap
+// away instead of a scroll-and-hope.
 const MOBILE_NAV_ITEMS = [
   { id: "home", Icon: Home, label: "Home" },
-  { id: "resume", Icon: FileText, label: "Resume" },
-  { id: "saved", Icon: Bookmark, label: "Saved" },
+  { id: "news", Icon: Megaphone, label: "News" },
 ];
+const NEWS_SECTION_ID = "dashboard-news-section";
 
 const STATUS_META = {
   applied: { label: "Applied", className: "text-muted-foreground" },
@@ -598,77 +599,93 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, upda
         </motion.div>
       )}
 
-      {updates.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.3 }} className="mb-6">
-          <SectionHeader>
-            <span className="flex items-center gap-1.5"><Megaphone className="size-3.5" /> What's new</span>
-          </SectionHeader>
-          <div className="grid gap-2">
-            {updates.slice(0, 3).map((u) => (
-              <div key={u.id} className="glass-surface rounded-xl p-3">
-                <p className="m-0 text-[13px] font-bold text-foreground">{u.title}</p>
-                {u.body && <p className="m-0 mt-1 text-[12px] leading-relaxed text-muted-foreground">{u.body}</p>}
-                <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                  <span className="text-[10.5px] text-muted-foreground/60">{timeAgo(u.created_at)}</span>
-                  {u.link && (
-                    <button
-                      type="button" onClick={() => setPendingLink({ url: u.link })}
-                      className="border-none bg-transparent p-0 text-[10.5px] font-semibold text-primary [-webkit-tap-highlight-color:transparent]"
-                    >
-                      Learn more
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
+      {/* Anchor the bottom nav's "News" tab scrolls to (see Dashboard's
+          onChange below) — always rendered, even when both sections below
+          are empty, so that tap always has somewhere real to land instead
+          of scrolling to nothing. scroll-mt-4 keeps a little breathing
+          room above it once scrolled into view. */}
+      <div id={NEWS_SECTION_ID} className="scroll-mt-4">
+        {updates.length === 0 && worldFeed.length === 0 && (
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.3 }} className="mb-6">
+            <SectionHeader>
+              <span className="flex items-center gap-1.5"><Megaphone className="size-3.5" /> News</span>
+            </SectionHeader>
+            <p className="m-0 text-[12.5px] text-muted-foreground">Nothing new right now — check back later.</p>
+          </motion.div>
+        )}
 
-      {worldFeed.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.35 }} className="mb-6">
-          <SectionHeader onViewAll={() => setShowAllFeed((v) => !v)} viewAllLabel={showAllFeed ? "Show less" : "View all"}>
-            Worth a look
-          </SectionHeader>
-          {/* Horizontal, not another vertical list — this is idle-moment
-              browsing, not a task queue, so it shouldn't compete for the
-              same "scroll down for more of your stuff" rhythm as Recent
-              resumes/applications above it. Items aren't lost when they
-              scroll out of the default top-8 — the feed keeps everything
-              fetched (up to 40 here) reachable via "View all" instead of
-              only ever showing the newest 8. "View all" itself switches to
-              a vertical grid, not just a longer version of the same
-              horizontal strip — the strip is for a quick idle glance at a
-              handful of headlines; someone who explicitly asked to see
-              everything is actually browsing 40 items, and scrolling
-              sideways through that many cards one at a time is a bad way
-              to do it. A real 2-column grid scrolls the normal way,
-              alongside everything else on the page. */}
-          <div className={showAllFeed
-            ? "grid grid-cols-2 gap-2.5"
-            : "-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden"
-          }>
-            {worldFeed.slice(0, showAllFeed ? 40 : 8).map((item) => {
-              const meta = FEED_CATEGORY_META[item.category] || FEED_CATEGORY_META.world;
-              return (
-                <button
-                  key={item.id} type="button" onClick={() => setPendingLink({ url: item.url })}
-                  className={`glass-surface flex flex-col gap-2 overflow-hidden rounded-xl border-none p-2 text-left [-webkit-tap-highlight-color:transparent] ${showAllFeed ? "" : "w-56 shrink-0"}`}
-                >
-                  <CategoryArt meta={meta} />
-                  <div className="flex flex-1 flex-col gap-1.5 px-1 pb-1">
-                    <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-muted-foreground/70 uppercase">
-                      <meta.Icon className="size-3" /> {meta.label}
-                    </span>
-                    <p className="m-0 text-[12.5px] leading-snug font-bold text-foreground">{item.title}</p>
-                    <span className="mt-auto pt-1 text-[10px] text-muted-foreground/50">{timeAgo(item.published_at || item.fetched_at)}</span>
+        {updates.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.3 }} className="mb-6">
+            <SectionHeader>
+              <span className="flex items-center gap-1.5"><Megaphone className="size-3.5" /> What's new</span>
+            </SectionHeader>
+            <div className="grid gap-2">
+              {updates.slice(0, 3).map((u) => (
+                <div key={u.id} className="glass-surface rounded-xl p-3">
+                  <p className="m-0 text-[13px] font-bold text-foreground">{u.title}</p>
+                  {u.body && <p className="m-0 mt-1 text-[12px] leading-relaxed text-muted-foreground">{u.body}</p>}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    <span className="text-[10.5px] text-muted-foreground/60">{timeAgo(u.created_at)}</span>
+                    {u.link && (
+                      <button
+                        type="button" onClick={() => setPendingLink({ url: u.link })}
+                        className="border-none bg-transparent p-0 text-[10.5px] font-semibold text-primary [-webkit-tap-highlight-color:transparent]"
+                      >
+                        Learn more
+                      </button>
+                    )}
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        </motion.div>
-      )}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {worldFeed.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.35 }} className="mb-6">
+            <SectionHeader onViewAll={() => setShowAllFeed((v) => !v)} viewAllLabel={showAllFeed ? "Show less" : "View all"}>
+              Worth a look
+            </SectionHeader>
+            {/* Horizontal, not another vertical list — this is idle-moment
+                browsing, not a task queue, so it shouldn't compete for the
+                same "scroll down for more of your stuff" rhythm as Recent
+                resumes/applications above it. Items aren't lost when they
+                scroll out of the default top-8 — the feed keeps everything
+                fetched (up to 40 here) reachable via "View all" instead of
+                only ever showing the newest 8. "View all" itself switches to
+                a vertical grid, not just a longer version of the same
+                horizontal strip — the strip is for a quick idle glance at a
+                handful of headlines; someone who explicitly asked to see
+                everything is actually browsing 40 items, and scrolling
+                sideways through that many cards one at a time is a bad way
+                to do it. A real 2-column grid scrolls the normal way,
+                alongside everything else on the page. */}
+            <div className={showAllFeed
+              ? "grid grid-cols-2 gap-2.5"
+              : "-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden"
+            }>
+              {worldFeed.slice(0, showAllFeed ? 40 : 8).map((item) => {
+                const meta = FEED_CATEGORY_META[item.category] || FEED_CATEGORY_META.world;
+                return (
+                  <button
+                    key={item.id} type="button" onClick={() => setPendingLink({ url: item.url })}
+                    className={`glass-surface flex flex-col gap-2 overflow-hidden rounded-xl border-none p-2 text-left [-webkit-tap-highlight-color:transparent] ${showAllFeed ? "" : "w-56 shrink-0"}`}
+                  >
+                    <CategoryArt meta={meta} />
+                    <div className="flex flex-1 flex-col gap-1.5 px-1 pb-1">
+                      <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-muted-foreground/70 uppercase">
+                        <meta.Icon className="size-3" /> {meta.label}
+                      </span>
+                      <p className="m-0 text-[12.5px] leading-snug font-bold text-foreground">{item.title}</p>
+                      <span className="mt-auto pt-1 text-[10px] text-muted-foreground/50">{timeAgo(item.published_at || item.fetched_at)}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </div>
 
       <ExternalLinkDialog link={pendingLink} onClose={() => setPendingLink(null)} />
     </div>
@@ -716,6 +733,21 @@ export default function Dashboard({ onClose, onNavigate }) {
   }, [authLoading, user?.id]);
 
   const [notifOpen, setNotifOpen] = useState(false);
+  // Which bottom-nav tab is highlighted — both tabs live on the same Home
+  // screen (see MOBILE_NAV_ITEMS above), so this is just which one was
+  // last tapped, not a real route. mobileScrollRef is what "News" scrolls
+  // within and "Home" scrolls back to the top of.
+  const [mobileTab, setMobileTab] = useState("home");
+  const mobileScrollRef = useRef(null);
+
+  const onMobileNavChange = (id) => {
+    setMobileTab(id);
+    if (id === "news") {
+      document.getElementById(NEWS_SECTION_ID)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      mobileScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
   const [noteApp, setNoteApp] = useState(null);
 
   const go = (id, opts) => {
@@ -943,14 +975,14 @@ export default function Dashboard({ onClose, onNavigate }) {
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto" style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}>
+      <div ref={mobileScrollRef} className="min-h-0 flex-1 overflow-y-auto" style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}>
         <DashboardContent {...contentProps} />
       </div>
 
       <BottomNav
         items={MOBILE_NAV_ITEMS}
-        active="home"
-        onChange={(id) => id === "saved" ? go("resume", { viewAllResumes: true }) : go(id)}
+        active={mobileTab}
+        onChange={onMobileNavChange}
       />
       <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={openNotification} />
       <AddNoteDialog app={noteApp} open={!!noteApp} onClose={() => setNoteApp(null)} onSaved={onNoteSaved} />
