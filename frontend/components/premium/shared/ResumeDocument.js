@@ -22,8 +22,16 @@ const SIDEBAR_WIDTH_PX = 230;
 const SIDEBAR_PAD_Y = 28;
 const SIDEBAR_PAD_X = 18;
 
+// blockBuilders.js always wires EditableSpan's onChange as `(v) => onEdit(...)`
+// — a real function whether or not `onEdit` itself was ever supplied — so
+// there's no way for EditableSpan to detect a missing handler on its own.
+// Defaulting here, once, means a read-only caller (the landing page's resume
+// showcase) can render the exact same document without wiring up editing and
+// without every click-to-edit span crashing the moment someone commits a change.
+const NOOP_EDIT = () => {};
+
 export const ResumeDocument = React.forwardRef(function ResumeDocument({
-  resume, style, onEdit, scale = 1,
+  resume, style, onEdit = NOOP_EDIT, scale = 1,
   pageWidth, pageHeight, paddingXMm = 18, paddingYMm = 20,
   shadowClassName, className, emptyState,
 }, ref) {

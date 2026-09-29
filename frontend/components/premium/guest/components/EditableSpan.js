@@ -8,6 +8,11 @@ export function EditableSpan({ value, onChange, style: extraStyle, multiline, bo
   const [editing, setEditing] = useState(false);
   const [val, setVal]         = useState(value);
   const ref = useRef(null);
+  // No onChange means this render has no edit handler wired up at all (e.g.
+  // a read-only preview like the landing page's resume showcase) — render
+  // as plain static text instead of a click-to-edit field that would throw
+  // the moment someone actually clicks in and commits a change.
+  const editable = typeof onChange === "function";
 
   useEffect(() => { setVal(value); }, [value]);
   useEffect(() => {
@@ -33,7 +38,7 @@ export function EditableSpan({ value, onChange, style: extraStyle, multiline, bo
     padding: "0 2px", width: "100%", boxSizing: "border-box", ...extraStyle,
   };
 
-  if (editing) {
+  if (editable && editing) {
     return multiline
       ? <textarea ref={ref} value={val} rows={Math.max(2, val.split("\n").length)}
           onChange={e => setVal(e.target.value)} onBlur={commit}
@@ -44,14 +49,14 @@ export function EditableSpan({ value, onChange, style: extraStyle, multiline, bo
           style={shared} />;
   }
   return (
-    <span onClick={() => setEditing(true)} title="Click to edit"
-      style={{ cursor: "text", borderBottom: "1.5px dashed transparent",
+    <span onClick={editable ? () => setEditing(true) : undefined} title={editable ? "Click to edit" : undefined}
+      style={{ cursor: editable ? "text" : "inherit", borderBottom: "1.5px dashed transparent",
         WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
         transition: "border-color 0.12s", ...extraStyle,
         fontWeight: bold ? "bold" : undefined, fontStyle: italic ? "italic" : undefined }}
-      onMouseEnter={e => { e.currentTarget.style.borderBottomColor = "#3B82F680"; }}
-      onMouseLeave={e => { e.currentTarget.style.borderBottomColor = "transparent"; }}>
-      {val || <span style={{ color: "#aaa" }}>Click to edit</span>}
+      onMouseEnter={editable ? e => { e.currentTarget.style.borderBottomColor = "#3B82F680"; } : undefined}
+      onMouseLeave={editable ? e => { e.currentTarget.style.borderBottomColor = "transparent"; } : undefined}>
+      {val || (editable ? <span style={{ color: "#aaa" }}>Click to edit</span> : null)}
     </span>
   );
 }
