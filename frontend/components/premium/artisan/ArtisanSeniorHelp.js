@@ -76,7 +76,14 @@ const CHECKLIST_ISSUES = [
 // Shared button classing lives here once instead of repeated four times —
 // every one of these already clears 56px, well past the spec's 48dp
 // minimum, with room to spare for anyone with reduced motor control.
-const BIG_BTN = "flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl border-4 px-5 text-[18px] font-bold";
+// flex-wrap, not the flex default of forcing everything onto one line —
+// icon + text as separate flex children (the common case below, `<Icon
+// /> some text`) would otherwise refuse to wrap on a narrow phone and
+// spill text past the button's rounded border instead of just growing
+// taller. py-3 (on top of the min-height) is what actually gives a
+// wrapped second line real breathing room instead of clipping tight
+// against the border.
+const BIG_BTN = "flex min-h-16 w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-2xl border-4 px-5 py-3 text-center text-[18px] font-bold";
 
 export default function ArtisanSeniorHelp({ onClose }) {
   const [step, setStep] = useState(1);
@@ -243,25 +250,39 @@ export default function ArtisanSeniorHelp({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-white font-sans">
-      {/* ── Header ── */}
+      {/* ── Header — two different shapes, never crammed together. Step 1
+          is the only place the full branded header (logo + big title +
+          location) lives; it has just one fixed-size neighbor (Close), so
+          it can never run out of room. Steps 2/3 drop the branding
+          entirely for a plain, robust 3-slot bar — a 56px icon button on
+          each side and a short "Step X of 3" label between them — every
+          piece is either fixed-width or safely truncating, so this can't
+          wrap or crush on a real phone the way stacking a full title next
+          to a text-labeled Back button plus Close did. ── */}
       <header
-        className="flex shrink-0 items-start justify-between gap-3 border-b-2 border-black/10 bg-white px-5 pb-5"
+        className={`flex shrink-0 ${step === 1 ? "items-start" : "items-center"} gap-3 border-b-2 border-black/10 bg-white px-5 pb-5`}
         style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
       >
-        <div className="min-w-0 flex-1">
-          <Logo size={26} />
-          <h1 className="mt-3 text-[26px] font-extrabold leading-tight text-black">Noqeev Artisan Help</h1>
-          <p className="mt-1 text-[18px] font-semibold text-black">Ottawa, ON</p>
-        </div>
-        {step > 1 && (
-          <button
-            type="button"
-            onClick={goBack}
-            className="flex min-h-14 shrink-0 items-center gap-1.5 rounded-full border-2 border-black bg-white px-4 text-[16px] font-bold text-black"
-          >
-            <ChevronLeft className="size-5" aria-hidden="true" />
-            {backLabel}
-          </button>
+        {step === 1 ? (
+          <div className="min-w-0 flex-1">
+            <Logo size={26} />
+            <h1 className="mt-3 text-[26px] font-extrabold leading-tight text-black">Noqeev Artisan Help</h1>
+            <p className="mt-1 text-[18px] font-semibold text-black">Ottawa, ON</p>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={goBack}
+              aria-label={backLabel}
+              className="flex size-14 shrink-0 items-center justify-center rounded-full border-2 border-black bg-white text-black"
+            >
+              <ChevronLeft className="size-6" aria-hidden="true" />
+            </button>
+            <p className="min-w-0 flex-1 truncate text-center text-[16px] font-bold text-black">
+              Step {step} of 3
+            </p>
+          </>
         )}
         {onClose && (
           <button
@@ -284,7 +305,7 @@ export default function ArtisanSeniorHelp({ onClose }) {
             </h2>
 
             <button type="button" onClick={goToStep2} className={`${BIG_BTN} min-h-[88px] flex-col gap-1.5 border-[#0f4a1e] bg-[#1e7e34] text-white active:bg-[#1c8a38]`}>
-              <span className="flex items-center gap-2.5 text-[24px] font-extrabold">
+              <span className="flex flex-wrap items-center justify-center gap-2.5 text-center text-[24px] font-extrabold">
                 <Wrench className="size-7" aria-hidden="true" />
                 I Need Something Fixed
               </span>
@@ -292,7 +313,7 @@ export default function ArtisanSeniorHelp({ onClose }) {
             </button>
 
             <a href={`tel:${SUPPORT_PHONE_TEL}`} className={`${BIG_BTN} min-h-[88px] flex-col gap-0.5 border-black bg-white text-black`}>
-              <span className="flex items-center gap-2.5 text-[22px] font-extrabold">
+              <span className="flex flex-wrap items-center justify-center gap-2.5 text-center text-[22px] font-extrabold">
                 <Phone className="size-7" aria-hidden="true" />
                 Call Support / Book Over Phone
               </span>
@@ -467,7 +488,7 @@ export default function ArtisanSeniorHelp({ onClose }) {
                 )}
 
                 <a href={`tel:${match.phone}`} className={`${BIG_BTN} min-h-[88px] flex-col gap-0.5 border-[#0f4a1e] bg-[#1e7e34] text-white`}>
-                  <span className="flex items-center gap-2.5 text-[20px] font-extrabold">
+                  <span className="flex flex-wrap items-center justify-center gap-2.5 text-center text-[20px] font-extrabold">
                     <Phone className="size-6" aria-hidden="true" />
                     Press here to speak with {match.name.split(" ")[0]}
                   </span>
