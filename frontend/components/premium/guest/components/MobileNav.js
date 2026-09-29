@@ -34,10 +34,10 @@ const VIEWS = [
 // freezes at whatever value it was mid-transition, i.e. a blank screen that
 // never recovers. Plain index-driven `left`/`width` has no cross-component
 // state to leave dangling, so it can't wedge anything on unmount.
-// Style isn't one of these tabs (see the floating button GuestMode.js
-// renders directly over its preview canvas, and StyleBottomSheet.js for
-// what it opens) — it stays highlighted as "Preview" the whole time the
-// style sheet is open over it, since that's still the screen underneath.
+// Style isn't one of these tabs — its entry point is a header button next
+// to Word/PDF (see GuestMode.js), opening an in-flow panel docked below
+// the preview, never over it. "Preview" stays highlighted as active the
+// whole time that panel is open, since it's still the screen underneath.
 function isActive(v, tab, mobileView) {
   if (v.id === "preview") return mobileView === "preview";
   return mobileView === "panel" && tab === v.id;

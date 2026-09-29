@@ -14,7 +14,7 @@
  */
 import { useState, useEffect, useRef, useCallback, useReducer } from "react";
 import { motion } from "framer-motion";
-import { X, RefreshCw, ScanLine, Bookmark, Palette } from "lucide-react";
+import { X, RefreshCw, ScanLine, Bookmark, Check } from "lucide-react";
 import Logo3D from "../Logo3D";
 import { Btn } from "./components/primitives";
 import { LivePreview } from "./components/LivePreview";
@@ -22,7 +22,6 @@ import { ResumeSkeleton } from "./components/ResumeSkeleton";
 import { PackagePreviewModal } from "./components/PackagePreviewModal";
 import { DesktopTabNav } from "./components/DesktopTabNav";
 import { MobileNav } from "./components/MobileNav";
-import { StyleBottomSheet } from "./components/StyleBottomSheet";
 import { InfoStep } from "./components/PanelContent/InfoStep";
 import { JobDescStep } from "./components/PanelContent/JobDescStep";
 import { ResultStep } from "./components/PanelContent/ResultStep";
@@ -747,6 +746,16 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {/* Phone only — tablet/desktop already have Style as a permanent
+              tab in DesktopTabNav next to the always-visible split preview,
+              so a second entry point here would be redundant for them. */}
+          {!showSplit && (
+            <Btn small icon="Palette" onClick={() => { setTab("style"); setMobileView("preview"); setStyleSheetOpen(true); }}
+              className="max-[380px]:gap-0 max-[380px]:px-2.5"
+              disabled={!resume} variant="ghost">
+              <span className="max-[380px]:hidden">Style</span>
+            </Btn>
+          )}
           <Btn small icon="FileDown" loading={downloading === "docx"}
             className="max-[380px]:gap-0 max-[380px]:px-2.5"
             onClick={handleDocx} disabled={!resume || !!downloading} variant="gold">
@@ -776,56 +785,50 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
             {PreviewCanvas()}
           </>
         ) : (
-          // Style is a special case on phone: the preview is ALWAYS the
-          // base view here (never the form panel), with StyleBottomSheet
-          // floating over it — same "see it change immediately" outcome
-          // showSplit gives tablet/desktop, just via a sheet instead of a
-          // side-by-side column, since a phone has no room for both. The
-          // entry point is a small floating button pinned to the preview
-          // itself (not a bottom-nav tab — see MobileNav.js) so it's only
-          // ever on screen where it's actually relevant, and it opens the
-          // same partial-height sheet, never a full-screen cover, so the
-          // resume being styled stays visible underneath the whole time.
-          <div className="relative flex flex-1 flex-col overflow-hidden">
-            {tab === "style" ? PreviewCanvas() : (mobileView === "panel" ? PanelContent() : PreviewCanvas())}
-            {mobileView === "preview" && !(tab === "style" && styleSheetOpen) && (
-              <button
-                type="button"
-                onClick={() => { setTab("style"); setStyleSheetOpen(true); }}
-                aria-label="Style this resume"
-                className="absolute right-3 z-30 flex items-center gap-1.5 rounded-full border border-white/[0.14] px-4 py-2.5 text-[13px] font-bold text-foreground shadow-[0_10px_28px_rgba(0,0,0,0.35)] backdrop-blur-[20px] [-webkit-tap-highlight-color:transparent]"
-                style={{
-                  bottom: "calc(128px + env(safe-area-inset-bottom, 0px))",
-                  background: "color-mix(in oklch, var(--card) 85%, transparent)",
-                }}
-              >
-                <Palette className="size-4 text-primary" /> Style
-              </button>
+          // Style on phone: entry point is the header button (beside Word/
+          // PDF, see the header above), and opening it never covers any
+          // part of the resume — no overlay at all. Instead the preview
+          // and the style panel share the column as normal, in-flow flex
+          // siblings: the panel claims a fixed slice at the bottom, and
+          // the preview (already its own independently scrolling column —
+          // see PreviewCanvas' overflow-y-auto) simply gets the rest of
+          // the height. Nothing is ever drawn on top of the resume; there's
+          // just less of it in view per scroll before you scroll for more,
+          // exactly like the preview behaves at any other screen height.
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {mobileView === "panel" ? PanelContent() : PreviewCanvas()}
+            {tab === "style" && styleSheetOpen && mobileView !== "panel" && (
+              <div className="flex shrink-0 flex-col border-t border-border bg-card" style={{ maxHeight: "38vh" }}>
+                <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+                  <span className="text-[15px] font-bold text-foreground">Style</span>
+                  <button
+                    onClick={() => setStyleSheetOpen(false)}
+                    className="flex h-8 items-center gap-1.5 rounded-full border-none bg-primary px-3.5 text-[13px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent]"
+                  >
+                    <Check className="size-3.5" /> Done
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]" style={{ paddingBottom: mobileNavClearance }}>
+                  <StyleTab docStyle={docStyle} setDocStyle={setDocStyle} isDesktop={true} />
+                </div>
+              </div>
             )}
           </div>
         )}
       </div>
 
       {!showSplit && (
-        <>
-          <MobileNav
-            tab={tab}
-            mobileView={mobileView}
-            navHidden={navHidden}
-            onNavigate={(id) => {
-              if (id === "preview") { setStyleSheetOpen(false); setMobileView("preview"); return; }
-              setStyleSheetOpen(false);
-              setTab(id);
-              setMobileView("panel");
-            }}
-          />
-          <StyleBottomSheet
-            open={tab === "style" && styleSheetOpen}
-            onClose={() => setStyleSheetOpen(false)}
-            docStyle={docStyle}
-            setDocStyle={setDocStyle}
-          />
-        </>
+        <MobileNav
+          tab={tab}
+          mobileView={mobileView}
+          navHidden={navHidden}
+          onNavigate={(id) => {
+            if (id === "preview") { setStyleSheetOpen(false); setMobileView("preview"); return; }
+            setStyleSheetOpen(false);
+            setTab(id);
+            setMobileView("panel");
+          }}
+        />
       )}
 
       <PackagePreviewModal

@@ -1,10 +1,11 @@
 "use client";
 /**
- * BottomSheet.js — generic version of guest/components/StyleBottomSheet.js:
- * the live-preview-stays-visible editing pattern, extracted so anything
- * outside Guest Mode (starting with /brand's Story tool) can reuse it
- * instead of re-implementing the same framer-motion sheet chrome.
- * StyleBottomSheet.js is now a thin wrapper around this.
+ * BottomSheet.js — a live-preview-stays-visible editing pattern (originally
+ * built for GuestMode's phone Style panel, since replaced there by an
+ * in-flow squeeze layout with zero overlay — see GuestMode.js) kept here as
+ * a generic, reusable overlay sheet for anything that still wants a true
+ * overlay instead: /brand's Story tool uses it as-is instead of
+ * re-implementing the same framer-motion sheet chrome.
  *
  * The preview underneath stays the permanent base view the whole time —
  * this sheet is a fixed-position overlay sibling, not a replacement of
