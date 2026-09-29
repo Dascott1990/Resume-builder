@@ -942,10 +942,16 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
 
       <RecentLocations cities={recentLocations.filter((c) => c !== homeCity)} onPick={(c) => setHomeCity(c)} />
 
-      <CategoryShelves onPick={pickTrade} />
-
-      {/* Same additive door as Dashboard.js's Home card — this is the
-          other place someone likely to want it actually is: already
+      {/* Both of these moved up here, above the category shelves, on
+          purpose — they used to sit at the very bottom of this pane, below
+          a single flat grid; now that the grid is three scrollable shelves
+          instead, that same bottom position means scrolling past all three
+          to reach either one. "Booking for a parent or grandparent?" in
+          particular already went through a whole discoverability pass
+          earlier (it used to be a tiny 12px text link before that), so
+          burying it again under new shelves would undo that. Same additive
+          door as Dashboard.js's Home card for the senior link — this is
+          the other place someone likely to want it actually is: already
           looking to hire, about to hit a browse-and-filter directory that
           isn't built for "find someone fast with minimal typing." Routes
           to the real /help URL (not an in-app view) since Artisans.js has
@@ -966,9 +972,11 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
       </button>
 
-      <Btn small variant="ghost" onClick={() => setCatView("results")} className="justify-self-center">
+      <Btn small variant="ghost" onClick={() => setCatView("results")} className="w-full">
         Browse everyone
       </Btn>
+
+      <CategoryShelves onPick={pickTrade} />
     </motion.div>
   );
 
