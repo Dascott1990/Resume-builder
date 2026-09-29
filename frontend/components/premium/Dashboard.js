@@ -38,6 +38,7 @@ import { BottomNav } from "./shared/BottomNav";
 import { ThemeToggle } from "./shared/ThemeToggle";
 import { QUICK_ACTION_ART } from "./shared/quickActionArt";
 import { DASHBOARD_ART } from "./shared/dashboardArt";
+import { SparkleBackground } from "./shared/SparkleBackground";
 import { Skeleton } from "@/components/ui/skeleton";
 import Logo from "./Logo";
 
@@ -865,7 +866,8 @@ export default function Dashboard({ onClose, onNavigate }) {
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 overflow-y-auto">
+        <main className="relative min-w-0 flex-1 overflow-y-auto">
+          <SparkleBackground />
           {onClose && (
             <div className="flex justify-end p-4" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}>
               <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
@@ -931,6 +933,7 @@ export default function Dashboard({ onClose, onNavigate }) {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto" style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}>
+        <SparkleBackground />
         <DashboardContent {...contentProps} />
       </div>
 
