@@ -14,7 +14,6 @@ import { Hero } from "./Hero";
 import { SeeItHappenSection } from "./SeeItHappenSection";
 import { WhyNoqeev } from "./WhyNoqeev";
 import { HowItWorks } from "./HowItWorks";
-import { BrandTeaser } from "./BrandTeaser";
 import { ArtisanTeaser } from "./ArtisanTeaser";
 import { FAQ } from "./FAQ";
 import { FinalCTA } from "./FinalCTA";
@@ -39,10 +38,9 @@ export default function LandingPage({ onOpen, onOpenArtisans, onOpenDashboard })
           <SeeItHappenSection />
           <WhyNoqeev />
           <HowItWorks />
-          <BrandTeaser onOpenDashboard={onOpenDashboard} />
           <ArtisanTeaser onOpenArtisans={onOpenArtisans} />
           <FAQ />
-          <FinalCTA onOpen={onOpen} onOpenDashboard={onOpenDashboard} />
+          <FinalCTA onOpen={onOpen} onOpenDashboard={onOpenDashboard} onOpenArtisans={onOpenArtisans} />
         </main>
         <Footer onOpen={onOpen} onOpenDashboard={onOpenDashboard} />
         <ThreeDIntensityControl intensity={intensity} setIntensity={setIntensity} />

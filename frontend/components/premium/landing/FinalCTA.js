@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP } from "./shared";
 
-export function FinalCTA({ onOpen, onOpenDashboard }) {
+export function FinalCTA({ onOpen, onOpenDashboard, onOpenArtisans }) {
   return (
     <section className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-24 sm:py-28">
       <div
@@ -14,7 +14,7 @@ export function FinalCTA({ onOpen, onOpenDashboard }) {
       <ScrollBlend className={`${SECTION_WRAP} relative`}>
         <Reveal className="mx-auto flex max-w-xl flex-col items-center gap-6 text-center">
           <h2 className="m-0 text-[clamp(1.8rem,5vw,2.75rem)] leading-[1.1] font-bold text-foreground">
-            Your next chance starts with one resume.
+            Build a resume, or find an artisan. No account required to start.
           </h2>
           <motion.button
             onClick={onOpenDashboard}
@@ -25,12 +25,22 @@ export function FinalCTA({ onOpen, onOpenDashboard }) {
             Dashboard
             <ArrowRight className="size-4" />
           </motion.button>
-          <button
-            onClick={onOpen}
-            className="border-none bg-transparent p-0 text-[13px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent]"
-          >
-            Resume Studio →
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+            <button
+              onClick={onOpen}
+              className="border-none bg-transparent p-0 text-[13px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
+            >
+              Resume Studio →
+            </button>
+            {onOpenArtisans && (
+              <button
+                onClick={onOpenArtisans}
+                className="border-none bg-transparent p-0 text-[13px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
+              >
+                Find an Artisan →
+              </button>
+            )}
+          </div>
         </Reveal>
       </ScrollBlend>
     </section>

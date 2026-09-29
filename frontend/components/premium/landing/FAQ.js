@@ -5,11 +5,14 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW } from "./shared";
 
 const FAQS = [
-  { q: "Is Noqeev really free?", a: "Yes — no credit card, no trial, no subscription." },
+  { q: "Is Noqeev really free?", a: "Yes — no credit card, no trial, no subscription. Hiring an artisan still means paying the artisan directly for their work, held safely until the job's done." },
   { q: "Do I need to create an account?", a: "No. Your draft lives in your browser. Signing in just syncs it across devices." },
-  { q: "How does the AI actually tailor my resume?", a: "Paste the job posting — it matches your background to the posting's own keywords." },
+  { q: "How does resume tailoring actually work?", a: "Paste the job posting — it matches your background to the posting's own keywords." },
   { q: "What files do I get, and can I edit them?", a: "An editable .docx and a clean PDF. No watermark, no locked preview." },
-  { q: "Is the Artisan directory anonymous too?", a: "Yes — no account needed to browse or to list yourself." },
+  { q: "Does Auto Apply submit applications for me?", a: "No. It fills out the real application form and shows you exactly what it entered — nothing is ever sent without you reviewing and confirming it first." },
+  { q: "Is the Artisan directory anonymous too?", a: "Yes — no account needed to browse or to list yourself. Booking, messaging, and paying an artisan do require signing in." },
+  { q: "What does the verified badge on an artisan mean?", a: "Our team has personally reviewed that artisan's government ID and proof of insurance before approving it — it isn't automatic, and not every listing has gone through it yet." },
+  { q: "How does payment protection work when I hire someone?", a: "You agree on a price up front. It's held by Noqeev, not the artisan, until you confirm the job is finished — only then does it get released." },
 ];
 
 function FAQItem({ q, a }) {

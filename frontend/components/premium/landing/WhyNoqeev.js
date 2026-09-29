@@ -1,19 +1,24 @@
 "use client";
 import { useRef } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { Sparkles, ShieldCheck, FileCheck2, Hammer, LayoutDashboard, Clapperboard } from "lucide-react";
+import { Sparkles, ShieldCheck, FileCheck2, Hammer, LayoutDashboard, Bot, Lock, ClipboardList } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW } from "./shared";
 
 const FEATURES = [
   { Icon: LayoutDashboard, title: "One dashboard for the whole job search" },
-  { Icon: Sparkles, title: "AI that reads the job, not just your title" },
+  { Icon: Sparkles, title: "Every resume tailored to the actual posting, not a template" },
   // ShieldCheck, not ShieldOff — this is a privacy WIN (no account wall),
   // and a slashed shield reads as "unprotected," the opposite point.
   // Matches SeeItHappenSection.js's identical claim, same icon.
   { Icon: ShieldCheck, title: "Anonymous by default. Account optional." },
-  { Icon: FileCheck2, title: "Real files, not a locked preview" },
-  { Icon: Hammer, title: "A real trade directory too" },
-  { Icon: Clapperboard, title: "A posts-and-video studio for your search" },
+  { Icon: FileCheck2, title: "Real, editable files — no locked preview, no watermark" },
+  // Structural guarantee, not a policy promise — apply.py's agent schema
+  // has no submit tool at all, so there's nothing for it to call even if
+  // asked to. Worth stating plainly, not just implying "AI" is careful.
+  { Icon: Bot, title: "Auto Apply fills real applications — it never submits without you" },
+  { Icon: ClipboardList, title: "Scan an existing resume, or track every application you send" },
+  { Icon: Hammer, title: "A local artisan network — real profiles, ID and insurance reviewed" },
+  { Icon: Lock, title: "Artisan payments held in escrow until you confirm the job is done" },
 ];
 
 // Subtle pointer-tracked tilt on desktop only (a mouse is required for the
