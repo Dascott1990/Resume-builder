@@ -17,16 +17,16 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Home, FileText, ScanLine, ClipboardList, Hammer, Settings as SettingsIcon,
-  ArrowRight, ChevronRight, CalendarCheck, X, Clock, Bell,
-  MessageCircle, Wrench, Inbox, Megaphone,
+  Settings as SettingsIcon,
+  ArrowRight, ChevronRight, X, Clock,
+  MessageCircle, Wrench, Inbox, ShieldCheck, Star,
   MoreVertical, Trash2, StickyNote, Check, AlertTriangle,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Btn } from "./guest/components/primitives";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
-import { tintFor, initialsOf } from "./shared/artisanDisplay";
+import { tintFor, initialsOf, avatarPhotoUrl } from "./shared/artisanDisplay";
 import Emoji3D from "./shared/Emoji3D";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
@@ -37,18 +37,47 @@ import { apiListSaved, apiDelete } from "./guest/api";
 import { BottomNav } from "./shared/BottomNav";
 import { ThemeToggle } from "./shared/ThemeToggle";
 import { QUICK_ACTION_ART } from "./shared/quickActionArt";
+import { DASHBOARD_ART } from "./shared/dashboardArt";
 import { Skeleton } from "@/components/ui/skeleton";
 import Logo from "./Logo";
+
+// A small colored-tile illustration wherever an icon represents real
+// content (a feature, a stat, a notification) — see shared/quickActionArt.js
+// and shared/dashboardArt.js for the actual drawings. Pure UI chrome
+// (chevrons, close buttons, overflow-menu dots) stays as plain lucide
+// icons on purpose: illustrating a ">" would make it read as content
+// instead of as "this is tappable."
+function ArtTile({ art, size = 32, iconSize }) {
+  const { bg, Svg } = art;
+  return (
+    <span className="flex shrink-0 items-center justify-center rounded-[28%]" style={{ width: size, height: size, background: bg }}>
+      <Svg size={iconSize || Math.round(size * 0.56)} />
+    </span>
+  );
+}
+
+// Wraps one of the illustrated tiles above into the `<item.Icon
+// className={...}/>` shape BottomNav.js (a shared component, also used by
+// Artisans.js with its own plain lucide icons) actually calls — this way
+// MOBILE_NAV_ITEMS below gets illustrated icons without BottomNav itself
+// needing to know or care; className (BottomNav's own active/inactive
+// sizing) is accepted so the row still gets its slot, but this tile's own
+// colors and size are decided here, not by that className.
+function navArt(art) {
+  return function NavArtIcon() {
+    return <ArtTile art={art} size={26} iconSize={15} />;
+  };
+}
 
 // Desktop sidebar — the full set. Room isn't the constraint there the way
 // it is in a floating mobile bar, so every top-level screen stays one
 // click away.
 const NAV_ITEMS = [
-  { id: "home", Icon: Home, label: "Home" },
-  { id: "resume", Icon: FileText, label: "Resume" },
-  { id: "scan", Icon: ScanLine, label: "Scan" },
-  { id: "jobtracker", Icon: ClipboardList, label: "Tracker" },
-  { id: "artisans", Icon: Hammer, label: "Artisans" },
+  { id: "home", art: DASHBOARD_ART.home, label: "Home" },
+  { id: "resume", art: DASHBOARD_ART.resume, label: "Resume" },
+  { id: "scan", art: QUICK_ACTION_ART.scan, label: "Scan" },
+  { id: "jobtracker", art: QUICK_ACTION_ART.tracker, label: "Tracker" },
+  { id: "artisans", art: QUICK_ACTION_ART.artisans, label: "Artisans" },
 ];
 
 // Mobile bottom nav — three now: Home, News, and Artisans. Resume/Scan/
@@ -63,9 +92,9 @@ const NAV_ITEMS = [
 // "Worth a look" content used to live inline on Home, split out so it has
 // room to grow into a bigger feature on its own.
 const MOBILE_NAV_ITEMS = [
-  { id: "home", Icon: Home, label: "Home" },
-  { id: "news", Icon: Megaphone, label: "News" },
-  { id: "artisans", Icon: Hammer, label: "Artisans" },
+  { id: "home", Icon: navArt(DASHBOARD_ART.home), label: "Home" },
+  { id: "news", Icon: navArt(DASHBOARD_ART.news), label: "News" },
+  { id: "artisans", Icon: navArt(QUICK_ACTION_ART.artisans), label: "Artisans" },
 ];
 
 const STATUS_META = {
@@ -113,14 +142,14 @@ function greeting() {
   return "Good evening";
 }
 
-function StatCard({ label, value, Icon, loading, needsAttention }) {
+function StatCard({ label, value, art, loading, needsAttention }) {
   return (
     <div className="glass-surface relative flex flex-col gap-2 rounded-2xl p-4">
       {/* Same red-means-action-needed signal as the header bell badge —
           ties this stat to the follow-up nudge banner above instead of
           the two existing as two separately-discovered facts. */}
       {needsAttention && <span className="absolute top-3 right-3 size-2 rounded-full bg-destructive" />}
-      <Icon className="size-4 text-primary" />
+      <ArtTile art={art} size={28} iconSize={16} />
       {loading ? <Skeleton className="h-7 w-10" /> : <span className="text-2xl font-bold text-foreground">{value}</span>}
       <span className="text-[11.5px] leading-tight text-muted-foreground">{label}</span>
     </div>
@@ -308,7 +337,79 @@ function SectionHeader({ children, onViewAll, viewAllLabel = "View all" }) {
   );
 }
 
-function DashboardContent({ user, statsLoading, savedResumes, applications, go, onDeleteResume, onDeleteApplication, onUpdateApplicationStatus, onAddNote }) {
+// One card per artisan — avatar, name, trade, and whichever single trust
+// signal is actually true for them (verified badge beats a rating, a
+// rating beats nothing, nothing shown at all reads as "new" without
+// needing its own literal label). Same avatar precedence ArtisanProfile.js/
+// ArtisanDashboard.js already use (real photo, then emoji, then initials)
+// — this card was built to match those, not invent a fourth version of
+// that logic. Tapping any card just opens the directory (go("artisans")),
+// not that specific artisan's own profile — Dashboard.js has no way to
+// deep-link Artisans.js's internal view-state to one listing today, and
+// adding that plumbing for a "see who's here" nudge is more than this
+// earns; the real destination is one tap further either way.
+function ArtisanSpotlightCard({ a, onClick }) {
+  const verified = a.verification_status === "verified";
+  const rated = a.rating_count > 0;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="glass-surface flex w-[132px] shrink-0 flex-col items-center gap-2 rounded-2xl p-3.5 text-center [-webkit-tap-highlight-color:transparent]"
+    >
+      <div className={`flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full border ${a.has_avatar_photo || a.avatar_emoji ? "" : "font-mono text-sm font-bold"} ${tintFor(a.name || "?")}`}>
+        {a.has_avatar_photo ? (
+          <img src={avatarPhotoUrl(a.id, a.avatar_photo_version)} alt="" className="size-full object-cover" />
+        ) : a.avatar_emoji ? (
+          <Emoji3D emoji={a.avatar_emoji} size={48} />
+        ) : (
+          initialsOf(a.name)
+        )}
+      </div>
+      <div className="min-w-0 w-full">
+        <p className="m-0 truncate text-[12.5px] font-bold text-foreground">{a.name}</p>
+        <p className="m-0 truncate text-[11px] text-muted-foreground">{a.trade}</p>
+      </div>
+      {verified ? (
+        <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary-text">
+          <ShieldCheck className="size-3" /> Verified
+        </span>
+      ) : rated ? (
+        <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary-text">
+          <Star className="size-3 fill-primary text-primary" /> {a.rating_avg.toFixed(1)}
+        </span>
+      ) : (
+        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">New</span>
+      )}
+    </button>
+  );
+}
+
+// Nothing here is user-account data — it's a live snippet of the
+// marketplace itself, the same reason ArtisanTeaser.js exists on the
+// landing page: most visitors never scroll to "Find an Artisan" on their
+// own, so surfacing a few real listings right on Home is what actually
+// gets it discovered. Ranked verified-first, then by rating (see
+// Dashboard's own spotlightArtisans effect) — genuinely "top," not just
+// "whoever signed up first." Renders nothing at all if the fetch comes
+// back empty (a quota-exceeded database, a brand-new instance with no
+// listings yet) rather than an empty-state placeholder for a section
+// nobody asked to see promoted this hard.
+function ArtisanSpotlight({ artisans, go }) {
+  if (!artisans?.length) return null;
+  return (
+    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.12 }} className="mb-6">
+      <SectionHeader onViewAll={() => go("artisans")}>Top artisans on Noqeev</SectionHeader>
+      <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {artisans.map((a) => (
+          <ArtisanSpotlightCard key={a.id} a={a} onClick={() => go("artisans")} />
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function DashboardContent({ user, statsLoading, savedResumes, applications, spotlightArtisans, go, onDeleteResume, onDeleteApplication, onUpdateApplicationStatus, onAddNote }) {
   const interviews = applications.filter((a) => a.status === "interview").length;
   const recentResumes = savedResumes.slice(0, 3);
   const recentApps = applications.slice(0, 3);
@@ -367,9 +468,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
         className="glass-surface mb-5 flex w-full items-center justify-between gap-4 rounded-3xl border-none p-6 text-left [-webkit-tap-highlight-color:transparent]"
       >
         <div className="flex min-w-0 items-center gap-3.5">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-[26%] bg-gradient-to-br from-primary to-primary/75 shadow-[0_6px_16px_-4px_color-mix(in_oklch,var(--primary)_55%,transparent)]">
-            <FileText className="size-5 text-primary-foreground" />
-          </div>
+          <ArtTile art={DASHBOARD_ART.resume} size={44} iconSize={24} />
           <div className="min-w-0">
             <p className="m-0 text-xl font-bold text-foreground">Build a resume</p>
             <p className="m-0 text-[12px] text-muted-foreground">Tailored, ATS-ready in minutes</p>
@@ -415,9 +514,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
           onClick={() => go("artisan-help")}
           className="mt-2.5 flex w-full items-center gap-3 rounded-2xl border border-border bg-muted/60 p-3.5 text-left [-webkit-tap-highlight-color:transparent]"
         >
-          <div className="flex size-[38px] shrink-0 items-center justify-center rounded-[26%] bg-foreground/[0.08] text-foreground">
-            <Wrench className="size-[18px]" />
-          </div>
+          <ArtTile art={DASHBOARD_ART.care} size={38} iconSize={21} />
           <div className="min-w-0 flex-1">
             <p className="m-0 text-[12.5px] font-bold leading-tight text-foreground">Booking for a parent or grandparent?</p>
             <p className="m-0 mt-0.5 text-[10.5px] text-muted-foreground">Try our simple mode. voice, photo, one call</p>
@@ -425,6 +522,8 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
           <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
         </button>
       </motion.div>
+
+      <ArtisanSpotlight artisans={spotlightArtisans} go={go} />
 
       {/* Stats, recent resumes, and recent applications below all share one
           rule now: a brand-new visitor with nothing tracked anywhere sees
@@ -437,15 +536,15 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }} className="mb-6">
           {statsLoading ? (
             <div className="grid grid-cols-3 gap-3">
-              <StatCard label="Saved resumes" Icon={FileText} loading />
-              <StatCard label="Applications" Icon={ClipboardList} loading />
-              <StatCard label="Interviews" Icon={CalendarCheck} loading />
+              <StatCard label="Saved resumes" art={DASHBOARD_ART.resume} loading />
+              <StatCard label="Applications" art={QUICK_ACTION_ART.tracker} loading />
+              <StatCard label="Interviews" art={DASHBOARD_ART.interviews} loading />
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-3">
-              <StatCard label="Saved resumes" value={savedResumes.length} Icon={FileText} />
-              <StatCard label="Applications" value={applications.length} Icon={ClipboardList} needsAttention={followupCount > 0} />
-              <StatCard label="Interviews" value={interviews} Icon={CalendarCheck} />
+              <StatCard label="Saved resumes" value={savedResumes.length} art={DASHBOARD_ART.resume} />
+              <StatCard label="Applications" value={applications.length} art={QUICK_ACTION_ART.tracker} needsAttention={followupCount > 0} />
+              <StatCard label="Interviews" value={interviews} art={DASHBOARD_ART.interviews} />
             </div>
           )}
         </motion.div>
@@ -466,9 +565,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
                 <div key={r.id} className="glass-surface flex items-center gap-2 rounded-xl p-3">
                   <button onClick={() => go("resume", { resumeId: r.id })}
                     className="flex min-w-0 flex-1 items-center gap-3 border-none bg-transparent p-0 text-left [-webkit-tap-highlight-color:transparent]">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10">
-                      <FileText className="size-4 text-primary" />
-                    </div>
+                    <ArtTile art={DASHBOARD_ART.resume} size={36} iconSize={19} />
                     <div className="min-w-0 flex-1">
                       <p className="m-0 truncate text-[13px] font-bold text-foreground">{r.name || "Untitled"}</p>
                       <p className="m-0 truncate text-[11.5px] text-muted-foreground">
@@ -562,6 +659,29 @@ export default function Dashboard({ onClose, onNavigate }) {
   const [savedResumes, setSavedResumes] = useState([]);
   const [applications, setApplications] = useState([]);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [spotlightArtisans, setSpotlightArtisans] = useState([]);
+
+  // Public marketplace data, not scoped to the signed-in account the way
+  // resumes/applications above are — fetched once on mount regardless of
+  // auth state. Failing silently into an empty array (same as the
+  // applications fetch's own .catch(() => [])) is what lets
+  // ArtisanSpotlight below just not render at all rather than show a
+  // broken section, the same "no data, no empty-state placeholder" rule
+  // Recent resumes/Recent applications already follow.
+  useEffect(() => {
+    apiRequest("/api/v1/artisans?limit=12").then((items) => {
+      const ranked = [...(items || [])].sort((a, b) => {
+        const va = a.verification_status === "verified" ? 1 : 0;
+        const vb = b.verification_status === "verified" ? 1 : 0;
+        if (va !== vb) return vb - va;
+        const ra = a.rating_count > 0 ? a.rating_avg : 0;
+        const rb = b.rating_count > 0 ? b.rating_avg : 0;
+        if (ra !== rb) return rb - ra;
+        return 0; // already newest-first from the API for any remaining ties
+      });
+      setSpotlightArtisans(ranked.slice(0, 6));
+    }).catch(() => setSpotlightArtisans([]));
+  }, []);
 
   useEffect(() => {
     // Signing out happens right on this screen (see the Sign out button
@@ -644,7 +764,7 @@ export default function Dashboard({ onClose, onNavigate }) {
   const needsAttention = unread.count > 0 || followupCount > 0;
 
   const contentProps = {
-    user, statsLoading, savedResumes, applications, go,
+    user, statsLoading, savedResumes, applications, spotlightArtisans, go,
     onDeleteResume: deleteResume,
     onDeleteApplication: deleteApplication,
     onUpdateApplicationStatus: updateApplicationStatus,
@@ -670,7 +790,7 @@ export default function Dashboard({ onClose, onNavigate }) {
                     active ? "bg-primary/10 text-primary" : "bg-transparent text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <item.Icon className="size-4" />
+                  <ArtTile art={item.art} size={26} iconSize={15} />
                   {item.label}
                 </button>
               );
@@ -723,7 +843,7 @@ export default function Dashboard({ onClose, onNavigate }) {
               aria-label="Notifications"
               className="relative flex size-10 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
             >
-              <Bell className="size-4" />
+              <ArtTile art={DASHBOARD_ART.bell} size={24} iconSize={14} />
               {/* Red = needs action (an unread message or a stalled
                   application — see needsAttention above), not just a
                   flat count with no severity signal. A real unread-
@@ -776,7 +896,7 @@ export default function Dashboard({ onClose, onNavigate }) {
         <div className="flex items-center gap-2">
           <ThemeToggle compact />
           <button onClick={() => setNotifOpen(true)} aria-label="Notifications" className="relative flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
-            <Bell className="size-[15px]" />
+            <ArtTile art={DASHBOARD_ART.bell} size={24} iconSize={14} />
             {needsAttention && (
               unread.count > 0 ? (
                 <span className="absolute top-0.5 right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
