@@ -1,6 +1,8 @@
 "use client";
 import { useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
+import { MapPin } from "lucide-react";
+import { useVisitorLocation } from "@/lib/useVisitorLocation";
 
 // ── Shared scroll-reveal — the "feels like 3D" cue used across every section ──
 // Content rises out of a slight depth (translateY + a few degrees of
@@ -51,6 +53,22 @@ export function ScrollBlend({ children, className }) {
 }
 
 export const SECTION_WRAP = "mx-auto w-full max-w-6xl px-6 sm:px-8 lg:px-12";
+
+// The visitor's own detected city (lib/useVisitorLocation.js) — a plain
+// standalone pill, never woven into a hand-written sentence. "Hire a
+// {city} tradesperson" breaks the moment city is empty (nothing detected
+// yet) or grammatically odd ("a Ottawa" vs "an Ottawa"); a pill sidesteps
+// both by just not rendering at all until there's a real city to show.
+export function LocationPill({ className }) {
+  const location = useVisitorLocation();
+  if (!location?.city) return null;
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[12.5px] font-semibold text-muted-foreground ${className || ""}`}>
+      <MapPin className="size-3.5 text-primary" />
+      {location.city}
+    </span>
+  );
+}
 
 // text-primary-text, not text-primary — plain amber text directly on the
 // light-mode background computes to 2.09:1, failing WCAG AA (needs

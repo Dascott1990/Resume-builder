@@ -179,6 +179,9 @@ def create_app():
     from app.api.cron import cron_bp
     app.register_blueprint(cron_bp, url_prefix="/api/v1/cron")
 
+    from app.api.meta import meta_bp
+    app.register_blueprint(meta_bp, url_prefix="/api/v1/meta")
+
     # Pinged by the frontend's keep-alive (see frontend/app/KeepAlive.js) to
     # stop Render's free-tier instance from spinning down after 15 minutes
     # of inactivity. Deliberately does nothing but respond — no DB hit, no

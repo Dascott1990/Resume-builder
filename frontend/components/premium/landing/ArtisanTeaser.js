@@ -1,8 +1,23 @@
 "use client";
-import { ArrowRight, Hammer, Star, Phone } from "lucide-react";
-import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW } from "./shared";
+import { ArrowRight, Hammer, Star, Phone, ShieldCheck, Lock } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, LocationPill } from "./shared";
+
+// Same real trust facts as ArtisanSeniorHelp.js's own honesty-notes
+// header comment — kept in sync deliberately: verification is a real,
+// human-reviewed pipeline (an admin looks at a submitted ID and proof of
+// insurance and approves or rejects it, see backend/app/api/admin.py's
+// review_verification), not an automated background-check API. Escrow is
+// real too (api/requests.py's /pay and /release-payment) — money is
+// charged to Noqeev's own Stripe balance and only transferred to the
+// artisan once the customer explicitly confirms the job's done.
+const TRUST = [
+  { Icon: ShieldCheck, label: "ID and insurance reviewed before the verified badge" },
+  { Icon: Lock, label: "Payment held until you confirm the job's done" },
+];
 
 export function ArtisanTeaser({ onOpenArtisans }) {
+  const router = useRouter();
   return (
     <section id="artisans" className="relative flex min-h-[100dvh] flex-col justify-center py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
       <ScrollBlend className={SECTION_WRAP}>
@@ -10,16 +25,41 @@ export function ArtisanTeaser({ onOpenArtisans }) {
           <Reveal>
             <span className={EYEBROW}>Also on Noqeev</span>
             <h2 className="m-0 text-[clamp(1.6rem,4vw,2.2rem)] leading-tight font-bold text-foreground">
-              Not every next chance is behind a desk.
+              A local artisan network.
             </h2>
-            <button
-              onClick={onOpenArtisans}
-              className="mt-6 flex min-h-[54px] items-center gap-2 rounded-2xl border border-border bg-card px-6 text-[15.5px] font-bold text-foreground [-webkit-tap-highlight-color:transparent]"
-            >
-              <Hammer className="size-4 text-primary" />
-              Find an Artisan
-              <ArrowRight className="size-4" />
-            </button>
+            <LocationPill className="mt-3" />
+            <p className="m-0 mt-3 max-w-sm text-[14.5px] leading-relaxed text-muted-foreground">
+              Browse and message tradespeople directly, or describe the problem by voice or
+              photo and speak to someone on the phone instead.
+            </p>
+
+            <ul className="m-0 mt-5 flex list-none flex-col gap-2.5 p-0">
+              {TRUST.map(({ Icon, label }) => (
+                <li key={label} className="flex items-center gap-2.5 text-[13px] font-semibold text-foreground">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                    <Icon className="size-3.5" />
+                  </span>
+                  {label}
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                onClick={onOpenArtisans}
+                className="flex min-h-[54px] items-center gap-2 rounded-2xl border border-border bg-card px-6 text-[15.5px] font-bold text-foreground [-webkit-tap-highlight-color:transparent]"
+              >
+                <Hammer className="size-4 text-primary" />
+                Find an Artisan
+                <ArrowRight className="size-4" />
+              </button>
+              <button
+                onClick={() => router.push("/help")}
+                className="flex min-h-[54px] items-center rounded-2xl border-none bg-transparent px-2 text-[14px] font-bold text-primary-text [-webkit-tap-highlight-color:transparent]"
+              >
+                Simplified booking mode →
+              </button>
+            </div>
           </Reveal>
 
           <Reveal delay={0.1}>
@@ -49,6 +89,14 @@ export function ArtisanTeaser({ onOpenArtisans }) {
                   <Star className="size-3.5 fill-primary text-primary" />
                   <span className="font-mono text-[11px]">4.9</span>
                 </div>
+              </div>
+              {/* Same badge ArtisanProfile.js/ArtisanSeniorHelp.js only ever
+                  show once verification_status is literally "verified" —
+                  shown here on the example too, so a visitor recognizes it
+                  as the real thing later, not a mockup-only flourish. */}
+              <div className="mt-3 flex items-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 px-2.5 py-1.5 text-[11px] font-bold text-primary-text">
+                <ShieldCheck className="size-3.5" />
+                ID &amp; insurance verified
               </div>
               <p className="m-0 mt-3.5 text-[12.5px] leading-relaxed text-foreground">
                 Same-week availability

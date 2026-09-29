@@ -7,6 +7,7 @@ import { useInstallPrompt } from "@/lib/useInstallPrompt";
 import PaperTransformScene3D from "../PaperTransformScene3D";
 import Logo from "../Logo";
 import { InstallInstructionsModal } from "./InstallInstructionsModal";
+import { LocationPill } from "./shared";
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -95,14 +96,31 @@ export function Hero({ onOpenDashboard, intensity }) {
             <Logo size={34} />
           </motion.div>
 
+          {/* Detected, not hardcoded — Noqeev isn't an Ottawa-only product,
+              see lib/useVisitorLocation.js. Renders nothing until a real
+              city comes back, so there's no placeholder flash or a
+              wrong-city guess ever shown. */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
+            <LocationPill />
+          </motion.div>
+
           <motion.h1
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
             className="m-0 text-balance text-[clamp(2rem,5.4vw,3.4rem)] leading-[1.06] font-bold tracking-tight text-foreground"
           >
-            Every career deserves a second chance.
+            Tailored resumes. Trusted local artisans.
           </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="m-0 text-[15.5px] leading-relaxed text-muted-foreground"
+          >
+            No account required.
+          </motion.p>
 
           {/* Dashboard (the hub everything else — resume builder, CV scan,
               job tracker, artisan directory — lives inside) plus Download,

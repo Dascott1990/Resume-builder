@@ -26,7 +26,6 @@ import os
 import re
 import secrets
 import hashlib
-import requests
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, request, jsonify
@@ -40,7 +39,8 @@ from app.utils.auth import (
     hash_password, verify_password, issue_token, get_scope, require_customer_scope,
     break_glass_configured, verify_break_glass_credentials, issue_break_glass_token,
 )
-from app.utils.mail import send_email
+from app.utils.mail import send_email, wrap_email_html
+from app.utils.geoip import client_ip, lookup_geo
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -105,39 +105,12 @@ def _migrate_guest_data(guest_id, user_id):
             guest_profile.guest_id = None
 
 
-def _email_shell(heading, body_html, cta_label, cta_link, footnote):
-    # CASL (Canada's anti-spam law — Noqeev is Ottawa-based) requires
-    # clear sender identification, including a valid physical mailing
-    # address, on commercial electronic messages; there's a real
-    # exemption for purely transactional/relationship messages (which
-    # both emails using this shell — email verification, password reset
-    # — are), but there's no real downside to including it anyway, and
-    # it matches the same address already on the website footer
-    # (Footer.js) rather than only appearing on the site itself. No
-    # unsubscribe link here on purpose: neither email is optional or
-    # recurring — there's nothing to opt out of.
-    return f"""
-    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:8px;">
-      <p style="font-weight:800;letter-spacing:0.02em;color:#111;margin:0 0 24px;">NOQEEV</p>
-      <h2 style="color:#111;margin:0 0 12px;">{heading}</h2>
-      <p style="color:#444;line-height:1.6;margin:0 0 4px;">{body_html}</p>
-      <p style="margin:28px 0;">
-        <a href="{cta_link}" style="background:#f5a623;color:#111;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;display:inline-block;">{cta_label}</a>
-      </p>
-      <p style="color:#888;font-size:12.5px;line-height:1.5;">{footnote}</p>
-      <p style="color:#aaa;font-size:11px;line-height:1.5;margin-top:20px;border-top:1px solid #eee;padding-top:14px;">
-        Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada
-      </p>
-    </div>
-    """
-
-
 def _send_verification_email(user, token):
     link = f"{FRONTEND_URL}/verify-email?token={token}"
     send_email(
         user.email,
         "Verify your Noqeev account",
-        _email_shell(
+        wrap_email_html(
             "Verify your email",
             "Confirm this is your email address to finish setting up your account.",
             "Verify email", link,
@@ -151,7 +124,7 @@ def _send_reset_email(user, token):
     send_email(
         user.email,
         "Reset your Noqeev password",
-        _email_shell(
+        wrap_email_html(
             "Reset your password",
             "Someone requested a password reset for this account. If that was you, choose a new password below.",
             "Reset password", link,
@@ -264,39 +237,19 @@ def _device_fingerprint(request):
     return hashlib.sha256(ua.encode()).hexdigest()[:16]
 
 
-def _client_ip(request):
-    # Same header Render/most proxies set — first entry is the original
-    # client, everything after is the proxy chain (see _notify_break_glass_
-    # login above, which reads the same header the same way).
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    return (forwarded.split(",")[0].strip() if forwarded else request.remote_addr) or None
-
-
 def _lookup_region(ip):
-    """Best-effort 'City, Country' for an IP via a free, keyless geolocation
-    API — there's no geo-IP provider configured for this app (see
-    CRUX_API_KEY in .env, which is Chrome UX Report, unrelated), and standing
-    one up just for this alert isn't worth a new paid dependency. A short
-    timeout plus a blanket except means a slow/unreachable lookup just
-    silently skips the region half of the check — device-only comparison
-    still runs, and login itself is NEVER blocked by this failing."""
-    if not ip or ip in ("127.0.0.1", "::1", "localhost"):
+    """'City, Country' for the new-login alert's comparison — thin wrapper
+    around utils/geoip.py's shared lookup_geo (also used by api/meta.py's
+    public /location route), formatted the same way this alert has always
+    compared regions. Login itself is NEVER blocked by this failing — see
+    the broad except around every caller of this."""
+    geo = lookup_geo(ip)
+    if not geo:
         return None
-    try:
-        res = requests.get(
-            f"http://ip-api.com/json/{ip}",
-            params={"fields": "status,city,country"},
-            timeout=1.5,
-        )
-        data = res.json()
-        if data.get("status") != "success":
-            return None
-        city, country = data.get("city"), data.get("country")
-        if city and country:
-            return f"{city}, {country}"
-        return country or city or None
-    except Exception:
-        return None
+    city, country = geo.get("city"), geo.get("country")
+    if city and country:
+        return f"{city}, {country}"
+    return country or city or None
 
 
 def _notify_new_login(user, request, is_new_device, is_new_region, region, ip):
@@ -316,7 +269,7 @@ def _notify_new_login(user, request, is_new_device, is_new_region, region, ip):
     send_email(
         user.email,
         "New login to your Noqeev account",
-        _email_shell(
+        wrap_email_html(
             "New login detected",
             f"Your account was just signed into from {' and '.join(what)}{where} at {when}"
             f"{f', IP {ip}' if ip else ''}. If this was you, no action is needed.",
@@ -358,7 +311,7 @@ def login():
     # blocks or fails the login itself (see the broad except below).
     try:
         device = _device_fingerprint(request)
-        ip = _client_ip(request)
+        ip = client_ip(request)
         region = _lookup_region(ip)
         known = user.known_logins or []
         if known:
@@ -390,7 +343,7 @@ def _notify_break_glass_login(request):
     send_email(
         to,
         "Break-glass admin login used",
-        _email_shell(
+        wrap_email_html(
             "Break-glass admin login used",
             f"The emergency admin credential signed in at {when} from {ip}. "
             "If this wasn't you, rotate BREAK_GLASS_ADMIN_USERNAME and "
