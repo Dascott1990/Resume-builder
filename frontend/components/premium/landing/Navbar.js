@@ -27,7 +27,11 @@ export function Navbar({ onOpenDashboard }) {
       initial={{ y: -72, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      className="fixed inset-x-0 top-0 z-50"
+      // Transparent and sitting over the Hero's own dark background until
+      // scrolled, so the nav needs the site's dark-theme text/icon colors
+      // for that stretch — the same `.dark` scope Hero.js uses, toggled off
+      // the moment a solid/blurred bg appears over the (light) page below.
+      className={`fixed inset-x-0 top-0 z-50 ${scrolled ? "" : "dark"}`}
       style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
       <div

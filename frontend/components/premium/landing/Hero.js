@@ -2,12 +2,11 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, Check, ChevronDown, Download } from "lucide-react";
-import { useViewport } from "@/lib/useViewport";
 import { useInstallPrompt } from "@/lib/useInstallPrompt";
-import PaperTransformScene3D from "../PaperTransformScene3D";
 import Logo from "../Logo";
 import { InstallInstructionsModal } from "./InstallInstructionsModal";
 import { LocationPill } from "./shared";
+import { HeroScene } from "./HeroScene";
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -24,29 +23,16 @@ function usePrefersReducedMotion() {
 export function Hero({ onOpenDashboard, intensity }) {
   const heroRef = useRef(null);
   const reducedMotion = usePrefersReducedMotion();
-  const { isDesktop } = useViewport();
   const { canShow: canInstall, isIOS, showInstalledBadge, isPrompting, promptInstall, dismissAfterIOSInstructions } = useInstallPrompt();
   const [iosInstructionsOpen, setIosInstructionsOpen] = useState(false);
   const handleDownloadClick = () => {
     if (isPrompting) return; // a prompt is already in flight — ignore rapid re-clicks
     isIOS ? setIosInstructionsOpen(true) : promptInstall();
   };
-  // This page (unlike the app screens that only ever mount after a click,
-  // never through SSR) is server-rendered at "/" , useViewport defaults to
-  // a desktop width on the server, so branching on isDesktop immediately
-  // would render a different tree than the client's real viewport and fail
-  // hydration outright. Same fix Logo3D.js already uses for WebGL support:
-  // render neither breakpoint's 3D layer until after mount (server output
-  // and the first client paint both show just the text, byte-identical),
-  // then upgrade to the real layout on the next tick, an ordinary
-  // post-hydration re-render, not a mismatch.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
 
   // The showcase drifts and settles slower than the page scrolls, the
-  // "this scrolls like 3D" cue, on both the desktop panel and the mobile
-  // wallpaper below.
+  // "this scrolls like 3D" cue.
   const panelY = useTransform(scrollYProgress, [0, 1], [0, reducedMotion ? 0 : 90]);
   const panelOpacity = useTransform(scrollYProgress, [0, 0.85], [1, 0.2]);
 
@@ -54,40 +40,18 @@ export function Hero({ onOpenDashboard, intensity }) {
     <section
       id="top"
       ref={heroRef}
-      className="relative flex min-h-[100dvh] w-full flex-col justify-center overflow-hidden pt-28 pb-20 sm:pt-32 lg:pt-40 lg:pb-28"
+      className="dark relative flex min-h-[100dvh] w-full flex-col justify-center overflow-hidden bg-background pt-28 pb-20 sm:pt-32 lg:pt-40 lg:pb-28"
       style={{ scrollMarginTop: "64px" }}
     >
       <motion.div
         aria-hidden="true"
         animate={reducedMotion ? undefined : { opacity: [0.16, 0.3, 0.16] }}
         transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-        className="pointer-events-none absolute top-[10%] right-[-10%] size-[680px]"
+        className="pointer-events-none absolute top-[-10%] right-[-8%] size-[680px]"
         style={{
-          background: "radial-gradient(circle, color-mix(in oklch, var(--primary) 16%, transparent) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(52,211,153,0.22) 0%, rgba(52,211,153,0.05) 45%, transparent 72%)",
         }}
       />
-
-      {/* ── Mobile/tablet: the 3D scene as full-bleed wallpaper behind the
-          text, not a boxed showcase, a scrim gradient keeps the copy
-          legible without flattening the scene to nothing. Rendered via a
-          JS breakpoint check (not a CSS hidden/lg:block pair) so only one
-          WebGL canvas ever mounts at a time, two live contexts for one
-          hero is wasted GPU work neither device needs. */}
-      {mounted && !isDesktop && (
-        <motion.div
-          aria-hidden="true"
-          style={{ y: panelY, opacity: panelOpacity }}
-          className="pointer-events-none absolute inset-0 z-0"
-        >
-          <div className="absolute inset-0" style={{ opacity: intensity * 0.4, transition: "opacity 0.25s ease" }}>
-            <PaperTransformScene3D style={{ width: "100%", height: "100%" }} />
-          </div>
-          <div
-            className="absolute inset-0"
-            style={{ background: "linear-gradient(to bottom, transparent 0%, transparent 30%, var(--background) 80%)" }}
-          />
-        </motion.div>
-      )}
 
       <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-12 px-6 sm:px-8 lg:grid-cols-2 lg:gap-16 lg:px-12">
         {/* ── Text column, message + action, always readable, never behind the 3D ── */}
@@ -192,31 +156,32 @@ export function Hero({ onOpenDashboard, intensity }) {
           />
         </div>
 
-        {/* ── Desktop only: the boxed 3D showcase, the resume, the people,
-            the build, all bridged to the mark, in its own display case
-            beside the text instead of sitting behind it. ── */}
-        {mounted && isDesktop && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.94 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            style={{ y: panelY, opacity: panelOpacity }}
-            className="order-2 lg:order-none"
+        {/* ── The floating-blocks showcase: two real screenshots of the
+            actual product (desktop + mobile Dashboard) scattered among
+            abstract matte/frame shapes, in its own display case beside the
+            text instead of sitting behind it. One unified panel for every
+            breakpoint (previously desktop got a boxed panel and mobile got
+            a full-bleed WebGL wallpaper behind the text; that wallpaper's
+            gone along with the isDesktop/mounted branching it needed, this
+            is plain CSS + two <div> backgrounds, cheap enough to just
+            always render). ── */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.94 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          style={{ y: panelY, opacity: panelOpacity }}
+          className="order-2 lg:order-none"
+        >
+          <div
+            aria-hidden="true"
+            className="relative h-[380px] w-full overflow-hidden rounded-[28px] border border-white/[0.1] sm:h-[460px] lg:h-[560px]"
+            style={{ boxShadow: "inset 0 0 70px rgba(0,0,0,0.45), 0 24px 70px rgba(0,0,0,0.4)" }}
           >
-            <div
-              aria-hidden="true"
-              className="relative h-[380px] w-full overflow-hidden rounded-[28px] border border-white/[0.1] sm:h-[460px] lg:h-[560px]"
-              style={{
-                background: "radial-gradient(circle at 50% 42%, color-mix(in oklch, var(--primary) 13%, transparent) 0%, transparent 65%), color-mix(in oklch, var(--card) 55%, transparent)",
-                boxShadow: "inset 0 0 70px rgba(0,0,0,0.45), 0 24px 70px rgba(0,0,0,0.4)",
-              }}
-            >
-              <div className="absolute inset-0" style={{ opacity: intensity, transition: "opacity 0.25s ease" }}>
-                <PaperTransformScene3D style={{ width: "100%", height: "100%" }} />
-              </div>
+            <div className="absolute inset-0" style={{ opacity: intensity, transition: "opacity 0.25s ease" }}>
+              <HeroScene />
             </div>
-          </motion.div>
-        )}
+          </div>
+        </motion.div>
       </div>
 
       <motion.a

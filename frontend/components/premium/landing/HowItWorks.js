@@ -1,6 +1,6 @@
 "use client";
 import { UserRound, ClipboardPaste, Download } from "lucide-react";
-import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD } from "./shared";
+import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD, SectionGlow } from "./shared";
 
 const STEPS = [
   { Icon: UserRound, step: "01", title: "Tell us who you are" },
@@ -10,7 +10,8 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="relative flex min-h-[100dvh] flex-col justify-center py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
+    <section id="how-it-works" className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
+      <SectionGlow color="emerald" side="right" />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal>

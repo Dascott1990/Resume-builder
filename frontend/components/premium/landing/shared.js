@@ -82,3 +82,21 @@ export const EYEBROW = "mb-3 block font-mono text-[11px] font-bold tracking-[0.2
 // rhythm down the page reads as one consistent system, not five one-off
 // panels.
 export const CARD = "rounded-2xl border border-border bg-card p-6 sm:p-8";
+
+// A quiet ambient wash in a section's empty corner — same idea FinalCTA.js
+// already used on its own, carried through the rest of the page. Purely
+// decorative: sits behind everything (render it first), never over text or
+// cards, hardcoded emerald/amber rather than --primary since that token is
+// deliberately monochrome (see globals.css) and these two accent colors are
+// the only real color in the whole page otherwise (the logo mark itself,
+// and now this). The section using it needs `relative overflow-hidden`.
+export function SectionGlow({ color = "emerald", side = "right" }) {
+  const rgb = color === "amber" ? "245,158,11" : "52,211,153";
+  return (
+    <div
+      aria-hidden="true"
+      className={`pointer-events-none absolute top-[-160px] size-[460px] rounded-full ${side === "right" ? "right-[-120px]" : "left-[-120px]"}`}
+      style={{ background: `radial-gradient(circle, rgba(${rgb},0.17) 0%, rgba(${rgb},0.05) 45%, transparent 72%)` }}
+    />
+  );
+}

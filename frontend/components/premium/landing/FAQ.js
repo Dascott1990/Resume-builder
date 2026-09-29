@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD } from "./shared";
+import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD, SectionGlow } from "./shared";
 
 const FAQS = [
   { q: "Is Noqeev really free?", a: "Yes. No credit card, no trial, no subscription. Hiring an artisan still means paying the artisan directly for their work, held safely until the job's done." },
@@ -32,7 +32,8 @@ function FAQItem({ q, a }) {
 
 export function FAQ() {
   return (
-    <section id="faq" className="relative flex min-h-[100dvh] flex-col justify-center py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
+    <section id="faq" className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
+      <SectionGlow color="emerald" side="right" />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal>

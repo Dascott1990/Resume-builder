@@ -2,7 +2,7 @@
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
 import { ShieldCheck, Zap, FileCheck2 } from "lucide-react";
-import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD } from "./shared";
+import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD, SectionGlow } from "./shared";
 import { ResumeDocument } from "../shared/ResumeDocument";
 import { RESUMES } from "../shared/prebuiltResumes";
 
@@ -62,6 +62,7 @@ export function SeeItHappenSection() {
 
   return (
     <section ref={containerRef} className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-20 sm:py-24">
+      <SectionGlow color="emerald" side="right" />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal>

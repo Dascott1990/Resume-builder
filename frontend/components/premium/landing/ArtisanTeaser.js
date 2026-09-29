@@ -1,7 +1,7 @@
 "use client";
 import { ArrowRight, Hammer, Star, Phone, ShieldCheck, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, LocationPill } from "./shared";
+import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, LocationPill, SectionGlow } from "./shared";
 
 // Same real trust facts as ArtisanSeniorHelp.js's own honesty-notes
 // header comment — kept in sync deliberately: verification is a real,
@@ -19,7 +19,8 @@ const TRUST = [
 export function ArtisanTeaser({ onOpenArtisans }) {
   const router = useRouter();
   return (
-    <section id="artisans" className="relative flex min-h-[100dvh] flex-col justify-center py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
+    <section id="artisans" className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
+      <SectionGlow color="amber" side="left" />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal>
