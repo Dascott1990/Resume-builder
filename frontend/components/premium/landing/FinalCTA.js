@@ -1,17 +1,13 @@
 "use client";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import { Reveal, ScrollBlend, SECTION_WRAP, CARD } from "./shared";
+import { Reveal, ScrollBlend, SECTION_WRAP, CARD, SectionGlow } from "./shared";
 import { LogoMark } from "../Logo";
 
 export function FinalCTA({ onOpen, onOpenDashboard, onOpenArtisans }) {
   return (
     <section className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-24 sm:py-28">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 left-1/2 size-[600px] -translate-x-1/2 -translate-y-1/2 opacity-40"
-        style={{ background: "radial-gradient(circle, color-mix(in oklch, var(--primary) 14%, transparent) 0%, transparent 70%)" }}
-      />
+      <SectionGlow color="amber" side="left" />
       <ScrollBlend className={`${SECTION_WRAP} relative`}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal className={`${CARD} flex items-center justify-center`}>
