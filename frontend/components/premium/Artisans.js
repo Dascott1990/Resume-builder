@@ -17,7 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, ChevronRight, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon, Heart, SlidersHorizontal, MessageCircle, Loader2, Zap, Wind, Trees, Blocks, Truck, PaintRoller, Droplets, Home as HomeIcon, Navigation, Lock, Sparkles, HardHat } from "lucide-react";
+import { Search, MapPin, Phone, User, UserPlus, ChevronLeft, ChevronRight, X, Star, Hammer, RefreshCw, ClipboardList, Wrench, List, LayoutGrid, Map as MapIcon, Heart, SlidersHorizontal, MessageCircle, Loader2, Navigation } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import DeleteListingDialog from "./shared/DeleteListingDialog";
 import { tintFor, initialsOf, formatPhone, truncateBio, formatDistance, avatarPhotoUrl } from "./shared/artisanDisplay";
@@ -39,7 +39,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TRADES_WITH_ALL, POPULAR_TRADES } from "./shared/trades";
+import { TRADES_WITH_ALL } from "./shared/trades";
+import { TradeTile } from "./shared/tradeArt";
 import MyRequestsPane from "./artisan/MyRequestsPane";
 import ArtisanDashboard from "./artisan/ArtisanDashboard";
 import ArtisanMapLoader from "./artisan/ArtisanMapLoader";
@@ -72,25 +73,17 @@ const FAVORITE_IDS_KEY = "noqeev_favorite_artisan_ids";
 
 const TRADES = TRADES_WITH_ALL;
 
-// One real icon per real trade — shared/trades.js's own TRADES list, not
-// an invented category set. "Handyman" gets Wrench even though the grid
-// list view also uses Wrench for the "I'm an artisan" sign-in icon —
-// different contexts, no real collision.
-const TRADE_ICONS = {
-  Carpenter: Hammer,
-  Electrician: Zap,
-  Handyman: Wrench,
-  "HVAC Contractor": Wind,
-  "Landscaping Company": Trees,
-  Mason: Blocks,
-  "Moving Company": Truck,
-  Painter: PaintRoller,
-  Plumber: Droplets,
-  "Roofing Specialist": HomeIcon,
-  Locksmith: Lock,
-  "Cleaning Company": Sparkles,
-  "General Contractor": HardHat,
-};
+// POPULAR_TRADES (shared/trades.js), grouped into the same kind of
+// themed, horizontally-scrolling shelves TaskRabbit's own home screen
+// uses ("Fall Favourites," "Your Moving Checklist," ...) instead of one
+// flat grid — each trade below still has real illustrated art in
+// shared/tradeArt.js, so this grouping is purely presentational, not a
+// new taxonomy the backend needs to know about.
+const CATEGORY_SHELVES = [
+  { title: "Popular this week", trades: ["Handyman", "Electrician", "Plumber", "Cleaning Company"] },
+  { title: "Home & outdoor", trades: ["Landscaping Company", "Locksmith", "General Contractor", "Painter"] },
+  { title: "Renovations & moving", trades: ["HVAC Contractor", "Carpenter", "Roofing Specialist", "Moving Company"] },
+];
 
 const HOME_CITY_KEY = "noqeev_artisan_home_city";
 
@@ -210,54 +203,36 @@ function LocationChip({ city, onOpen }) {
   );
 }
 
-// Trade categories as tappable icon tiles — the Browse tab's landing
-// state, one screen before the individual-artisan card grid. Tapping one
-// sets the real `trade` filter (same state the existing TradeChips/
-// backend ?trade= param already use) and drops straight into the results
-// grid for it — no separate "category" concept on the backend, this is
-// exactly the existing filter with a bigger, friendlier front door.
+// Trade categories as tappable illustrated tiles, grouped into themed
+// horizontally-scrolling shelves (CATEGORY_SHELVES above) — the Browse
+// tab's landing state, one screen before the individual-artisan card
+// grid. Tapping one sets the real `trade` filter (same state the existing
+// TradeChips/backend ?trade= param already use) and drops straight into
+// the results grid for it — no separate "category" concept on the
+// backend, this is exactly the existing filter with a bigger, friendlier
+// front door.
 //
-// POPULAR_TRADES (shared/trades.js), not the full ~50-item TRADES list —
-// that grew into a real directory-sized taxonomy, and rendering all of it
-// as icon tiles here would be an overwhelming wall, not a front door
-// (most of it has no real icon either, everything past what's mapped
-// below just falls back to the same generic Hammer, which reads as
-// broken at that quantity). The full list is still one tap away via
-// "Browse everyone" below into TradeChips, a horizontally-scrolling
-// control actually built for an arbitrary-length list.
-function CategoryGrid({ onPick }) {
+// CATEGORY_SHELVES only covers POPULAR_TRADES (shared/trades.js), not the
+// full ~50-item TRADES list — that grew into a real directory-sized
+// taxonomy, and giving every one of them its own illustration would be
+// both an overwhelming wall and a lot of hand-drawn art with no real
+// payoff past the trades people actually search first. The full list is
+// still one tap away via "Browse everyone" below into TradeChips, a
+// horizontally-scrolling control actually built for an arbitrary-length
+// list of plain text pills.
+function CategoryShelves({ onPick }) {
   return (
-    // sm:grid-cols-5 used to escalate at a plain viewport-width breakpoint
-    // — wrong signal here, since on desktop this renders inside the
-    // browse panel's narrow ~340px sidebar (see the isDesktop branch
-    // below), not the full viewport. A wide viewport with a narrow actual
-    // container squeezed 5 columns into ~64px cells, too narrow for
-    // "Electrician"/"Landscaping Company" to wrap anywhere but mid-word,
-    // leaving a single orphan letter stranded on its own line. grid-cols-4
-    // everywhere gives every cell the same ~80px+ width this already
-    // works fine at on mobile, in both contexts this same grid renders in.
-    <div className="grid grid-cols-4 gap-2.5">
-      {POPULAR_TRADES.map((t) => {
-        const Icon = TRADE_ICONS[t] || Hammer;
-        return (
-          <button
-            key={t}
-            type="button"
-            onClick={() => onPick(t)}
-            className="flex flex-col items-center gap-1.5 rounded-2xl border-none bg-transparent p-1 [-webkit-tap-highlight-color:transparent]"
-          >
-            <span className="flex size-14 items-center justify-center rounded-2xl border border-border bg-card text-foreground">
-              <Icon className="size-5" />
-            </span>
-            {/* break-words is still the real safety net underneath the
-                width fix above — even a wider column can't guarantee
-                every possible trade name fits on one line, so a too-long
-                single word still wraps onto a second line instead of
-                bleeding into the next tile. */}
-            <span className="w-full text-center text-[11px] leading-tight font-semibold break-words text-foreground">{t}</span>
-          </button>
-        );
-      })}
+    <div className="flex flex-col gap-5">
+      {CATEGORY_SHELVES.map((shelf) => (
+        <div key={shelf.title}>
+          <p className="m-0 mb-2.5 text-[14px] font-bold text-foreground">{shelf.title}</p>
+          <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {shelf.trades.map((t) => (
+              <TradeTile key={t} trade={t} onClick={() => onPick(t)} />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -936,6 +911,8 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
   const homePane = (
     <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pb-1">
+      <h2 className="m-0 text-[22px] leading-tight font-bold text-foreground">I need help with</h2>
+
       <SearchBar
         value={query}
         onChange={(v) => { setQuery(v); if (v.trim()) setCatView("results"); }}
@@ -965,10 +942,7 @@ export default function Artisans({ onClose, initialTab, initialPersona }) {
 
       <RecentLocations cities={recentLocations.filter((c) => c !== homeCity)} onPick={(c) => setHomeCity(c)} />
 
-      <div>
-        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60">WHAT DO YOU NEED?</p>
-        <CategoryGrid onPick={pickTrade} />
-      </div>
+      <CategoryShelves onPick={pickTrade} />
 
       {/* Same additive door as Dashboard.js's Home card — this is the
           other place someone likely to want it actually is: already
