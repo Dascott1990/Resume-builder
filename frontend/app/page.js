@@ -37,6 +37,8 @@ const Login = dynamicScreen(() => import("../components/premium/auth/Login"));
 const Signup = dynamicScreen(() => import("../components/premium/auth/Signup"));
 const CVScan = dynamicScreen(() => import("../components/premium/CVScan"));
 const JobTracker = dynamicScreen(() => import("../components/premium/JobTracker"));
+const News = dynamicScreen(() => import("../components/premium/News"));
+const ArtisanSeniorHelp = dynamicScreen(() => import("../components/premium/artisan/ArtisanSeniorHelp"));
 const ApplyWithAI = dynamicScreen(() => import("../components/premium/ApplyWithAI"));
 const BrandWorkspaceView = dynamicScreen(() => import("../components/premium/brand/BrandWorkspaceView").then((m) => ({ default: m.BrandWorkspaceView })));
 
@@ -68,7 +70,7 @@ const ENTERED_KEY = "noqeev_entered_app";
 // sensible landing spot for those two).
 const VIEW_KEY = "noqeev_last_view";
 const RESTORABLE_VIEWS = new Set([
-  "dashboard", "resume", "cvscan", "jobtracker", "apply", "settings", "artisans", "brand-workspace",
+  "dashboard", "resume", "cvscan", "jobtracker", "news", "apply", "settings", "artisans", "artisan-help", "brand-workspace",
 ]);
 
 // The branding workspace has no account to restore into — RESTORABLE_VIEWS
@@ -313,6 +315,8 @@ export default function Home() {
             if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes });
             else if (id === "scan") setView("cvscan");
             else if (id === "jobtracker") setView("jobtracker");
+            else if (id === "news") setView("news");
+            else if (id === "artisan-help") setView("artisan-help");
             else if (id === "artisans") setView("artisans");
             else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); setView("apply"); }
             else if (id === "settings") setView("settings");
@@ -366,6 +370,22 @@ export default function Home() {
     return (
       <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
         <JobTracker onClose={() => setView("dashboard")} />
+      </ErrorBoundary>
+    );
+  }
+
+  if (view === "news") {
+    return (
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+        <News onClose={() => setView("dashboard")} />
+      </ErrorBoundary>
+    );
+  }
+
+  if (view === "artisan-help") {
+    return (
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+        <ArtisanSeniorHelp onClose={() => setView("dashboard")} />
       </ErrorBoundary>
     );
   }
