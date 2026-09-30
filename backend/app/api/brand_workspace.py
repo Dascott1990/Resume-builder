@@ -1,8 +1,7 @@
 """
 app/api/brand_workspace.py — the branding workspace's own identity: no
 login, no signup, no User row anywhere in this feature. One long random
-token per workspace (secrets.token_urlsafe, same generator
-api/artisans.py's edit_token already uses); the token in the URL is the
+token per workspace (secrets.token_urlsafe); the token in the URL is the
 sole access control for everything else the branding workspace touches
 — handles, scheduled posts, stored assets, all scoped by workspace_id
 and reachable only by whoever holds this token.

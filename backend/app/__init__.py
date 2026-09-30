@@ -85,11 +85,11 @@ def create_app():
     CORS(app, resources={
         r"/api/*": {
             "origins": allowed_origins,
-            # PATCH was missing here — every PATCH endpoint in the app (this
-            # one included, Artisan listing edits too) was failing its CORS
-            # preflight and never actually reaching the server.
+            # PATCH was missing here — every PATCH endpoint in the app was
+            # failing its CORS preflight and never actually reaching the
+            # server.
             "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id", "X-Edit-Token", "X-Artisan-Token", "X-Workspace-Token", "X-Brand-Key"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id", "X-Workspace-Token", "X-Brand-Key"],
             "supports_credentials": True,
             # X-Quality-Report (api/story.py's render endpoint) rides
             # alongside the downloaded video file as a response header —
@@ -137,15 +137,6 @@ def create_app():
     from app.api.resume import resume_bp
     app.register_blueprint(resume_bp, url_prefix="/api/v1/resume")
 
-    from app.api.artisans import artisans_bp
-    app.register_blueprint(artisans_bp, url_prefix="/api/v1/artisans")
-
-    from app.api.requests import requests_bp
-    app.register_blueprint(requests_bp, url_prefix="/api/v1/requests")
-
-    from app.api.messages import messages_bp
-    app.register_blueprint(messages_bp, url_prefix="/api/v1/messages")
-
     from app.api.auth import auth_bp
     app.register_blueprint(auth_bp, url_prefix="/api/v1/auth")
 
@@ -160,9 +151,6 @@ def create_app():
 
     from app.api.apply import apply_bp
     app.register_blueprint(apply_bp, url_prefix="/api/v1/apply")
-
-    from app.api.payments import payments_bp
-    app.register_blueprint(payments_bp, url_prefix="/api/v1/payments")
 
     from app.api.brand import brand_bp
     app.register_blueprint(brand_bp, url_prefix="/api/v1/brand")
@@ -209,7 +197,6 @@ def create_app():
             _sync_missing_columns(app)
             _relax_push_subscription_user_id(app)
             _bootstrap_admin(app)
-            _backfill_artisan_tokens(app)
             _bootstrap_brand_tasks(app)
             from app.utils.vendors import sync_vendor_catalog_at_boot
             sync_vendor_catalog_at_boot(app)
@@ -244,31 +231,6 @@ def create_app():
         print(f"❌ Background scheduler failed to start: {exc}")
 
     return app
-
-
-def _backfill_artisan_tokens(app):
-    """
-    Every Artisan row with a NULL edit_token is editable/deletable by
-    anyone who has its id, no auth at all (see _authorize_edit's
-    grandfather clause in api/artisans.py) — that was meant to only cover
-    rows that predated edit tokens entirely, but _sync_missing_columns adds
-    new columns NULL with no backfill, so it silently applied to every
-    listing that already existed the moment the column shipped, forever,
-    not just historically. Giving each one a real token here closes that.
-    The original creator won't know this new token (there's nowhere to
-    send it), so they'd need an admin to hand them a way back in — no
-    worse than any other "lost the only credential" situation.
-    """
-    import secrets
-    from app.models import Artisan
-
-    stragglers = Artisan.query.filter(Artisan.edit_token.is_(None)).all()
-    if not stragglers:
-        return
-    for artisan in stragglers:
-        artisan.edit_token = secrets.token_urlsafe(24)
-    db.session.commit()
-    print(f"🔧 Backfilled edit_token for {len(stragglers)} artisan listing(s)")
 
 
 def _bootstrap_brand_tasks(app):

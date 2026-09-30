@@ -17,8 +17,6 @@ DELETE /api/v1/admin/resumes/<id>
 GET    /api/v1/admin/applications          — every job application across every user/guest
 PATCH  /api/v1/admin/applications/<id>     — company/role/status/date_applied/notes
 DELETE /api/v1/admin/applications/<id>
-GET    /api/v1/admin/reviews               — every artisan review
-DELETE /api/v1/admin/reviews/<id>          — recomputes the artisan's rating after removal
 GET    /api/v1/admin/vendors               — third-party services registry (auto-detected + manual)
 POST   /api/v1/admin/vendors               — add a vendor manually
 PATCH  /api/v1/admin/vendors/<id>          — edit any field, auto-detected or manual
@@ -39,18 +37,15 @@ GET    /api/v1/admin/scheduled-posts/next-up — the single earliest not-yet-com
 GET    /api/v1/admin/scheduled-posts/due-count — badge count: scheduled posts at/past their time, still open
 POST   /api/v1/admin/resumes/polish-summary — AI-rewrites a resume's summary paragraph;
                                                same Claude-then-Groq fallback /api/v1/resume
-                                               already uses, reused here rather than
-                                               duplicated (see the import below). Artisan bios
-                                               get the equivalent treatment via the existing,
-                                               already-public /api/v1/artisans/polish — no new
-                                               route needed there, the admin panel just calls it.
+                                               already uses, reused here rather than duplicated
+                                               (see the import below).
 GET    /api/v1/admin/broadcasts/recipients   — recipient count preview for an audience, before sending
 GET    /api/v1/admin/broadcasts              — send history (audit trail), newest first
 GET    /api/v1/admin/broadcasts/<id>         — one broadcast's live sent/failed progress
-POST   /api/v1/admin/broadcasts              — email every user in an audience (customers/artisans/
-                                                everyone); runs in a background thread, see
-                                                _run_broadcast — rate-limited, this is the one admin
-                                                action that reaches real people outside the app
+POST   /api/v1/admin/broadcasts              — email every user in an audience; runs in a
+                                                background thread, see _run_broadcast —
+                                                rate-limited, this is the one admin action that
+                                                reaches real people outside the app
 
 No "admin sets a user's password directly" route on purpose — that would
 mean an admin (or anyone who compromises the admin panel) can silently
@@ -58,15 +53,6 @@ take over any account. Resetting someone's password instead goes through
 the exact same email-token flow a locked-out user would use themselves
 (POST /api/v1/auth/forgot-password with their email) — the admin panel
 just triggers it, it never sees or sets the password.
-
-Artisan listings themselves already have full CRUD at /api/v1/artisans —
-deliberately not duplicated here. Edit/delete there are gated by a
-per-listing edit_token (handed back once at creation, no account needed —
-see _authorize_edit in api/artisans.py), not by is_admin. Every admin
-request, though, is exempt from that token check the same way it's
-exempt everywhere else in this file — get_admin_user(request) short-
-circuits _authorize_edit, so the admin panel can always moderate any
-listing regardless of who created it or whether its token was ever kept.
 """
 import io
 import json
@@ -81,13 +67,12 @@ from flask import Blueprint, request, jsonify, redirect, current_app, send_file
 
 from app import db, limiter
 from app.models import (
-    User, Media, Artisan, Review, JobApplication, JdCapture, CareerProfile,
+    User, Media, JobApplication, JdCapture, CareerProfile,
     ApplicationRun, Vendor, VendorNewsItem, GoogleSearchConsoleCredential, SeoSnapshot,
     SchedulerStatus, AdminBroadcast,
 )
 from app.middleware.error_handlers import APIError
 from app.utils.auth import require_admin, JWT_SECRET, JWT_ALGORITHM
-from app.utils.ratings import recompute_rating
 from app.utils.vendors import sync_vendor_catalog
 from app.utils import seo_client
 from app.utils.seo_scheduler import fetch_and_store_snapshot
@@ -145,11 +130,6 @@ def _serialize_application(a):
     return {**a.to_dict(), "owner": _owner_label(a.user_id, a.guest_id)}
 
 
-def _serialize_review(r):
-    artisan = db.session.get(Artisan, r.artisan_id)
-    return {**r.to_dict(), "artisan_name": artisan.name if artisan else None}
-
-
 @admin_bp.route("/me", methods=["GET"])
 def me():
     admin = require_admin(request)
@@ -167,8 +147,6 @@ def stats():
         "admins": User.query.filter_by(is_admin=True).count(),
         "new_users_7d": User.query.filter(User.created_at >= week_ago).count(),
         "resumes": Media.query.filter_by(is_deleted=False).count(),
-        "artisans": Artisan.query.count(),
-        "reviews": Review.query.count(),
         "applications": JobApplication.query.count(),
         "pending_job_captures": JdCapture.query.count(),
     }
@@ -379,112 +357,6 @@ def delete_application(app_id):
         db.session.commit()
     return jsonify({"success": True}), 200
 
-
-@admin_bp.route("/reviews", methods=["GET"])
-def list_reviews():
-    require_admin(request)
-    limit, offset = _clean_pagination()
-    items = Review.query.order_by(Review.created_at.desc()).offset(offset).limit(limit).all()
-    return jsonify({"success": True, "data": [_serialize_review(r) for r in items]}), 200
-
-
-@admin_bp.route("/reviews/<review_id>", methods=["DELETE"])
-def delete_review(review_id):
-    require_admin(request)
-    review = db.session.get(Review, review_id)
-    if not review:
-        return jsonify({"success": True}), 200
-
-    artisan_id = review.artisan_id
-    db.session.delete(review)
-    db.session.flush()  # exclude the deleted row from the aggregate below
-    recompute_rating(artisan_id)
-    db.session.commit()
-    return jsonify({"success": True}), 200
-
-
-# ── Artisan verification — the manual review queue behind the trust badge
-# ArtisanSeniorHelp.js and ArtisanProfile.js show. There is no automated
-# background-check vendor wired into this app (no Checkr/Certn/etc.
-# account) — an admin looks at the two uploaded documents (submitted via
-# POST /api/v1/artisans/me/verification) and approves or rejects by hand.
-# Both document-serving routes are admin-only, unlike avatar-photo's public
-# route — a government ID and proof of insurance are private documents,
-# never meant for a plain <img src> anyone can hit. ─────────────────────────
-def _serialize_verification_row(a):
-    return {
-        "id": a.id, "name": a.name, "trade": a.trade, "city": a.city,
-        "verification_status": a.verification_status or "unverified",
-        "verification_submitted_at": a.verification_submitted_at.isoformat() if a.verification_submitted_at else None,
-        "verification_reviewed_at": a.verification_reviewed_at.isoformat() if a.verification_reviewed_at else None,
-        "verification_notes": a.verification_notes,
-        "has_id_doc": a.verification_id_doc_data is not None,
-        "has_insurance_doc": a.verification_insurance_doc_data is not None,
-    }
-
-
-@admin_bp.route("/artisans/verification-queue", methods=["GET"])
-def list_verification_queue():
-    """Defaults to just "pending" (the actual queue an admin needs to work
-    through) — ?status=verified or ?status=rejected pulls up the other
-    piles for reference, and ?status=all pulls every artisan regardless of
-    whether they've ever submitted anything."""
-    require_admin(request)
-    status = request.args.get("status", "pending")
-    q = Artisan.query
-    if status != "all":
-        if status == "unverified":
-            q = q.filter(db.or_(Artisan.verification_status.is_(None), Artisan.verification_status == "unverified"))
-        else:
-            q = q.filter(Artisan.verification_status == status)
-    items = q.order_by(Artisan.verification_submitted_at.desc().nullslast(), Artisan.created_at.desc()).all()
-    return jsonify({"success": True, "data": [_serialize_verification_row(a) for a in items]}), 200
-
-
-@admin_bp.route("/artisans/<artisan_id>/verification/id-doc", methods=["GET"])
-def get_verification_id_doc(artisan_id):
-    require_admin(request)
-    a = db.session.get(Artisan, artisan_id)
-    if not a or not a.verification_id_doc_data:
-        raise APIError("Document not found", 404)
-    # no_cache, not the long max_age avatar-photo uses — this is a
-    # private document behind an admin auth check on every fetch, not
-    # something that should ever sit in a shared/browser cache.
-    return send_file(io.BytesIO(a.verification_id_doc_data), mimetype=a.verification_id_doc_mime_type, max_age=0)
-
-
-@admin_bp.route("/artisans/<artisan_id>/verification/insurance-doc", methods=["GET"])
-def get_verification_insurance_doc(artisan_id):
-    require_admin(request)
-    a = db.session.get(Artisan, artisan_id)
-    if not a or not a.verification_insurance_doc_data:
-        raise APIError("Document not found", 404)
-    return send_file(io.BytesIO(a.verification_insurance_doc_data), mimetype=a.verification_insurance_doc_mime_type, max_age=0)
-
-
-@admin_bp.route("/artisans/<artisan_id>/verification", methods=["PATCH"])
-def review_verification(artisan_id):
-    """The actual human decision — approve or reject what was submitted.
-    "verified" is the ONLY status that unlocks the trust badge anywhere in
-    the app (see Artisan.to_dict's verification_status), so this is the
-    one route in the whole system that can turn it on."""
-    admin = require_admin(request)
-    a = db.session.get(Artisan, artisan_id)
-    if not a:
-        raise APIError("Artisan not found", 404)
-
-    body = request.get_json(force=True) or {}
-    status = body.get("status")
-    if status not in ("verified", "rejected"):
-        raise APIError('status must be "verified" or "rejected"', 400)
-    if a.verification_status != "pending":
-        raise APIError("Only a pending submission can be reviewed", 400)
-
-    a.verification_status = status
-    a.verification_notes = (body.get("notes") or "").strip()[:500] or None
-    a.verification_reviewed_at = datetime.now(timezone.utc)
-    db.session.commit()
-    return jsonify({"success": True, "data": _serialize_verification_row(a)}), 200
 
 
 # ── Vendors — the third-party services registry. Rows starting with
@@ -792,30 +664,18 @@ def system_structure():
 
 
 # ── Broadcast: email every user from the admin panel ───────────────────────
-VALID_BROADCAST_AUDIENCES = {"customers", "artisans", "everyone"}
+VALID_BROADCAST_AUDIENCES = {"customers", "everyone"}
 
 
 def _broadcast_recipients(audience):
     """Real, distinct email addresses for the given audience — never a
     guess. "customers" is every User row (email is required at signup, so
-    no filter needed there). "artisans" is every Artisan with a REAL
-    account — password_hash or user_id, the same "either kind counts"
-    rule Artisan.to_dict's own has_account already uses — excluding plain
-    anonymous listings; nobody who only appears in the public directory
-    ever gets an email they never signed up for. "everyone" is the union
-    of both, de-duplicated by email (a customer+artisan-linked account
-    would otherwise receive the same broadcast twice)."""
-    if audience == "customers":
+    no filter needed there). "everyone" is the same set today — it's kept
+    as its own choice so a future audience can join it without the API
+    shape changing again."""
+    if audience in ("customers", "everyone"):
         return sorted({u.email for u in User.query.filter(User.email.isnot(None)).all() if u.email})
-    if audience == "artisans":
-        rows = Artisan.query.filter(
-            Artisan.email.isnot(None),
-            db.or_(Artisan.password_hash.isnot(None), Artisan.user_id.isnot(None)),
-        ).all()
-        return sorted({a.email for a in rows if a.email})
-    if audience == "everyone":
-        return sorted(set(_broadcast_recipients("customers")) | set(_broadcast_recipients("artisans")))
-    raise APIError("audience must be customers, artisans, or everyone", 400)
+    raise APIError("audience must be customers or everyone", 400)
 
 
 def _run_broadcast(app, broadcast_id, recipients, subject, message):
@@ -824,9 +684,8 @@ def _run_broadcast(app, broadcast_id, recipients, subject, message):
     threading instead of Celery/RQ), started right after the POST route
     below returns, so an admin sending to a real user base isn't stuck
     waiting on hundreds of individual Resend calls inside one HTTP
-    request. Best-effort per recipient, same as every other notification
-    email in this app (see requests.py's _notify_target_artisan) — one
-    bad address shouldn't stop the rest of the send."""
+    request. Best-effort per recipient — one bad address shouldn't stop
+    the rest of the send."""
     with app.app_context():
         broadcast = db.session.get(AdminBroadcast, broadcast_id)
         if not broadcast:
@@ -910,7 +769,7 @@ def send_broadcast():
     message = (body.get("body") or "").strip()
 
     if audience not in VALID_BROADCAST_AUDIENCES:
-        raise APIError("audience must be customers, artisans, or everyone", 400)
+        raise APIError("audience must be customers or everyone", 400)
     if not subject or not message:
         raise APIError("subject and body are required", 400)
     if len(subject) > 200:
