@@ -9,7 +9,7 @@ import { ThemeSync } from "./ThemeSync";
 
 const SITE_NAME = "Noqeev";
 const SITE_TITLE = "Noqeev — AI Resume Builder";
-const SITE_DESCRIPTION = "Tailored, ATS-ready resumes in minutes. Anonymous by default, account optional.";
+const SITE_DESCRIPTION = "Set up your profile once. Get a tailored, ATS-ready resume for every job in minutes.";
 
 export const metadata = {
   metadataBase: new URL("https://www.noqeev.com"),

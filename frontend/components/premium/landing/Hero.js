@@ -20,7 +20,7 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-export function Hero({ onOpenDashboard, intensity }) {
+export function Hero({ onOpenDashboard, onOpenSignup, intensity }) {
   const heroRef = useRef(null);
   const reducedMotion = usePrefersReducedMotion();
   const { canShow: canInstall, isIOS, showInstalledBadge, isPrompting, promptInstall, dismissAfterIOSInstructions } = useInstallPrompt();
@@ -83,19 +83,20 @@ export function Hero({ onOpenDashboard, intensity }) {
             transition={{ duration: 0.65, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
             className="m-0 text-[15.5px] leading-relaxed text-muted-foreground"
           >
-            No account required.
+            Set up your profile once. Tailor unlimited resumes after that.
           </motion.p>
 
-          {/* Lands on the Dashboard (the hub everything else — resume
-              builder, CV scan, job tracker — lives inside) but reads as
-              "Get started," not "Dashboard" — a first-time visitor has
-              no dashboard yet. Paired with Download, shown only while
-              installing is actually a real, available action (see
-              useInstallPrompt) — it disappears on its own the moment the
-              app is installed, so nobody's ever staring at a button with
-              nothing left to do. Resume Studio doesn't need its own line
-              here; it's one tap away once inside the Dashboard, and still
-              linked from the nav/footer/final CTA further down the page. */}
+          {/* Signup is the primary CTA now — set up a profile once, reuse
+              it for every resume, per the onboarding redesign. Guest mode
+              still needs no account at all; it's one quiet tap away right
+              below instead of the headline promise. Paired with Download,
+              shown only while installing is actually a real, available
+              action (see useInstallPrompt) — it disappears on its own the
+              moment the app is installed, so nobody's ever staring at a
+              button with nothing left to do. Resume Studio doesn't need
+              its own line here; it's one tap away once inside the
+              Dashboard, and still linked from the nav/footer/final CTA
+              further down the page. */}
           {/* flex-row (and the buttons' own shrink-to-content width) only
               kicks in at lg, the SAME breakpoint where the column above
               switches from centered/text-center to text-left/items-start.
@@ -115,12 +116,12 @@ export function Hero({ onOpenDashboard, intensity }) {
             className="flex w-full max-w-sm flex-col items-center gap-3 lg:max-w-none lg:flex-row lg:justify-start"
           >
             <motion.button
-              onClick={onOpenDashboard}
+              onClick={onOpenSignup}
               whileTap={{ scale: 0.96 }}
               transition={{ type: "spring", damping: 22, stiffness: 400 }}
               className="flex min-h-[54px] w-full select-none items-center justify-center gap-2 rounded-2xl border-none bg-primary px-7 text-[15.5px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] lg:w-auto"
             >
-              Get started
+              Create your free account
               <ArrowRight className="size-4" />
             </motion.button>
             {(canInstall || showInstalledBadge) && (
@@ -147,6 +148,16 @@ export function Hero({ onOpenDashboard, intensity }) {
               </motion.button>
             )}
           </motion.div>
+
+          <motion.button
+            onClick={onOpenDashboard}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.35 }}
+            className="border-none bg-transparent p-0 text-[13.5px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
+          >
+            Continue without an account →
+          </motion.button>
 
           <InstallInstructionsModal
             open={iosInstructionsOpen}

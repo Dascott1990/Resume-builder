@@ -287,6 +287,7 @@ export default function Home() {
         <LandingPage
           onOpen={openResume}
           onOpenDashboard={() => setView("dashboard")}
+          onOpenSignup={() => setView("signup")}
         />
       </ErrorBoundary>
     );

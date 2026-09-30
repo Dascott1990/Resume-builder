@@ -1,13 +1,13 @@
 "use client";
-import { Sparkles, ShieldCheck, FileCheck2, LayoutDashboard, Bot, ClipboardList } from "lucide-react";
+import { Sparkles, RefreshCw, FileCheck2, LayoutDashboard, Bot, ClipboardList } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD, SectionGlow } from "./shared";
 
 const FEATURES = [
   { Icon: LayoutDashboard, title: "One dashboard for the whole job search" },
   { Icon: Sparkles, title: "Every resume tailored to the actual posting, not a template" },
-  // ShieldCheck, not ShieldOff — this is a privacy win (no account wall),
-  // and a slashed shield reads as "unprotected," the opposite point.
-  { Icon: ShieldCheck, title: "Anonymous by default. Account optional." },
+  // The headline value prop of the onboarding redesign — set up a
+  // profile once, every resume after that reuses it automatically.
+  { Icon: RefreshCw, title: "Set up your profile once. Every resume reuses it." },
   { Icon: FileCheck2, title: "Real, editable files. No locked preview, no watermark." },
   // Structural guarantee, not a policy promise — apply.py's agent schema
   // has no submit tool at all, so there's nothing for it to call even if

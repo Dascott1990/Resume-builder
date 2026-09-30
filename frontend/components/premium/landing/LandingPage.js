@@ -20,7 +20,7 @@ import { Footer } from "./Footer";
 import { ThreeDIntensityControl } from "./ThreeDIntensityControl";
 import { DotNetworkBackground } from "./DotNetworkBackground";
 
-export default function LandingPage({ onOpen, onOpenDashboard }) {
+export default function LandingPage({ onOpen, onOpenDashboard, onOpenSignup }) {
   const { intensity, setIntensity } = use3DIntensity();
 
   return (
@@ -31,16 +31,16 @@ export default function LandingPage({ onOpen, onOpenDashboard }) {
           z-0 canvas regardless of DOM order. */}
       <DotNetworkBackground />
       <div className="relative z-10">
-        <Navbar onOpenDashboard={onOpenDashboard} />
+        <Navbar onOpenDashboard={onOpenDashboard} onOpenSignup={onOpenSignup} />
         <main>
-          <Hero onOpenDashboard={onOpenDashboard} intensity={intensity} />
+          <Hero onOpenDashboard={onOpenDashboard} onOpenSignup={onOpenSignup} intensity={intensity} />
           <SeeItHappenSection />
           <WhyNoqeev />
           <HowItWorks />
           <FAQ />
-          <FinalCTA onOpen={onOpen} onOpenDashboard={onOpenDashboard} />
+          <FinalCTA onOpen={onOpen} onOpenDashboard={onOpenDashboard} onOpenSignup={onOpenSignup} />
         </main>
-        <Footer onOpen={onOpen} onOpenDashboard={onOpenDashboard} />
+        <Footer onOpen={onOpen} onOpenDashboard={onOpenDashboard} onOpenSignup={onOpenSignup} />
         <ThreeDIntensityControl intensity={intensity} setIntensity={setIntensity} />
       </div>
     </div>

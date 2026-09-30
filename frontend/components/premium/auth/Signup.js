@@ -113,7 +113,7 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
               <IconTile icon={UserPlus} size="md" className="mb-4" />
               <p className="m-0 text-[22px] font-bold text-foreground">Create an account</p>
               <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-                Optional — sync your saved resumes and job tracker across devices.
+                Save your resumes, applications, and profile once — reuse them for every future resume.
               </p>
             </motion.div>
 

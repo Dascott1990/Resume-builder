@@ -1,13 +1,13 @@
 "use client";
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
-import { ShieldCheck, Zap, FileCheck2 } from "lucide-react";
+import { RefreshCw, Zap, FileCheck2 } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD, SectionGlow } from "./shared";
 import { ResumeDocument } from "../shared/ResumeDocument";
 import { RESUMES } from "../shared/prebuiltResumes";
 
 const TRUST = [
-  { Icon: ShieldCheck, label: "Anonymous by default, account optional" },
+  { Icon: RefreshCw, label: "Save your profile once, reuse it every time" },
   { Icon: Zap, label: "Tailored in under 2 minutes" },
   { Icon: FileCheck2, label: "Real, editable .docx and PDF" },
 ];

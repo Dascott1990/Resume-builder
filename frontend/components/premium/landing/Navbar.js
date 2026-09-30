@@ -10,7 +10,7 @@ const LINKS = [
   { href: "#faq", label: "FAQ" },
 ];
 
-export function Navbar({ onOpenDashboard }) {
+export function Navbar({ onOpenDashboard, onOpenSignup }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -58,23 +58,23 @@ export function Navbar({ onOpenDashboard }) {
           ))}
         </nav>
 
-        {/* Lands on the Dashboard under the hood (the hub the builder, CV
-            scan, and job tracker all live inside) but reads as "Get
-            started" — a first-time visitor doesn't have a dashboard yet,
-            and that word reads like it assumes an existing account. */}
+        {/* Signup is the primary CTA — set up a profile once, reuse it for
+            every resume. Guest mode is still one click away (Hero's own
+            "Continue without an account" link, and Footer's), just not
+            competing for space in this compact bar. */}
         <div className="flex shrink-0 items-center gap-2">
           <motion.button
-            onClick={onOpenDashboard}
+            onClick={onOpenSignup}
             whileTap={{ scale: 0.95 }}
             className="hidden min-h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-[13px] font-bold text-primary-foreground sm:flex"
           >
-            Get started
+            Sign up
             <ArrowRight className="size-3.5" />
           </motion.button>
           <motion.button
-            onClick={onOpenDashboard}
+            onClick={onOpenSignup}
             whileTap={{ scale: 0.9 }}
-            aria-label="Get started"
+            aria-label="Sign up"
             className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground sm:hidden"
           >
             <ArrowRight className="size-4" />
