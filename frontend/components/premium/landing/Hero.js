@@ -86,8 +86,10 @@ export function Hero({ onOpenDashboard, intensity }) {
             No account required.
           </motion.p>
 
-          {/* Dashboard (the hub everything else — resume builder, CV scan,
-              job tracker — lives inside) plus Download, shown only while
+          {/* Lands on the Dashboard (the hub everything else — resume
+              builder, CV scan, job tracker — lives inside) but reads as
+              "Get started," not "Dashboard" — a first-time visitor has
+              no dashboard yet. Paired with Download, shown only while
               installing is actually a real, available action (see
               useInstallPrompt) — it disappears on its own the moment the
               app is installed, so nobody's ever staring at a button with
@@ -118,7 +120,7 @@ export function Hero({ onOpenDashboard, intensity }) {
               transition={{ type: "spring", damping: 22, stiffness: 400 }}
               className="flex min-h-[54px] w-full select-none items-center justify-center gap-2 rounded-2xl border-none bg-primary px-7 text-[15.5px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] lg:w-auto"
             >
-              Dashboard
+              Get started
               <ArrowRight className="size-4" />
             </motion.button>
             {(canInstall || showInstalledBadge) && (

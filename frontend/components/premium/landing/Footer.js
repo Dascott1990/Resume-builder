@@ -48,7 +48,7 @@ export function Footer({ onOpen, onOpenDashboard }) {
               onClick={onOpenDashboard}
               className="rounded-full border border-primary/25 bg-primary/10 px-4 py-2 text-[13px] font-bold text-primary-text [-webkit-tap-highlight-color:transparent]"
             >
-              Dashboard
+              Get started
             </button>
           </nav>
         </div>

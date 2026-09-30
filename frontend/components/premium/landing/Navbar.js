@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, LayoutDashboard } from "lucide-react";
+import { Menu, X, ArrowRight } from "lucide-react";
 import Logo from "../Logo";
 
 const LINKS = [
@@ -58,26 +58,26 @@ export function Navbar({ onOpenDashboard }) {
           ))}
         </nav>
 
-        {/* Dashboard, not the resume builder directly, is the primary CTA —
-            it's the hub the builder, CV scan, and job tracker all live
-            inside, so one tap from anywhere always lands somewhere useful
-            instead of one specific tool. */}
+        {/* Lands on the Dashboard under the hood (the hub the builder, CV
+            scan, and job tracker all live inside) but reads as "Get
+            started" — a first-time visitor doesn't have a dashboard yet,
+            and that word reads like it assumes an existing account. */}
         <div className="flex shrink-0 items-center gap-2">
           <motion.button
             onClick={onOpenDashboard}
             whileTap={{ scale: 0.95 }}
             className="hidden min-h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-[13px] font-bold text-primary-foreground sm:flex"
           >
-            <LayoutDashboard className="size-3.5" />
-            Dashboard
+            Get started
+            <ArrowRight className="size-3.5" />
           </motion.button>
           <motion.button
             onClick={onOpenDashboard}
             whileTap={{ scale: 0.9 }}
-            aria-label="Dashboard"
+            aria-label="Get started"
             className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground sm:hidden"
           >
-            <LayoutDashboard className="size-4" />
+            <ArrowRight className="size-4" />
           </motion.button>
 
           <button
