@@ -242,6 +242,30 @@ function ToolChip({ art, label, onClick }) {
   );
 }
 
+// The desktop-only mirror of the left nav rail: "Your resume" and Tools
+// live here, fixed beside the scrollable middle column, so they're always
+// on screen instead of waiting at the bottom of a long scroll.
+function DesktopRightRail({ savedResumes, go }) {
+  const latestResume = savedResumes[0];
+  return (
+    <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-border bg-card p-5">
+      <ResumeStatusCard
+        latestResume={latestResume}
+        onOpen={() => go("resume", latestResume ? { resumeId: latestResume.id } : undefined)}
+      />
+      <div>
+        <SectionHeader>Tools</SectionHeader>
+        <div className="grid grid-cols-1 gap-2">
+          <ToolChip art={DASHBOARD_ART.resume} label="Resume" onClick={() => go("resume")} />
+          <ToolChip art={QUICK_ACTION_ART.apply} label="Auto Apply" onClick={() => go("apply")} />
+          <ToolChip art={QUICK_ACTION_ART.scan} label="CV Scan" onClick={() => go("scan")} />
+          <ToolChip art={QUICK_ACTION_ART.tracker} label="Tracker" onClick={() => go("jobtracker")} />
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 function AddNoteDialog({ app, open, onClose, onSaved }) {
   const [notes, setNotes] = useState(app?.notes || "");
   const [saving, setSaving] = useState(false);
@@ -365,9 +389,14 @@ function GreetingAvatar({ user, onClick }) {
   );
 }
 
+// On desktop, "Your resume" and Tools move into their own right-hand rail
+// (see DesktopRightRail) so they're always visible next to the nav rather
+// than requiring a scroll past Recommended-for-you to find them — the
+// middle column stays scrollable, but nothing sits below the fold.
 function DashboardContent({
   user, statsLoading, savedResumes, applications, recommendedJobs, recommendedLoading,
   go, onDeleteResume, onDeleteApplication, onUpdateApplicationStatus, onAddNote, isDesktop, onOpenPersonalProfile,
+  showResumeAndTools = true,
 }) {
   const recentResumes = savedResumes.slice(0, 3);
   const recentApps = applications.slice(0, 3);
@@ -426,19 +455,23 @@ function DashboardContent({
         <RecommendedJobs jobs={recommendedJobs} loading={recommendedLoading} onSeeAll={() => go("jobsboard")} />
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }}>
-        <ResumeStatusCard latestResume={latestResume} onOpen={() => go("resume", latestResume ? { resumeId: latestResume.id } : undefined)} />
-      </motion.div>
+      {showResumeAndTools && (
+        <>
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }}>
+            <ResumeStatusCard latestResume={latestResume} onOpen={() => go("resume", latestResume ? { resumeId: latestResume.id } : undefined)} />
+          </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }} className="mb-6">
-        <SectionHeader>Tools</SectionHeader>
-        <div className="flex gap-2">
-          <ToolChip art={DASHBOARD_ART.resume} label="Resume" onClick={() => go("resume")} />
-          <ToolChip art={QUICK_ACTION_ART.apply} label="Auto Apply" onClick={() => go("apply")} />
-          <ToolChip art={QUICK_ACTION_ART.scan} label="CV Scan" onClick={() => go("scan")} />
-          <ToolChip art={QUICK_ACTION_ART.tracker} label="Tracker" onClick={() => go("jobtracker")} />
-        </div>
-      </motion.div>
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }} className="mb-6">
+            <SectionHeader>Tools</SectionHeader>
+            <div className="flex gap-2">
+              <ToolChip art={DASHBOARD_ART.resume} label="Resume" onClick={() => go("resume")} />
+              <ToolChip art={QUICK_ACTION_ART.apply} label="Auto Apply" onClick={() => go("apply")} />
+              <ToolChip art={QUICK_ACTION_ART.scan} label="CV Scan" onClick={() => go("scan")} />
+              <ToolChip art={QUICK_ACTION_ART.tracker} label="Tracker" onClick={() => go("jobtracker")} />
+            </div>
+          </motion.div>
+        </>
+      )}
 
       {recentResumes.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.25 }} className="mb-6">
@@ -632,6 +665,7 @@ export default function Dashboard({ onClose, onNavigate }) {
     onUpdateApplicationStatus: updateApplicationStatus,
     onAddNote: setNoteApp,
     onOpenPersonalProfile: () => go("personal-profile"),
+    showResumeAndTools: !isDesktop,
   };
 
   if (isDesktop) {
@@ -716,6 +750,7 @@ export default function Dashboard({ onClose, onNavigate }) {
           )}
           <DashboardContent {...contentProps} />
         </main>
+        <DesktopRightRail savedResumes={savedResumes} go={go} />
         <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={openNotification} />
         <AddNoteDialog app={noteApp} open={!!noteApp} onClose={() => setNoteApp(null)} onSaved={onNoteSaved} />
       </motion.div>
