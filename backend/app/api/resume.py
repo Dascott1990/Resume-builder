@@ -1282,3 +1282,51 @@ def delete_saved(resume_id):
         return jsonify({"success": True}), 200
 
     return jsonify({"success": False, "error": "Resume not found"}), 404
+
+
+# ── Guest download cap ───────────────────────────────────────────────────
+# Signed-in accounts are never capped — only a guest_id with no user_id
+# gets tracked at all, and this is the one place in the app that writes
+# to GuestDownloadCount. See the model's own docstring in models.py for
+# why this needs to be server-tracked rather than a client-only counter.
+
+@resume_bp.route("/downloads/count", methods=["GET"])
+def get_download_count():
+    user_id, guest_id = get_scope(request)
+    if user_id or not guest_id:
+        return jsonify({"success": True, "data": {"count": 0, "capped": False}}), 200
+
+    from app.models import GuestDownloadCount
+    record = GuestDownloadCount.query.filter_by(guest_id=guest_id).first()
+    if not record:
+        return jsonify({"success": True, "data": {"count": 0, "capped": False}}), 200
+    return jsonify({"success": True, "data": record.to_dict()}), 200
+
+
+@resume_bp.route("/downloads/consume", methods=["POST"])
+def consume_download():
+    """Called right before a guest actually builds a download — the real
+    enforcement point. Signed-in callers always succeed as a no-op; a
+    guest already at 3 gets a 403 and nothing increments."""
+    user_id, guest_id = get_scope(request)
+    if user_id:
+        return jsonify({"success": True, "data": {"count": 0, "capped": False}}), 200
+    if not guest_id:
+        raise APIError("Missing X-Guest-Id header", 400)
+
+    from app.models import GuestDownloadCount
+    record = GuestDownloadCount.query.filter_by(guest_id=guest_id).first()
+    if record and record.count >= 3:
+        raise APIError(
+            "You've used your 3 free downloads. Sign up to keep going — we'll save your info as your profile.",
+            403, code="DOWNLOAD_CAP_REACHED",
+        )
+
+    now = datetime.now(timezone.utc)
+    if not record:
+        record = GuestDownloadCount(guest_id=guest_id, count=0, first_download_at=now)
+        db.session.add(record)
+    record.count += 1
+    record.last_download_at = now
+    db.session.commit()
+    return jsonify({"success": True, "data": record.to_dict()}), 200

@@ -849,3 +849,24 @@ class AdminBroadcast(db.Model):
             "failed_count": self.failed_count, "status": self.status,
             "created_at": _iso_utc(self.created_at), "completed_at": _iso_utc(self.completed_at),
         }
+
+
+class GuestDownloadCount(db.Model):
+    """
+    The 3-free-downloads cap for guest resume generation (see api/resume.py's
+    /downloads/count and /downloads/consume) — one row per guest_id, never
+    keyed by user_id because signed-in accounts are never capped. This is
+    the ONLY server-side record of the cap; the frontend's own "N of 3
+    used" banner is just a display of what this table already says, not a
+    separate source of truth — a client-only counter would be bypassed by
+    clearing storage, which is exactly what this table exists to prevent.
+    """
+    __tablename__ = "guest_download_counts"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    guest_id = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    count = db.Column(db.Integer, nullable=False, default=0)
+    first_download_at = db.Column(db.DateTime, nullable=True)
+    last_download_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {"count": self.count, "capped": self.count >= 3}
