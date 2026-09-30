@@ -250,8 +250,15 @@ function TrendingRow({ fields, activeId, onPick }) {
         <Flame className="size-3.5 text-primary" />
         <span className="font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">Hottest right now</span>
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {fields.map((f) => <TrendingChip key={f.id} field={f} active={f.id === activeId} onClick={() => onPick(f)} />)}
+      {/* relative + an absolute fade on the right edge — horizontal-only
+          scroll (no vertical drift, no wrapping) that reads as an
+          intentional scroller instead of content abruptly cut off
+          against the right rail's border. */}
+      <div className="relative">
+        <div className="flex gap-2 overflow-x-auto overflow-y-hidden pr-6 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {fields.map((f) => <TrendingChip key={f.id} field={f} active={f.id === activeId} onClick={() => onPick(f)} />)}
+        </div>
+        <div className="pointer-events-none absolute top-0 right-0 bottom-1 w-8 bg-gradient-to-r from-transparent to-background" />
       </div>
     </div>
   );
