@@ -104,6 +104,17 @@ _CONFIRMATION_URL_RE = re.compile(
 )
 
 
+def is_lever_hosted(url: str) -> bool:
+    """jobs.lever.co is the standard Lever-hosted URL shape — real
+    companies occasionally run Lever on their own custom domain instead
+    (no reliable way to detect that generically), so this catches the
+    common case, not every possible one. See tools.py's tool_click for
+    why this specific ATS needs its own carve-out: clicking a checkbox/
+    radio programmatically on a Lever form throws a captcha, documented,
+    field-tested behavior this agent has no way to solve past."""
+    return bool(url) and "jobs.lever.co" in url.lower()
+
+
 def is_submit_classified(label: str, tag: str = None, el_type: str = None, in_form: bool = None) -> bool:
     # Text match ONLY — used to require tag in (button, input) AND in_form,
     # which sounds tighter but actually missed the two most common real
@@ -324,9 +335,28 @@ class AgentBrowserSession:
         return entry["meta"] if entry else None
 
     def fill(self, ref, value):
+        """.fill() sets the DOM value directly — fast, and correct on most
+        forms. Some ATS frameworks (Workday's own React forms are the
+        documented case, per career-ops's field-tested notes; a plain
+        .fill() looks like it worked in a screenshot but the framework's
+        internal state never registers the change because it's listening
+        for real keydown/input events, not just a value assignment) never
+        see that write at all, so the field silently reverts or the form
+        rejects it as empty on submit. Verified, not assumed: read the
+        value straight back after the fast path — if it didn't stick,
+        fall back to real per-character typing (press_sequentially, which
+        dispatches genuine key events), which works everywhere .fill()
+        does plus the frameworks that specifically need it. The slower
+        path only runs on the forms that actually require it, not every
+        field on every site."""
         frame, el = self._resolve(ref)
         el.scroll_into_view_if_needed()
-        el.fill(str(value))
+        text = str(value)
+        el.fill(text)
+        actual = el.input_value() if el.evaluate("el => el.tagName") in ("INPUT", "TEXTAREA") else None
+        if actual is not None and actual != text:
+            el.fill("")
+            el.type(text, delay=20)  # ElementHandle has no press_sequentially — that's Locator-only in this Playwright version; .type() is its real-keystroke equivalent
 
     def select(self, ref, option_text):
         frame, el = self._resolve(ref)

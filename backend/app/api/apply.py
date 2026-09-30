@@ -507,6 +507,47 @@ def _company_name_from_url(target_url):
     return host or "Unknown"
 
 
+_ASHBY_SLUG_RE = re.compile(r"ashbyhq\.com/([^/?#]+)", re.I)
+
+
+def _ashby_company_slug(url):
+    """jobs.ashbyhq.com/<company>/... — the company slug is the one thing
+    that actually identifies WHICH Ashby-hosted company this is; the
+    hostname alone (ashbyhq.com) is the same for every company on the
+    platform, so hostname-only matching (see _company_name_from_url just
+    below) can't tell two different Ashby employers apart. Returns None
+    for a non-Ashby URL."""
+    m = _ASHBY_SLUG_RE.search(url or "")
+    return m.group(1).lower() if m else None
+
+
+def _ashby_dedup_warning(target_url, user_id, guest_id):
+    """Ashby deduplicates candidates by email PER COMPANY — applying to a
+    second role at a company you've already applied to there can silently
+    merge into that first application instead of creating a new one,
+    field-tested/documented behavior (career-ops's own known-ATS-quirks
+    notes), not a guess. Nothing here can detect that IT happened (Ashby
+    doesn't expose that), only that the conditions for it exist — a prior
+    run against the same Ashby company slug — so this surfaces a heads-up
+    with the standard workaround (a +tag email alias) rather than silently
+    letting a second application vanish into the first."""
+    slug = _ashby_company_slug(target_url)
+    if not slug:
+        return None
+    query = ApplicationRun.query.filter(ApplicationRun.status.notin_(["failed", "cancelled", "expired"]))
+    query = query.filter_by(user_id=user_id) if user_id else query.filter_by(guest_id=guest_id)
+    prior = [r for r in query.all() if _ashby_company_slug(r.target_url) == slug]
+    if not prior:
+        return None
+    return (
+        f"You've already applied to this company on Ashby before ({len(prior)} prior run"
+        f"{'s' if len(prior) != 1 else ''}). Ashby deduplicates candidates by email per "
+        "company — a second application here can silently merge into the first one instead "
+        "of creating a new one. Consider using a +tag email alias (e.g. you+role@gmail.com) "
+        "for this application if you want it to stay separate."
+    )
+
+
 def _find_submit_ref(session):
     state = session.extract_state()
     for el in state["elements"]:
@@ -626,6 +667,8 @@ def create_run():
     # DB hiccup on this one request would wedge every future run behind a
     # lock nothing will ever release.
     try:
+        dedup_warning = _ashby_dedup_warning(target_url, user_id, guest_id)
+
         run = ApplicationRun(
             target_url=target_url, status="queued",
             user_id=user_id, guest_id=None if user_id else guest_id,
@@ -640,7 +683,10 @@ def create_run():
         _RUN_LOCK.release(lock_token)
         raise
 
-    return jsonify({"success": True, "data": _serialize_run(run)}), 201
+    data = _serialize_run(run)
+    if dedup_warning:
+        data["preflight_warning"] = dedup_warning
+    return jsonify({"success": True, "data": data}), 201
 
 
 @apply_bp.route("/runs", methods=["GET"])

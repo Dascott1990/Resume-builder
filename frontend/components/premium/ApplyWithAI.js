@@ -218,6 +218,11 @@ function UrlForm({ onStarted }) {
         body: JSON.stringify({ target_url: url.trim() }),
       });
       clearFormDraft(APPLY_URL_DRAFT_KEY);
+      // Ashby dedupes candidates by email per company — see backend/app/
+      // api/apply.py's _ashby_dedup_warning. Longer duration than a normal
+      // toast since this is a real heads-up worth actually reading, not a
+      // quick confirmation.
+      if (run.preflight_warning) toast.warning(run.preflight_warning, { duration: 12000 });
       onStarted(run);
     } catch (err) {
       toast.error(err.message);

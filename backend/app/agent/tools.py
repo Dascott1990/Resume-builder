@@ -16,7 +16,7 @@ matter more than anything else here:
 """
 import re
 
-from app.agent.browser import is_submit_classified
+from app.agent.browser import is_submit_classified, is_lever_hosted
 
 
 # ── Sensitive-field classification — by the FIELD'S LABEL (and, since most
@@ -205,6 +205,21 @@ def tool_click(ctx, tool_input):
         _, err_msg = resolve_profile_value(profile_field_key, ctx.profile_snapshot, ctx.answered_map)
         if err_msg:
             return {"ok": False, "message": f"[{category}] {err_msg} This looks like a {category} question — call ask_user instead of clicking an option with no verified basis for it."}
+
+    # Lever-hosted forms throw a captcha the moment a checkbox/radio is
+    # clicked by anything other than a real user gesture — field-tested,
+    # documented behavior (career-ops's own known-ATS-quirks notes), not
+    # a guess. There's no way to click past a captcha from here (no vision
+    # solve, no human-in-the-loop mid-tool-call), so the only correct move
+    # is to never trigger it: leave every checkbox/radio on a Lever form
+    # for the human to tick themselves, same as this agent already leaves
+    # every closed-ended field the review screen's own copy already says
+    # is out of scope.
+    if meta.get("type") in ("checkbox", "radio") and is_lever_hosted(ctx.session.page.url):
+        return {
+            "ok": False,
+            "message": "Refused: this is a Lever-hosted form, and Lever throws a captcha when a checkbox/radio is clicked programmatically. Leave this one — call done() and note it in remaining_issues; the human ticks it themselves during review.",
+        }
 
     ctx.session.click(ref)
     return {"ok": True, "message": f"Clicked '{meta.get('label') or meta.get('group_label') or ref}'"}
