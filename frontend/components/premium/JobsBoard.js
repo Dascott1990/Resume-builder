@@ -426,8 +426,8 @@ export default function JobsBoard({ onClose, onNavigate }) {
               )}
             </div>
 
-            <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
             <div className="sticky top-0 z-10 -mx-8 mb-4 bg-background px-8 pt-1 pb-3">
+              <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
               {searchOrActiveTrending}
             </div>
 
@@ -485,8 +485,8 @@ export default function JobsBoard({ onClose, onNavigate }) {
       </div>
 
       <div className="mx-auto w-full max-w-3xl min-h-0 flex-1 overflow-y-auto px-5 pb-6">
-        <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
         <div className="sticky top-0 z-10 -mx-5 mb-4 bg-background px-5 pt-1 pb-3">
+          <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
           {searchOrActiveTrending}
           <FiltersPanel
             category={category} setCategory={setCategory}
