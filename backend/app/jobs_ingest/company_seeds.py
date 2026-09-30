@@ -57,3 +57,20 @@ ASHBY_COMPANIES = [
 # small: 16 Greenhouse + 11 Ashby companies at even 30 jobs each is nearly
 # a thousand raw candidates before verification even runs.
 MAX_JOBS_PER_COMPANY = 15
+
+# ScrapeGraphAI gap-filler tier (see sources.py's fetch_scrapegraph) — for
+# real companies with neither a Greenhouse nor Ashby board, whose careers
+# page has to be LLM-extracted instead of hit via a clean JSON API. Small
+# and hand-tested on purpose: this runs against a metered free-credit
+# budget (500 credits total, ~5-10 per extraction), unlike the two ATS
+# sources above which are free and unlimited. `careers_url` is used as
+# the job's own `url` for every listing from this company — confirmed
+# live while building this that Spotify's job list has no real per-
+# listing href at all (the cards are client-side-routed, not real <a>
+# tags; extraction honestly returned "No content available" every time
+# rather than a fabricated link) — so every job from a given company
+# here points at that company's real, working jobs list page, not a
+# deep link into one specific posting.
+SCRAPEGRAPHAI_COMPANIES = [
+    {"name": "Spotify", "domain": "spotify.com", "careers_url": "https://www.lifeatspotify.com/jobs"},
+]

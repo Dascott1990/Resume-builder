@@ -17,7 +17,7 @@ import time
 import logging
 from datetime import datetime, timezone
 
-from .sources import fetch_remotive, fetch_arbeitnow, fetch_greenhouse, fetch_ashby, _stable_id
+from .sources import fetch_remotive, fetch_arbeitnow, fetch_greenhouse, fetch_ashby, fetch_scrapegraph, _stable_id
 from .verify import verify_job, reset_run_caches
 from .categories import categorize, CATEGORIES
 from .geo_guess import guess_country
@@ -98,7 +98,8 @@ def run_ingestion():
     all_new = {}
 
     for name, fetch_fn in (("remotive", fetch_remotive), ("arbeitnow", fetch_arbeitnow),
-                            ("greenhouse", fetch_greenhouse), ("ashby", fetch_ashby)):
+                            ("greenhouse", fetch_greenhouse), ("ashby", fetch_ashby),
+                            ("scrapegraphai", fetch_scrapegraph)):
         try:
             raw = fetch_fn()
             all_new.update(_normalize_and_verify(raw, source_stats, name))

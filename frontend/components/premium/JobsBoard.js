@@ -34,7 +34,14 @@ const LEVEL_OPTIONS = [
   { id: "3", label: "Level 3+ — domain + age checked" },
 ];
 
-const SOURCE_LABELS = { remotive: "Remotive", arbeitnow: "Arbeitnow", greenhouse: "Greenhouse", ashby: "Ashby" };
+const SOURCE_LABELS = { remotive: "Remotive", arbeitnow: "Arbeitnow", greenhouse: "Greenhouse", ashby: "Ashby", scrapegraphai: "company careers page" };
+// Extracted straight off the employer's own site, which — confirmed live
+// while building this — doesn't always expose a real per-listing link
+// (client-side-routed job cards, no <a href>) the way an ATS API does.
+// Honest about the tradeoff rather than hiding it: this source's `url`
+// is always the company's real jobs LIST page, not a deep link to this
+// specific posting.
+const SOURCES_WITHOUT_DIRECT_LINK = new Set(["scrapegraphai"]);
 
 function timeAgo(iso) {
   if (!iso) return "";
@@ -108,6 +115,10 @@ function JobCard({ job }) {
           </span>
         )}
       </div>
+
+      {SOURCES_WITHOUT_DIRECT_LINK.has(job.source) && (
+        <p className="m-0 text-[10.5px] text-muted-foreground/70">Opens {job.company_name}'s jobs page — search for this title there.</p>
+      )}
 
       <div className="flex items-center justify-between gap-3">
         <VerificationBadge verification={job.verification} />

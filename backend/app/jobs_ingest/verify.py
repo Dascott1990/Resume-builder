@@ -32,6 +32,11 @@ logger = logging.getLogger("jobs_ingest")
 
 KNOWN_ATS_SOURCES = {"greenhouse", "ashby"}
 KNOWN_AGGREGATORS = {"remotive", "arbeitnow"}
+# LLM-extracted from a hand-verified real company's own careers page (see
+# company_seeds.py's SCRAPEGRAPHAI_COMPANIES) — trusted at Level 1 the
+# same way an ATS source is, for the same reason: the seed list itself,
+# not the payload shape, is what was verified.
+KNOWN_SCRAPED_SOURCES = {"scrapegraphai"}
 
 FREE_EMAIL_DOMAINS = {
     "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com",
@@ -69,7 +74,7 @@ def _level1(job):
     arbeitnow) counts as Level 1 the moment it names a real company and
     links back to a real posting URL — the two things every entry from
     either API always has."""
-    if job["source"] in KNOWN_ATS_SOURCES:
+    if job["source"] in KNOWN_ATS_SOURCES or job["source"] in KNOWN_SCRAPED_SOURCES:
         return True
     if job["source"] in KNOWN_AGGREGATORS:
         return bool(job.get("company_name")) and bool(job.get("url"))

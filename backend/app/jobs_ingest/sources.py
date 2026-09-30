@@ -15,15 +15,17 @@ never raises past this module — a single source being down must not take
 the whole run down with it (see pipeline.py's per-source try/except,
 which is the second layer of the same guarantee).
 """
+import os
 import re
 import time
 import html
 import hashlib
 import logging
+from datetime import datetime, timezone
 
 import requests
 
-from .company_seeds import GREENHOUSE_COMPANIES, ASHBY_COMPANIES, MAX_JOBS_PER_COMPANY
+from .company_seeds import GREENHOUSE_COMPANIES, ASHBY_COMPANIES, MAX_JOBS_PER_COMPANY, SCRAPEGRAPHAI_COMPANIES
 
 logger = logging.getLogger("jobs_ingest")
 
@@ -200,9 +202,81 @@ def fetch_ashby(limit_per_company=MAX_JOBS_PER_COMPANY, companies=None):
     return jobs
 
 
+# ScrapeGraphAI schema — deliberately just title + location. `url` was
+# dropped after testing showed it comes back "No content available" for
+# sites whose job cards have no real per-listing href (see
+# company_seeds.py's SCRAPEGRAPHAI_COMPANIES docstring) — asking the LLM
+# for a field that structurally doesn't exist on the page just wastes a
+# schema slot; every job from this source uses its company's real
+# careers_url instead (set below), not a per-job deep link.
+_SCRAPEGRAPHAI_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "jobs": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "location": {"type": "string"},
+                },
+            },
+        },
+    },
+}
+
+
+def fetch_scrapegraph(companies=None):
+    """Gap-filler tier for real companies with neither a Greenhouse nor
+    Ashby board — LLM-extracted from their own careers page via
+    ScrapeGraphAI (metered, unlike every other source here). Silently
+    contributes nothing (not an error) if SCRAPEGRAPHAI_API_KEY isn't
+    set, so this stays a genuinely optional add-on, never a hard
+    dependency the rest of the pipeline needs to function."""
+    api_key = os.environ.get("SCRAPEGRAPHAI_API_KEY")
+    if not api_key:
+        return []
+    try:
+        from scrapegraph_py import ScrapeGraphAI, FetchConfig
+    except ImportError:
+        logger.warning("scrapegraph-py not installed; skipping the ScrapeGraphAI source")
+        return []
+
+    client = ScrapeGraphAI(api_key=api_key)
+    jobs = []
+    for co in (companies if companies is not None else SCRAPEGRAPHAI_COMPANIES):
+        try:
+            result = client.extract(
+                prompt="Extract every open job listing visible on this page: its exact title and location. Only real listings actually shown on the page.",
+                url=co["careers_url"],
+                schema=_SCRAPEGRAPHAI_SCHEMA,
+                fetch_config=FetchConfig(mode="js", wait=4000, scrolls=2),
+            )
+            if result.status != "success" or not result.data:
+                logger.warning("scrapegraphai: %s returned %s", co["name"], result.status)
+                continue
+            fetched_at = datetime.now(timezone.utc).isoformat()
+            for j in (result.data.json_data or {}).get("jobs", []):
+                title = (j.get("title") or "").strip()
+                if not title:
+                    continue
+                jobs.append({
+                    "source": "scrapegraphai",
+                    "source_id": hashlib.sha1(f"{co['domain']}:{title}:{j.get('location', '')}".encode()).hexdigest()[:16],
+                    "title": title, "company_name": co["name"], "company_domain": co["domain"],
+                    "location": j.get("location") or "", "remote": "remote" in (j.get("location") or "").lower(),
+                    "category_hint": "", "description_text": "",
+                    "url": co["careers_url"], "posted_at": fetched_at,
+                })
+        except Exception as e:
+            logger.warning("scrapegraphai: %s failed: %s", co["name"], e)
+    return jobs
+
+
 SOURCE_FETCHERS = {
     "remotive": fetch_remotive,
     "arbeitnow": fetch_arbeitnow,
     "greenhouse": fetch_greenhouse,
     "ashby": fetch_ashby,
+    "scrapegraphai": fetch_scrapegraph,
 }

@@ -1122,7 +1122,7 @@ function LoginGeoTab() {
   );
 }
 
-const JOBS_INGEST_SOURCE_LABELS = { remotive: "Remotive", arbeitnow: "Arbeitnow", greenhouse: "Greenhouse", ashby: "Ashby", coverage_retry: "Coverage retry" };
+const JOBS_INGEST_SOURCE_LABELS = { remotive: "Remotive", arbeitnow: "Arbeitnow", greenhouse: "Greenhouse", ashby: "Ashby", scrapegraphai: "ScrapeGraphAI", coverage_retry: "Coverage retry" };
 
 function JobsIngestTab() {
   const [meta, setMeta] = useState(null);
