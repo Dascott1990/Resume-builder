@@ -81,7 +81,7 @@ function VerificationBadge({ verification }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10.5px] font-bold text-primary-text [-webkit-tap-highlight-color:transparent]"
+        className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10.5px] font-bold text-primary-text [-webkit-tap-highlight-color:transparent]"
       >
         <Icon className="size-3" /> Level {level} · {label}
       </button>
@@ -144,7 +144,12 @@ function JobCard({ job }) {
         <p className="m-0 text-[10.5px] text-muted-foreground/70">Opens {job.company_name}'s jobs page — search for this title there.</p>
       )}
 
-      <div className="flex items-center justify-between gap-3">
+      {/* flex-wrap — both children are shrink-0 (the badge must never
+          wrap its own text into the distorted rounded-full blob that
+          caused live, see VerificationBadge above) so at a squeezed
+          card width the "via ..." text drops to its own line below
+          instead of forcing the row wider than the card. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <VerificationBadge verification={job.verification} />
         <span className="shrink-0 text-[10.5px] text-muted-foreground/70">
           via {SOURCE_LABELS[job.source] || job.source} · {timeAgo(job.posted_at)}
