@@ -190,7 +190,12 @@ function RecommendedJobs({ jobs, loading, onSeeAll }) {
   return (
     <div className="mb-6">
       <SectionHeader onViewAll={onSeeAll} viewAllLabel="See all">Recommended for you</SectionHeader>
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+      {/* grid-cols-2 unconditionally, even on phones — stacked
+          full-width cards meant all 4 real jobs cost a whole screen's
+          worth of scroll before anything past them (Tools, recent
+          activity) came into view. Two-up keeps every job real and
+          visible without burying what comes after it. */}
+      <div className="grid grid-cols-2 gap-2.5">
         {loading
           ? <><Skeleton className="h-[126px] w-full rounded-2xl" /><Skeleton className="h-[126px] w-full rounded-2xl" /></>
           : jobs.slice(0, 4).map((j) => <RecommendedJobCard key={j.id} job={j} />)}
@@ -453,17 +458,19 @@ function DashboardContent({
         <JobSearchStatsCard applications={applications} loading={statsLoading} onViewAll={() => go("jobtracker")} />
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
-        <RecommendedJobs jobs={recommendedJobs} loading={recommendedLoading} onSeeAll={() => go("jobsboard")} />
-      </motion.div>
-
+      {/* On mobile (showResumeAndTools is only true there — desktop
+          renders this same pair in its own right rail instead, see
+          DesktopRightRail), Tools comes before Recommended-for-you:
+          actions you take right now shouldn't sit under a whole
+          scroll's worth of job cards first. Reordering here is
+          invisible to desktop since it renders these two elsewhere. */}
       {showResumeAndTools && (
         <>
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }}>
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
             <ResumeStatusCard latestResume={latestResume} onOpen={() => go("resume", latestResume ? { resumeId: latestResume.id } : undefined)} />
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }} className="mb-6">
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }} className="mb-6">
             <SectionHeader>Tools</SectionHeader>
             {/* grid-cols-2, not a single flex row — a row of 4 chips has
                 no room left for labels once the viewport gets much
@@ -481,6 +488,10 @@ function DashboardContent({
           </motion.div>
         </>
       )}
+
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }}>
+        <RecommendedJobs jobs={recommendedJobs} loading={recommendedLoading} onSeeAll={() => go("jobsboard")} />
+      </motion.div>
 
       {recentResumes.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.25 }} className="mb-6">
