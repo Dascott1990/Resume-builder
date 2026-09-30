@@ -77,6 +77,8 @@ const MOBILE_NAV_ITEMS = [
   { id: "profile", Icon: navArt(DASHBOARD_ART.profile), label: "Profile" },
 ];
 
+const RECOMMENDED_CACHE_KEY = "noqeev_cached_recommended_jobs";
+
 const STATUS_META = {
   applied: { label: "Applied", className: "text-muted-foreground" },
   interview: { label: "Interview", className: "text-primary" },
@@ -232,7 +234,7 @@ function ToolChip({ art, label, onClick }) {
   return (
     <button
       type="button" onClick={onClick}
-      className="glass-surface flex flex-1 items-center gap-2.5 rounded-2xl px-3.5 py-3 [-webkit-tap-highlight-color:transparent]"
+      className="glass-surface flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl px-3.5 py-3 [-webkit-tap-highlight-color:transparent]"
     >
       <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10">
         <Svg size={16} />
@@ -463,7 +465,14 @@ function DashboardContent({
 
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }} className="mb-6">
             <SectionHeader>Tools</SectionHeader>
-            <div className="flex gap-2">
+            {/* grid-cols-2, not a single flex row — a row of 4 chips has
+                no room left for labels once the viewport gets much
+                narrower than a typical phone (checked live down to a
+                344px foldable cover screen: labels shrank to an
+                unreadable sliver before they ever actually overflowed).
+                Two columns keeps every label legible at any width this
+                app runs at. */}
+            <div className="grid grid-cols-2 gap-2">
               <ToolChip art={DASHBOARD_ART.resume} label="Resume" onClick={() => go("resume")} />
               <ToolChip art={QUICK_ACTION_ART.apply} label="Auto Apply" onClick={() => go("apply")} />
               <ToolChip art={QUICK_ACTION_ART.scan} label="CV Scan" onClick={() => go("scan")} />
@@ -610,9 +619,19 @@ export default function Dashboard({ onClose, onNavigate }) {
           seen.add(j.company_name);
           return true;
         });
-        setRecommendedJobs(diversified.slice(0, 4));
+        const next = diversified.slice(0, 4);
+        setRecommendedJobs(next);
+        // Cached so a transient failure (rate limit, network blip, a
+        // backend restart) has something real to fall back to below
+        // instead of this section just vanishing — confirmed live: it
+        // did exactly that the first time this hit a 429.
+        try { localStorage.setItem(RECOMMENDED_CACHE_KEY, JSON.stringify(next)); } catch { /* best-effort */ }
       })
-      .catch(() => setRecommendedJobs([]))
+      .catch(() => {
+        let cached = [];
+        try { cached = JSON.parse(localStorage.getItem(RECOMMENDED_CACHE_KEY) || "[]"); } catch { /* best-effort */ }
+        setRecommendedJobs(cached);
+      })
       .finally(() => setRecommendedLoading(false));
   }, []);
 

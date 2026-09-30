@@ -22,12 +22,24 @@ import json
 
 from flask import Blueprint, request, jsonify
 
+from app import limiter
 from app.middleware.error_handlers import APIError
 from app.jobs_ingest.pipeline import SNAPSHOT_PATH
 from app.jobs_ingest.categories import CATEGORIES
 from app.jobs_ingest.trending import TRENDING_FIELDS, trending_counts, field_matches
 
 jobs_board_bp = Blueprint("jobs_board", __name__)
+
+# The app-wide default (200/hour, see app/__init__.py) is sized for
+# auth and AI-generation routes an anonymous caller could otherwise
+# abuse -- these routes are the opposite profile: public, read-only,
+# no cost per request (a disk read of a static JSON snapshot), and
+# legitimately called on every Dashboard load AND every filter/search
+# change on the Jobs Board. Sharing the default bucket meant ordinary
+# browsing (confirmed live: a Dashboard reload plus a few Jobs Board
+# searches) could burn through it and make "Recommended for you" go
+# blank -- exactly what this higher limit exists to prevent.
+_JOBS_LIMIT = "1000 per hour"
 
 
 def _load_snapshot():
@@ -41,6 +53,7 @@ def _load_snapshot():
 
 
 @jobs_board_bp.route("", methods=["GET"])
+@limiter.limit(_JOBS_LIMIT)
 def list_jobs():
     data = _load_snapshot()
     jobs = [j for j in data.get("jobs", []) if not j.get("expired")]
@@ -98,6 +111,7 @@ def list_jobs():
 
 
 @jobs_board_bp.route("/meta", methods=["GET"])
+@limiter.limit(_JOBS_LIMIT)
 def jobs_meta():
     """Run health (from pipeline.py's own meta) plus live totals over the
     current, non-expired inventory — a distinct thing from the run meta's
@@ -123,11 +137,13 @@ def jobs_meta():
 
 
 @jobs_board_bp.route("/categories", methods=["GET"])
+@limiter.limit(_JOBS_LIMIT)
 def jobs_categories():
     return jsonify({"success": True, "data": CATEGORIES}), 200
 
 
 @jobs_board_bp.route("/trending", methods=["GET"])
+@limiter.limit(_JOBS_LIMIT)
 def jobs_trending():
     """Real, cited labor-market growth data (see trending.py) plus a live
     count of how many currently-verified jobs in this pipeline's own
