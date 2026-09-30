@@ -66,12 +66,11 @@ def _decode_payload(token: str, expected_role: str = "user"):
     missing, expired, signed with a different secret, or issued for a
     different role than expected.
 
-    The role check matters once two separate account systems (User,
-    Artisan) both issue Bearer-style tokens from the same JWT_SECRET —
-    without it, a customer's token and an artisan's token would be
-    interchangeable anywhere a raw id is trusted, even though they're rows
-    in different tables. Tokens issued before this claim existed have none
-    — treated as "user", the only role that existed back then, so no
+    The role check matters wherever more than one Bearer-style token kind
+    could exist from the same JWT_SECRET — without it, one kind of token
+    would be interchangeable anywhere a raw id is trusted, even where that
+    wasn't intended. Tokens issued before this claim existed have none —
+    treated as "user", the only role that existed back then, so no
     already-issued session breaks."""
     if not token or not JWT_SECRET:
         return None
@@ -102,8 +101,7 @@ def _issued_before_password_change(iat, password_changed_at):
     Changing a password is supposed to end every OTHER session — with a
     stateless JWT and no session table to delete rows from, this iat-vs-
     password_changed_at comparison is what actually makes that true (see
-    api/auth.py's change_password and api/artisans.py's
-    artisan_change_password, which both set the column and re-issue a
+    api/auth.py's change_password, which sets the column and re-issues a
     fresh token so the session that MADE the change isn't logged out of
     itself). password_changed_at is None for every account that hasn't
     explicitly changed its password since this existed, so this never
@@ -212,55 +210,19 @@ def get_scope(request):
 
 
 def require_customer_scope(request):
-    """user_id for the current request, or raises — the booking/messaging/
-    payment gate. Deliberately NOT get_scope's (user_id, guest_id) pair: the
-    rest of this app treats guest_id as an equally valid identity for
-    "your stuff," but posting a job request, messaging about one, or paying
-    for one are the three actions the product explicitly requires a real
-    account for (see api/requests.py's create_request) — an anonymous
-    visitor can still browse/search freely, this only gates the moment they
-    try to act. Returns the user_id (not the User row) so callers that
-    don't need the full row avoid an extra query, same shape as
-    get_artisan_scope/require_artisan_scope's artisan_id-only return."""
+    """user_id for the current request, or raises. Deliberately NOT
+    get_scope's (user_id, guest_id) pair: the rest of this app treats
+    guest_id as an equally valid identity for "your stuff," but some
+    actions (editing your profile, changing your password, deleting your
+    account) explicitly require a real signed-in account, not just an
+    anonymous guest_id. Returns the user_id (not the User row) so callers
+    that don't need the full row avoid an extra query."""
     from app.middleware.error_handlers import APIError
 
     user_id, _ = get_scope(request)
     if not user_id:
-        raise APIError("Sign in to book, message, or pay", 401)
+        raise APIError("Sign in required", 401)
     return user_id
-
-
-def get_artisan_scope(request):
-    """artisan_id for the current request, or None. Deliberately its own
-    header (X-Artisan-Token), not Authorization — a browser can be signed
-    in as BOTH a customer (User account) and an artisan at once, and reusing
-    Authorization: Bearer for both would make the two sessions collide,
-    each overwriting the other. No guest fallback: unlike the rest of this
-    app, receiving/accepting job requests requires a real artisan account —
-    see JobRequest's accept/complete routes in api/requests.py."""
-    token = request.headers.get("X-Artisan-Token") or ""
-    payload = _decode_payload(token, expected_role="artisan")
-    if not payload:
-        return None
-
-    from app import db
-    from app.models import Artisan
-
-    artisan = db.session.get(Artisan, payload.get("sub"))
-    if not artisan or _issued_before_password_change(payload.get("iat"), artisan.password_changed_at):
-        return None
-    return artisan.id
-
-
-def require_artisan_scope(request):
-    """Same as get_artisan_scope, but raises instead of returning None —
-    the one-liner every artisan-only route starts with."""
-    from app.middleware.error_handlers import APIError
-
-    artisan_id = get_artisan_scope(request)
-    if not artisan_id:
-        raise APIError("Artisan sign-in required", 401)
-    return artisan_id
 
 
 def get_admin_user(request):
@@ -319,9 +281,9 @@ def require_admin(request):
 
 def get_workspace(request):
     """The branding workspace's entire access model: the token IS the
-    authorization, same bearer-secret shape as Artisan.edit_token (see
-    api/artisans.py's _authorize_edit) — no login, no User row, nothing
-    to look up beyond "does a workspace with this token exist." Checked
+    authorization, an unguessable-secret-as-authorization shape — no
+    login, no User row, nothing to look up beyond "does a workspace with
+    this token exist." Checked
     in three places, in order, so the same request shape works whether
     the token's coming from a fetch header, a query string (a plain link
     someone opens in a browser), or a JSON body — never raises, mirrors

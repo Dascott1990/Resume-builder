@@ -32,7 +32,7 @@ from flask import Blueprint, request, jsonify
 from app import db, limiter
 from app.models import (
     User, Media, JobApplication, CareerProfile, ApplicationRun,
-    JobRequest, PushSubscription, BrandNews, BrandTask,
+    PushSubscription, BrandNews, BrandTask,
 )
 from app.middleware.error_handlers import APIError
 from app.utils.auth import (
@@ -494,27 +494,16 @@ def change_password():
 
 
 def _delete_user_row(user):
-    """Mirrors api/artisans.py's own _delete_artisan_row — same reasoning:
-    SQLite (local dev) doesn't enforce ondelete=CASCADE/SET NULL, only
+    """SQLite (local dev) doesn't enforce ondelete=CASCADE/SET NULL, only
     Postgres (prod) does, so every dependent table is handled explicitly
     here rather than trusting the DB constraint alone to work the same way
     in both environments.
-
-    JobRequest rows are intentionally kept, not deleted, even though the
-    model's own ondelete="CASCADE" on user_id would otherwise wipe them —
-    same call already made for the artisan side of this exact table
-    (_delete_artisan_row nulls JobRequest.artisan_id, keeps the row): real
-    job/payment/escrow history shouldn't disappear because one party's
-    account did. Only the now-meaningless user_id link is cleared. Review/
-    Message rows have no FK to User at all (keyed by job_request_id), so
-    they're untouched either way.
 
     PushSubscription/BrandNews/BrandTask are admin/system-scoped tables a
     regular customer's user_id essentially never appears in (see their own
     model comments) — nulled defensively rather than assumed empty, so
     this never 500s on the rare row where it isn't.
     """
-    JobRequest.query.filter_by(user_id=user.id).update({"user_id": None})
     PushSubscription.query.filter_by(user_id=user.id).update({"user_id": None})
     BrandNews.query.filter_by(created_by=user.id).update({"created_by": None})
     BrandTask.query.filter_by(created_by=user.id).update({"created_by": None})
@@ -529,8 +518,7 @@ def _delete_user_row(user):
 @auth_bp.route("/me", methods=["DELETE"])
 @limiter.limit("10 per hour")
 def delete_me():
-    """Self-service account deletion — the customer-side counterpart to
-    api/artisans.py's artisan_delete_me. Didn't exist before this; Terms &
+    """Self-service account deletion. Didn't exist before this; Terms &
     Conditions already promised "delete your account, at any time," which
     was only true via a manual email-support request until now."""
     user_id = require_customer_scope(request)

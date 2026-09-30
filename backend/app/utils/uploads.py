@@ -1,12 +1,10 @@
 """
 app/utils/uploads.py — the "reject the wrong type, reject too big" shape
-that was duplicated near-identically across artisan avatar-photo upload
-and ArtisanPhoto upload (byte-for-byte the same: mimetype-prefix check +
-5MB cap), and one more time with a different type check (file-extension,
-not mimetype — .pdf/.docx) in resume.py's /scan upload. One function,
-supporting either check, so a new upload route picks the shape it needs
-without writing a fourth independent copy of "read the file, check it,
-enforce a size limit."
+(mimetype-prefix check + size cap), and one more variant with a
+different type check (file-extension, not mimetype — .pdf/.docx) in
+resume.py's /scan upload. One function, supporting either check, so a
+new upload route picks the shape it needs without writing an independent
+copy of "read the file, check it, enforce a size limit."
 """
 from app.middleware.error_handlers import APIError
 

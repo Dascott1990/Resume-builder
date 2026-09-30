@@ -7,11 +7,11 @@ never by which code path a caller takes. Callers only ever talk to
 get_storage()'s return value.
 
 The database (models.BrandAsset.storage_key) stores the KEY this
-returns, never the bytes — deliberately NOT the Media/ArtisanPhoto
-LargeBinary-column pattern used for resumes/avatar photos. That pattern
-is fine for a few KB of resume text or a small avatar; it doesn't scale
-to a rendered story video, and it means every read of a media file is a
-database round-trip instead of a CDN-cacheable object fetch.
+returns, never the bytes — deliberately NOT the Media LargeBinary-column
+pattern used for resumes. That pattern is fine for a few KB of resume
+text; it doesn't scale to a rendered story video, and it means every
+read of a media file is a database round-trip instead of a
+CDN-cacheable object fetch.
 """
 import os
 import uuid

@@ -1,13 +1,13 @@
 """
 app/utils/ai_client.py — shared Claude-then-Groq text completion.
 
-Extracted here so a new AI-calling endpoint (api/brand.py) doesn't need a
-third copy of this logic. api/resume.py and api/artisans.py each already
-carry their own pre-existing copies of the same pattern — deliberately not
-refactored to use this one here: neither was broken, and touching a
-working, already-deployed AI call path wasn't part of what this file was
-added for. New AI endpoints from here on should use this instead of
-copy-pasting a fourth one.
+Extracted here so a new AI-calling endpoint (api/brand.py) doesn't need
+its own copy of this logic. api/resume.py already carries its own
+pre-existing copy of the same pattern — deliberately not refactored to
+use this one here: it wasn't broken, and touching a working,
+already-deployed AI call path wasn't part of what this file was added
+for. New AI endpoints from here on should use this instead of
+copy-pasting another one.
 """
 import os
 import re

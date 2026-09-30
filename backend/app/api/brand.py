@@ -99,9 +99,6 @@ concretely — draw suggestions from THESE, not generic "resume tips" filler:
   authorization, salary, etc.) without a human-confirmed source; a person always does the final
   submit click after reviewing everything.
 - A lightweight job-application tracker (company, role, status, follow-up nudges).
-- Also, separately: a local artisan/tradesperson marketplace bolted onto the same app (request a
-  plumber/electrician/etc., escrowed payment, in-app messaging) — real, but a different audience
-  from the resume side; don't lead with this unless it's genuinely the best fit for the brief.
 - Anonymous by default — works fully without an account; signing in only makes saved
   resumes/applications follow you across devices.
 Brand voice: direct, plain-spoken, a little warm, never corporate-generic. Core belief, stated
