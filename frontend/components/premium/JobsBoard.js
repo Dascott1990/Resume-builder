@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, ExternalLink, ShieldCheck, ShieldQuestion, MapPin, Search,
-  ChevronDown, Loader2, Inbox, Info, X,
+  ChevronDown, Loader2, Inbox, Info, X, Flame, TrendingUp,
 } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import { Btn } from "./guest/components/primitives";
@@ -135,10 +135,78 @@ function FilterSelect({ value, onChange, options, placeholder }) {
   );
 }
 
+// One trending field — the growth stat is real and cited (see backend/
+// app/jobs_ingest/trending.py), never invented; tapping it searches THIS
+// pipeline's own live inventory for that field, so "hottest right now"
+// stays honest about the gap between "the labor market is growing here"
+// and "here's what's actually postable in this jobs board today."
+function TrendingChip({ field, active, onClick }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative shrink-0">
+      {/* A real <div role="button">, not a nested <button> — the inner
+          Info toggle is its own real <button>, and HTML forbids a
+          <button> inside a <button> (confirmed live: React threw a
+          hydration-mismatch warning over exactly this before the fix). */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onClick(); }}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        className={`flex cursor-pointer flex-col items-start gap-1 rounded-2xl border px-3.5 py-2.5 text-left [-webkit-tap-highlight-color:transparent] ${active ? "border-primary bg-primary/10" : "border-border bg-card hover:border-primary/30"}`}
+        style={{ minWidth: 148 }}
+      >
+        <div className="flex w-full items-center justify-between gap-2">
+          <span className="text-[12.5px] font-bold text-foreground">{field.label}</span>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+            aria-label="Source"
+            className="shrink-0 border-none bg-transparent p-0 text-muted-foreground/60"
+          >
+            <Info className="size-3" />
+          </button>
+        </div>
+        {field.growth ? (
+          <span className="flex items-center gap-1 text-[11px] font-bold text-success">
+            <TrendingUp className="size-3" /> {field.growth} <span className="font-normal text-muted-foreground">{field.window}</span>
+          </span>
+        ) : (
+          <span className="text-[11px] font-semibold text-muted-foreground">High demand · {field.window}</span>
+        )}
+        <span className="text-[10.5px] text-muted-foreground/70">{field.live_count} open now</span>
+      </div>
+      {open && (
+        <div className="absolute top-full left-0 z-20 mt-1.5 w-60 rounded-xl border border-border bg-card p-3 text-[11px] leading-relaxed text-muted-foreground shadow-lg">
+          {field.source}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TrendingRow({ fields, activeId, onPick }) {
+  if (!fields?.length) return null;
+  return (
+    <div className="mb-4">
+      <div className="mb-2 flex items-center gap-1.5">
+        <Flame className="size-3.5 text-primary" />
+        <span className="font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">Hottest right now</span>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {fields.map((f) => <TrendingChip key={f.id} field={f} active={f.id === activeId} onClick={() => onPick(f)} />)}
+      </div>
+    </div>
+  );
+}
+
 export default function JobsBoard({ onClose }) {
   const [jobs, setJobs] = useState([]);
   const [total, setTotal] = useState(0);
   const [meta, setMeta] = useState(null);
+  const [trending, setTrending] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
@@ -148,18 +216,29 @@ export default function JobsBoard({ onClose }) {
   const [country, setCountry] = useState("");
   const [remote, setRemote] = useState("");
   const [minLevel, setMinLevel] = useState("");
+  // Set only by tapping a trending chip — a dedicated backend filter
+  // (?trending=<id>, see jobs_board.py) that reuses the EXACT SAME
+  // keyword match trending_counts used to compute the chip's own "N open
+  // now" label, so tapping a chip can never show a different count than
+  // the chip just promised (confirmed live: the first version used the
+  // plain text `search` box instead, searching only the field's first
+  // keyword — "Big Data Specialists" said "6 open now" but the search
+  // came back empty, since most of those 6 matched a different one of
+  // the field's 4 keywords, not the first).
+  const [activeTrending, setActiveTrending] = useState(null);
 
   const LIMIT = 20;
 
   const buildParams = useCallback((offset) => {
     const params = new URLSearchParams({ limit: LIMIT, offset });
-    if (search.trim()) params.set("search", search.trim());
+    if (activeTrending) params.set("trending", activeTrending);
+    else if (search.trim()) params.set("search", search.trim());
     if (category) params.set("category", category);
     if (country) params.set("country", country);
     if (remote) params.set("remote", remote);
     if (minLevel) params.set("min_verification_level", minLevel);
     return params.toString();
-  }, [search, category, country, remote, minLevel]);
+  }, [search, category, country, remote, minLevel, activeTrending]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -172,7 +251,14 @@ export default function JobsBoard({ onClose }) {
   useEffect(load, [load]);
   useEffect(() => {
     apiRequest("/api/v1/jobs/meta").then(setMeta).catch(() => setMeta(null));
+    apiRequest("/api/v1/jobs/trending").then(setTrending).catch(() => setTrending([]));
   }, []);
+
+  const pickTrending = (field) => {
+    setCategory("");
+    setSearch("");
+    setActiveTrending((cur) => (cur === field.id ? null : field.id));
+  };
 
   const loadMore = async () => {
     setLoadingMore(true);
@@ -214,16 +300,30 @@ export default function JobsBoard({ onClose }) {
       </div>
 
       <div className="mx-auto w-full max-w-3xl min-h-0 flex-1 overflow-y-auto px-5 pb-6 lg:max-w-4xl">
+        <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
         <div className="sticky top-0 z-10 -mx-5 mb-4 bg-background px-5 pt-1 pb-3">
-          <div className="relative mb-2.5">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search title or company"
-              className="w-full rounded-xl border border-border bg-card py-2.5 pr-3 pl-9 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none"
-            />
-          </div>
+          {activeTrending ? (
+            <button
+              type="button"
+              onClick={() => setActiveTrending(null)}
+              className="mb-2.5 flex w-full items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-2.5 text-left [-webkit-tap-highlight-color:transparent]"
+            >
+              <span className="text-[12.5px] font-bold text-primary-text">
+                Showing: {trending.find((f) => f.id === activeTrending)?.label}
+              </span>
+              <X className="size-3.5 shrink-0 text-primary-text" />
+            </button>
+          ) : (
+            <div className="relative mb-2.5">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search title or company"
+                className="w-full rounded-xl border border-border bg-card py-2.5 pr-3 pl-9 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+              />
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <FilterSelect value={category} onChange={setCategory} options={categoryOptions} />
             <FilterSelect value={country} onChange={setCountry} options={countryOptions} />

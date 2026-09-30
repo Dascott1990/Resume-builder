@@ -25,6 +25,7 @@ from flask import Blueprint, request, jsonify
 from app.middleware.error_handlers import APIError
 from app.jobs_ingest.pipeline import SNAPSHOT_PATH
 from app.jobs_ingest.categories import CATEGORIES
+from app.jobs_ingest.trending import TRENDING_FIELDS, trending_counts, field_matches
 
 jobs_board_bp = Blueprint("jobs_board", __name__)
 
@@ -75,6 +76,12 @@ def list_jobs():
     if search:
         jobs = [j for j in jobs if search in j["title"].lower() or search in j["company_name"].lower()]
 
+    trending_id = request.args.get("trending")
+    if trending_id:
+        if trending_id not in {f["id"] for f in TRENDING_FIELDS}:
+            raise APIError(f"trending must be one of {[f['id'] for f in TRENDING_FIELDS]}", 400)
+        jobs = [j for j in jobs if field_matches(j, trending_id)]
+
     # Newest first — posted_at is ISO-ish across every source (normalized
     # at ingest time, see sources.py's _unix_to_iso). str() defensively:
     # an old snapshot written before that normalization existed, or a
@@ -118,6 +125,17 @@ def jobs_meta():
 @jobs_board_bp.route("/categories", methods=["GET"])
 def jobs_categories():
     return jsonify({"success": True, "data": CATEGORIES}), 200
+
+
+@jobs_board_bp.route("/trending", methods=["GET"])
+def jobs_trending():
+    """Real, cited labor-market growth data (see trending.py) plus a live
+    count of how many currently-verified jobs in this pipeline's own
+    inventory match each field right now."""
+    data = _load_snapshot()
+    counts = trending_counts(data.get("jobs", []))
+    fields = [{**f, "live_count": counts.get(f["id"], 0)} for f in TRENDING_FIELDS]
+    return jsonify({"success": True, "data": fields}), 200
 
 
 def _clean_pagination(default_limit=30, max_limit=100):

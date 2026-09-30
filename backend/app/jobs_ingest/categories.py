@@ -11,7 +11,7 @@ bolted together.
 """
 
 CATEGORIES = [
-    "Engineering", "Design", "Product", "Data & Analytics", "Sales",
+    "Engineering", "Cybersecurity", "Design", "Product", "Data & Analytics", "Sales",
     "Marketing", "Customer Support", "Operations", "Finance", "People & HR",
 ]
 
@@ -20,8 +20,16 @@ CATEGORIES = [
 # match a broader bucket. Lowercased comparison throughout.
 _RULES = [
     ("Customer Support", ["customer support", "customer success", "support engineer", "technical support", "help desk"]),
+    # Split out from Engineering (2026-09-30) — real labor-market data (WEF
+    # Future of Jobs 2025, BLS 2024-2034 projections) shows security roles
+    # growing as their own distinct fast-growing field, not a subset of
+    # general engineering demand; lumping "security engineer" into
+    # Engineering's bucket was hiding that signal. Checked before
+    # Engineering's own broader "engineer" match for the same reason
+    # "customer support" is checked before a term that would also match it.
+    ("Cybersecurity", ["security engineer", "security analyst", "cybersecurity", "infosec", "penetration test", "application security", "cloud security", "security operations"]),
     ("Data & Analytics", ["data scientist", "data engineer", "data analyst", "analytics", "machine learning", "ml engineer", "ai engineer", "research scientist"]),
-    ("Engineering", ["engineer", "developer", "swe", "software", "backend", "frontend", "full stack", "devops", "infrastructure", "security engineer", "qa", "sre"]),
+    ("Engineering", ["engineer", "developer", "swe", "software", "backend", "frontend", "full stack", "devops", "infrastructure", "qa", "sre"]),
     ("Design", ["designer", "design", "ux", "ui researcher", "product design"]),
     ("Product", ["product manager", "product owner", "product lead"]),
     ("Sales", ["sales", "account executive", "account manager", "business development", "sdr", "bdr", "partnerships"]),
@@ -38,6 +46,7 @@ _RULES = [
 # every job, including these fallback results).
 REMOTIVE_CATEGORY_FALLBACK = {
     "Engineering": "software-dev",
+    "Cybersecurity": "software-dev",
     "Design": "design",
     "Product": "product",
     "Data & Analytics": "data",
