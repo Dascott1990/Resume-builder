@@ -85,6 +85,17 @@ function Care({ size }) {
   );
 }
 
+// The Profile nav item's own icon — distinct from BellArt (notifications),
+// which it used to borrow before the nav grew a real fourth destination.
+function PersonArt({ size }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48">
+      <circle cx="24" cy="16" r="8" fill="#3f3f46" />
+      <path d="M8 40c0-9 7-15 16-15s16 6 16 15Z" fill="#52525b" />
+    </svg>
+  );
+}
+
 const AMBER_TILE = "linear-gradient(155deg,#fde8c8,#fbd9a0)";
 const EMERALD_TILE = "linear-gradient(155deg,#d7f5e6,#b8ecd2)";
 const GRAY_TILE = "linear-gradient(155deg,#e4e4e7,#cfcfd4)";
@@ -97,4 +108,5 @@ export const DASHBOARD_ART = {
   bell: { bg: AMBER_TILE, Svg: BellArt },
   handset: { bg: EMERALD_TILE, Svg: Handset },
   care: { bg: AMBER_TILE, Svg: Care },
+  profile: { bg: GRAY_TILE, Svg: PersonArt },
 };

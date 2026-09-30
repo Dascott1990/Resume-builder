@@ -45,6 +45,20 @@ class User(db.Model):
     name = db.Column(db.String(150), nullable=True)
     avatar_emoji = db.Column(db.String(16), nullable=True)
     status_line = db.Column(db.String(80), nullable=True)
+    # Optional — same "signup never asks, only the profile screen does"
+    # rule as everything else in this block.
+    phone = db.Column(db.String(40), nullable=True)
+    # A real profile photo — same physical storage choice (Postgres
+    # LargeBinary, not S3) this app already uses for Media, for consistency.
+    # Takes precedence over avatar_emoji, which in turn takes precedence
+    # over the initials-and-tint fallback (see shared/artisanDisplay.js's
+    # tintFor/initialsOf). avatar_photo_version is bumped on every upload/
+    # removal — the avatar-photo route is served with a long max_age, only
+    # safe because the frontend appends this as a ?v= query param, so a
+    # replaced photo is never served stale from the browser's own cache.
+    avatar_photo_data = db.Column(db.LargeBinary, nullable=True)
+    avatar_photo_mime_type = db.Column(db.String(100), nullable=True)
+    avatar_photo_version = db.Column(db.Integer, nullable=True)
     # A real account isn't "created," it's "claimed" — email_verified stays
     # False (and login is refused) until the address is proven reachable.
     # Without this, signup is just a form that hands out session tokens to
@@ -75,7 +89,9 @@ class User(db.Model):
     def to_dict(self):
         return {
             "id": self.id, "email": self.email, "name": self.name, "avatar_emoji": self.avatar_emoji,
-            "status_line": self.status_line,
+            "status_line": self.status_line, "phone": self.phone,
+            "has_avatar_photo": self.avatar_photo_data is not None,
+            "avatar_photo_version": self.avatar_photo_version or 0,
             "email_verified": bool(self.email_verified), "is_admin": bool(self.is_admin),
         }
 

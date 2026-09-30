@@ -31,7 +31,8 @@ const dynamicScreen = (loader) => dynamic(loader, { ssr: false, loading: () => <
 // not a fictional example to hand-edit) — removed rather than kept
 // around unused.
 const Resume = dynamicScreen(() => import("../components/premium/guest"));
-const Settings = dynamicScreen(() => import("../components/premium/Settings"));
+const Profile = dynamicScreen(() => import("../components/premium/Profile"));
+const PersonalProfile = dynamicScreen(() => import("../components/premium/PersonalProfile"));
 const Login = dynamicScreen(() => import("../components/premium/auth/Login"));
 const Signup = dynamicScreen(() => import("../components/premium/auth/Signup"));
 const CVScan = dynamicScreen(() => import("../components/premium/CVScan"));
@@ -87,7 +88,7 @@ const ENTERED_KEY = "noqeev_entered_app";
 // sensible landing spot for those two).
 const VIEW_KEY = "noqeev_last_view";
 const RESTORABLE_VIEWS = new Set([
-  "dashboard", "resume", "cvscan", "jobtracker", "news", "apply", "settings", "brand-workspace",
+  "dashboard", "resume", "cvscan", "jobtracker", "news", "apply", "profile", "personal-profile", "brand-workspace",
 ]);
 
 // The branding workspace has no account to restore into — RESTORABLE_VIEWS
@@ -313,7 +314,8 @@ export default function Home() {
             else if (id === "jobtracker") setView("jobtracker");
             else if (id === "news") setView("news");
             else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); setView("apply"); }
-            else if (id === "settings") setView("settings");
+            else if (id === "profile") setView("profile");
+            else if (id === "personal-profile") setView("personal-profile");
           }}
         />
       </ErrorBoundary>
@@ -384,13 +386,28 @@ export default function Home() {
     );
   }
 
-  if (view === "settings") {
+  if (view === "profile") {
     return (
       <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
-        <Settings
+        <Profile
           onClose={() => setView("dashboard")}
           onOpenLogin={() => setView("login")}
+          onOpenPersonalProfile={() => setView("personal-profile")}
+          go={(id, opts) => {
+            if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes });
+            else if (id === "scan") setView("cvscan");
+            else if (id === "jobtracker") setView("jobtracker");
+            else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); setView("apply"); }
+          }}
         />
+      </ErrorBoundary>
+    );
+  }
+
+  if (view === "personal-profile") {
+    return (
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+        <PersonalProfile onClose={() => setView("profile")} />
       </ErrorBoundary>
     );
   }

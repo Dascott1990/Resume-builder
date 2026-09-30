@@ -11,6 +11,9 @@ GET  /api/v1/auth/me
 PATCH /api/v1/auth/me
 DELETE /api/v1/auth/me
 POST /api/v1/auth/change-password
+POST   /api/v1/auth/avatar-photo        — upload a real profile photo
+DELETE /api/v1/auth/avatar-photo        — remove it, fall back to avatar_emoji/initials
+GET    /api/v1/auth/avatar-photo/<id>   — public, unguessable-id-gated, same as Media's own routes
 
 Entirely optional layer on top of the anonymous guest_id system already
 used everywhere else — nothing else in the app requires any of this.
@@ -22,19 +25,21 @@ Both flows use single-use, time-limited tokens and never reveal whether a
 given email actually has an account — that's a free enumeration oracle
 otherwise.
 """
+import io
 import os
 import re
 import secrets
 import hashlib
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from app import db, limiter
 from app.models import (
     User, Media, JobApplication, CareerProfile, ApplicationRun,
     PushSubscription, BrandNews, BrandTask,
 )
 from app.middleware.error_handlers import APIError
+from app.utils.uploads import validate_upload
 from app.utils.auth import (
     hash_password, verify_password, issue_token, get_scope, require_customer_scope,
     break_glass_configured, verify_break_glass_credentials, issue_break_glass_token,
@@ -462,8 +467,55 @@ def update_me():
     if "status_line" in body:
         status_line = (body["status_line"] or "").strip()[:80]
         user.status_line = status_line or None
+    if "phone" in body:
+        phone = (body["phone"] or "").strip()[:40]
+        user.phone = phone or None
     db.session.commit()
     return jsonify({"success": True, "data": user.to_dict()}), 200
+
+
+MAX_AVATAR_PHOTO_BYTES = 5 * 1024 * 1024
+
+
+@auth_bp.route("/avatar-photo", methods=["POST"])
+def upload_avatar_photo():
+    user_id = require_customer_scope(request)
+    user = db.session.get(User, user_id)
+    if not user:
+        raise APIError("Not signed in", 401)
+
+    file = request.files.get("file")
+    data = validate_upload(file, allowed_mimetypes=("image/",), max_bytes=MAX_AVATAR_PHOTO_BYTES)
+
+    user.avatar_photo_data = data
+    user.avatar_photo_mime_type = file.mimetype
+    user.avatar_photo_version = (user.avatar_photo_version or 0) + 1
+    db.session.commit()
+    return jsonify({"success": True, "data": user.to_dict()}), 200
+
+
+@auth_bp.route("/avatar-photo", methods=["DELETE"])
+def delete_avatar_photo():
+    user_id = require_customer_scope(request)
+    user = db.session.get(User, user_id)
+    if not user:
+        raise APIError("Not signed in", 401)
+    user.avatar_photo_data = None
+    user.avatar_photo_mime_type = None
+    user.avatar_photo_version = (user.avatar_photo_version or 0) + 1
+    db.session.commit()
+    return jsonify({"success": True, "data": user.to_dict()}), 200
+
+
+@auth_bp.route("/avatar-photo/<user_id>", methods=["GET"])
+def get_avatar_photo(user_id):
+    # Public, no auth — same call already made for Media/avatar-photo
+    # routes elsewhere in this app: the id is an unguessable random hex
+    # string, and this is what a plain <img src> tag points straight at.
+    user = db.session.get(User, user_id)
+    if not user or not user.avatar_photo_data:
+        raise APIError("Avatar photo not found", 404)
+    return send_file(io.BytesIO(user.avatar_photo_data), mimetype=user.avatar_photo_mime_type, max_age=3600)
 
 
 @auth_bp.route("/change-password", methods=["POST"])

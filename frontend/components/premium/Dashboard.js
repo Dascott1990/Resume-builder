@@ -1,32 +1,36 @@
 "use client";
 /**
  * Dashboard.js — the app's real home base, not a grid of tiles pretending
- * to be one. Modeled on how banking apps and job boards actually structure
- * a home screen: one dominant primary action (the "balance card" — here,
- * building a resume), a quick-glance stats row, secondary quick actions,
- * and a recent-activity feed — not four equally-weighted cards with no
- * hierarchy between them.
+ * to be one. One dominant primary action (dynamic: "Continue" the most
+ * recently saved resume once one exists, "Build a resume" before that), a
+ * quick-glance stats row, a demoted tools row underneath it, and a
+ * recent-activity feed.
  *
- * Desktop gets a persistent left rail (the way every real SaaS dashboard —
- * Stripe, Notion, a bank's own web app — keeps navigation always visible
- * instead of behind a menu). Mobile gets a fixed bottom nav, the same
- * shared component and visual language Artisans.js already uses, so the
- * whole app's navigation vocabulary stays one thing, not several.
+ * Nav is four items everywhere now — Home, Jobs, Applications, Profile —
+ * the same set on the desktop rail and the mobile bottom bar, replacing
+ * the old Resume/Scan/Tracker/Artisans split (Artisan is gone from this
+ * app entirely; Resume/Scan move into the Quick Actions row instead of
+ * competing for a permanent nav slot).
+ *
+ * Every icon tile across this screen (nav, hero card, stat cards, quick
+ * actions, notifications) shares ONE neutral system-accent treatment now
+ * instead of each having its own colored gradient — see ArtTile below.
+ * Semantic color (success/destructive) is untouched; it means something
+ * specific and stays separate from decoration.
  */
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Settings as SettingsIcon,
   ArrowRight, ChevronRight, X, Clock,
-  MessageCircle, Wrench, Inbox, ShieldCheck, Star,
-  MoreVertical, Trash2, StickyNote, Check, AlertTriangle,
+  Inbox, Check, AlertTriangle,
+  MoreVertical, Trash2, StickyNote,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Btn } from "./guest/components/primitives";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
-import { tintFor, initialsOf, avatarPhotoUrl } from "./shared/artisanDisplay";
+import { tintFor, initialsOf } from "./shared/artisanDisplay";
 import Emoji3D from "./shared/Emoji3D";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
@@ -42,60 +46,42 @@ import { SparkleBackground } from "./shared/SparkleBackground";
 import { Skeleton } from "@/components/ui/skeleton";
 import Logo from "./Logo";
 
-// A small colored-tile illustration wherever an icon represents real
-// content (a feature, a stat, a notification) — see shared/quickActionArt.js
-// and shared/dashboardArt.js for the actual drawings. Pure UI chrome
-// (chevrons, close buttons, overflow-menu dots) stays as plain lucide
-// icons on purpose: illustrating a ">" would make it read as content
-// instead of as "this is tappable."
+// One neutral system-accent tile behind every illustrated icon on this
+// screen — deliberately ignores each art entry's own `bg` (a colored
+// gradient per icon, the "rainbow tiles" the redesign moved away from).
+// The icon glyph itself still comes from shared/dashboardArt.js /
+// quickActionArt.js; only the surrounding tile color is unified here.
 function ArtTile({ art, size = 32, iconSize }) {
-  const { bg, Svg } = art;
+  const { Svg } = art;
   return (
-    <span className="flex shrink-0 items-center justify-center rounded-[28%]" style={{ width: size, height: size, background: bg }}>
+    <span
+      className="flex shrink-0 items-center justify-center rounded-[28%] bg-primary/10"
+      style={{ width: size, height: size }}
+    >
       <Svg size={iconSize || Math.round(size * 0.56)} />
     </span>
   );
 }
 
-// Wraps one of the illustrated tiles above into the `<item.Icon
-// className={...}/>` shape BottomNav.js (a shared component, also used by
-// Artisans.js with its own plain lucide icons) actually calls — this way
-// MOBILE_NAV_ITEMS below gets illustrated icons without BottomNav itself
-// needing to know or care; className (BottomNav's own active/inactive
-// sizing) is accepted so the row still gets its slot, but this tile's own
-// colors and size are decided here, not by that className.
 function navArt(art) {
   return function NavArtIcon() {
     return <ArtTile art={art} size={26} iconSize={15} />;
   };
 }
 
-// Desktop sidebar — the full set. Room isn't the constraint there the way
-// it is in a floating mobile bar, so every top-level screen stays one
-// click away.
+// Same four everywhere — desktop rail and mobile bottom bar both show the
+// app's real top-level structure now instead of two different subsets.
 const NAV_ITEMS = [
   { id: "home", art: DASHBOARD_ART.home, label: "Home" },
-  { id: "resume", art: DASHBOARD_ART.resume, label: "Resume" },
-  { id: "scan", art: QUICK_ACTION_ART.scan, label: "Scan" },
-  { id: "jobtracker", art: QUICK_ACTION_ART.tracker, label: "Tracker" },
-  { id: "artisans", art: QUICK_ACTION_ART.artisans, label: "Artisans" },
+  { id: "apply", art: QUICK_ACTION_ART.apply, label: "Jobs" },
+  { id: "jobtracker", art: QUICK_ACTION_ART.tracker, label: "Applications" },
+  { id: "profile", art: DASHBOARD_ART.profile, label: "Profile" },
 ];
-
-// Mobile bottom nav — three now: Home, News, and Artisans. Resume/Scan/
-// Tracker already have their own big, labeled tiles right on Home (the
-// primary "Build a resume" card plus the Quick Actions row) — pinning them
-// a second time in the one bar that's on screen for every single mobile
-// screen just adds noise without adding a new way to reach anything.
-// Artisans is the exception: it's the app's second product, not a feature
-// of the resume side, so it earns its own permanent spot here rather than
-// living only in the Quick Actions row underneath the resume-building
-// content. "News" opens its own screen (see News.js) — the "What's new"/
-// "Worth a look" content used to live inline on Home, split out so it has
-// room to grow into a bigger feature on its own.
 const MOBILE_NAV_ITEMS = [
   { id: "home", Icon: navArt(DASHBOARD_ART.home), label: "Home" },
-  { id: "news", Icon: navArt(DASHBOARD_ART.news), label: "News" },
-  { id: "artisans", Icon: navArt(QUICK_ACTION_ART.artisans), label: "Artisans" },
+  { id: "apply", Icon: navArt(QUICK_ACTION_ART.apply), label: "Jobs" },
+  { id: "jobtracker", Icon: navArt(QUICK_ACTION_ART.tracker), label: "Applications" },
+  { id: "profile", Icon: navArt(DASHBOARD_ART.profile), label: "Profile" },
 ];
 
 const STATUS_META = {
@@ -104,15 +90,7 @@ const STATUS_META = {
   offer: { label: "Offer", className: "text-success" },
   rejected: { label: "Rejected", className: "text-destructive" },
 };
-// Same 4 statuses JobTracker.js's own STATUSES array uses (this is that
-// same backend enum — VALID_STATUSES in api/applications.py) — just this
-// screen's own compact order for the per-row "mark status" menu.
 const STATUS_ORDER = ["applied", "interview", "offer", "rejected"];
-
-// Each quick action now gets its own small illustrated tile (see shared/
-// quickActionArt.js) — the same colored-illustration language
-// Artisans.js's category shelves use — rather than one shared neutral
-// treatment told apart only by glyph + label.
 
 function timeAgo(iso) {
   if (!iso) return "";
@@ -122,10 +100,6 @@ function timeAgo(iso) {
   return `${days}d ago`;
 }
 
-// date_applied is a plain YYYY-MM-DD string (see JobApplication model —
-// free text from the user, not a real deadline system), not an ISO
-// timestamp like the other dates on this screen, so it needs its own
-// parse instead of reusing timeAgo.
 function daysSinceApplied(dateStr) {
   if (!dateStr) return null;
   const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
@@ -146,9 +120,6 @@ function greeting() {
 function StatCard({ label, value, art, loading, needsAttention }) {
   return (
     <div className="glass-surface relative flex flex-col gap-2 rounded-2xl p-4">
-      {/* Same red-means-action-needed signal as the header bell badge —
-          ties this stat to the follow-up nudge banner above instead of
-          the two existing as two separately-discovered facts. */}
       {needsAttention && <span className="absolute top-3 right-3 size-2 rounded-full bg-destructive" />}
       <ArtTile art={art} size={28} iconSize={16} />
       {loading ? <Skeleton className="h-7 w-10" /> : <span className="text-2xl font-bold text-foreground">{value}</span>}
@@ -157,28 +128,18 @@ function StatCard({ label, value, art, loading, needsAttention }) {
   );
 }
 
-// A compact circular-icon row (Cash App/Venmo's own "quick actions" shape),
-// not a 2x2 grid of square cards — those were competing with the primary
-// "Build a resume" CTA for the same big-card visual weight real content
-// (stats, recent activity) should get instead. This is shortcuts, not
-// content, and industry dashboards size it accordingly: small, scannable,
-// out of the way in one line. A quiet bg-card/60 tile with no border gives
-// each one a single tappable boundary without going back to the heavier
-// bordered-card look; min-h-[2lh] on the label reserves the same two-
-// line-height block whether that label wraps once or twice, so all four
-// tiles end at the same bottom edge instead of a crooked row.
+// Demoted below the primary card and the stats row — shortcuts, not
+// content, sized and weighted accordingly (Cash App/Venmo's own "quick
+// actions" shape). Artisans is gone; three tiles now, not four.
 function QuickAction({ art, label, onClick }) {
-  const { bg, Svg } = QUICK_ACTION_ART[art];
+  const { Svg } = QUICK_ACTION_ART[art];
   return (
     <motion.button
       whileTap={{ scale: 0.96 }}
       onClick={onClick}
       className="flex flex-col items-center gap-1.5 rounded-2xl border-none bg-card/60 p-3 [-webkit-tap-highlight-color:transparent]"
     >
-      <span
-        className="flex size-12 items-center justify-center rounded-2xl shadow-[0_8px_18px_-10px_rgba(0,0,0,0.3)]"
-        style={{ background: bg }}
-      >
+      <span className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 shadow-[0_8px_18px_-10px_rgba(0,0,0,0.3)]">
         <Svg size={24} />
       </span>
       <span className="flex min-h-[2lh] items-start justify-center text-center text-[11px] leading-tight font-semibold text-foreground">
@@ -188,10 +149,6 @@ function QuickAction({ art, label, onClick }) {
   );
 }
 
-// Real PATCH /api/v1/applications/<id> (same route JobTracker.js's own
-// edit form uses — see api/applications.py), just a small dialog instead
-// of the full Job Tracker screen, so adding a quick note from the
-// dashboard doesn't require leaving it.
 function AddNoteDialog({ app, open, onClose, onSaved }) {
   const [notes, setNotes] = useState(app?.notes || "");
   const [saving, setSaving] = useState(false);
@@ -231,11 +188,8 @@ function AddNoteDialog({ app, open, onClose, onSaved }) {
   );
 }
 
-// Apply with AI's own item shape (kind: "apply_run") carries a whole `run`
-// record, not the per-thread fields messages use — this is what turns
-// that into the same {icon, title, subtitle} shape the dialog below
-// renders every item as, so one finished automation reads as clearly as
-// one unread message rather than a raw status string.
+// Apply with AI's own item shape — the only kind useUnreadNotifications
+// surfaces now that the artisan-message side of that hook is gone.
 function applyRunNotifCopy(run) {
   let company = "that application";
   try { company = new URL(run.target_url).hostname.replace(/^www\./, ""); } catch { /* keep the fallback */ }
@@ -248,12 +202,6 @@ function applyRunNotifCopy(run) {
   return map[run.status] || map.failed;
 }
 
-// The actual notification list — each item is either its own message
-// thread or a finished Apply with AI run (see useUnreadNotifications), so
-// a click opens whatever THAT item is actually about (a customer's own
-// request, a job in an artisan's own dashboard, or that specific run's
-// result), never a single guessed destination regardless of which item
-// was tapped.
 function NotificationsDialog({ open, onClose, items, onOpenItem }) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -271,50 +219,21 @@ function NotificationsDialog({ open, onClose, items, onOpenItem }) {
             </div>
           ) : (
             items.map((it) => {
-              if (it.kind === "apply_run") {
-                const { Icon, title, subtitle } = applyRunNotifCopy(it.run);
-                return (
-                  <button
-                    key={it.run.id}
-                    type="button"
-                    onClick={() => onOpenItem(it)}
-                    className="flex w-full items-start gap-3 border-b border-border p-4 text-left last:border-b-0 hover:bg-muted/50"
-                  >
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
-                      <Icon className="size-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="m-0 text-[13px] font-bold text-foreground">{title}</p>
-                      <p className="m-0 mt-0.5 truncate text-[12px] text-muted-foreground">{subtitle}</p>
-                    </div>
-                  </button>
-                );
-              }
+              const { Icon, title, subtitle } = applyRunNotifCopy(it.run);
               return (
                 <button
-                  key={it.job_request_id}
+                  key={it.run.id}
                   type="button"
                   onClick={() => onOpenItem(it)}
                   className="flex w-full items-start gap-3 border-b border-border p-4 text-left last:border-b-0 hover:bg-muted/50"
                 >
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
-                    {it.viewer_role === "artisan" ? <Wrench className="size-4" /> : <MessageCircle className="size-4" />}
+                    <Icon className="size-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="m-0 text-[13px] font-bold text-foreground">
-                      {it.viewer_role === "artisan"
-                        ? `${it.other_name} messaged you about a ${it.trade} job`
-                        : `${it.other_name} messaged you about your ${it.trade} request`}
-                    </p>
-                    {it.preview && (
-                      <p className="m-0 mt-0.5 truncate text-[12px] text-muted-foreground">{it.preview}</p>
-                    )}
+                    <p className="m-0 text-[13px] font-bold text-foreground">{title}</p>
+                    <p className="m-0 mt-0.5 truncate text-[12px] text-muted-foreground">{subtitle}</p>
                   </div>
-                  {it.unread_count > 1 && (
-                    <span className="mt-0.5 flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10.5px] font-bold text-primary-foreground">
-                      {it.unread_count}
-                    </span>
-                  )}
                 </button>
               );
             })
@@ -338,106 +257,58 @@ function SectionHeader({ children, onViewAll, viewAllLabel = "View all" }) {
   );
 }
 
-// One card per artisan — avatar, name, trade, and whichever single trust
-// signal is actually true for them (verified badge beats a rating, a
-// rating beats nothing, nothing shown at all reads as "new" without
-// needing its own literal label). Same avatar precedence ArtisanProfile.js/
-// ArtisanDashboard.js already use (real photo, then emoji, then initials)
-// — this card was built to match those, not invent a fourth version of
-// that logic. Tapping any card just opens the directory (go("artisans")),
-// not that specific artisan's own profile — Dashboard.js has no way to
-// deep-link Artisans.js's internal view-state to one listing today, and
-// adding that plumbing for a "see who's here" nudge is more than this
-// earns; the real destination is one tap further either way.
-function ArtisanSpotlightCard({ a, onClick }) {
-  const verified = a.verification_status === "verified";
-  const rated = a.rating_count > 0;
+// The avatar next to the greeting — tapping it opens Personal Profile
+// (name/photo/phone/account type/email), a level below the Profile nav
+// tab's own broader account hub.
+function GreetingAvatar({ user, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="glass-surface flex w-[132px] shrink-0 flex-col items-center gap-2 rounded-2xl p-3.5 text-center [-webkit-tap-highlight-color:transparent]"
+      aria-label="Personal profile"
+      className={`flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border [-webkit-tap-highlight-color:transparent] ${user?.avatar_emoji ? "" : "font-mono text-xs font-bold"} ${tintFor(user?.name || user?.email || "?")}`}
     >
-      <div className={`flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full border ${a.has_avatar_photo || a.avatar_emoji ? "" : "font-mono text-sm font-bold"} ${tintFor(a.name || "?")}`}>
-        {a.has_avatar_photo ? (
-          <img src={avatarPhotoUrl(a.id, a.avatar_photo_version)} alt="" className="size-full object-cover" />
-        ) : a.avatar_emoji ? (
-          <Emoji3D emoji={a.avatar_emoji} size={48} />
-        ) : (
-          initialsOf(a.name)
-        )}
-      </div>
-      <div className="min-w-0 w-full">
-        <p className="m-0 truncate text-[12.5px] font-bold text-foreground">{a.name}</p>
-        <p className="m-0 truncate text-[11px] text-muted-foreground">{a.trade}</p>
-      </div>
-      {verified ? (
-        <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary-text">
-          <ShieldCheck className="size-3" /> Verified
-        </span>
-      ) : rated ? (
-        <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary-text">
-          <Star className="size-3 fill-primary text-primary" /> {a.rating_avg.toFixed(1)}
-        </span>
-      ) : (
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">New</span>
-      )}
+      {user?.avatar_emoji ? <Emoji3D emoji={user.avatar_emoji} size={36} /> : initialsOf(user?.name || user?.email || "?")}
     </button>
   );
 }
 
-// Nothing here is user-account data — it's a live snippet of the
-// marketplace itself, the same reason ArtisanTeaser.js exists on the
-// landing page: most visitors never scroll to "Find an Artisan" on their
-// own, so surfacing a few real listings right on Home is what actually
-// gets it discovered. Ranked verified-first, then by rating (see
-// Dashboard's own spotlightArtisans effect) — genuinely "top," not just
-// "whoever signed up first." Renders nothing at all if the fetch comes
-// back empty (a quota-exceeded database, a brand-new instance with no
-// listings yet) rather than an empty-state placeholder for a section
-// nobody asked to see promoted this hard.
-function ArtisanSpotlight({ artisans, go }) {
-  if (!artisans?.length) return null;
-  return (
-    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.12 }} className="mb-6">
-      <SectionHeader onViewAll={() => go("artisans")}>Top artisans on Noqeev</SectionHeader>
-      <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {artisans.map((a) => (
-          <ArtisanSpotlightCard key={a.id} a={a} onClick={() => go("artisans")} />
-        ))}
-      </div>
-    </motion.div>
-  );
-}
-
-function DashboardContent({ user, statsLoading, savedResumes, applications, spotlightArtisans, go, onDeleteResume, onDeleteApplication, onUpdateApplicationStatus, onAddNote }) {
+function DashboardContent({ user, statsLoading, savedResumes, applications, go, onDeleteResume, onDeleteApplication, onUpdateApplicationStatus, onAddNote, isDesktop, onOpenPersonalProfile }) {
   const interviews = applications.filter((a) => a.status === "interview").length;
   const recentResumes = savedResumes.slice(0, 3);
   const recentApps = applications.slice(0, 3);
   const followupCount = applications.filter((a) => a.needs_followup).length;
+  const latestResume = savedResumes[0];
 
-  // max-w-3xl (768px) was sized for mobile, where it never binds — a
-  // viewport has to be >=768px wide before this cap even matters, and the
-  // desktop layout's isDesktop breakpoint doesn't kick in until 1024px
-  // (see useViewport.js), leaving that first mobile-width guess as the
-  // desktop content width too: a widening gap of unused space next to the
-  // 256px sidebar as the window gets wider. lg:max-w-4xl only changes the
-  // desktop case (mobile never reaches the lg breakpoint) — still a real
-  // reading-width cap on ultra-wide monitors, just one actually sized for
-  // a desktop, not a phone.
-  return (
-    <div className="mx-auto w-full max-w-3xl px-5 py-6 sm:px-8 sm:py-8 lg:max-w-4xl">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mb-6">
-        <p className="m-0 text-[13px] font-semibold text-muted-foreground">
+  const greetingRow = (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="m-0 truncate text-[13px] font-semibold text-muted-foreground">
           {greeting()}{user ? `, ${user.name || user.email.split("@")[0]}` : ""}
         </p>
         <h1 className="m-0 text-[26px] font-bold text-foreground">Let's get you hired.</h1>
-      </motion.div>
+      </div>
+      {user && <GreetingAvatar user={user} onClick={onOpenPersonalProfile} />}
+    </div>
+  );
 
-      {/* Secondary, dismissable-by-nature (it only appears when true) nudge —
-          sits above the one dominant action below, not competing with it,
-          since there's nothing to build here, just a suggestion to check in
-          on applications that have gone quiet for a week. */}
+  return (
+    <div className="mx-auto w-full max-w-3xl px-5 py-6 sm:px-8 sm:py-8 lg:max-w-4xl">
+      {isDesktop ? (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+          className="dark relative mb-6 flex h-[130px] items-center overflow-hidden rounded-3xl"
+        >
+          <img src="/dashboard/greeting-banner.jpg" alt="" className="absolute inset-0 h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/10" />
+          <div className="relative w-full px-6">{greetingRow}</div>
+        </motion.div>
+      ) : (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mb-6">
+          {greetingRow}
+        </motion.div>
+      )}
+
       {followupCount > 0 && (
         <motion.button
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.02 }}
@@ -453,26 +324,24 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, spot
         </motion.button>
       )}
 
-      {/* The one dominant action — everything else on this screen supports
-          it. Weight comes from size, position, and typography, not from
-          filling the whole card edge-to-edge with saturated brand color —
-          a full-bleed vivid-amber surface this large reads as a banner ad,
-          not a premium "balance card." Same glass-surface neutral body
-          StatCard uses below; the accent is confined to the icon badge
-          (the same small IconTile-style squircle used everywhere else in
-          the app) and the trailing arrow, exactly the "one accent, used
-          sparingly" rule the Quick Actions row below now also follows. */}
+      {/* Dynamic: once a resume exists, this is "continue the most recent
+          one" (a real, specific next action) instead of the same generic
+          prompt forever. */}
       <motion.button
         initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.05 }}
         whileTap={{ scale: 0.98 }}
-        onClick={() => go("resume")}
+        onClick={() => go("resume", latestResume ? { resumeId: latestResume.id } : undefined)}
         className="glass-surface mb-5 flex w-full items-center justify-between gap-4 rounded-3xl border-none p-6 text-left [-webkit-tap-highlight-color:transparent]"
       >
         <div className="flex min-w-0 items-center gap-3.5">
           <ArtTile art={DASHBOARD_ART.resume} size={44} iconSize={24} />
           <div className="min-w-0">
-            <p className="m-0 text-xl font-bold text-foreground">Build a resume</p>
-            <p className="m-0 text-[12px] text-muted-foreground">Tailored, ATS-ready in minutes</p>
+            <p className="m-0 truncate text-xl font-bold text-foreground">
+              {latestResume ? (latestResume.name || "Continue your resume") : "Build a resume"}
+            </p>
+            <p className="m-0 truncate text-[12px] text-muted-foreground">
+              {latestResume ? `Saved ${timeAgo(latestResume.generated_at)} · Tailored, ATS-ready` : "Tailored, ATS-ready in minutes"}
+            </p>
           </div>
         </div>
         <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10">
@@ -480,59 +349,14 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, spot
         </div>
       </motion.button>
 
-      {/* Right under the primary action, one uncaptioned horizontal row —
-          same shape/position Cash App and Venmo use for their own quick
-          actions under the balance. Always shown regardless of whether
-          there's any data yet: these are navigation shortcuts, not
-          content, so "nothing tracked yet" doesn't apply to them the way
-          it does to the stats/activity below. Each gets its own colored
-          illustrated tile now (see shared/quickActionArt.js) rather than
-          one shared neutral treatment. */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }} className="mb-6">
-        {/* grid grid-cols-4, not flex — a flex row's leftover space
-            distributes unevenly between gaps; a 4-column grid gives every
-            tile the exact same width and every gap the exact same size,
-            same pattern as the stats row's own grid-cols-3 below. */}
-        <div className="grid grid-cols-4 gap-2 sm:gap-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <QuickAction art="apply" label="Auto Apply" onClick={() => go("apply")} />
           <QuickAction art="scan" label="CV Scan" onClick={() => go("scan")} />
           <QuickAction art="tracker" label="Tracker" onClick={() => go("jobtracker")} />
-          <QuickAction art="artisans" label="Artisans" onClick={() => go("artisans")} />
         </div>
-        {/* A second, additive door into the same "hire an artisan" side —
-            not a replacement of the full marketplace above, which stays
-            the default for everyone. Points at ArtisanSeniorHelp.js's
-            voice/photo/checklist flow instead of the browse-and-filter
-            directory. A real card, not a footnote link — the previous
-            12px text link under the grid was easy to miss entirely, and
-            the actual audience for this (often an adult child finding it
-            for a parent, not someone hunting through Quick Actions) needs
-            it to read as a real option, not a hidden extra. Still sized
-            and weighted below the primary "Build a resume" card, which
-            stays the default for most visitors. */}
-        <button
-          type="button"
-          onClick={() => go("artisan-help")}
-          className="mt-2.5 flex w-full items-center gap-3 rounded-2xl border border-border bg-muted/60 p-3.5 text-left [-webkit-tap-highlight-color:transparent]"
-        >
-          <ArtTile art={DASHBOARD_ART.care} size={38} iconSize={21} />
-          <div className="min-w-0 flex-1">
-            <p className="m-0 text-[12.5px] font-bold leading-tight text-foreground">Booking for a parent or grandparent?</p>
-            <p className="m-0 mt-0.5 text-[10.5px] text-muted-foreground">Try our simple mode. voice, photo, one call</p>
-          </div>
-          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-        </button>
       </motion.div>
 
-      <ArtisanSpotlight artisans={spotlightArtisans} go={go} />
-
-      {/* Stats, recent resumes, and recent applications below all share one
-          rule now: a brand-new visitor with nothing tracked anywhere sees
-          NONE of these sections, not an empty "Nothing yet" placeholder
-          for each — three dashed boxes in a row reads like a scoreboard
-          stuck at zero, not an invitation. The moment there's real data
-          (even just one saved resume), the section it belongs to appears
-          on its own. */}
       {(statsLoading || savedResumes.length > 0 || applications.length > 0) && (
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }} className="mb-6">
           {statsLoading ? (
@@ -551,13 +375,6 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, spot
         </motion.div>
       )}
 
-      {/* No loading skeleton here (or on Recent applications below) —
-          unlike the stats row above, these two sections might resolve to
-          nothing at all, and a skeleton promises content that's coming.
-          A skeleton that then just vanishes (because there was nothing to
-          show) reads as broken, not as "still loading" — the same silent-
-          pop-in-when-ready treatment "What's new"/"Worth a look" already
-          use below, now applied consistently instead of only there. */}
       {recentResumes.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }} className="mb-6">
           <SectionHeader onViewAll={() => go("resume", { viewAllResumes: true })}>Recent resumes</SectionHeader>
@@ -627,13 +444,6 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, spot
                             Mark as {STATUS_META[s].label}
                           </DropdownMenuItem>
                         ))}
-                        {/* Deferred, not called directly: Radix's DropdownMenu
-                            returns focus to its trigger as part of closing, and
-                            doing that in the same tick as mounting a Dialog
-                            steals the Dialog's own focus trap / pointer-events
-                            lock before it finishes opening — the dialog never
-                            becomes visible. Letting the menu's close finish
-                            first (a plain setTimeout 0) is the standard fix. */}
                         <DropdownMenuItem onSelect={() => setTimeout(() => onAddNote(a), 0)}>
                           <StickyNote className="size-3.5" /> {a.notes ? "Edit note" : "Add note"}
                         </DropdownMenuItem>
@@ -660,36 +470,8 @@ export default function Dashboard({ onClose, onNavigate }) {
   const [savedResumes, setSavedResumes] = useState([]);
   const [applications, setApplications] = useState([]);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [spotlightArtisans, setSpotlightArtisans] = useState([]);
-
-  // Public marketplace data, not scoped to the signed-in account the way
-  // resumes/applications above are — fetched once on mount regardless of
-  // auth state. Failing silently into an empty array (same as the
-  // applications fetch's own .catch(() => [])) is what lets
-  // ArtisanSpotlight below just not render at all rather than show a
-  // broken section, the same "no data, no empty-state placeholder" rule
-  // Recent resumes/Recent applications already follow.
-  useEffect(() => {
-    apiRequest("/api/v1/artisans?limit=12").then((items) => {
-      const ranked = [...(items || [])].sort((a, b) => {
-        const va = a.verification_status === "verified" ? 1 : 0;
-        const vb = b.verification_status === "verified" ? 1 : 0;
-        if (va !== vb) return vb - va;
-        const ra = a.rating_count > 0 ? a.rating_avg : 0;
-        const rb = b.rating_count > 0 ? b.rating_avg : 0;
-        if (ra !== rb) return rb - ra;
-        return 0; // already newest-first from the API for any remaining ties
-      });
-      setSpotlightArtisans(ranked.slice(0, 6));
-    }).catch(() => setSpotlightArtisans([]));
-  }, []);
 
   useEffect(() => {
-    // Signing out happens right on this screen (see the Sign out button
-    // below) — without keying this on the account, the dashboard kept
-    // showing the outgoing user's recent resumes and applications until
-    // the next full remount, even though the header had already flipped
-    // to "signed out."
     if (authLoading) return;
     setStatsLoading(true);
     setSavedResumes([]);
@@ -712,23 +494,8 @@ export default function Dashboard({ onClose, onNavigate }) {
     onNavigate(id, opts);
   };
 
-  // Each notification already knows what it's actually about (see
-  // useUnreadNotifications' viewer_role) — this is what replaced the
-  // earlier version's single blind guess ("go wherever has more unread"),
-  // which sent every click to the same screen regardless of which item
-  // someone actually meant to open.
-  const openNotification = (item) => {
-    setNotifOpen(false);
-    if (item.kind === "apply_run") { go("apply", { runId: item.run.id }); return; }
-    if (item.viewer_role === "artisan") go("artisans", { persona: "artisan" });
-    else go("artisans", { tab: "requests" });
-  };
+  const openNotification = (item) => go("apply", { runId: item.run.id });
 
-  // Real mutations (same endpoints JobTracker.js's own full screen uses —
-  // see api/resume.py's DELETE /<id> and api/applications.py's PATCH/DELETE
-  // /<id>), just reachable from a row's overflow menu here so a quick edit
-  // doesn't require leaving the dashboard. Optimistic locally, since
-  // there's nowhere richer to show a failure than the toast itself.
   const deleteResume = async (id) => {
     setSavedResumes((list) => list.filter((r) => r.id !== id));
     const ok = await apiDelete(id);
@@ -757,19 +524,16 @@ export default function Dashboard({ onClose, onNavigate }) {
     setApplications((list) => list.map((a) => (a.id === updated.id ? { ...a, ...updated } : a)));
   };
 
-  // Same real signal the follow-up nudge banner and the Applications stat
-  // dot already use — the header bell now shares it too, instead of the
-  // badge only ever reflecting unread messages and staying its normal
-  // color regardless of whether anything shown actually needs attention.
   const followupCount = applications.filter((a) => a.needs_followup).length;
   const needsAttention = unread.count > 0 || followupCount > 0;
 
   const contentProps = {
-    user, statsLoading, savedResumes, applications, spotlightArtisans, go,
+    user, statsLoading, savedResumes, applications, go, isDesktop,
     onDeleteResume: deleteResume,
     onDeleteApplication: deleteApplication,
     onUpdateApplicationStatus: updateApplicationStatus,
     onAddNote: setNoteApp,
+    onOpenPersonalProfile: () => go("personal-profile"),
   };
 
   if (isDesktop) {
@@ -798,20 +562,10 @@ export default function Dashboard({ onClose, onNavigate }) {
             })}
           </nav>
 
-          {/* Fills what used to be dead space below a five-item nav on any
-              screen taller than ~600px — real content instead of blank
-              rail, and a genuine value-prop nudge (this app is anonymous by
-              default; syncing across devices is the one real reason to
-              create an account) rather than decoration for its own sake. */}
           <div className="flex-1 px-3 pt-2">
             {user ? (
-              // Real avatar (emoji, or initials — customers have no photo
-              // upload, unlike artisans), not a generic person icon — and
-              // actually clickable now, into the one place that IS "your
-              // profile" today (Settings.js's own ACCOUNT card handles both
-              // viewing and editing it, no separate Profile screen exists).
               <button
-                onClick={() => go("settings")}
+                onClick={() => go("profile")}
                 className="flex w-full items-center gap-2.5 rounded-xl border border-border bg-muted/40 p-3 text-left [-webkit-tap-highlight-color:transparent] hover:border-primary/30"
               >
                 <div className={`flex size-8 shrink-0 items-center justify-center rounded-full border ${user.avatar_emoji ? "" : "font-mono text-xs font-bold"} ${tintFor(user.name || user.email)}`}>
@@ -823,7 +577,7 @@ export default function Dashboard({ onClose, onNavigate }) {
               </button>
             ) : (
               <button
-                onClick={() => go("settings")}
+                onClick={() => go("profile")}
                 className="w-full rounded-xl border border-primary/25 bg-primary/10 p-3 text-left [-webkit-tap-highlight-color:transparent]"
               >
                 <p className="m-0 text-[12.5px] font-bold text-primary">Sign in</p>
@@ -832,11 +586,6 @@ export default function Dashboard({ onClose, onNavigate }) {
             )}
           </div>
 
-          {/* Notifications only, not a second Settings button — the
-              profile-or-sign-in card right above this already goes there
-              (with a real avatar once signed in), so a separate gear icon
-              here would be two controls doing one job. One destination,
-              one door in. */}
           <div className="flex items-center justify-between border-t border-border p-3">
             <ThemeToggle compact />
             <button
@@ -845,14 +594,6 @@ export default function Dashboard({ onClose, onNavigate }) {
               className="relative flex size-10 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
             >
               <ArtTile art={DASHBOARD_ART.bell} size={24} iconSize={14} />
-              {/* Red = needs action (an unread message or a stalled
-                  application — see needsAttention above), not just a
-                  flat count with no severity signal. A real unread-
-                  message count still shows when that's the reason;
-                  a plain dot covers the "stalled application, no new
-                  message" case, which has no natural number of its own
-                  here (see the stat row's own dot + the nudge banner
-                  for that count instead). */}
               {needsAttention && (
                 unread.count > 0 ? (
                   <span className="absolute top-1 right-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
@@ -888,8 +629,6 @@ export default function Dashboard({ onClose, onNavigate }) {
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-background font-sans"
     >
-      {/* Standalone PWA on iOS puts this right under the status bar/notch
-          otherwise — a plain py-4 has no idea that space exists. */}
       <header
         className="flex shrink-0 items-center justify-between px-5 pb-4"
         style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
@@ -907,21 +646,6 @@ export default function Dashboard({ onClose, onNavigate }) {
               ) : (
                 <span className="absolute top-0.5 right-0.5 size-2.5 rounded-full bg-destructive" />
               )
-            )}
-          </button>
-          {/* Real avatar once signed in — same swap as the desktop sidebar's
-              own profile card above, and the artisan side's header
-              (ArtisanDashboard.js/Artisans.js) — falls back to the plain
-              gear icon signed out, when there's no photo to show. */}
-          <button
-            onClick={() => go("settings")}
-            aria-label="Settings"
-            className={user ? `flex size-10 items-center justify-center rounded-full border ${tintFor(user.name || user.email)}` : "flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground"}
-          >
-            {user ? (
-              user.avatar_emoji ? <Emoji3D emoji={user.avatar_emoji} size={40} /> : <span className="font-mono text-xs font-bold">{initialsOf(user.name || user.email)}</span>
-            ) : (
-              <SettingsIcon className="size-[15px]" />
             )}
           </button>
           {onClose && (

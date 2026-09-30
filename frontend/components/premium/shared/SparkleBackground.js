@@ -21,26 +21,13 @@ import { usePrefersReducedMotion } from "@/lib/usePrefersReducedMotion";
 
 // Fixed, not random per-render — a re-render (theme toggle, a state
 // update elsewhere on the screen) reshuffling every star's position would
-// read as flickering static, not ambiance. Spread loosely across the
-// whole viewport, sizes/delays/durations varied by hand so the twinkle
-// reads as organic rather than a uniform blinking grid.
+// read as flickering static, not ambiance. Cut to 2 points (was 16) per
+// the "system color only, professionally subtle" redesign pass — this is
+// a bare hint of atmosphere in the corner, not a starfield competing with
+// real content for attention.
 const STARS = [
-  { x: 8, y: 12, size: 3, delay: 0, dur: 3.2 },
-  { x: 22, y: 6, size: 2, delay: 0.6, dur: 2.6 },
-  { x: 38, y: 16, size: 2.5, delay: 1.4, dur: 3.6 },
-  { x: 52, y: 4, size: 2, delay: 0.3, dur: 2.9 },
-  { x: 68, y: 10, size: 3, delay: 1.9, dur: 3.1 },
-  { x: 82, y: 5, size: 2, delay: 0.9, dur: 2.4 },
-  { x: 92, y: 15, size: 2.5, delay: 2.2, dur: 3.4 },
-  { x: 14, y: 28, size: 2, delay: 1.1, dur: 2.7 },
-  { x: 46, y: 24, size: 2, delay: 0.2, dur: 3.0 },
-  { x: 76, y: 26, size: 2.5, delay: 1.6, dur: 2.5 },
-  { x: 6, y: 45, size: 2, delay: 0.7, dur: 3.3 },
-  { x: 30, y: 40, size: 2.5, delay: 2.0, dur: 2.8 },
-  { x: 60, y: 38, size: 2, delay: 1.3, dur: 3.5 },
-  { x: 88, y: 42, size: 3, delay: 0.5, dur: 2.6 },
-  { x: 18, y: 62, size: 2, delay: 1.8, dur: 3.0 },
-  { x: 55, y: 58, size: 2.5, delay: 0.4, dur: 2.9 },
+  { x: 88, y: 6, size: 2, delay: 0, dur: 3.2 },
+  { x: 8, y: 45, size: 2, delay: 1.4, dur: 3.6 },
 ];
 
 export function SparkleBackground({ className }) {
