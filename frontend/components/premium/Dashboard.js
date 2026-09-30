@@ -1,29 +1,31 @@
 "use client";
 /**
- * Dashboard.js — the app's real home base, not a grid of tiles pretending
- * to be one. One dominant primary action (dynamic: "Continue" the most
- * recently saved resume once one exists, "Build a resume" before that), a
- * quick-glance stats row, a demoted tools row underneath it, and a
- * recent-activity feed.
+ * Dashboard.js — the app's real home base. Hierarchy follows the approved
+ * design reference exactly (see the "Dashboard redesign: desktop view"
+ * artifact this was built against): greeting → one unified job-search
+ * stats card → Recommended for you (real jobs, never empty — this is
+ * public marketplace data, not scoped to whether THIS user has done
+ * anything yet) → your resume (a compact secondary card once the primary
+ * CTA has been acted on) → Tools (compact chips, not big tiles) → recent
+ * activity. Every section carries its own small uppercase label so the
+ * grouping is never ambiguous, and nothing after Recommended-for-you can
+ * ever leave the screen looking empty, even for a brand-new account with
+ * zero resumes and zero applications.
  *
- * Nav is four items everywhere now — Home, Jobs, Applications, Profile —
- * the same set on the desktop rail and the mobile bottom bar, replacing
- * the old Resume/Scan/Tracker/Artisans split (Artisan is gone from this
- * app entirely; Resume/Scan move into the Quick Actions row instead of
- * competing for a permanent nav slot).
+ * Nav is four items everywhere — Home, Jobs, Applications, Profile — the
+ * same set on the desktop rail and the mobile bottom bar.
  *
- * Every icon tile across this screen (nav, hero card, stat cards, quick
- * actions, notifications) shares ONE neutral system-accent treatment now
- * instead of each having its own colored gradient — see ArtTile below.
- * Semantic color (success/destructive) is untouched; it means something
- * specific and stays separate from decoration.
+ * Every icon tile shares ONE neutral system-accent treatment (see ArtTile)
+ * instead of each having its own colored gradient. Semantic color
+ * (success/destructive) is untouched — it means something specific and
+ * stays separate from decoration.
  */
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
-  ArrowRight, ChevronRight, X, Clock,
-  Inbox, Check, AlertTriangle,
+  ArrowRight, ChevronRight, X, Clock, MapPin, ExternalLink,
+  Inbox, Check, AlertTriangle, CheckCircle2,
   MoreVertical, Trash2, StickyNote,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -49,8 +51,6 @@ import Logo from "./Logo";
 // One neutral system-accent tile behind every illustrated icon on this
 // screen — deliberately ignores each art entry's own `bg` (a colored
 // gradient per icon, the "rainbow tiles" the redesign moved away from).
-// The icon glyph itself still comes from shared/dashboardArt.js /
-// quickActionArt.js; only the surrounding tile color is unified here.
 function ArtTile({ art, size = 32, iconSize }) {
   const { Svg } = art;
   return (
@@ -69,8 +69,6 @@ function navArt(art) {
   };
 }
 
-// Same four everywhere — desktop rail and mobile bottom bar both show the
-// app's real top-level structure now instead of two different subsets.
 const NAV_ITEMS = [
   { id: "home", art: DASHBOARD_ART.home, label: "Home" },
   { id: "apply", art: QUICK_ACTION_ART.apply, label: "Jobs" },
@@ -117,35 +115,130 @@ function greeting() {
   return "Good evening";
 }
 
-function StatCard({ label, value, art, loading, needsAttention }) {
+// The one unified "Your job search" card — Applied/Responses/Interviews/
+// Offers, all four real counts derived from the same applications list,
+// plus one link into the full tracker. Replaces three separate stat
+// cards (Saved resumes/Applications/Interviews) that didn't read as one
+// story — this is the actual funnel, so it reads as one, matching the
+// approved design reference.
+function JobSearchStatsCard({ applications, loading, onViewAll }) {
+  const applied = applications.length;
+  const responses = applications.filter((a) => a.status !== "applied").length;
+  const interviews = applications.filter((a) => a.status === "interview").length;
+  const offers = applications.filter((a) => a.status === "offer").length;
+
   return (
-    <div className="glass-surface relative flex flex-col gap-2 rounded-2xl p-4">
-      {needsAttention && <span className="absolute top-3 right-3 size-2 rounded-full bg-destructive" />}
-      <ArtTile art={art} size={28} iconSize={16} />
-      {loading ? <Skeleton className="h-7 w-10" /> : <span className="text-2xl font-bold text-foreground">{value}</span>}
-      <span className="text-[11.5px] leading-tight text-muted-foreground">{label}</span>
+    <div className="glass-surface mb-5 rounded-2xl p-5">
+      <p className="m-0 mb-4 font-mono text-[10px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">Your job search</p>
+      <div className="mb-4 grid grid-cols-4 gap-2.5">
+        {loading ? (
+          <>
+            <Skeleton className="h-11 w-full" /><Skeleton className="h-11 w-full" />
+            <Skeleton className="h-11 w-full" /><Skeleton className="h-11 w-full" />
+          </>
+        ) : (
+          <>
+            <div><span className="block text-[24px] font-bold text-foreground">{applied}</span><span className="text-[11px] text-muted-foreground">Applied</span></div>
+            <div><span className="block text-[24px] font-bold text-foreground">{responses}</span><span className="text-[11px] text-muted-foreground">Responses</span></div>
+            <div><span className="block text-[24px] font-bold text-success">{interviews}</span><span className="text-[11px] text-muted-foreground">Interviews</span></div>
+            <div><span className="block text-[24px] font-bold text-success">{offers}</span><span className="text-[11px] text-muted-foreground">Offers</span></div>
+          </>
+        )}
+      </div>
+      <button onClick={onViewAll} className="flex items-center gap-1 border-none bg-transparent p-0 text-[13px] font-bold text-primary [-webkit-tap-highlight-color:transparent]">
+        View applications <ArrowRight className="size-3.5" />
+      </button>
     </div>
   );
 }
 
-// Demoted below the primary card and the stats row — shortcuts, not
-// content, sized and weighted accordingly (Cash App/Venmo's own "quick
-// actions" shape). Artisans is gone; three tiles now, not four.
-function QuickAction({ art, label, onClick }) {
-  const { Svg } = QUICK_ACTION_ART[art];
+// Real listings from the verified jobs pipeline (see JobsBoard.js /
+// backend/app/jobs_ingest/) — always populated regardless of whether
+// this particular account has done anything yet, which is what actually
+// keeps Home from ever looking empty. Not personalized (no real matching
+// engine exists) — freshest, most-verified listings, honestly, rather
+// than pretending this is tailored to the viewer.
+function RecommendedJobCard({ job }) {
   return (
-    <motion.button
-      whileTap={{ scale: 0.96 }}
-      onClick={onClick}
-      className="flex flex-col items-center gap-1.5 rounded-2xl border-none bg-card/60 p-3 [-webkit-tap-highlight-color:transparent]"
+    <div className="glass-surface flex flex-col gap-2.5 rounded-2xl p-4">
+      <div className="flex items-center gap-2.5">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-muted font-mono text-[11px] font-bold text-muted-foreground">
+          {job.company_name.slice(0, 2).toUpperCase()}
+        </span>
+        <div className="min-w-0">
+          <p className="m-0 truncate text-[13px] font-bold text-foreground">{job.title}</p>
+          <p className="m-0 truncate text-[11px] text-muted-foreground">{job.company_name}</p>
+        </div>
+      </div>
+      <p className="m-0 flex items-center gap-1 text-[11px] text-muted-foreground">
+        {job.remote ? "Remote" : <><MapPin className="size-3" />{job.location || "Onsite"}</>}
+      </p>
+      <a
+        href={job.url} target="_blank" rel="noreferrer"
+        className="flex w-fit items-center gap-1 self-start rounded-[10px] bg-primary px-3.5 py-1.5 text-[12px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent]"
+      >
+        Apply <ExternalLink className="size-3" />
+      </a>
+    </div>
+  );
+}
+
+function RecommendedJobs({ jobs, loading, onSeeAll }) {
+  if (!loading && jobs.length === 0) return null;
+  return (
+    <div className="mb-6">
+      <SectionHeader onViewAll={onSeeAll} viewAllLabel="See all">Recommended for you</SectionHeader>
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        {loading
+          ? <><Skeleton className="h-[126px] w-full rounded-2xl" /><Skeleton className="h-[126px] w-full rounded-2xl" /></>
+          : jobs.slice(0, 4).map((j) => <RecommendedJobCard key={j.id} job={j} />)}
+      </div>
+    </div>
+  );
+}
+
+// Compact secondary card — a real checkmark once a resume exists ("Resume
+// ready"), a plain prompt before that. Demoted below Recommended for you:
+// the primary CTA weight moved to the row of Tools chips below it, this
+// is now "here's the state of the thing you already made," not the
+// biggest element on the screen.
+function ResumeStatusCard({ latestResume, onOpen }) {
+  return (
+    <div className="mb-6">
+      <SectionHeader>Your resume</SectionHeader>
+      <button
+        type="button" onClick={onOpen}
+        className="glass-surface flex w-full items-center gap-3 rounded-2xl p-4 text-left [-webkit-tap-highlight-color:transparent]"
+      >
+        <span className={`flex size-9 shrink-0 items-center justify-center rounded-[11px] ${latestResume ? "bg-success/15 text-success" : "bg-primary/10 text-primary"}`}>
+          {latestResume ? <CheckCircle2 className="size-4" /> : <ArrowRight className="size-4" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="m-0 truncate text-[13.5px] font-bold text-foreground">
+            {latestResume ? (latestResume.name || "Resume ready") : "Build your first resume"}
+          </p>
+          <p className="m-0 truncate text-[11.5px] text-muted-foreground">
+            {latestResume ? `Last updated ${timeAgo(latestResume.generated_at)}` : "Tailored, ATS-ready in minutes"}
+          </p>
+        </div>
+        <span className="shrink-0 text-[12.5px] font-bold text-primary">{latestResume ? "View / Edit" : "Start"}</span>
+      </button>
+    </div>
+  );
+}
+
+function ToolChip({ art, label, onClick }) {
+  const { Svg } = art;
+  return (
+    <button
+      type="button" onClick={onClick}
+      className="glass-surface flex flex-1 items-center gap-2.5 rounded-2xl px-3.5 py-3 [-webkit-tap-highlight-color:transparent]"
     >
-      <span className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 shadow-[0_8px_18px_-10px_rgba(0,0,0,0.3)]">
-        <Svg size={24} />
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+        <Svg size={16} />
       </span>
-      <span className="flex min-h-[2lh] items-start justify-center text-center text-[11px] leading-tight font-semibold text-foreground">
-        {label}
-      </span>
-    </motion.button>
+      <span className="truncate text-[12px] font-bold text-foreground">{label}</span>
+    </button>
   );
 }
 
@@ -246,7 +339,7 @@ function NotificationsDialog({ open, onClose, items, onOpenItem }) {
 
 function SectionHeader({ children, onViewAll, viewAllLabel = "View all" }) {
   return (
-    <div className="mb-3 flex items-center justify-between">
+    <div className="mb-2.5 flex items-center justify-between">
       <span className="font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{children}</span>
       {onViewAll && (
         <button onClick={onViewAll} className="flex items-center gap-0.5 border-none bg-transparent p-0 text-[12px] font-bold text-primary">
@@ -257,9 +350,8 @@ function SectionHeader({ children, onViewAll, viewAllLabel = "View all" }) {
   );
 }
 
-// The avatar next to the greeting — tapping it opens Personal Profile
-// (name/photo/phone/account type/email), a level below the Profile nav
-// tab's own broader account hub.
+// The avatar leads the greeting, same order Logo.js's own lockup uses —
+// icon first, then the text that names it.
 function GreetingAvatar({ user, onClick }) {
   return (
     <button
@@ -273,18 +365,15 @@ function GreetingAvatar({ user, onClick }) {
   );
 }
 
-function DashboardContent({ user, statsLoading, savedResumes, applications, go, onDeleteResume, onDeleteApplication, onUpdateApplicationStatus, onAddNote, isDesktop, onOpenPersonalProfile }) {
-  const interviews = applications.filter((a) => a.status === "interview").length;
+function DashboardContent({
+  user, statsLoading, savedResumes, applications, recommendedJobs, recommendedLoading,
+  go, onDeleteResume, onDeleteApplication, onUpdateApplicationStatus, onAddNote, isDesktop, onOpenPersonalProfile,
+}) {
   const recentResumes = savedResumes.slice(0, 3);
   const recentApps = applications.slice(0, 3);
   const followupCount = applications.filter((a) => a.needs_followup).length;
   const latestResume = savedResumes[0];
 
-  {/* Avatar leads the greeting, same order Logo.js's own lockup uses —
-      icon first, then the text that names it (there, LogoMark then
-      "NOQEEV"; here, the avatar then "Good evening, you"). Not trailing
-      it: this is the same "who" the text is about, read left to right,
-      not a decoration tucked on at the end. */}
   const greetingRow = (
     <div className="flex items-center gap-3">
       {user && <GreetingAvatar user={user} onClick={onOpenPersonalProfile} />}
@@ -302,14 +391,14 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
       {isDesktop ? (
         <motion.div
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-          className="dark relative mb-6 flex h-[130px] items-center overflow-hidden rounded-3xl"
+          className="dark relative mb-5 flex h-[130px] items-center overflow-hidden rounded-3xl"
         >
           <img src="/dashboard/greeting-banner.jpg" alt="" className="absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/10" />
           <div className="relative w-full px-6">{greetingRow}</div>
         </motion.div>
       ) : (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mb-6">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mb-5">
           {greetingRow}
         </motion.div>
       )}
@@ -319,7 +408,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => go("jobtracker")}
-          className="mb-3.5 flex w-full items-center gap-2.5 rounded-2xl border border-primary/25 bg-primary/10 px-4 py-3 text-left [-webkit-tap-highlight-color:transparent]"
+          className="mb-4 flex w-full items-center gap-2.5 rounded-2xl border border-primary/25 bg-primary/10 px-4 py-3 text-left [-webkit-tap-highlight-color:transparent]"
         >
           <Clock className="size-4 shrink-0 text-primary" />
           <span className="flex-1 text-[13px] font-semibold text-foreground">
@@ -329,60 +418,30 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
         </motion.button>
       )}
 
-      {/* Dynamic: once a resume exists, this is "continue the most recent
-          one" (a real, specific next action) instead of the same generic
-          prompt forever. */}
-      <motion.button
-        initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.05 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={() => go("resume", latestResume ? { resumeId: latestResume.id } : undefined)}
-        className="glass-surface mb-5 flex w-full items-center justify-between gap-4 rounded-3xl border-none p-6 text-left [-webkit-tap-highlight-color:transparent]"
-      >
-        <div className="flex min-w-0 items-center gap-3.5">
-          <ArtTile art={DASHBOARD_ART.resume} size={44} iconSize={24} />
-          <div className="min-w-0">
-            <p className="m-0 truncate text-xl font-bold text-foreground">
-              {latestResume ? (latestResume.name || "Continue your resume") : "Build a resume"}
-            </p>
-            <p className="m-0 truncate text-[12px] text-muted-foreground">
-              {latestResume ? `Saved ${timeAgo(latestResume.generated_at)} · Tailored, ATS-ready` : "Tailored, ATS-ready in minutes"}
-            </p>
-          </div>
-        </div>
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10">
-          <ArrowRight className="size-5 text-primary" />
-        </div>
-      </motion.button>
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.05 }}>
+        <JobSearchStatsCard applications={applications} loading={statsLoading} onViewAll={() => go("jobtracker")} />
+      </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }} className="mb-6">
-        <div className="grid grid-cols-4 gap-2 sm:gap-3">
-          <QuickAction art="apply" label="Auto Apply" onClick={() => go("apply")} />
-          <QuickAction art="scan" label="CV Scan" onClick={() => go("scan")} />
-          <QuickAction art="tracker" label="Tracker" onClick={() => go("jobtracker")} />
-          <QuickAction art="jobsboard" label="Job Board" onClick={() => go("jobsboard")} />
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
+        <RecommendedJobs jobs={recommendedJobs} loading={recommendedLoading} onSeeAll={() => go("jobsboard")} />
+      </motion.div>
+
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }}>
+        <ResumeStatusCard latestResume={latestResume} onOpen={() => go("resume", latestResume ? { resumeId: latestResume.id } : undefined)} />
+      </motion.div>
+
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }} className="mb-6">
+        <SectionHeader>Tools</SectionHeader>
+        <div className="flex gap-2">
+          <ToolChip art={DASHBOARD_ART.resume} label="Resume" onClick={() => go("resume")} />
+          <ToolChip art={QUICK_ACTION_ART.apply} label="Auto Apply" onClick={() => go("apply")} />
+          <ToolChip art={QUICK_ACTION_ART.scan} label="CV Scan" onClick={() => go("scan")} />
+          <ToolChip art={QUICK_ACTION_ART.tracker} label="Tracker" onClick={() => go("jobtracker")} />
         </div>
       </motion.div>
 
-      {(statsLoading || savedResumes.length > 0 || applications.length > 0) && (
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }} className="mb-6">
-          {statsLoading ? (
-            <div className="grid grid-cols-3 gap-3">
-              <StatCard label="Saved resumes" art={DASHBOARD_ART.resume} loading />
-              <StatCard label="Applications" art={QUICK_ACTION_ART.tracker} loading />
-              <StatCard label="Interviews" art={DASHBOARD_ART.interviews} loading />
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-3">
-              <StatCard label="Saved resumes" value={savedResumes.length} art={DASHBOARD_ART.resume} />
-              <StatCard label="Applications" value={applications.length} art={QUICK_ACTION_ART.tracker} needsAttention={followupCount > 0} />
-              <StatCard label="Interviews" value={interviews} art={DASHBOARD_ART.interviews} />
-            </div>
-          )}
-        </motion.div>
-      )}
-
       {recentResumes.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }} className="mb-6">
+        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.25 }} className="mb-6">
           <SectionHeader onViewAll={() => go("resume", { viewAllResumes: true })}>Recent resumes</SectionHeader>
           <div className="grid gap-2">
               {recentResumes.map((r) => (
@@ -418,7 +477,7 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
       )}
 
       {recentApps.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.25 }} className="mb-6">
+        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.3 }} className="mb-6">
           <SectionHeader onViewAll={() => go("jobtracker")}>Recent applications</SectionHeader>
           <div className="grid gap-2">
               {recentApps.map((a) => {
@@ -476,6 +535,8 @@ export default function Dashboard({ onClose, onNavigate }) {
   const [savedResumes, setSavedResumes] = useState([]);
   const [applications, setApplications] = useState([]);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [recommendedJobs, setRecommendedJobs] = useState([]);
+  const [recommendedLoading, setRecommendedLoading] = useState(true);
 
   useEffect(() => {
     if (authLoading) return;
@@ -490,6 +551,37 @@ export default function Dashboard({ onClose, onNavigate }) {
       setApplications(apps);
     }).finally(() => setStatsLoading(false));
   }, [authLoading, user?.id]);
+
+  // Public marketplace data, not scoped to the signed-in account — same
+  // "fetch once, fail into an empty array, never a broken section"
+  // reasoning every other public-data fetch in this app already follows.
+  // No real job-matching engine exists, so this is honestly the
+  // freshest, most-verified listings, not a personalized ranking —
+  // real data is what actually keeps this section (and the dashboard as
+  // a whole) from ever reading as empty, not a fabricated "for you" claim.
+  //
+  // Pulls a wider pool (12) than it shows (4) and keeps at most one job
+  // per company from it — sorted by posted_at, a source whose real post
+  // date isn't available (ScrapeGraphAI falls back to "when this run
+  // found it," see backend/app/jobs_ingest/sources.py) always looks
+  // newest, and without this a handful of same-day listings from one
+  // company can fill the entire section. One per company keeps this
+  // reading as a real spread, not a repeat.
+  useEffect(() => {
+    setRecommendedLoading(true);
+    apiRequest("/api/v1/jobs?limit=12&min_verification_level=2")
+      .then((d) => {
+        const seen = new Set();
+        const diversified = (d.jobs || []).filter((j) => {
+          if (seen.has(j.company_name)) return false;
+          seen.add(j.company_name);
+          return true;
+        });
+        setRecommendedJobs(diversified.slice(0, 4));
+      })
+      .catch(() => setRecommendedJobs([]))
+      .finally(() => setRecommendedLoading(false));
+  }, []);
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [noteApp, setNoteApp] = useState(null);
@@ -534,7 +626,7 @@ export default function Dashboard({ onClose, onNavigate }) {
   const needsAttention = unread.count > 0 || followupCount > 0;
 
   const contentProps = {
-    user, statsLoading, savedResumes, applications, go, isDesktop,
+    user, statsLoading, savedResumes, applications, recommendedJobs, recommendedLoading, go, isDesktop,
     onDeleteResume: deleteResume,
     onDeleteApplication: deleteApplication,
     onUpdateApplicationStatus: updateApplicationStatus,
