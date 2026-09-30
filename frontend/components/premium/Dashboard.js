@@ -168,6 +168,11 @@ function RecommendedJobCard({ job }) {
       <p className="m-0 flex items-center gap-1 text-[11px] text-muted-foreground">
         {job.remote ? "Remote" : <><MapPin className="size-3" />{job.location || "Onsite"}</>}
       </p>
+      {/* Real, employer-entered text off the source's own payload (see
+          backend/app/jobs_ingest/sources.py's fetch_remotive) — only
+          Remotive exposes real compensation data today, so this is
+          absent (not guessed) on every other source's jobs. */}
+      {job.salary && <p className="m-0 text-[12px] font-bold text-success">{job.salary}</p>}
       <a
         href={job.url} target="_blank" rel="noreferrer"
         className="flex w-fit items-center gap-1 self-start rounded-[10px] bg-primary px-3.5 py-1.5 text-[12px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent]"

@@ -98,6 +98,17 @@ def fetch_remotive(limit=100):
             "category_hint": j.get("category"),
             "description_text": _strip_html(j.get("description")),
             "url": j.get("url"), "posted_at": j.get("publication_date"),
+            # Real, employer-entered text straight off Remotive's own
+            # payload (confirmed live: roughly half of listings have it,
+            # the rest an empty string) -- never parsed/reformatted, just
+            # shown as-is, so it stays exactly what the employer wrote
+            # ("$90k - $105k", "$120 - $170 /hour", "OTE $25k - $35k").
+            # No other source here exposes real compensation data (checked
+            # live: Arbeitnow's API has no salary field at all; Greenhouse
+            # and Ashby's public job-list endpoints don't return one
+            # either) -- so this stays empty for every job that isn't
+            # Remotive rather than guessing at a range.
+            "salary": (j.get("salary") or "").strip() or None,
         })
     return jobs
 

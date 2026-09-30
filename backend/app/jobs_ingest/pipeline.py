@@ -78,6 +78,7 @@ def _normalize_and_verify(raw_jobs, source_stats, source_name):
             "url": raw["url"],
             "source": raw["source"],
             "posted_at": raw.get("posted_at"),
+            "salary": raw.get("salary"),
             "fetched_at": datetime.now(timezone.utc).isoformat(),
             "verification": verification,
             "expired": False,

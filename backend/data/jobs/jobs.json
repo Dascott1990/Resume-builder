@@ -87,7 +87,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": null
     },
     {
       "id": "d8279a12d46464520d6b487c",
@@ -121,7 +122,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": "$90k - $105k"
     },
     {
       "id": "e1ff05855b8a435ae8c23a12",
@@ -155,7 +157,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": "$80k - $150k"
     },
     {
       "id": "f4480c583b326aa7db618db4",
@@ -189,7 +192,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": null
     },
     {
       "id": "73386458e23d75c69daf282b",
@@ -223,7 +227,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": null
     },
     {
       "id": "45b87af3d72768ded017b79d",
@@ -257,7 +262,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": null
     },
     {
       "id": "cd40aee0edcd1c45bc21d95e",
@@ -291,7 +297,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": null
     },
     {
       "id": "42bb0c284224d0841ce80c99",
@@ -325,7 +332,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": "$90 - $150 /hour"
     },
     {
       "id": "d4dcddb31088ee5415b9ce61",
@@ -359,7 +367,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": "$120 - $170 /hour"
     },
     {
       "id": "a895bba78b97c3ca1db68eac",
@@ -393,7 +402,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": "$170k - $200k"
     },
     {
       "id": "985f324e8bdd5261c1bd2432",
@@ -427,7 +437,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": "$35,3k- $52k"
     },
     {
       "id": "c5f83a30e176ec638aa2412e",
@@ -461,7 +472,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": "$10K-$20K"
     },
     {
       "id": "76e16460681860aec643ac2d",
@@ -495,7 +507,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": "OTE $25k - $35k"
     },
     {
       "id": "55aa30fabde859bfd86b94f7",
@@ -529,7 +542,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": null
     },
     {
       "id": "4a970a83e911dbfe232f8bf0",
@@ -563,7 +577,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": "$50-$75 /hour"
     },
     {
       "id": "9a224f3a9ae3b925da79a707",
@@ -597,7 +612,8 @@
           "remotive"
         ]
       },
-      "expired": false
+      "expired": false,
+      "salary": "$20k -$35k"
     },
     {
       "id": "00d1a044785d09fa1df50278",

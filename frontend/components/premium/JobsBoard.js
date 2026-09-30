@@ -102,20 +102,27 @@ function VerificationBadge({ verification }) {
   );
 }
 
+// Same card architecture as Dashboard.js's RecommendedJobCard — company-
+// initials logo tile, title/company, meta line, a real salary line when
+// the source actually has one, Apply as its own pill rather than the
+// whole card being one giant anchor (that also fixes VerificationBadge's
+// inner button being invalid HTML nested inside an <a>, same "no
+// interactive element inside another one" issue TrendingChip's own
+// comment already documents below). Jobs Board keeps the extra trust
+// content Dashboard's compact teaser doesn't need — category/remote
+// chips, the verification badge, source attribution — this screen's
+// whole reason to exist per its own docstring above.
 function JobCard({ job }) {
   return (
-    <a
-      href={job.url}
-      target="_blank"
-      rel="noreferrer"
-      className="glass-surface flex flex-col gap-2 rounded-2xl p-4 [-webkit-tap-highlight-color:transparent] hover:border-primary/30"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="m-0 truncate text-[14.5px] font-bold text-foreground">{job.title}</p>
-          <p className="m-0 truncate text-[12.5px] text-muted-foreground">{job.company_name}</p>
+    <div className="glass-surface flex flex-col gap-2.5 rounded-2xl p-4">
+      <div className="flex items-center gap-2.5">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-muted font-mono text-[11px] font-bold text-muted-foreground">
+          {job.company_name.slice(0, 2).toUpperCase()}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="m-0 truncate text-[14px] font-bold text-foreground">{job.title}</p>
+          <p className="m-0 truncate text-[12px] text-muted-foreground">{job.company_name}</p>
         </div>
-        <ExternalLink className="size-4 shrink-0 text-muted-foreground/50" />
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -128,6 +135,11 @@ function JobCard({ job }) {
         )}
       </div>
 
+      {/* Real, employer-entered text (see sources.py's fetch_remotive) —
+          only Remotive exposes real compensation data today, so this is
+          absent, not guessed, on every other source's jobs. */}
+      {job.salary && <p className="m-0 text-[12.5px] font-bold text-success">{job.salary}</p>}
+
       {SOURCES_WITHOUT_DIRECT_LINK.has(job.source) && (
         <p className="m-0 text-[10.5px] text-muted-foreground/70">Opens {job.company_name}'s jobs page — search for this title there.</p>
       )}
@@ -138,7 +150,14 @@ function JobCard({ job }) {
           via {SOURCE_LABELS[job.source] || job.source} · {timeAgo(job.posted_at)}
         </span>
       </div>
-    </a>
+
+      <a
+        href={job.url} target="_blank" rel="noreferrer"
+        className="flex w-fit items-center gap-1 self-start rounded-[10px] bg-primary px-3.5 py-1.5 text-[12px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent]"
+      >
+        Apply <ExternalLink className="size-3" />
+      </a>
+    </div>
   );
 }
 
