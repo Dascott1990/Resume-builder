@@ -8,7 +8,6 @@ const LINKS = [
   { href: "#features", label: "Features" },
   { href: "#how-it-works", label: "How it works" },
   { href: "#faq", label: "FAQ" },
-  { href: "#artisans", label: "Find an Artisan" },
 ];
 
 export function Navbar({ onOpenDashboard }) {
@@ -60,9 +59,9 @@ export function Navbar({ onOpenDashboard }) {
         </nav>
 
         {/* Dashboard, not the resume builder directly, is the primary CTA —
-            it's the hub the builder, CV scan, job tracker, and artisan
-            directory all live inside, so one tap from anywhere always
-            lands somewhere useful instead of one specific tool. */}
+            it's the hub the builder, CV scan, and job tracker all live
+            inside, so one tap from anywhere always lands somewhere useful
+            instead of one specific tool. */}
         <div className="flex shrink-0 items-center gap-2">
           <motion.button
             onClick={onOpenDashboard}

@@ -1,30 +1,6 @@
-// Shared display helpers for artisan name/phone rendering — used by both
-// Artisans.js (the card) and ArtisanProfile.js (the full profile). Split out
-// so neither file has to import the other just to reuse these.
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL;
-
-// Points straight at the backend's raw-byte route (GET /api/v1/artisans/
-// <id>/avatar-photo) via a plain <img>, never base64-inlined in a listing
-// response — same reasoning as PhotoPortfolio.js's own rawUrl. Only ever
-// worth calling when an artisan's has_avatar_photo is true; pointing an
-// <img> at this for every artisan regardless would mean a 404 network
-// request for everyone who's never set one.
-//
-// `version` (Artisan.avatar_photo_version, bumped server-side on every
-// upload/delete) MUST be passed whenever the caller has it — the backend
-// serves this route with a long max_age, which is only safe because this
-// query param changes whenever the photo does. Without it, replacing a
-// photo left browsers serving the old cached bytes forever: same URL in,
-// same cached response out, no new request ever made to notice anything
-// changed. Omitting `version` (some older/lighter call sites don't have
-// it in scope) degrades to the old un-cache-busted behavior — don't do
-// that anywhere the photo can actually change during the page's own
-// lifetime, i.e. Settings' own preview.
-export function avatarPhotoUrl(artisanId, version) {
-  const v = version ? `?v=${version}` : "";
-  return `${API_BASE}/api/v1/artisans/${artisanId}/avatar-photo${v}`;
-}
+// Shared avatar-display helpers — a consistent tint + initials fallback
+// for anywhere an account has no photo. Used by Settings.js's customer
+// ACCOUNT card and Dashboard.js's own avatar rendering.
 
 // Purely decorative categorical variety — a consistent, distinguishable
 // tint per person (picked by hashing their name), not a status signal.
@@ -46,39 +22,4 @@ export function tintFor(name) {
 export function initialsOf(name) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
-
-// Display-only formatting — the raw digits still go in the tel: href.
-// A 10-digit US number reads as "(512) 555-0173" instead of a bare digit
-// dump, which is most of what made listings look like a database export
-// instead of a real directory.
-export function formatPhone(phone) {
-  const digits = (phone || "").replace(/\D/g, "");
-  if (digits.length === 10) {
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  }
-  if (digits.length === 11 && digits[0] === "1") {
-    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-  }
-  return phone;
-}
-
-// JS-side truncation instead of CSS line-clamp — line-clamp's height math
-// (font-size × line-height, then clip at N lines) is a few pixels off in
-// some browsers right at the 2-line boundary, chopping the bottom of the
-// last visible line instead of hiding it cleanly. Cutting the string itself
-// sidesteps that entirely: the rendered text is always exactly what fits.
-export function truncateBio(bio, max = 88) {
-  if (!bio || bio.length <= max) return bio;
-  const cut = bio.slice(0, max);
-  const lastSpace = cut.lastIndexOf(" ");
-  return `${cut.slice(0, lastSpace > 40 ? lastSpace : max)}…`;
-}
-
-// Sub-km distances read as "450 m away" — "0.5 km away" makes a
-// two-minutes-down-the-street artisan sound farther than they are.
-export function formatDistance(km) {
-  if (km == null) return null;
-  if (km < 1) return `${Math.round(km * 1000)} m away`;
-  return `${km < 10 ? km.toFixed(1) : Math.round(km)} km away`;
 }

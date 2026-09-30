@@ -5,8 +5,8 @@ import { useState, useEffect } from "react";
 // Breakpoints match Tailwind's own sm (640px) / lg (1024px) scale, so this
 // stays in sync with any `sm:`/`lg:` classes elsewhere rather than drifting
 // from them. Originally lived inline in GuestMode.js; extracted here so
-// Artisans.js can share the exact same phone/tablet/desktop definition
-// instead of a second, possibly-diverging copy.
+// every screen that needs a phone/tablet/desktop split can share the
+// exact same definition instead of a second, possibly-diverging copy.
 export function useViewport() {
   const [w, setW] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1280));
   useEffect(() => {

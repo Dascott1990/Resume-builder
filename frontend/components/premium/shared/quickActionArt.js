@@ -1,9 +1,7 @@
-// quickActionArt.js — the same illustrated-tile language tradeArt.js
-// built for the Artisans browse shelves, applied to Dashboard.js's own
-// four QuickAction tiles (Auto Apply / CV Scan / Tracker / Artisans) so
-// the two most-used icon grids in the app read as one consistent system
-// instead of one screen using flat line icons and the other colored
-// illustrations.
+// quickActionArt.js — the illustrated-tile language applied to
+// Dashboard.js's own QuickAction tiles (Auto Apply / CV Scan / Tracker)
+// so the app's icon grids read as one consistent system instead of flat
+// line icons.
 
 function DocBolt({ size }) {
   return (
@@ -42,25 +40,12 @@ function Clipboard({ size }) {
   );
 }
 
-function Toolbox({ size }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 48 48">
-      <path d="M17 18v-4a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v4" fill="none" stroke="#3f3f46" strokeWidth="4" />
-      <rect x="8" y="18" width="32" height="20" rx="3" fill="#52525b" />
-      <rect x="8" y="26" width="32" height="4" fill="#3f3f46" />
-      <rect x="21" y="24" width="6" height="8" rx="1.5" fill="#3f3f46" />
-    </svg>
-  );
-}
-
 const AMBER_TILE = "linear-gradient(155deg,#fde8c8,#fbd9a0)";
 const EMERALD_TILE = "linear-gradient(155deg,#d7f5e6,#b8ecd2)";
 const BLUE_TILE = "linear-gradient(155deg,#dbeafe,#bfdcfa)";
-const GRAY_TILE = "linear-gradient(155deg,#e4e4e7,#cfcfd4)";
 
 export const QUICK_ACTION_ART = {
   apply: { bg: AMBER_TILE, Svg: DocBolt },
   scan: { bg: BLUE_TILE, Svg: DocScan },
   tracker: { bg: EMERALD_TILE, Svg: Clipboard },
-  artisans: { bg: GRAY_TILE, Svg: Toolbox },
 };

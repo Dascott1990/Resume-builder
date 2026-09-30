@@ -7,9 +7,9 @@
  *
  * Flat destinations, not a scrolling stack — switched via a fixed bottom
  * nav (components/premium/shared/BottomNav.js, the same one Dashboard.js
- * and Artisans.js already use) rather than a sticky top tab strip, so
- * switching never costs a scroll-to-top first. Each opens to exactly the
- * one thing it's for; nothing to scroll past to reach another tool.
+ * already uses) rather than a sticky top tab strip, so switching never
+ * costs a scroll-to-top first. Each opens to exactly the one thing it's
+ * for; nothing to scroll past to reach another tool.
  *
  * Bottom nav only carries the 5 zones someone actually taps daily —
  * Today (the fixed status panel, see TodayPanel.js), Assets (logo

@@ -17,14 +17,13 @@ export default function TermsPage() {
 
       <h2>What Noqeev is</h2>
       <p>
-        Noqeev provides AI-assisted resume and job-application tools, a directory and booking
-        platform connecting customers with independent tradespeople ("artisans"), and a set of
-        brand/content tools. Most features work anonymously; an account is optional and mainly
-        useful for syncing your data across devices.
+        Noqeev provides AI-assisted resume and job-application tools and a set of brand/content
+        tools. Most features work anonymously; an account is optional and mainly useful for
+        syncing your data across devices.
       </p>
 
       <h2>Eligibility</h2>
-      <p>You must be at least 18 years old and able to form a binding contract to use the Service, and to create an artisan listing or make a paid booking.</p>
+      <p>You must be at least 18 years old and able to form a binding contract to use the Service.</p>
 
       <h2>Accounts</h2>
       <p>
@@ -32,28 +31,6 @@ export default function TermsPage() {
         happens under your account. Tell us right away at{" "}
         <a href="mailto:support@noqeev.com">support@noqeev.com</a> if you think your account has been
         accessed without your permission.
-      </p>
-
-      <h2>The artisan marketplace</h2>
-      <h3>Noqeev is a platform, not a contractor</h3>
-      <p>
-        Artisans listed on Noqeev are independent, third-party tradespeople — not Noqeev
-        employees, agents, or contractors. Noqeev facilitates the introduction and payment for a
-        booking; the actual work is performed by the artisan under a direct arrangement between
-        the artisan and the customer. Noqeev does not supervise, direct, or guarantee the quality
-        of any artisan's work.
-      </p>
-      <h3>Payments and escrow</h3>
-      <p>
-        Paid bookings are processed through Stripe. Funds are held once a customer pays, and
-        released to the artisan once the job is marked complete. See our{" "}
-        <a href="/refund-policy">Refund Policy</a> for exactly how cancellations and refunds work.
-      </p>
-      <h3>Reviews</h3>
-      <p>
-        Reviews must reflect a genuine experience with the artisan being reviewed. Posting a
-        fake, incentivized, or fraudulent review, or a review for a booking that didn't happen,
-        is prohibited and may result in the review being removed and the account suspended.
       </p>
 
       <h2>AI features</h2>
@@ -68,17 +45,15 @@ export default function TermsPage() {
 
       <h2>Your content</h2>
       <p>
-        You keep ownership of what you upload (resumes, photos, messages, reviews). By posting or
+        You keep ownership of what you upload (resumes, career profile details). By posting or
         uploading content, you give Noqeev a license to store, display, and process it as needed
-        to operate the Service — for example, showing your portfolio photos on your public
-        listing. You confirm you have the right to share anything you upload.
+        to operate the Service. You confirm you have the right to share anything you upload.
       </p>
 
       <h2>Prohibited conduct</h2>
       <ul>
-        <li>Impersonating another person or business, or misrepresenting your identity, qualifications, or trade credentials.</li>
-        <li>Posting fake reviews, fraudulent listings, or knowingly false information.</li>
-        <li>Attempting to circumvent Noqeev's payment system for a booking made through the Service.</li>
+        <li>Impersonating another person or business, or misrepresenting your identity.</li>
+        <li>Posting knowingly false information.</li>
         <li>Uploading content you don't have the right to share, or that's unlawful, harassing, or infringing.</li>
         <li>Interfering with or attempting to disrupt the Service's normal operation.</li>
       </ul>
@@ -93,16 +68,16 @@ export default function TermsPage() {
       <h2>Disclaimer of warranties</h2>
       <p>
         The Service is provided "as is," without warranties of any kind, express or implied. We
-        don't guarantee the Service will be uninterrupted, error-free, or that any artisan's work,
-        or any AI-generated content, will meet your expectations.
+        don't guarantee the Service will be uninterrupted, error-free, or that any AI-generated
+        content will meet your expectations.
       </p>
 
       <h2>Limitation of liability</h2>
       <p>
         To the fullest extent permitted by law, Noqeev is not liable for indirect, incidental, or
-        consequential damages arising from your use of the Service, or from the conduct or work
-        of any artisan or other user. Our total liability for any claim is limited to the amount
-        of any platform fees you paid Noqeev in the six months before the claim arose, if any.
+        consequential damages arising from your use of the Service, or from the conduct of any
+        other user. Our total liability for any claim is limited to the amount of any fees you
+        paid Noqeev in the six months before the claim arose, if any.
       </p>
 
       <h2>Governing law</h2>

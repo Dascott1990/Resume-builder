@@ -1,27 +1,19 @@
 "use client";
 /**
- * Settings.js — the one place to manage every account this app has, full
- * stop. Before this existed, account management was scattered across a
- * raw sign-in/out toggle in Dashboard.js's header (customer-only), a
- * separate "Sign out" link buried in ArtisanDashboard.js, and no
- * profile-editing or password-change UI anywhere for either account.
+ * Settings.js — the one place to manage the account this app has. Before
+ * this existed, account management was scattered across a raw sign-in/out
+ * toggle in Dashboard.js's header, with no profile-editing or
+ * password-change UI anywhere.
  *
- * The app runs two entirely independent account systems — a customer
- * session (lib/useAuth.js, Authorization: Bearer) and an artisan session
- * (lib/artisanAuthToken.js, X-Artisan-Token) — a browser can be signed
- * into both at once. This screen shows both, whichever ones are
- * currently signed in, side by side instead of scattered across the app.
- * It hands off to the existing Login.js/Signup.js/ArtisanAuth.js screens
- * for actual sign-in rather than building a fourth login form.
- *
- * Same "home base" shape as ArtisanDashboard.js: motion fade-in, header
- * with IconTile + close, mono-label sections, Card content blocks.
+ * Same "home base" shape as the rest of the app's full-screen panels:
+ * motion fade-in, header with IconTile + close, mono-label sections, Card
+ * content blocks.
  */
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Settings as SettingsIcon, X, User, Wrench, Palette, LogOut,
+  Settings as SettingsIcon, X, User, Palette, LogOut,
   CheckCircle2, Loader2, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,12 +22,10 @@ import { Field, Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import Emoji3D from "./shared/Emoji3D";
 import { ThemeModePicker } from "./shared/ThemeToggle";
-import { tintFor, initialsOf, avatarPhotoUrl } from "./shared/artisanDisplay";
+import { tintFor, initialsOf } from "./shared/artisanDisplay";
 import { useAuth } from "@/lib/useAuth";
 import { useBrightness } from "@/lib/useBrightness";
-import { getArtisanToken, setArtisanToken } from "@/lib/artisanAuthToken";
 import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
-import { artisanMe } from "./artisan/api";
 import ChangePasswordForm from "./shared/ChangePasswordForm";
 import {
   AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
@@ -122,7 +112,7 @@ function saveDraftNow(key, data) {
   saveFormDraft(key, { savedAt: Date.now(), data });
 }
 
-export default function Settings({ onClose, onOpenLogin, onOpenArtisan }) {
+export default function Settings({ onClose, onOpenLogin }) {
   const { user, loading: authLoading, updateProfile, changePassword, logout, deleteAccount } = useAuth();
   const profileDraftAtMount = useRef(loadRecentDraft(SETTINGS_PROFILE_DRAFT_KEY)).current;
   const [name, setName] = useState(() => profileDraftAtMount?.name ?? "");
@@ -157,17 +147,6 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisan }) {
     }, 300);
     return () => clearTimeout(profileDraftSaveTimer.current);
   }, [name, avatarEmoji, statusLine]);
-
-  const [artisan, setArtisan] = useState(null);
-  const [artisanLoading, setArtisanLoading] = useState(true);
-
-  useEffect(() => {
-    if (!getArtisanToken()) { setArtisan(null); setArtisanLoading(false); return; }
-    artisanMe()
-      .then(setArtisan)
-      .catch(() => { setArtisanToken(null); setArtisan(null); })
-      .finally(() => setArtisanLoading(false));
-  }, []);
 
   const saveProfile = async () => {
     setSavingProfile(true);
@@ -306,8 +285,7 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisan }) {
                       <AlertDialogTitle>Delete your account?</AlertDialogTitle>
                       <AlertDialogDescription>
                         This can't be undone — your saved resumes, job tracker, and profile are permanently
-                        deleted. Any job requests you've made stay on record for the artisans involved, with
-                        your name removed from them.
+                        deleted.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -319,47 +297,6 @@ export default function Settings({ onClose, onOpenLogin, onOpenArtisan }) {
                   </AlertDialogContent>
                 </AlertDialog>
               </div>
-            </Card>
-          )}
-        </div>
-
-        {/* Everything about running the artisan side of the account (edit
-            listing, photos, notifications, password, delete, sign out) now
-            lives entirely on the artisan dashboard's own Profile tab — see
-            artisan/ArtisanDashboard.js — instead of a second, easy-to-forget
-            copy here. This card is just a summary + the one door in. */}
-        <div>
-          <Section icon={Wrench}>ARTISAN ACCOUNT</Section>
-          {artisanLoading ? (
-            <Card className="flex items-center justify-center p-6">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            </Card>
-          ) : !artisan ? (
-            <SignInPrompt
-              icon={Wrench} title="No artisan account"
-              body="Get job requests"
-              ctaLabel="Get started" onCta={onOpenArtisan}
-            />
-          ) : (
-            <Card className="grid gap-3 p-3.5">
-              <div className="flex items-center gap-3">
-                <div className={`flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full border ${artisan.has_avatar_photo || artisan.avatar_emoji ? "" : "font-mono text-sm font-bold"} ${tintFor(artisan.name)}`}>
-                  {artisan.has_avatar_photo ? (
-                    <img src={avatarPhotoUrl(artisan.id, artisan.avatar_photo_version)} alt="" className="size-full object-cover" />
-                  ) : artisan.avatar_emoji ? (
-                    <Emoji3D emoji={artisan.avatar_emoji} size={44} />
-                  ) : (
-                    initialsOf(artisan.name)
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="m-0 truncate text-[13.5px] font-bold text-foreground">{artisan.name}</p>
-                  <p className="m-0 text-[12px] text-muted-foreground">{artisan.trade}</p>
-                </div>
-              </div>
-              <Btn small variant="gold" onClick={onOpenArtisan} className="justify-self-start">
-                Manage my listing →
-              </Btn>
             </Card>
           )}
         </div>

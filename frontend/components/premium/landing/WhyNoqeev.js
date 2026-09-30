@@ -1,5 +1,5 @@
 "use client";
-import { Sparkles, ShieldCheck, FileCheck2, Hammer, LayoutDashboard, Bot, Lock, ClipboardList } from "lucide-react";
+import { Sparkles, ShieldCheck, FileCheck2, LayoutDashboard, Bot, ClipboardList } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD, SectionGlow } from "./shared";
 
 const FEATURES = [
@@ -14,8 +14,6 @@ const FEATURES = [
   // asked to.
   { Icon: Bot, title: "Auto Apply fills real applications. It never submits without you." },
   { Icon: ClipboardList, title: "Scan an existing resume, or track every application you send" },
-  { Icon: Hammer, title: "A local artisan network with real profiles, ID and insurance reviewed" },
-  { Icon: Lock, title: "Artisan payments held in escrow until you confirm the job is done" },
 ];
 
 export function WhyNoqeev() {

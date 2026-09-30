@@ -74,7 +74,7 @@ export function Hero({ onOpenDashboard, intensity }) {
             transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
             className="m-0 text-balance text-[clamp(2rem,5.4vw,3.4rem)] leading-[1.06] font-bold tracking-tight text-foreground"
           >
-            Tailored resumes. Trusted local artisans.
+            Tailored resumes, built to get you hired.
           </motion.h1>
 
           <motion.p
@@ -87,14 +87,13 @@ export function Hero({ onOpenDashboard, intensity }) {
           </motion.p>
 
           {/* Dashboard (the hub everything else — resume builder, CV scan,
-              job tracker, artisan directory — lives inside) plus Download,
-              shown only while installing is actually a real, available
-              action (see useInstallPrompt) — it disappears on its own the
-              moment the app is installed, so nobody's ever staring at a
-              button with nothing left to do. Resume Studio and Find an
-              Artisan don't need their own line here; both are one tap away
-              once inside the Dashboard, and still linked from the nav/
-              footer/final CTA further down the page. */}
+              job tracker — lives inside) plus Download, shown only while
+              installing is actually a real, available action (see
+              useInstallPrompt) — it disappears on its own the moment the
+              app is installed, so nobody's ever staring at a button with
+              nothing left to do. Resume Studio doesn't need its own line
+              here; it's one tap away once inside the Dashboard, and still
+              linked from the nav/footer/final CTA further down the page. */}
           {/* flex-row (and the buttons' own shrink-to-content width) only
               kicks in at lg, the SAME breakpoint where the column above
               switches from centered/text-center to text-left/items-start.

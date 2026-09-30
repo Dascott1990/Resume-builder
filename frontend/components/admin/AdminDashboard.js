@@ -1,7 +1,7 @@
 "use client";
 /**
  * AdminDashboard.js — the actual admin panel, once app/admin/page.js has
- * already confirmed the caller is a real admin. Eight sections behind a
+ * already confirmed the caller is a real admin. Several sections behind a
  * persistent left sidebar (AdminSidebar.js) — a live overview, full
  * manage-and-moderate tables for every model in the app, a Vendors
  * registry of the third-party services this app depends on, and System
@@ -9,17 +9,12 @@
  * the running app itself, not a hand-kept doc). Below lg: the sidebar
  * becomes a slide-out drawer instead of a persistent column — see this
  * file's own AdminDashboard() component for that responsive split.
- *
- * Artisan listings are the one tab that talks to /api/v1/artisans instead
- * of /api/v1/admin/* — that resource already has full CRUD with no auth of
- * its own (see backend/app/api/admin.py's docstring), so there's nothing
- * admin-specific to add server-side; this tab just reuses it.
  */
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Loader2, RefreshCw, Trash2, ShieldCheck, ShieldOff,
-  Users, FileText, Briefcase, Star, Wrench, LayoutGrid, Pencil, Mail, Plus, X, Sparkles,
+  Users, FileText, Briefcase, LayoutGrid, Pencil, Mail, Plus, X, Sparkles,
   Newspaper, ExternalLink, Server, Bug, CheckCircle2, XCircle, ChevronDown, Table2, Activity, Menu,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
@@ -194,8 +189,8 @@ function OverviewTab() {
         <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="size-5 animate-spin" /></div>
       ) : stats ? (
         // Grouped by what the numbers actually relate to, not one flat
-        // 8-card grid — People / Content / Marketplace, matching how the
-        // sidebar's own Content/Operations groups already read.
+        // card grid — People / Content, matching how the sidebar's own
+        // Content/Operations groups already read.
         <div className="grid gap-6">
           <StatGroup label="People">
             <StatCard icon={Users} label="Total users" value={stats.users} />
@@ -206,10 +201,6 @@ function OverviewTab() {
             <StatCard icon={FileText} label="Saved resumes" value={stats.resumes} />
             <StatCard icon={Briefcase} label="Applications tracked" value={stats.applications} />
             <StatCard icon={LayoutGrid} label="Pending JD captures" value={stats.pending_job_captures} />
-          </StatGroup>
-          <StatGroup label="Marketplace">
-            <StatCard icon={Wrench} label="Artisan listings" value={stats.artisans} />
-            <StatCard icon={Star} label="Reviews" value={stats.reviews} />
           </StatGroup>
         </div>
       ) : null}
@@ -427,10 +418,10 @@ function UsersTab({ selfId }) {
   );
 }
 
-// ── Generic "list + delete" tab factory — Resumes, Applications, Reviews
-// all follow the exact same shape (fetch, table, per-row delete), so one
-// function builds all three instead of copy-pasting the same component
-// three times. ──────────────────────────────────────────────────────────
+// ── Generic "list + delete" tab factory — Resumes and Applications
+// follow the exact same shape (fetch, table, per-row delete), so one
+// function builds both instead of copy-pasting the same component
+// twice. ───────────────────────────────────────────────────────────────
 function useAdminList(endpoint) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -842,386 +833,6 @@ function ApplicationsTab() {
           },
         ]}
       />
-    </div>
-  );
-}
-
-function ReviewsTab() {
-  const { rows, loading, busyId, load, remove } = useAdminList("/api/v1/admin/reviews");
-  return (
-    <div>
-      <TabHeader title="Artisan reviews" onRefresh={load} refreshing={loading} />
-      <AdminTable
-        loading={loading}
-        emptyLabel="No reviews yet."
-        rows={rows}
-        columns={[
-          { key: "artisan_name", label: "Artisan" },
-          { key: "stars", label: "Stars", render: (r) => "★".repeat(r.stars) },
-          { key: "comment", label: "Comment", render: (r) => r.comment || "—" },
-          { key: "created_at", label: "Posted", render: (r) => fmtDate(r.created_at) },
-          {
-            key: "actions", label: "",
-            render: (r) => (
-              <div className="flex justify-end">
-                <Button size="icon-sm" variant="ghost" disabled={busyId === r.id} onClick={() => remove(r.id, "Delete this review?")}>
-                  <Trash2 className="size-3.5 text-destructive" />
-                </Button>
-              </div>
-            ),
-          },
-        ]}
-      />
-    </div>
-  );
-}
-
-function EditArtisanDialog({ artisan, open, onOpenChange, onSaved }) {
-  const [form, setForm] = useState(artisan);
-  const [saving, setSaving] = useState(false);
-  const [polishing, setPolishing] = useState(false);
-
-  useEffect(() => { setForm(artisan); }, [artisan]);
-  if (!form) return null;
-
-  // The exact same AI polish the public "List yourself" form already uses
-  // (see backend/app/api/artisans.py's /polish) — rough notes in, a
-  // professional bio out. No admin-specific endpoint needed, this one was
-  // already open (the whole point of self-listing with no account).
-  const polishBio = async () => {
-    setPolishing(true);
-    try {
-      const data = await apiRequest("/api/v1/artisans/polish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trade: form.trade, years_experience: form.years_experience, notes: form.bio }),
-      });
-      setForm((f) => ({ ...f, bio: data.bio }));
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setPolishing(false);
-    }
-  };
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      // Admins bypass the per-listing edit_token check server-side (see
-      // _authorize_edit in backend/app/api/artisans.py) — no token needed
-      // here, the admin JWT already attached by apiRequest is enough.
-      await apiRequest(`/api/v1/artisans/${form.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name, trade: form.trade, city: form.city, phone: form.phone,
-          email: form.email, bio: form.bio, years_experience: form.years_experience,
-        }),
-      });
-      toast.success("Listing updated.");
-      onOpenChange(false);
-      onSaved();
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Edit listing</DialogTitle></DialogHeader>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label>Name</Label><Input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>Trade</Label><Input value={form.trade || ""} onChange={(e) => setForm({ ...form, trade: e.target.value })} /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label>City</Label><Input value={form.city || ""} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>Years experience</Label><Input type="number" value={form.years_experience ?? ""} onChange={(e) => setForm({ ...form, years_experience: e.target.value })} /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label>Phone</Label><Input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>Email</Label><Input type="email" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label>Bio</Label>
-              <Button type="button" size="sm" variant="outline" disabled={polishing} onClick={polishBio}>
-                {polishing ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-                AI polish
-              </Button>
-            </div>
-            <Textarea rows={3} value={form.bio || ""} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="size-3.5 animate-spin" /> : "Save"}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ── Artisans — talks to the existing public /api/v1/artisans CRUD, not a
-// new admin-scoped endpoint (see file docblock). ───────────────────────
-function ArtisansTab() {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState(null);
-  const [editing, setEditing] = useState(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest("/api/v1/artisans?limit=100");
-      setRows(data);
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const remove = async (a) => {
-    if (!window.confirm(`Remove ${a.name}'s listing?`)) return;
-    setBusyId(a.id);
-    try {
-      await apiRequest(`/api/v1/artisans/${a.id}`, { method: "DELETE" });
-      toast.success("Listing removed.");
-      load();
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  return (
-    <div>
-      <TabHeader title="Artisan directory" onRefresh={load} refreshing={loading} />
-      {editing && (
-        <EditArtisanDialog artisan={editing} open={!!editing} onOpenChange={(o) => !o && setEditing(null)} onSaved={load} />
-      )}
-      <AdminTable
-        loading={loading}
-        emptyLabel="No artisan listings."
-        rows={rows}
-        columns={[
-          { key: "name", label: "Name" },
-          { key: "trade", label: "Trade" },
-          { key: "city", label: "City" },
-          {
-            key: "rating_avg", label: "Rating",
-            render: (a) => (
-              <span className="[font-variant-numeric:tabular-nums]">
-                {a.rating_count ? `${a.rating_avg?.toFixed(1)} (${a.rating_count})` : "—"}
-              </span>
-            ),
-          },
-          {
-            key: "actions", label: "",
-            render: (a) => (
-              <div className="flex justify-end gap-1.5">
-                <Button size="icon-sm" variant="ghost" onClick={() => setEditing(a)}>
-                  <Pencil className="size-3.5" />
-                </Button>
-                <Button size="icon-sm" variant="ghost" disabled={busyId === a.id} onClick={() => remove(a)}>
-                  <Trash2 className="size-3.5 text-destructive" />
-                </Button>
-              </div>
-            ),
-          },
-        ]}
-      />
-    </div>
-  );
-}
-
-// ── Verification — the human review queue behind the trust badge
-// ArtisanSeniorHelp.js/ArtisanProfile.js show (backend/app/api/admin.py's
-// /artisans/verification-queue + /artisans/<id>/verification). No
-// automated background-check vendor is wired in anywhere in this app —
-// an admin looks at the two documents an artisan submitted and approves
-// or rejects by hand; this tab is that review UI. ──────────────────────────
-function VerificationDocViewer({ artisanId, kind, label }) {
-  const [blobUrl, setBlobUrl] = useState(null);
-  const [contentType, setContentType] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    let url;
-    let cancelled = false;
-    setLoading(true);
-    setError(false);
-    // A plain <img src> can't carry an Authorization header, and this
-    // document is deliberately never served by a public route (see
-    // admin.py) — fetched as a blob with the admin's own token instead,
-    // same shape shared/api.js's apiRequest uses, just not going through
-    // it since this response is raw file bytes, not the {success,data}
-    // envelope every other endpoint returns.
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/admin/artisans/${artisanId}/verification/${kind}`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Couldn't load this document");
-        if (!cancelled) setContentType(res.headers.get("content-type"));
-        return res.blob();
-      })
-      .then((blob) => { if (!cancelled) { url = URL.createObjectURL(blob); setBlobUrl(url); } })
-      .catch(() => { if (!cancelled) setError(true); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
-  }, [artisanId, kind]);
-
-  if (loading) {
-    return <div className="flex h-32 items-center justify-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>;
-  }
-  if (error || !blobUrl) {
-    return <p className="m-0 py-4 text-center text-sm text-muted-foreground">Couldn't load this document.</p>;
-  }
-  if (contentType?.startsWith("image/")) {
-    return <img src={blobUrl} alt={label} className="max-h-80 w-full rounded-lg border border-border object-contain" />;
-  }
-  return (
-    <a href={blobUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm font-semibold text-primary">
-      <FileText className="size-4" /> Open {label} (PDF) in a new tab
-    </a>
-  );
-}
-
-const VERIFICATION_STATUS_TONE = { pending: "warning", verified: "good", rejected: "bad", unverified: "neutral" };
-
-function VerificationTab() {
-  const [statusFilter, setStatusFilter] = useState("pending");
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [reviewing, setReviewing] = useState(null);
-  const [notes, setNotes] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest(`/api/v1/admin/artisans/verification-queue?status=${statusFilter}`);
-      setRows(data);
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const openReview = (row) => { setReviewing(row); setNotes(""); };
-
-  const decide = async (status) => {
-    setBusy(true);
-    try {
-      await apiRequest(`/api/v1/admin/artisans/${reviewing.id}/verification`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, notes }),
-      });
-      toast.success(status === "verified" ? "Approved — the badge is live on their profile now." : "Rejected.");
-      setReviewing(null);
-      load();
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div>
-      <TabHeader
-        title="Artisan verification"
-        onRefresh={load}
-        refreshing={loading}
-        extra={
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="verified">Verified</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-              <SelectItem value="unverified">Unverified</SelectItem>
-              <SelectItem value="all">All</SelectItem>
-            </SelectContent>
-          </Select>
-        }
-      />
-      <AdminTable
-        loading={loading}
-        emptyLabel="Nothing here."
-        rows={rows}
-        columns={[
-          { key: "name", label: "Name" },
-          { key: "trade", label: "Trade" },
-          { key: "submitted", label: "Submitted", render: (a) => fmtDate(a.verification_submitted_at) },
-          {
-            key: "verification_status", label: "Status",
-            render: (a) => <StatusChip tone={VERIFICATION_STATUS_TONE[a.verification_status] || "neutral"}>{a.verification_status}</StatusChip>,
-          },
-          {
-            key: "actions", label: "",
-            render: (a) => (
-              <div className="flex justify-end">
-                <Button size="sm" variant="outline" disabled={!a.has_id_doc && !a.has_insurance_doc} onClick={() => openReview(a)}>
-                  Review
-                </Button>
-              </div>
-            ),
-          },
-        ]}
-      />
-
-      <Dialog open={!!reviewing} onOpenChange={(o) => !o && setReviewing(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader><DialogTitle>{reviewing?.name} — verification</DialogTitle></DialogHeader>
-          {reviewing && (
-            <div className="space-y-4">
-              <div>
-                <p className="m-0 mb-1.5 text-xs font-bold text-muted-foreground">GOVERNMENT ID</p>
-                {reviewing.has_id_doc
-                  ? <VerificationDocViewer artisanId={reviewing.id} kind="id-doc" label="ID" />
-                  : <p className="m-0 text-sm text-muted-foreground">Not submitted.</p>}
-              </div>
-              <div>
-                <p className="m-0 mb-1.5 text-xs font-bold text-muted-foreground">PROOF OF INSURANCE</p>
-                {reviewing.has_insurance_doc
-                  ? <VerificationDocViewer artisanId={reviewing.id} kind="insurance-doc" label="insurance document" />
-                  : <p className="m-0 text-sm text-muted-foreground">Not submitted.</p>}
-              </div>
-              {reviewing.verification_status === "pending" ? (
-                <div className="space-y-1.5">
-                  <Label>Notes (shown to the artisan if you reject)</Label>
-                  <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
-                </div>
-              ) : reviewing.verification_notes && (
-                <p className="m-0 text-sm text-muted-foreground">Notes: {reviewing.verification_notes}</p>
-              )}
-            </div>
-          )}
-          {reviewing?.verification_status === "pending" && (
-            <DialogFooter>
-              <Button variant="outline" onClick={() => decide("rejected")} disabled={busy}>
-                {busy ? <Loader2 className="size-3.5 animate-spin" /> : "Reject"}
-              </Button>
-              <Button onClick={() => decide("verified")} disabled={busy}>
-                {busy ? <Loader2 className="size-3.5 animate-spin" /> : "Approve"}
-              </Button>
-            </DialogFooter>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -1676,9 +1287,6 @@ export function AdminDashboard({ adminUser, onSignOut }) {
             {activeSection === "users" && <UsersTab selfId={adminUser?.id} />}
             {activeSection === "resumes" && <ResumesTab />}
             {activeSection === "applications" && <ApplicationsTab />}
-            {activeSection === "reviews" && <ReviewsTab />}
-            {activeSection === "artisans" && <ArtisansTab />}
-            {activeSection === "verification" && <VerificationTab />}
             {activeSection === "vendors" && <VendorsTab />}
             {activeSection === "system" && <SystemTab />}
             {activeSection === "broadcast" && <BroadcastTab />}
