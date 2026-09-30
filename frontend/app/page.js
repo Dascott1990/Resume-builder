@@ -418,7 +418,17 @@ export default function Home() {
   if (view === "jobsboard") {
     return (
       <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
-        <JobsBoard onClose={() => setView("dashboard")} />
+        <JobsBoard
+          onClose={() => setView("dashboard")}
+          onNavigate={(id, opts) => {
+            if (id === "home") setView("dashboard");
+            else if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes });
+            else if (id === "scan") setView("cvscan");
+            else if (id === "jobtracker") setView("jobtracker");
+            else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); setView("apply"); }
+            else if (id === "profile") setView("profile");
+          }}
+        />
       </ErrorBoundary>
     );
   }
