@@ -1,9 +1,9 @@
 // dashboardArt.js — the remaining illustrated icons Dashboard.js needs
-// beyond the four already in quickActionArt.js (Auto Apply/CV Scan/
-// Tracker/Artisans) — same flat, two-tone, colored-tile style throughout
-// the app now, no bare line icons left standing next to it for the
-// screen's actual content (nav items, the hero card, stat cards, the
-// senior-booking banner, notifications, recent activity). Pure UI chrome
+// beyond the three already in quickActionArt.js (Auto Apply/CV Scan/
+// Tracker) — same flat, two-tone, colored-tile style throughout the app
+// now, no bare line icons left standing next to it for the screen's
+// actual content (nav items, the hero card, stat cards, notifications,
+// recent activity). Pure UI chrome
 // — chevrons, close buttons, overflow-menu dots, dropdown items — stays
 // as plain lucide icons on purpose: those are interaction affordances,
 // not content, and illustrating a ">" would just make it harder to read

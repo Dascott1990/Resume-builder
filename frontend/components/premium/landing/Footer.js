@@ -13,7 +13,6 @@ const LINKS = [
   { href: "#features", label: "Features" },
   { href: "#how-it-works", label: "How it works" },
   { href: "#faq", label: "FAQ" },
-  { href: "#artisans", label: "Find an Artisan" },
 ];
 
 export function Footer({ onOpen, onOpenDashboard }) {

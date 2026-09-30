@@ -1,7 +1,7 @@
 "use client";
 /**
  * BroadcastTab.js — "Communication" in the admin sidebar: compose one
- * message, pick an audience (customers / artisans / everyone), see
+ * message, pick an audience (customers / everyone), see
  * exactly how many real people it'll reach BEFORE sending, confirm, then
  * watch it actually go out. Kept as its own file rather than one more
  * inline function in the already-1700-line AdminDashboard.js — a bulk
@@ -34,7 +34,6 @@ import {
 
 const AUDIENCES = [
   { id: "customers", label: "Customers" },
-  { id: "artisans", label: "Artisans" },
   { id: "everyone", label: "Everyone" },
 ];
 

@@ -31,9 +31,9 @@ const STATUSES = [
 const statusMeta = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0];
 
 const EMPTY_FORM = { company: "", role: "", status: "applied", date_applied: "", notes: "", resume_id: "" };
-// Same class of bug as the resume editors and the artisan listing form —
-// a 6-field form (including free-text notes) with no persistence at all
-// was silently wiped on a refresh (see formDraft.js).
+// Same class of bug as the resume editors — a 6-field form (including
+// free-text notes) with no persistence at all was silently wiped on a
+// refresh (see formDraft.js).
 const JOB_FORM_DRAFT_KEY = "resumeBuilder:jobTrackerDraft:v1";
 
 function Field({ label, children }) {
@@ -50,7 +50,7 @@ export default function JobTracker({ onClose }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // Read once, synchronously, before first render — same pattern as
-  // GuestMode.js's own draftAtMount / Artisans.js.
+  // GuestMode.js's own draftAtMount.
   const jobDraftAtMount = useRef(loadFormDraft(JOB_FORM_DRAFT_KEY)).current;
   const hasJobDraftContent = jobDraftAtMount?.editingId
     || Object.entries(jobDraftAtMount?.form || {}).some(([k, v]) => k !== "status" && String(v || "").trim());
@@ -63,7 +63,7 @@ export default function JobTracker({ onClose }) {
   // here since this screen can be opened without ever visiting Dashboard.
   const [savedResumes, setSavedResumes] = useState([]);
 
-  // Debounced, same 300ms shape as Artisans.js.
+  // Debounced, same 300ms shape as Settings.js's own profile draft.
   const jobDraftSaveTimer = useRef(null);
   useEffect(() => {
     clearTimeout(jobDraftSaveTimer.current);

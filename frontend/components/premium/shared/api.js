@@ -3,9 +3,8 @@
  *
  * One request helper for the whole frontend. Every backend endpoint speaks
  * the same {success, data, error} envelope (see backend/app/utils/response.py
- * and error_handlers.py), so one function covers all of them — Artisans.js
- * and ResumeGuestMode.js each previously carried their own copy of exactly
- * this logic.
+ * and error_handlers.py), so one function covers all of them instead of
+ * each screen carrying its own copy of this logic.
  */
 import { getGuestId } from "@/lib/guestId";
 import { getToken } from "@/lib/authToken";

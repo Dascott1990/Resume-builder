@@ -1,9 +1,7 @@
 "use client";
 /**
- * ChangePasswordForm.js — shared by the customer account card (Settings.js)
- * and the artisan account's Profile tab (artisan/ArtisanDashboard.js). Same
- * fields, same validation, just a different onSubmit(current, next) call
- * per account type.
+ * ChangePasswordForm.js — the change-password form used by the account
+ * card in Settings.js.
  */
 import { useState } from "react";
 import { toast } from "sonner";
