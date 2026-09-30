@@ -12,8 +12,10 @@
 function House({ size }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48">
-      <path d="M24 6 40 20h-4v16H12V20H8Z" fill="#3f3f46" />
-      <rect x="20" y="28" width="8" height="8" fill="#e4e4e7" />
+      <rect x="12" y="20" width="24" height="17" rx="1.5" fill="#fde8c8" />
+      <path d="M24 6 40 21H8Z" fill="#b45309" />
+      <rect x="15" y="24" width="5" height="5" rx="1" fill="#fff7ed" />
+      <rect x="26" y="26" width="7" height="11" rx="1" fill="#78350f" />
     </svg>
   );
 }
@@ -90,8 +92,9 @@ function Care({ size }) {
 function PersonArt({ size }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48">
-      <circle cx="24" cy="16" r="8" fill="#3f3f46" />
-      <path d="M8 40c0-9 7-15 16-15s16 6 16 15Z" fill="#52525b" />
+      <circle cx="24" cy="17" r="9" fill="#78716c" />
+      <path d="M8 41c0-9.5 7.5-15.5 16-15.5s16 6 16 15.5Z" fill="#292524" />
+      <rect x="20" y="23" width="8" height="5" rx="2.5" fill="#fafaf9" />
     </svg>
   );
 }
