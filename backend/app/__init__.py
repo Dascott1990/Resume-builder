@@ -137,6 +137,9 @@ def create_app():
     from app.api.resume import resume_bp
     app.register_blueprint(resume_bp, url_prefix="/api/v1/resume")
 
+    from app.api.jobs_board import jobs_board_bp
+    app.register_blueprint(jobs_board_bp, url_prefix="/api/v1/jobs")
+
     from app.api.auth import auth_bp
     app.register_blueprint(auth_bp, url_prefix="/api/v1/auth")
 

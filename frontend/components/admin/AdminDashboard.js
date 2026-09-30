@@ -16,6 +16,7 @@ import {
   Loader2, RefreshCw, Trash2, ShieldCheck, ShieldOff,
   Users, FileText, Briefcase, LayoutGrid, Pencil, Mail, Plus, X, Sparkles,
   Newspaper, ExternalLink, Server, Bug, CheckCircle2, XCircle, ChevronDown, Table2, Activity, Menu,
+  Globe, Building2,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { getToken } from "@/lib/authToken";
@@ -1042,6 +1043,153 @@ function CollapsibleGroup({ title, count, children }) {
   );
 }
 
+const LOGIN_GEO_RANGES = [
+  { id: "today", label: "Today" },
+  { id: "7d", label: "7 days" },
+  { id: "30d", label: "30 days" },
+];
+
+// Real flag emoji from a 2-letter ISO code — no image asset, no icon
+// library entry needed per-country. "unknown" (a login whose country
+// genuinely couldn't be resolved — see models.LoginGeo) gets a plain
+// globe instead of a broken flag.
+function flagEmoji(countryCode) {
+  if (!countryCode || countryCode.length !== 2) return "🌐";
+  const codePoints = [...countryCode.toUpperCase()].map((c) => 127397 + c.charCodeAt(0));
+  return String.fromCodePoint(...codePoints);
+}
+
+function LoginGeoTab() {
+  const [range, setRange] = useState("7d");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    apiRequest(`/api/v1/admin/login-geo?range=${range}`)
+      .then(setData)
+      .catch((e) => toast.error(e.message))
+      .finally(() => setLoading(false));
+  }, [range]);
+
+  useEffect(load, [load]);
+
+  return (
+    <div>
+      <TabHeader
+        title="Logins by country"
+        onRefresh={load}
+        refreshing={loading}
+        extra={
+          <div className="flex overflow-hidden rounded-lg border border-border">
+            {LOGIN_GEO_RANGES.map((r) => (
+              <button
+                key={r.id} type="button" onClick={() => setRange(r.id)}
+                className={`px-3 py-1.5 text-[12.5px] font-semibold ${range === r.id ? "bg-primary/10 text-primary-text" : "text-muted-foreground hover:bg-muted"}`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        }
+      />
+
+      {data && (
+        <div className="grid gap-4">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <p className="m-0 text-[12px] font-semibold text-muted-foreground">Total logins — {LOGIN_GEO_RANGES.find((r) => r.id === range)?.label.toLowerCase()}</p>
+            <p className="m-0 text-[28px] font-bold text-foreground">{data.total_logins}</p>
+          </div>
+
+          {data.countries.length === 0 ? (
+            <p className="m-0 text-[13px] text-muted-foreground">No logins recorded in this range yet.</p>
+          ) : (
+            <div className="grid gap-1.5">
+              {data.countries.map((c) => (
+                <div key={c.country_code} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg">{flagEmoji(c.country_code === "unknown" ? null : c.country_code)}</span>
+                    <span className="font-mono text-[13px] font-bold text-foreground">{c.country_code}</span>
+                  </div>
+                  <span className="font-mono text-[13px] font-bold text-muted-foreground">{c.count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const JOBS_INGEST_SOURCE_LABELS = { remotive: "Remotive", arbeitnow: "Arbeitnow", greenhouse: "Greenhouse", ashby: "Ashby", coverage_retry: "Coverage retry" };
+
+function JobsIngestTab() {
+  const [meta, setMeta] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    apiRequest("/api/v1/admin/jobs-ingest-status")
+      .then(setMeta)
+      .catch((e) => toast.error(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(load, [load]);
+
+  return (
+    <div>
+      <TabHeader title="Jobs board ingestion" onRefresh={load} refreshing={loading} />
+
+      {!meta ? (
+        !loading && <p className="m-0 text-[13px] text-muted-foreground">No ingestion run has happened yet — run backend/scripts/ingest_jobs.py.</p>
+      ) : (
+        <div className="grid gap-4">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <p className="m-0 text-[12px] font-semibold text-muted-foreground">Last run</p>
+            <p className="m-0 text-[15px] font-bold text-foreground">{timeAgo(meta.last_run_at)}</p>
+            <p className="m-0 text-[11.5px] text-muted-foreground">{meta.duration_seconds}s · {meta.total_jobs} live jobs · +{meta.new_jobs_this_run} new · {meta.expired_this_run} expired</p>
+          </div>
+
+          <div className="grid gap-1.5">
+            <p className="m-0 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Source health</p>
+            {Object.entries(meta.source_health || {}).map(([source, stats]) => (
+              <div key={source} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="m-0 text-[13px] font-bold text-foreground">{JOBS_INGEST_SOURCE_LABELS[source] || source}</p>
+                  <p className="m-0 text-[11px] text-muted-foreground">
+                    {stats.fetched} fetched · {stats.verified} verified · {stats.rejected} rejected
+                    {stats.error ? ` · ${stats.error}` : ""}
+                  </p>
+                </div>
+                <StatusPill ok={!stats.error} okLabel="OK" badLabel="Error" />
+              </div>
+            ))}
+          </div>
+
+          <div className="grid gap-1.5">
+            <p className="m-0 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Category coverage (new jobs this run)</p>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              {Object.entries(meta.category_coverage || {}).map(([cat, count]) => (
+                <div key={cat} className={`rounded-lg border px-3 py-2 ${count > 0 ? "border-border bg-background" : "border-destructive/30 bg-destructive/5"}`}>
+                  <p className="m-0 truncate text-[12px] font-bold text-foreground">{cat}</p>
+                  <p className={`m-0 text-[11px] ${count > 0 ? "text-muted-foreground" : "text-destructive"}`}>{count} new</p>
+                </div>
+              ))}
+            </div>
+            {meta.categories_still_empty?.length > 0 && (
+              <p className="m-0 mt-1 text-[11.5px] text-destructive">
+                Still empty after retry: {meta.categories_still_empty.join(", ")}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SystemTab() {
   const [health, setHealth] = useState(null);
   const [structure, setStructure] = useState(null);
@@ -1288,6 +1436,8 @@ export function AdminDashboard({ adminUser, onSignOut }) {
             {activeSection === "resumes" && <ResumesTab />}
             {activeSection === "applications" && <ApplicationsTab />}
             {activeSection === "vendors" && <VendorsTab />}
+            {activeSection === "jobs-ingest" && <JobsIngestTab />}
+            {activeSection === "login-geo" && <LoginGeoTab />}
             {activeSection === "system" && <SystemTab />}
             {activeSection === "broadcast" && <BroadcastTab />}
           </div>

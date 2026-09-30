@@ -64,3 +64,18 @@ def lookup_geo(ip):
         _CACHE.clear()  # crude eviction — simpler than real LRU for a best-effort cache
     _CACHE[ip] = (time.time() + _CACHE_TTL_SECONDS, geo)
     return geo
+
+
+def resolve_country_code(request):
+    """2-letter country code for the login-geography dashboard (see
+    models.LoginGeo) — CF-IPCountry first, since this app runs behind
+    Cloudflare in production and that header is free, instant, and
+    doesn't cost the ip-api.com rate limit lookup_geo above already has
+    to protect. Falls back to lookup_geo's own ip-api.com lookup for
+    local dev (no Cloudflare in front of `flask run`) or the rare request
+    that reaches this app some other way. Never raises, may return None."""
+    cf_country = request.headers.get("CF-IPCountry")
+    if cf_country and cf_country != "XX":  # Cloudflare's own "unknown" sentinel
+        return cf_country.upper()
+    geo = lookup_geo(client_ip(request))
+    return (geo or {}).get("country_code")

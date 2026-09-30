@@ -355,10 +355,11 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
       </motion.button>
 
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }} className="mb-6">
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="grid grid-cols-4 gap-2 sm:gap-3">
           <QuickAction art="apply" label="Auto Apply" onClick={() => go("apply")} />
           <QuickAction art="scan" label="CV Scan" onClick={() => go("scan")} />
           <QuickAction art="tracker" label="Tracker" onClick={() => go("jobtracker")} />
+          <QuickAction art="jobsboard" label="Job Board" onClick={() => go("jobsboard")} />
         </div>
       </motion.div>
 

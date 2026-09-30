@@ -33,6 +33,7 @@ const dynamicScreen = (loader) => dynamic(loader, { ssr: false, loading: () => <
 const Resume = dynamicScreen(() => import("../components/premium/guest"));
 const Profile = dynamicScreen(() => import("../components/premium/Profile"));
 const PersonalProfile = dynamicScreen(() => import("../components/premium/PersonalProfile"));
+const JobsBoard = dynamicScreen(() => import("../components/premium/JobsBoard"));
 const Login = dynamicScreen(() => import("../components/premium/auth/Login"));
 const Signup = dynamicScreen(() => import("../components/premium/auth/Signup"));
 const CVScan = dynamicScreen(() => import("../components/premium/CVScan"));
@@ -88,7 +89,7 @@ const ENTERED_KEY = "noqeev_entered_app";
 // sensible landing spot for those two).
 const VIEW_KEY = "noqeev_last_view";
 const RESTORABLE_VIEWS = new Set([
-  "dashboard", "resume", "cvscan", "jobtracker", "news", "apply", "profile", "personal-profile", "brand-workspace",
+  "dashboard", "resume", "cvscan", "jobtracker", "news", "apply", "profile", "personal-profile", "jobsboard", "brand-workspace",
 ]);
 
 // The branding workspace has no account to restore into — RESTORABLE_VIEWS
@@ -316,6 +317,7 @@ export default function Home() {
             else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); setView("apply"); }
             else if (id === "profile") setView("profile");
             else if (id === "personal-profile") setView("personal-profile");
+            else if (id === "jobsboard") setView("jobsboard");
           }}
         />
       </ErrorBoundary>
@@ -398,6 +400,7 @@ export default function Home() {
             else if (id === "scan") setView("cvscan");
             else if (id === "jobtracker") setView("jobtracker");
             else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); setView("apply"); }
+            else if (id === "jobsboard") setView("jobsboard");
           }}
         />
       </ErrorBoundary>
@@ -408,6 +411,14 @@ export default function Home() {
     return (
       <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
         <PersonalProfile onClose={() => setView("profile")} />
+      </ErrorBoundary>
+    );
+  }
+
+  if (view === "jobsboard") {
+    return (
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+        <JobsBoard onClose={() => setView("dashboard")} />
       </ErrorBoundary>
     );
   }

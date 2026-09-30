@@ -21,3 +21,7 @@ frontend/out/
 
 # Local Claude Code session settings
 .claude/
+
+# Jobs ingestion rollback backups — the live snapshot (jobs.json) and the
+# run log are committed, these per-run copies are a local safety net only.
+backend/data/jobs/snapshots/

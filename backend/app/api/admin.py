@@ -46,6 +46,12 @@ POST   /api/v1/admin/broadcasts              — email every user in an audience
                                                 background thread, see _run_broadcast —
                                                 rate-limited, this is the one admin action that
                                                 reaches real people outside the app
+GET    /api/v1/admin/login-geo               — logins by country, ?range=today|7d|30d (see models.LoginGeo)
+GET    /api/v1/admin/jobs-ingest-status       — the jobs board's latest ingestion run: per-source
+                                                health, category coverage, last-updated timestamp
+                                                (reads app/jobs_ingest/pipeline.py's own snapshot
+                                                meta — the same file api/jobs_board.py serves to
+                                                the public jobs board, just the admin-facing view)
 
 No "admin sets a user's password directly" route on purpose — that would
 mean an admin (or anyone who compromises the admin panel) can silently
@@ -55,6 +61,7 @@ the exact same email-token flow a locked-out user would use themselves
 just triggers it, it never sees or sets the password.
 """
 import io
+import os
 import json
 import re
 import jwt
@@ -69,7 +76,7 @@ from app import db, limiter
 from app.models import (
     User, Media, JobApplication, JdCapture, CareerProfile,
     ApplicationRun, Vendor, VendorNewsItem, GoogleSearchConsoleCredential, SeoSnapshot,
-    SchedulerStatus, AdminBroadcast,
+    SchedulerStatus, AdminBroadcast, LoginGeo,
 )
 from app.middleware.error_handlers import APIError
 from app.utils.auth import require_admin, JWT_SECRET, JWT_ALGORITHM
@@ -793,3 +800,52 @@ def send_broadcast():
 
     return jsonify({"success": True, "data": broadcast.to_dict()}), 201
 
+
+
+# ── Login geography — daily logins by country (see models.LoginGeo) ────────
+_LOGIN_GEO_RANGES = {"today": 1, "7d": 7, "30d": 30}
+
+
+@admin_bp.route("/login-geo", methods=["GET"])
+def login_geo_stats():
+    require_admin(request)
+    range_key = request.args.get("range", "7d")
+    days = _LOGIN_GEO_RANGES.get(range_key)
+    if days is None:
+        raise APIError("range must be today, 7d, or 30d", 400)
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    # today's window is calendar-day, not "last 24h" — matches how the
+    # other two ranges read ("7d"/"30d" are rolling, but "today" reads as
+    # "since midnight" to anyone glancing at the panel).
+    if range_key == "today":
+        since = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    rows = db.session.query(LoginGeo.country_code, db.func.count(LoginGeo.id)) \
+        .filter(LoginGeo.created_at >= since) \
+        .group_by(LoginGeo.country_code) \
+        .order_by(db.func.count(LoginGeo.id).desc()) \
+        .all()
+
+    counts = [{"country_code": code or "unknown", "count": count} for code, count in rows]
+    return jsonify({"success": True, "data": {
+        "range": range_key, "since": since.isoformat() + "Z",
+        "total_logins": sum(c["count"] for c in counts),
+        "countries": counts,
+    }}), 200
+
+
+# ── Jobs board ingestion status — admin-facing view of the same snapshot
+# meta api/jobs_board.py serves publicly at /api/v1/jobs/meta. Kept as its
+# own admin route (rather than just pointing the admin UI at the public
+# one) so this can later show anything genuinely admin-only — the raw
+# per-run error strings, say — without exposing that to the public route.
+@admin_bp.route("/jobs-ingest-status", methods=["GET"])
+def jobs_ingest_status():
+    require_admin(request)
+    from app.jobs_ingest.pipeline import SNAPSHOT_PATH
+    if not os.path.exists(SNAPSHOT_PATH):
+        return jsonify({"success": True, "data": None}), 200
+    with open(SNAPSHOT_PATH) as f:
+        data = json.load(f)
+    return jsonify({"success": True, "data": data.get("meta")}), 200

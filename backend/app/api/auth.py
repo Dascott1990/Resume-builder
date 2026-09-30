@@ -36,7 +36,7 @@ from flask import Blueprint, request, jsonify, send_file
 from app import db, limiter
 from app.models import (
     User, Media, JobApplication, CareerProfile, ApplicationRun,
-    PushSubscription, BrandNews, BrandTask,
+    PushSubscription, BrandNews, BrandTask, LoginGeo,
 )
 from app.middleware.error_handlers import APIError
 from app.utils.uploads import validate_upload
@@ -45,7 +45,7 @@ from app.utils.auth import (
     break_glass_configured, verify_break_glass_credentials, issue_break_glass_token,
 )
 from app.utils.mail import send_email, wrap_email_html
-from app.utils.geoip import client_ip, lookup_geo
+from app.utils.geoip import client_ip, lookup_geo, resolve_country_code
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -328,6 +328,14 @@ def login():
         user.known_logins = known[-20:]
     except Exception as exc:
         print(f"⚠️ New-login check failed (login still succeeded): {exc}")
+
+    # Country-only login record for the admin "logins by country" panel
+    # (see models.LoginGeo) — same never-block-the-login contract as the
+    # new-device/region check above.
+    try:
+        db.session.add(LoginGeo(country_code=resolve_country_code(request)))
+    except Exception as exc:
+        print(f"⚠️ Login-geo record failed (login still succeeded): {exc}")
 
     db.session.commit()
 

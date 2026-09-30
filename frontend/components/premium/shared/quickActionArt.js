@@ -40,12 +40,33 @@ function Clipboard({ size }) {
   );
 }
 
+function Buildings({ size }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48">
+      <rect x="6" y="18" width="14" height="24" fill="#3f3f46" />
+      <rect x="22" y="8" width="20" height="34" fill="#52525b" />
+      <rect x="10" y="23" width="3" height="3" fill="#e4e4e7" />
+      <rect x="16" y="23" width="3" height="3" fill="#e4e4e7" />
+      <rect x="10" y="30" width="3" height="3" fill="#e4e4e7" />
+      <rect x="16" y="30" width="3" height="3" fill="#e4e4e7" />
+      <rect x="27" y="14" width="3" height="3" fill="#e4e4e7" />
+      <rect x="33" y="14" width="3" height="3" fill="#e4e4e7" />
+      <rect x="27" y="21" width="3" height="3" fill="#e4e4e7" />
+      <rect x="33" y="21" width="3" height="3" fill="#e4e4e7" />
+      <rect x="27" y="28" width="3" height="3" fill="#e4e4e7" />
+      <rect x="33" y="28" width="3" height="3" fill="#e4e4e7" />
+    </svg>
+  );
+}
+
 const AMBER_TILE = "linear-gradient(155deg,#fde8c8,#fbd9a0)";
 const EMERALD_TILE = "linear-gradient(155deg,#d7f5e6,#b8ecd2)";
 const BLUE_TILE = "linear-gradient(155deg,#dbeafe,#bfdcfa)";
+const GRAY_TILE = "linear-gradient(155deg,#e4e4e7,#cfcfd4)";
 
 export const QUICK_ACTION_ART = {
   apply: { bg: AMBER_TILE, Svg: DocBolt },
   scan: { bg: BLUE_TILE, Svg: DocScan },
   tracker: { bg: EMERALD_TILE, Svg: Clipboard },
+  jobsboard: { bg: GRAY_TILE, Svg: Buildings },
 };

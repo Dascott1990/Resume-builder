@@ -21,7 +21,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
   X, User, Palette, LogOut, ChevronRight, Loader2, Trash2, HelpCircle,
-  Gift, ShieldCheck, FileText, ScanLine, ClipboardList, Sparkles, Lock,
+  Gift, ShieldCheck, FileText, ScanLine, ClipboardList, Sparkles, Lock, Building2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -162,6 +162,7 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
               <Row icon={ScanLine} label="CV Scan" onClick={() => go("scan")} />
               <Row icon={ClipboardList} label="Applications" onClick={() => go("jobtracker")} />
               <Row icon={Sparkles} label="Jobs" sublabel="Apply with AI" onClick={() => go("apply")} />
+              <Row icon={Building2} label="Job board" sublabel="Browse verified listings" onClick={() => go("jobsboard")} />
             </Card>
           </div>
         )}

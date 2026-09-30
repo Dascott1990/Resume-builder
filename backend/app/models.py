@@ -96,6 +96,25 @@ class User(db.Model):
         }
 
 
+class LoginGeo(db.Model):
+    """
+    One row per successful login, country only — the admin dashboard's
+    "logins by country" panel (today/7d/30d, see api/admin.py's
+    login_geo_stats) reads straight off this table, bucketed by
+    created_at. Deliberately carries nothing else: no user_id, no IP, no
+    device — country_code is the one thing the spec this table exists for
+    actually asked to track, and anything more would be personal data this
+    table has no reason to hold. country_code may be None (a lookup that
+    failed entirely, e.g. Cloudflare's own "XX" sentinel with the ip-api.com
+    fallback also unreachable) — those rows still count toward login
+    volume, just not toward any one country's total.
+    """
+    __tablename__ = "login_geo"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    country_code = db.Column(db.String(2), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
 class Media(db.Model):
     __tablename__ = "media"
 
