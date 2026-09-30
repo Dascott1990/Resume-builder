@@ -40,7 +40,7 @@ export function Hero({ onOpenDashboard, intensity }) {
     <section
       id="top"
       ref={heroRef}
-      className="dark relative flex min-h-[100dvh] w-full flex-col justify-center overflow-hidden bg-background pt-28 pb-20 sm:pt-32 lg:pt-40 lg:pb-28"
+      className="dark relative flex min-h-[100dvh] w-full flex-col justify-center overflow-hidden bg-background pt-20 pb-12 sm:pt-24 lg:pt-32 lg:pb-20"
       style={{ scrollMarginTop: "64px" }}
     >
       <motion.div
@@ -53,7 +53,7 @@ export function Hero({ onOpenDashboard, intensity }) {
         }}
       />
 
-      <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-12 px-6 sm:px-8 lg:grid-cols-2 lg:gap-16 lg:px-12">
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-8 px-6 sm:px-8 lg:grid-cols-2 lg:gap-12 lg:px-12">
         {/* ── Text column, message + action, always readable, never behind the 3D ── */}
         <div className="order-1 flex flex-col items-center gap-6 text-center lg:items-start lg:text-left">
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.05 }}>
@@ -174,7 +174,7 @@ export function Hero({ onOpenDashboard, intensity }) {
         >
           <div
             aria-hidden="true"
-            className="relative h-[380px] w-full overflow-hidden rounded-[28px] border border-white/[0.1] sm:h-[460px] lg:h-[560px]"
+            className="relative h-[300px] w-full overflow-hidden rounded-[28px] border border-white/[0.1] sm:h-[360px] lg:h-[500px]"
             style={{ boxShadow: "inset 0 0 70px rgba(0,0,0,0.45), 0 24px 70px rgba(0,0,0,0.4)" }}
           >
             <div className="absolute inset-0" style={{ opacity: intensity, transition: "opacity 0.25s ease" }}>
@@ -190,7 +190,7 @@ export function Hero({ onOpenDashboard, intensity }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.8 }}
-        className="relative z-10 mt-14 flex flex-col items-center gap-1 text-muted-foreground/60 lg:mt-16"
+        className="relative z-10 mt-6 flex flex-col items-center gap-1 text-muted-foreground/60 lg:mt-10"
       >
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase">Scroll</span>
         <motion.span
