@@ -427,10 +427,16 @@ function DashboardContent({
       {isDesktop ? (
         <motion.div
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-          className="dark relative mb-5 flex h-[130px] items-center overflow-hidden rounded-3xl"
+          className="dark relative mb-2 flex h-[130px] items-center overflow-hidden rounded-3xl"
         >
           <img src="/dashboard/greeting-banner.jpg" alt="" className="absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/10" />
+          {/* Fades the photo's own bottom edge into the page background
+              (no new color — bg-background is the same token the stats
+              card sits on) so the banner dissolves into what's below it
+              instead of ending on a hard photographic edge right above
+              the card. */}
+          <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-b from-transparent to-background" />
           <div className="relative w-full px-6">{greetingRow}</div>
         </motion.div>
       ) : (
