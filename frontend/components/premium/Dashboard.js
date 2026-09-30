@@ -280,15 +280,20 @@ function DashboardContent({ user, statsLoading, savedResumes, applications, go, 
   const followupCount = applications.filter((a) => a.needs_followup).length;
   const latestResume = savedResumes[0];
 
+  {/* Avatar leads the greeting, same order Logo.js's own lockup uses —
+      icon first, then the text that names it (there, LogoMark then
+      "NOQEEV"; here, the avatar then "Good evening, you"). Not trailing
+      it: this is the same "who" the text is about, read left to right,
+      not a decoration tucked on at the end. */}
   const greetingRow = (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex items-center gap-3">
+      {user && <GreetingAvatar user={user} onClick={onOpenPersonalProfile} />}
       <div className="min-w-0">
         <p className="m-0 truncate text-[13px] font-semibold text-muted-foreground">
           {greeting()}{user ? `, ${user.name || user.email.split("@")[0]}` : ""}
         </p>
         <h1 className="m-0 text-[26px] font-bold text-foreground">Let's get you hired.</h1>
       </div>
-      {user && <GreetingAvatar user={user} onClick={onOpenPersonalProfile} />}
     </div>
   );
 
