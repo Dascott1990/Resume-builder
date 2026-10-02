@@ -31,17 +31,49 @@ import { SettingsTab } from "./components/PanelContent/SettingsTab";
 import { DEFAULT_STYLE, EMPTY_INFO } from "./constants";
 import { resumeReducer, onEditHandler } from "./guestReducer";
 import { loadDraft, clearDraft, loadProfile, saveProfile, clearProfile, DRAFT_KEY } from "./useGuestDraft";
-import { apiGenerate, apiOptimize, apiListSaved, apiGetSaved, apiDelete } from "./api";
+import { apiGenerate, apiOptimize, apiListSaved, apiGetSaved, apiDelete, apiConsumeDownload, apiGetDownloadCount } from "./api";
 import { downloadDocx } from "./export/docx";
 import { downloadCoverLetterDocx } from "./export/coverLetterDocx";
 import { printPdf, printCoverLetterPdf } from "../shared/printPdf";
 import { useViewport } from "@/lib/useViewport";
 import { useSignupNudge } from "@/lib/useSignupNudge";
 import { SignupNudgeModal } from "../shared/SignupNudgeModal";
+import { DownloadCapModal } from "./components/DownloadCapModal";
+import { getToken } from "@/lib/authToken";
 
-export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, pendingViewAllResumes }) {
+export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, pendingViewAllResumes, onRequireAuth }) {
   const { isPhone, isTablet, isDesktop } = useViewport();
   const signupNudge = useSignupNudge();
+  // Real, server-tracked cap (see backend/app/models.py's
+  // GuestDownloadCount) — signed-in sessions never see this banner or
+  // gate, since consume always no-ops uncapped for them.
+  const isSignedIn = !!getToken();
+  const [downloadCount, setDownloadCount] = useState(0);
+  const [capModalOpen, setCapModalOpen] = useState(false);
+  useEffect(() => {
+    if (isSignedIn) return;
+    apiGetDownloadCount().then((d) => setDownloadCount(d.count));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Called at the top of every resume-download handler (NOT the
+  // cover-letter-only ones — the cap is about resumes) before it builds
+  // anything. Returns false and opens the gate modal on a real cap hit;
+  // fails open (returns true) on any OTHER error, e.g. a network blip —
+  // an unrelated hiccup in the cap-tracking subsystem should never be
+  // what blocks someone's actual download.
+  const checkDownloadAllowed = async () => {
+    try {
+      const d = await apiConsumeDownload();
+      setDownloadCount(d.count);
+      return true;
+    } catch (e) {
+      if (e.code === "DOWNLOAD_CAP_REACHED") {
+        setCapModalOpen(true);
+        return false;
+      }
+      return true;
+    }
+  };
 
   // Tablet used to be lumped in with phone — a single full-screen view at a
   // time, switching between the style/form panel and the resume preview.
@@ -350,6 +382,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
   // reviewed everything on screen — matching formats, both editable.
   const downloadPackage = async () => {
     if (!resume) return;
+    if (!(await checkDownloadAllowed())) return;
     setDownloading("docx");
     try {
       const name = (resume.contact?.name || info.name || "Resume").replace(/\s+/g, "_");
@@ -418,6 +451,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
 
   const handleDocx = async () => {
     if (!resume) return;
+    if (!(await checkDownloadAllowed())) return;
     setDownloading("docx");
     try {
       const name = resume.contact?.name?.replace(/\s+/g, "_") || "Resume";
@@ -445,8 +479,9 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
     return () => cancelAnimationFrame(raf);
   }, [pendingPrint, mobileView, showSplit]);
 
-  const handlePdf = () => {
+  const handlePdf = async () => {
     if (!resume) { setError("Nothing to export yet — generate a resume first."); return; }
+    if (!(await checkDownloadAllowed())) return;
     setDownloading("pdf");
     // On phone the preview isn't rendered while the form panel is showing,
     // so previewRef.current would be null here — switch screens and let
