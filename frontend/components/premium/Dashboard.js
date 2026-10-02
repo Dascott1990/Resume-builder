@@ -228,7 +228,7 @@ function ResumeStatusCard({ latestResume, onOpen }) {
             {latestResume ? `Last updated ${timeAgo(latestResume.generated_at)}` : "Tailored, ATS-ready in minutes"}
           </p>
         </div>
-        <span className="shrink-0 text-[12.5px] font-bold text-primary">{latestResume ? "View / Edit" : "Start"}</span>
+        <span className="shrink-0 text-[12.5px] font-bold text-primary">{latestResume ? "View" : "Start"}</span>
       </button>
     </div>
   );
