@@ -26,7 +26,7 @@ export function FinalCTA({ onOpen, onOpenDashboard, onOpenSignup }) {
               transition={{ type: "spring", damping: 22, stiffness: 400 }}
               className="flex min-h-[54px] items-center gap-2 rounded-2xl border-none bg-primary px-8 text-[15.5px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation]"
             >
-              Create your free account
+              Create Your Resume
               <ArrowRight className="size-4" />
             </motion.button>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
