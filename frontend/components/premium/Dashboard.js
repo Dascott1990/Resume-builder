@@ -222,7 +222,7 @@ function ResumeStatusCard({ latestResume, onOpen }) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="m-0 truncate text-[13.5px] font-bold text-foreground">
-            {latestResume ? (latestResume.name || "Resume ready") : "First resume"}
+            {latestResume ? (latestResume.name || "Resume ready") : "First Resume"}
           </p>
           <p className="m-0 truncate text-[11.5px] text-muted-foreground">
             {latestResume ? `Last updated ${timeAgo(latestResume.generated_at)}` : "Tailored, ATS-ready in minutes"}
