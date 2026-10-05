@@ -27,4 +27,11 @@ pywebpush==2.5.0
 APScheduler==3.11.3
 boto3==1.43.98
 python-whois==0.9.6
-scrapegraph-py==2.3.1
+# scrapegraph-py deliberately NOT pinned here — app/jobs_ingest/sources.py's
+# fetch_scrapegraph() already wraps the import in try/except ImportError and
+# treats it as a genuinely optional add-on (its own docstring: "never a hard
+# dependency the rest of the pipeline needs to function"). Pinning it here
+# forces pip to require it at BUILD time instead, which is exactly backwards
+# — confirmed live: 2.3.1 requires Python >=3.12, Render's build runs 3.11
+# (PYTHON_VERSION in render.yaml), so pip had no matching version to install
+# and failed the ENTIRE backend build, not just this one optional source.
