@@ -44,11 +44,6 @@ export function SettingsTab({ saved, onResetStyle, onClearAll }) {
           </AlertDialogContent>
         </AlertDialog>
       </div>
-
-      <p className="m-0 text-[11.5px] text-muted-foreground/60">
-        Noqeev · Guest Mode<br />
-        Nothing is stored beyond what you see in "Saved."
-      </p>
     </div>
   );
 }

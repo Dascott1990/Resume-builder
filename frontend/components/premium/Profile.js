@@ -134,18 +134,12 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
             <Btn small variant="gold" onClick={onOpenLogin}>Sign in</Btn>
           </Card>
         ) : (
-          // Hero identity row — matches the account hub's own hero: a
-          // bigger avatar, name, and "N resumes built · Personal
-          // account" instead of the smaller card-with-chevron this used
-          // to be (that action still exists, just as its own "Personal
-          // profile" row inside Account below, same as the reference).
+          // Hero identity row — a plain display, not a second button: the
+          // "Personal profile" row in Account below is the one real way
+          // in, not duplicated here too (confirmed live: the avatar and
+          // that row used to open the identical screen).
           <div className="mb-6 flex items-center gap-4">
-            <button
-              type="button" onClick={onOpenPersonalProfile} aria-label="Personal profile"
-              className="shrink-0 border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
-            >
-              <Avatar user={user} size={64} />
-            </button>
+            <Avatar user={user} size={64} />
             <div className="min-w-0">
               <p className="m-0 truncate text-[19px] font-bold text-foreground">{user.name || user.email.split("@")[0]}</p>
               <p className="m-0 mt-0.5 truncate text-[12.5px] text-muted-foreground">{savedResumesCount} resume{savedResumesCount === 1 ? "" : "s"} built · Personal account</p>
@@ -170,12 +164,15 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
                       <p className="m-0 mt-3 text-[11px] text-muted-foreground">Two-factor authentication coming soon.</p>
                     </div>
                   )}
-                  <div className="border-t border-border">
-                    <Row
-                      icon={FileText} label="Resumes built"
-                      trailing={<span className="font-mono text-[13px] font-bold text-foreground">{savedResumesCount}</span>}
-                      onClick={() => go("resume", { viewAllResumes: true })}
-                    />
+                  {/* A stat, not a second button to the same place "My
+                      resumes" in Shortcuts already opens — plain row, no
+                      chevron, nothing to click. */}
+                  <div className="flex items-center gap-3 border-t border-border p-3.5">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted">
+                      <FileText className="size-3.5 text-muted-foreground" />
+                    </div>
+                    <p className="m-0 flex-1 text-[13px] font-bold text-foreground">Resumes built</p>
+                    <span className="font-mono text-[13px] font-bold text-foreground">{savedResumesCount}</span>
                   </div>
                 </Card>
               </div>
