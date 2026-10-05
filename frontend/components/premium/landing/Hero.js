@@ -40,16 +40,21 @@ export function Hero({ onOpenSignup, intensity }) {
     <section
       id="top"
       ref={heroRef}
-      // h-[100dvh], not min-h: the whole hero — headline, CTA, the
-      // skyline panel, and the scroll hint at the very bottom — has to
+      // h-[100svh], not min-h and not dvh: the whole hero — headline, CTA,
+      // the skyline panel, and the scroll hint at the very bottom — has to
       // fit in exactly one screen on every breakpoint, never taller.
-      // Confirmed live this was the bug with min-h: on a short phone
-      // viewport the stacked mobile layout ran past 100dvh, pushing the
-      // "Scroll" hint below the fold — the one thing whose entire job is
-      // to be visible without scrolling. Paddings/gaps below are tuned
-      // tighter on mobile specifically to make that fit true, not just
-      // declared.
-      className="dark relative flex h-[100dvh] w-full flex-col justify-center overflow-hidden bg-background pt-6 pb-4 sm:pt-10 sm:pb-6 lg:pt-20 lg:pb-10"
+      // min-h let it grow past one screen on short viewports, pushing the
+      // "Scroll" hint below the fold. dvh (dynamic viewport height, which
+      // this used briefly) recalculates as a mobile browser's own address
+      // bar shows/hides — on real iOS/Android Safari-class browsers that
+      // makes a `position: fixed` sibling (Navbar.js) above an exactly-
+      // dvh-tall section need a scroll/reflow before it settles into its
+      // correct spot, reading as "the navbar isn't there until I scroll."
+      // svh (small viewport height — sized as if the browser chrome is
+      // always fully expanded) never recalculates, so there's nothing for
+      // a fixed header to wait on. Paddings/gaps below are tuned tighter
+      // on mobile specifically so the fit is actually true, not just declared.
+      className="dark relative flex h-[100svh] w-full flex-col justify-center overflow-hidden bg-background pt-6 pb-4 sm:pt-10 sm:pb-6 lg:pt-20 lg:pb-10"
       style={{ scrollMarginTop: "64px" }}
     >
       <motion.div
