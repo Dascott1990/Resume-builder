@@ -30,6 +30,19 @@ MAIL_FROM = os.environ.get("MAIL_FROM", "Noqeev <noreply@noqeev.com>")
 # schedule_reminders.py) rather than one shared constant — matched here,
 # not "fixed," since this isn't the file to go relitigate that in.
 FRONTEND_URL = (os.environ.get("FRONTEND_URL") or "http://localhost:3000").rstrip("/")
+# A static, transparent-background PNG render of Logo.js's own mark +
+# wordmark (frontend/public/email-logo.png) — pixel-matched to the real
+# in-app logo (same bowl-and-tail mark geometry, same bronze-to-gold
+# gradient, same self-hosted Unbounded wordmark font), not a CSS
+# approximation. Depends on FRONTEND_URL actually being correct — it
+# wasn't in production for a while (missing from render.yaml's envVars,
+# silently fell back to this file's own "http://localhost:3000" default,
+# a host no recipient's email client can reach), which is why this was
+# briefly replaced with a plain CSS wordmark. That root cause is fixed now
+# (render.yaml declares the real value) — reverted back to the real,
+# exact-match image per explicit request to match the landing page's
+# branding exactly, not an approximation of it.
+LOGO_URL = f"{FRONTEND_URL}/email-logo.png"
 
 
 def mail_configured():
@@ -91,19 +104,11 @@ def wrap_email_html(heading, body_html, cta_label=None, cta_link=None, footnote=
     plain bold-text "NOQEEV" + heading + footer shell, independently
     pasted into auth.py, messages.py, requests.py, brand.py, story.py,
     schedule_reminders.py, and admin.py's broadcast tool, each one free
-    to drift from the others. One real template now: a pure-CSS wordmark
-    (no <img>, see the mark/wordmark table below), a gold accent bar, and
-    a consistent footer carrying the company's real mailing address
-    (CASL — Canada's anti-spam law; Noqeev is Ottawa-based).
-
-    The logo used to be a hosted PNG (<img src="{FRONTEND_URL}/email-logo.png">)
-    — confirmed live as the cause of a real bug: FRONTEND_URL has no
-    declared value in render.yaml's production envVars, so whenever it's
-    unset there that URL silently fell back to this file's own
-    "http://localhost:3000" default — a host no recipient's email client
-    can ever reach, so the logo showed as broken in every delivered
-    email, not just intermittently. A CSS-built mark has no URL to get
-    wrong and nothing to fail to load, ever.
+    to drift from the others. One real template now: the actual logo
+    image (LOGO_URL above — exact pixel match to the real mark, see its
+    own comment for why this isn't a CSS approximation), a gold accent
+    bar, and a consistent footer carrying the company's real mailing
+    address (CASL — Canada's anti-spam law; Noqeev is Ottawa-based).
 
     cta_label/cta_link are optional together — pass both for a real
     button, leave both out for a plain body-only email (a message
@@ -138,16 +143,7 @@ def wrap_email_html(heading, body_html, cta_label=None, cta_link=None, footnote=
             <tr><td style="height:6px;line-height:6px;font-size:0;background-color:#f59e0b;border-radius:16px 16px 0 0;">&nbsp;</td></tr>
             <tr>
               <td style="padding:36px 36px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
-                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
-                  <tr>
-                    <td style="background-color:#14151a;border-radius:8px;width:32px;height:32px;text-align:center;vertical-align:middle;">
-                      <span style="display:inline-block;line-height:32px;font-size:16px;font-weight:800;color:#f59e0b;">N</span>
-                    </td>
-                    <td style="padding-left:10px;vertical-align:middle;">
-                      <span style="font-size:18px;font-weight:800;letter-spacing:0.02em;color:#14151a;">NOQEEV</span>
-                    </td>
-                  </tr>
-                </table>
+                <img src="{LOGO_URL}" alt="Noqeev" width="140" style="display:block;height:auto;margin:0 0 28px;border:0;" />
                 <h1 style="margin:0 0 14px;color:#14151a;font-size:21px;font-weight:800;line-height:1.3;">{heading}</h1>
                 <div style="color:#444;font-size:14.5px;line-height:1.65;">{body_html}</div>
                 {cta_html}

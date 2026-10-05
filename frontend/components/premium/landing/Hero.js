@@ -40,7 +40,16 @@ export function Hero({ onOpenSignup, intensity }) {
     <section
       id="top"
       ref={heroRef}
-      className="dark relative flex min-h-[100dvh] w-full flex-col justify-center overflow-hidden bg-background pt-20 pb-12 sm:pt-24 lg:pt-32 lg:pb-20"
+      // h-[100dvh], not min-h: the whole hero — headline, CTA, the
+      // skyline panel, and the scroll hint at the very bottom — has to
+      // fit in exactly one screen on every breakpoint, never taller.
+      // Confirmed live this was the bug with min-h: on a short phone
+      // viewport the stacked mobile layout ran past 100dvh, pushing the
+      // "Scroll" hint below the fold — the one thing whose entire job is
+      // to be visible without scrolling. Paddings/gaps below are tuned
+      // tighter on mobile specifically to make that fit true, not just
+      // declared.
+      className="dark relative flex h-[100dvh] w-full flex-col justify-center overflow-hidden bg-background pt-6 pb-4 sm:pt-10 sm:pb-6 lg:pt-20 lg:pb-10"
       style={{ scrollMarginTop: "64px" }}
     >
       <motion.div
@@ -53,9 +62,9 @@ export function Hero({ onOpenSignup, intensity }) {
         }}
       />
 
-      <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-8 px-6 sm:px-8 lg:grid-cols-2 lg:gap-12 lg:px-12">
+      <div className="relative z-10 mx-auto grid min-h-0 w-full max-w-6xl flex-1 grid-cols-1 items-center gap-3 px-6 sm:gap-5 sm:px-8 lg:grid-cols-2 lg:gap-12 lg:px-12">
         {/* ── Text column, message + action, always readable, never behind the 3D ── */}
-        <div className="order-1 flex flex-col items-center gap-6 text-center lg:items-start lg:text-left">
+        <div className="order-1 flex flex-col items-center gap-2.5 text-center sm:gap-4 lg:items-start lg:gap-6 lg:text-left">
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.05 }}>
             <Logo size={34} />
           </motion.div>
@@ -72,7 +81,7 @@ export function Hero({ onOpenSignup, intensity }) {
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-            className="m-0 text-balance text-[clamp(2rem,5.4vw,3.4rem)] leading-[1.06] font-bold tracking-tight text-foreground"
+            className="m-0 text-balance text-[clamp(1.6rem,5.4vw,3.4rem)] leading-[1.08] font-bold tracking-tight text-foreground"
           >
             Tailored resumes, built to get you hired.
           </motion.h1>
@@ -81,7 +90,7 @@ export function Hero({ onOpenSignup, intensity }) {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="m-0 text-[15.5px] leading-relaxed text-muted-foreground"
+            className="m-0 text-[13.5px] leading-snug text-muted-foreground sm:text-[15.5px] sm:leading-relaxed"
           >
             Set up your profile once. Tailor unlimited resumes after that.
           </motion.p>
@@ -113,13 +122,13 @@ export function Hero({ onOpenSignup, intensity }) {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="flex w-full max-w-sm flex-col items-center gap-3 lg:max-w-none lg:flex-row lg:justify-start"
+            className="flex w-full max-w-sm flex-col items-center gap-2 lg:max-w-none lg:flex-row lg:justify-start lg:gap-3"
           >
             <motion.button
               onClick={onOpenSignup}
               whileTap={{ scale: 0.96 }}
               transition={{ type: "spring", damping: 22, stiffness: 400 }}
-              className="flex min-h-[54px] w-full select-none items-center justify-center gap-2 rounded-2xl border-none bg-primary px-7 text-[15.5px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] lg:w-auto"
+              className="flex min-h-[44px] w-full select-none items-center justify-center gap-2 rounded-2xl border-none bg-primary px-7 text-[14px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:min-h-[54px] sm:text-[15.5px] lg:w-auto"
             >
               Create Your Resume
               <ArrowRight className="size-4" />
@@ -130,7 +139,7 @@ export function Hero({ onOpenSignup, intensity }) {
                 disabled={showInstalledBadge || isPrompting}
                 whileTap={showInstalledBadge || isPrompting ? undefined : { scale: 0.96 }}
                 transition={{ type: "spring", damping: 22, stiffness: 400 }}
-                className={`flex min-h-[54px] w-full select-none items-center justify-center gap-2 rounded-2xl border border-border bg-transparent px-7 text-[15.5px] font-bold [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] lg:w-auto ${
+                className={`flex min-h-[44px] w-full select-none items-center justify-center gap-2 rounded-2xl border border-border bg-transparent px-7 text-[14px] font-bold [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:min-h-[54px] sm:text-[15.5px] lg:w-auto ${
                   showInstalledBadge || isPrompting ? "cursor-default text-muted-foreground" : "text-foreground"
                 }`}
               >
@@ -176,7 +185,7 @@ export function Hero({ onOpenSignup, intensity }) {
         >
           <div
             aria-hidden="true"
-            className="relative h-[300px] w-full overflow-hidden rounded-[28px] border border-white/[0.1] sm:h-[360px] lg:h-[500px]"
+            className="relative h-[160px] w-full overflow-hidden rounded-[28px] border border-white/[0.1] sm:h-[280px] lg:h-[420px]"
             style={{ boxShadow: "inset 0 0 70px rgba(0,0,0,0.45), 0 24px 70px rgba(0,0,0,0.4)" }}
           >
             <div className="absolute inset-0" style={{ opacity: intensity, transition: "opacity 0.25s ease" }}>
