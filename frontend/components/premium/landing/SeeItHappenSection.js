@@ -63,6 +63,22 @@ export function SeeItHappenSection() {
   return (
     <section ref={containerRef} className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden py-20 sm:py-24">
       <SectionGlow color="emerald" side="right" />
+      {/* Hero above is forced dark (`.dark`, see its own file comment) no
+          matter the app's real theme, but this section isn't — in light
+          mode that's a real color underneath Hero's own dark one, cut
+          sharply at the seam between them. Hero's 90svh peek (see its own
+          comment) makes that seam visible immediately on load now, not
+          just after scrolling into it, so the cut needs to actually blend
+          instead of just existing. `.dark` scopes var(--background) to
+          the dark token for this one small band regardless of the app's
+          real mode, fading to transparent — in light mode that reveals
+          this section's real (lighter) background gradually; in dark
+          mode the two colors already match, so this paints as a no-op. */}
+      <div
+        aria-hidden="true"
+        className="dark pointer-events-none absolute inset-x-0 top-0 h-28 bg-background sm:h-36"
+        style={{ WebkitMaskImage: "linear-gradient(to bottom, black, transparent)", maskImage: "linear-gradient(to bottom, black, transparent)" }}
+      />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal>

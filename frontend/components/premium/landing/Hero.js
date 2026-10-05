@@ -55,7 +55,19 @@ export function Hero({ onOpenSignup, intensity }) {
       // place on a real phone — confirmed live, read as "the navbar isn't
       // there until I scroll." svh is sized as if the browser chrome is
       // always expanded, so it never recalculates and nothing waits on it.
-      className="dark relative flex h-[90svh] w-full flex-col justify-center overflow-hidden bg-background pt-11 pb-2 sm:pt-10 sm:pb-5 lg:pt-14 lg:pb-7"
+      //
+      // justify-between, not justify-center: centering the content block
+      // as a whole means the navbar-to-headline gap is whatever's LEFT
+      // OVER after splitting empty space evenly top and bottom — on a
+      // real phone (taller location pill text, different font metrics
+      // than this was tuned against) that remainder can shrink to almost
+      // nothing, reported live as "the navbar and hero text are maybe an
+      // inch apart." justify-between instead pins the content block to
+      // the top (right after the fixed pt- below — a real, guaranteed
+      // distance, not a remainder) and the "Scroll" hint to the bottom,
+      // so the gap near the navbar can never collapse no matter how tall
+      // the content above it gets.
+      className="dark relative flex h-[90svh] w-full flex-col justify-between overflow-hidden bg-background pt-20 pb-2 sm:pt-24 sm:pb-5 lg:pt-28 lg:pb-7"
       style={{ scrollMarginTop: "64px" }}
     >
       <motion.div
@@ -68,7 +80,7 @@ export function Hero({ onOpenSignup, intensity }) {
         }}
       />
 
-      <div className="relative z-10 mx-auto grid min-h-0 w-full max-w-6xl flex-1 grid-cols-1 items-center gap-3 px-6 sm:gap-5 sm:px-8 lg:grid-cols-2 lg:gap-12 lg:px-12">
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl shrink-0 grid-cols-1 items-center gap-3 px-6 sm:gap-5 sm:px-8 lg:grid-cols-2 lg:gap-12 lg:px-12">
         {/* ── Text column, message + action, always readable, never behind the 3D ──
             No logo repeated here — Navbar.js already carries the full
             lockup, fixed and persistent through this whole section, so a
