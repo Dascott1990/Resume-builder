@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import ErrorBoundary from "../components/premium/ErrorBoundary";
 import LandingPage from "../components/premium/landing/LandingPage";
+import { Navbar } from "../components/premium/landing/Navbar";
 import Dashboard from "../components/premium/Dashboard";
 import Logo from "../components/premium/Logo";
 import { getToken, hasAccountOnDevice } from "@/lib/authToken";
@@ -303,7 +304,28 @@ export default function Home() {
   }, [mounted, view]);
 
   if (!mounted) {
-    return <ScreenLoading />;
+    // The real root cause, found after chasing CSS theories that didn't
+    // fix it: the server-rendered HTML for EVERY page load literally has
+    // no navbar in it at all — mounted starts false on both server and
+    // client, so this branch (ScreenLoading alone, no Navbar anywhere in
+    // its tree) is what actually ships on first paint, every time,
+    // before hydration ever runs. No amount of fixing the navbar's OWN
+    // positioning could have helped — it doesn't exist in the DOM yet
+    // during that window. Rendering it here too (same component,
+    // identical props to LandingPage's own) means it's in the HTML from
+    // the very first byte, the literal first thing to appear, matching
+    // what was asked rather than a best-effort "appears as the page
+    // loads." Harmless for an already-signed-in visitor about to land on
+    // the dashboard instead — this shows for at most the single frame
+    // before mount resolves, then LandingPage (if that's where they land)
+    // renders its own identical Navbar in its place, or the dashboard
+    // replaces it entirely.
+    return (
+      <>
+        <Navbar onOpenSignup={() => openAuth("signup")} />
+        <ScreenLoading />
+      </>
+    );
   }
 
   const openResume = (resumeId, { viewAllResumes = false, quickBuild = false } = {}) => {
