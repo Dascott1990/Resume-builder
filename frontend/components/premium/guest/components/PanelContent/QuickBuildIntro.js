@@ -29,10 +29,10 @@ export function QuickBuildIntro({ info, set, accountEmail, isPhone, onNext }) {
 
   return (
     <>
-      <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-3">
-        <Zap className="mt-0.5 size-4 shrink-0 text-primary" />
-        <p className="m-0 text-[12.5px] leading-relaxed text-foreground">
-          Quick Build reuses your saved background, experience, education and skills from your last resume — paste the job posting next and the title/location come straight from it.
+      <div className="mb-4 flex items-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-2.5">
+        <Zap className="size-4 shrink-0 text-primary" />
+        <p className="m-0 text-[12.5px] font-semibold text-foreground">
+          Reuses your saved resume info.
         </p>
       </div>
 
@@ -52,8 +52,8 @@ export function QuickBuildIntro({ info, set, accountEmail, isPhone, onNext }) {
           >
             <Mail className="size-4 shrink-0 text-muted-foreground" />
             <span className="min-w-0 flex-1">
-              <span className="block text-[12.5px] font-bold text-foreground">Use my account email</span>
-              <span className="block truncate text-[11px] text-muted-foreground">{accountEmail || "No account email"}</span>
+              <span className="block text-[12.5px] font-bold text-foreground">Account email</span>
+              <span className="block truncate text-[11px] text-muted-foreground">{accountEmail || "—"}</span>
             </span>
             {emailChoice === "account" && <Check className="size-3.5 shrink-0 text-primary" />}
           </button>
@@ -65,7 +65,7 @@ export function QuickBuildIntro({ info, set, accountEmail, isPhone, onNext }) {
             }`}
           >
             <Mail className="size-4 shrink-0 text-muted-foreground" />
-            <span className="block text-[12.5px] font-bold text-foreground">Use a different email</span>
+            <span className="block text-[12.5px] font-bold text-foreground">New email</span>
             {emailChoice === "custom" && <Check className="ml-auto size-3.5 shrink-0 text-primary" />}
           </button>
         </div>

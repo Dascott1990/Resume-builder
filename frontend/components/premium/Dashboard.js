@@ -655,7 +655,13 @@ function DashboardContent({
           whole sections of vertical space back on every phone, and Create
           is one tap away either way, now from the bottom nav itself. */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }}>
-        <div className="grid grid-cols-2 gap-3">
+        {/* Side-by-side only on desktop's much wider center column — at a
+            phone's width, splitting this in half left real job titles with
+            only ~70px to render in (icon + Apply button eating the rest),
+            truncating almost everything down to 3-4 letters + "…". Full
+            width and stacked on mobile instead, so a title like "Staff
+            Engineer" has room to actually read as a title, not just dots. */}
+        <div className={isDesktop ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
           <TemplatesCard onSeeAll={() => go("templates")} onPick={pickTemplate} selected={selectedTemplate} />
           <RecommendedCard jobs={recommendedJobs} loading={recommendedLoading} onSeeAll={() => go("jobsboard")} />
         </div>

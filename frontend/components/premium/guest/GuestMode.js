@@ -706,8 +706,8 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
           {pendingQuickBuild && !hasUsableProfile && step === 1 && (
             <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2.5">
               <Zap className="size-[13px] shrink-0 text-primary" />
-              <span className="flex-1 text-xs text-foreground">
-                Quick Build needs one resume built first, to reuse your background from. Fill this in once — every build after this one will be this fast.
+              <span className="flex-1 text-xs font-semibold text-foreground">
+                Build one resume first — Quick Build after that.
               </span>
             </div>
           )}
