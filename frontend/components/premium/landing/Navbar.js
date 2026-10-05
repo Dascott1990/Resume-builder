@@ -31,7 +31,13 @@ export function Navbar({ onOpenSignup }) {
       // for that stretch — the same `.dark` scope Hero.js uses, toggled off
       // the moment a solid/blurred bg appears over the (light) page below.
       className={`fixed inset-x-0 top-0 z-50 ${scrolled ? "" : "dark"}`}
-      style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+      // position/top/left/right repeated as inline styles, not just the
+      // fixed/inset-x-0/top-0 classes above — inline styles win over any
+      // class regardless of specificity or load order, so this can never
+      // be silently overridden by anything else on the page. Belt and
+      // suspenders after this exact element's positioning was the subject
+      // of real, confirmed mobile-WebKit bugs earlier this session.
+      style={{ position: "fixed", top: 0, left: 0, right: 0, paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
       <div
         className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-3 px-5 transition-[background-color,border-color,backdrop-filter] duration-300 sm:px-8 lg:px-12"
