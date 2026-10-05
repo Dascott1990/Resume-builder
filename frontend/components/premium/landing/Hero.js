@@ -172,11 +172,12 @@ export function Hero({ onOpenSignup, intensity }) {
             />
           </div>
 
-          {/* ── The showcase: a real downtown skyline of the actual resume
-              templates (see HeroScene.js), its own generous gap below the
-              CTA on mobile (the grid's own gap-10 above) so it reads as
-              an elegant anchor at the bottom of the centered cluster, not
-              a continuation crowding the button above it. ── */}
+          {/* ── The showcase: a real isometric corporate tower cluster
+              (see HeroScene.js/CorporateSkyline.js) — no platform card
+              under it on purpose (no border, no background, no rounded
+              panel): the towers' own base mask fades them straight into
+              this panel's transparent ground, so they read as rising out
+              of the page, not standing on a block. ── */}
           <motion.div
             initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -186,8 +187,7 @@ export function Hero({ onOpenSignup, intensity }) {
           >
             <div
               aria-hidden="true"
-              className="relative h-[130px] w-full overflow-hidden rounded-[28px] border border-white/[0.1] sm:h-[220px] lg:h-[380px]"
-              style={{ boxShadow: "inset 0 0 70px rgba(0,0,0,0.45), 0 24px 70px rgba(0,0,0,0.4)" }}
+              className="relative h-[150px] w-full sm:h-[240px] lg:h-[400px]"
             >
               <div className="absolute inset-0" style={{ opacity: intensity, transition: "opacity 0.25s ease" }}>
                 <HeroScene />
