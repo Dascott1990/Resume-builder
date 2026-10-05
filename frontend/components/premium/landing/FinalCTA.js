@@ -6,7 +6,7 @@ import { LogoMark } from "../Logo";
 
 export function FinalCTA({ onOpenSignup }) {
   return (
-    <section className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-24 sm:py-28">
+    <section className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden py-24 sm:py-28">
       <SectionGlow color="amber" side="left" />
       <ScrollBlend className={`${SECTION_WRAP} relative`}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">

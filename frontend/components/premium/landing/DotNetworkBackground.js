@@ -174,7 +174,12 @@ export function DotNetworkBackground() {
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-0 h-[100dvh] w-full opacity-70"
+      // inset-0 on a fixed element already pins it to the exact viewport
+      // size on its own — the explicit h-[100dvh] this used to carry was
+      // both redundant (inset-0 does the same job) and carried the same
+      // dvh-recalculates-on-scroll instability as the other fixes on this
+      // page, for a canvas whose own resize() reads offsetHeight directly.
+      className="pointer-events-none fixed inset-0 z-0 w-full opacity-70"
     />
   );
 }

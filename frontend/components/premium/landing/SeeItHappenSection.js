@@ -61,7 +61,7 @@ export function SeeItHappenSection() {
   const inView = useInView(containerRef, { once: true, margin: "-15% 0px -15% 0px" });
 
   return (
-    <section ref={containerRef} className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-20 sm:py-24">
+    <section ref={containerRef} className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden py-20 sm:py-24">
       <SectionGlow color="emerald" side="right" />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">

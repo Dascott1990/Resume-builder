@@ -26,8 +26,13 @@ export function Reveal({ children, delay = 0, className, y = 56, ...rest }) {
 }
 
 // ── The full-screen-page scroll blend ───────────────────────────────────
-// Each landing section is a full 100dvh page (see each section file's own
-// `min-h-[100dvh]`). CSS scroll-snap was tried here too and pulled —
+// Each landing section is a full 100svh page (see each section file's own
+// `min-h-[100svh]` — svh, not dvh: dvh recalculates as a mobile browser's
+// own address bar shows/hides, which visibly resizes the section mid-
+// scroll and can misplace a `position: fixed` sibling like Navbar.js
+// until the next reflow; svh is sized as if the chrome is always
+// expanded, so nothing ever has to catch up to a moving target).
+// CSS scroll-snap was tried here too and pulled —
 // real trackpad testing showed it trapping small scroll gestures near
 // the top of a 100dvh-tall section (each small wheel tick landed "close
 // enough" to the snap point to get pulled straight back), which read as

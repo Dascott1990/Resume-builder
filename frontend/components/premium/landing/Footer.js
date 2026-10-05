@@ -37,7 +37,7 @@ export function Footer({ onOpenSignup }) {
               onClick={onOpenSignup}
               className="rounded-full border border-primary/25 bg-primary/10 px-4 py-2 text-[13px] font-bold text-primary-text [-webkit-tap-highlight-color:transparent]"
             >
-              Sign up
+              Get Started
             </button>
           </nav>
         </div>
@@ -58,7 +58,7 @@ export function Footer({ onOpenSignup }) {
             </p>
           </div>
           <p className="m-0 text-[11.5px] text-muted-foreground/80">
-            Sign up any time to save your profile.
+            Free account. No credit card, ever.
           </p>
         </div>
       </div>

@@ -6,7 +6,7 @@ import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD, SectionGlow } from ".
 
 const FAQS = [
   { q: "Is Noqeev really free?", a: "Yes. No credit card, no trial, no subscription." },
-  { q: "Do I need to create an account?", a: "No. Your draft lives in your browser. Signing in just syncs it across devices." },
+  { q: "Do I need to create an account?", a: "Yes, a free one. That's what saves your resumes, profile, and job tracker and keeps them synced." },
   { q: "How does resume tailoring actually work?", a: "Paste the job posting and it matches your background to the posting's own keywords." },
   { q: "What files do I get, and can I edit them?", a: "An editable .docx and a clean PDF. No watermark, no locked preview." },
   { q: "Does Auto Apply submit applications for me?", a: "No. It fills out the real application form and shows you exactly what it entered. Nothing is ever sent without you reviewing and confirming it first." },
@@ -29,7 +29,7 @@ function FAQItem({ q, a }) {
 
 export function FAQ() {
   return (
-    <section id="faq" className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
+    <section id="faq" className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
       <SectionGlow color="emerald" side="right" />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2 lg:gap-16">

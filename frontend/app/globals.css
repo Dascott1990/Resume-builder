@@ -132,7 +132,7 @@ html:has(#noqeev-landing) {
   height: auto;
   /* Tried `scroll-snap-type: y proximity` here for the full-screen
      sections' paging feel — real trackpad testing showed it trapping
-     small scroll gestures near the top: Hero is 100dvh tall, so a series
+     small scroll gestures near the top: Hero is a full screen tall, so a series
      of small wheel ticks (how a trackpad actually scrolls, not one big
      jump) kept landing "close enough" to y:0 for the browser to snap
      straight back before any of them could accumulate real distance —

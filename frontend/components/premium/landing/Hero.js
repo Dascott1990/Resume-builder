@@ -55,7 +55,7 @@ export function Hero({ onOpenSignup, intensity }) {
       // place on a real phone — confirmed live, read as "the navbar isn't
       // there until I scroll." svh is sized as if the browser chrome is
       // always expanded, so it never recalculates and nothing waits on it.
-      className="dark relative flex h-[90svh] w-full flex-col justify-center overflow-hidden bg-background pt-5 pb-3 sm:pt-8 sm:pb-5 lg:pt-14 lg:pb-7"
+      className="dark relative flex h-[90svh] w-full flex-col justify-center overflow-hidden bg-background pt-11 pb-2 sm:pt-10 sm:pb-5 lg:pt-14 lg:pb-7"
       style={{ scrollMarginTop: "64px" }}
     >
       <motion.div
@@ -104,7 +104,7 @@ export function Hero({ onOpenSignup, intensity }) {
             transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
             className="m-0 text-balance text-[clamp(1.6rem,5.4vw,3.4rem)] leading-[1.08] font-bold tracking-tight text-foreground"
           >
-            Tailored resumes, built to get you hired.
+            Tailored resumes, matched to the job.
           </motion.h1>
 
           <motion.p
@@ -143,7 +143,7 @@ export function Hero({ onOpenSignup, intensity }) {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-6 flex w-full max-w-sm flex-col items-center gap-2 sm:mt-8 lg:mt-9 lg:max-w-none lg:flex-row lg:justify-start lg:gap-3"
+            className="mt-5 flex w-full max-w-sm flex-col items-center gap-2 sm:mt-8 lg:mt-9 lg:max-w-none lg:flex-row lg:justify-start lg:gap-3"
           >
             <motion.button
               onClick={onOpenSignup}
@@ -206,7 +206,7 @@ export function Hero({ onOpenSignup, intensity }) {
         >
           <div
             aria-hidden="true"
-            className="relative h-[160px] w-full overflow-hidden rounded-[28px] border border-white/[0.1] sm:h-[280px] lg:h-[420px]"
+            className="relative h-[130px] w-full overflow-hidden rounded-[28px] border border-white/[0.1] sm:h-[280px] lg:h-[420px]"
             style={{ boxShadow: "inset 0 0 70px rgba(0,0,0,0.45), 0 24px 70px rgba(0,0,0,0.4)" }}
           >
             <div className="absolute inset-0" style={{ opacity: intensity, transition: "opacity 0.25s ease" }}>

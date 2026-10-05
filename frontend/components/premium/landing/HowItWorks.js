@@ -10,7 +10,7 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
+    <section id="how-it-works" className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
       <SectionGlow color="emerald" side="right" />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
