@@ -1,11 +1,10 @@
 "use client";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
-import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { Btn } from "@/components/premium/guest/components/primitives";
-import Logo from "@/components/premium/Logo";
+import { AuthShell } from "@/components/premium/auth/AuthShell";
 
 const ENTERED_KEY = "noqeev_entered_app";
 
@@ -37,44 +36,38 @@ function VerifyEmailContent() {
   }, []);
 
   return (
-    <div className="flex h-[100dvh] w-full flex-col items-center justify-center gap-6 bg-background px-6 text-center font-sans">
-      <Logo size={26} />
+    <AuthShell>
+      <div className="flex flex-col items-center gap-4 text-center">
+        {status === "verifying" && (
+          <>
+            <Loader2 className="size-7 animate-spin text-primary" />
+            <p className="m-0 text-[14px] text-muted-foreground">Verifying your email…</p>
+          </>
+        )}
 
-      {status === "verifying" && (
-        <>
-          <Loader2 className="size-8 animate-spin text-primary" />
-          <p className="m-0 text-[14.5px] text-muted-foreground">Verifying your email…</p>
-        </>
-      )}
+        {status === "success" && (
+          <>
+            <div>
+              <p className="m-0 text-[18px] font-bold text-foreground">Email verified</p>
+              <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
+                You're signed in — your account is ready to go.
+              </p>
+            </div>
+            <Btn variant="gold" small onClick={() => router.replace("/")}>Continue</Btn>
+          </>
+        )}
 
-      {status === "success" && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-4">
-          <CheckCircle2 className="size-12 text-primary" />
-          <div>
-            <p className="m-0 text-[20px] font-bold text-foreground">Email verified</p>
-            <p className="m-0 mt-1.5 max-w-xs text-[13.5px] leading-relaxed text-muted-foreground">
-              You're signed in — your account is ready to go.
-            </p>
-          </div>
-          <Btn variant="gold" small onClick={() => router.replace("/")}>
-            Continue
-          </Btn>
-        </motion.div>
-      )}
-
-      {status === "error" && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-4">
-          <XCircle className="size-12 text-destructive" />
-          <div>
-            <p className="m-0 text-[20px] font-bold text-foreground">Link didn't work</p>
-            <p className="m-0 mt-1.5 max-w-xs text-[13.5px] leading-relaxed text-muted-foreground">{message}</p>
-          </div>
-          <Btn variant="gold" small onClick={() => router.replace("/")}>
-            Back to Noqeev
-          </Btn>
-        </motion.div>
-      )}
-    </div>
+        {status === "error" && (
+          <>
+            <div>
+              <p className="m-0 text-[18px] font-bold text-foreground">Link didn't work</p>
+              <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">{message}</p>
+            </div>
+            <Btn variant="gold" small onClick={() => router.replace("/")}>Back to Noqeev</Btn>
+          </>
+        )}
+      </div>
+    </AuthShell>
   );
 }
 

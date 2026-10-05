@@ -7,12 +7,10 @@
  */
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, UserPlus, X } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { Field, Btn } from "../guest/components/primitives";
-import { IconTile } from "../shared/IconTile";
 import { TermsConsent } from "@/components/shared/TermsConsent";
-import Logo from "../Logo";
+import { AuthShell } from "./AuthShell";
 
 export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
   const { signup, resendVerification } = useAuth();
@@ -62,37 +60,13 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="absolute inset-0 z-50 flex flex-col overflow-y-auto bg-background font-sans"
-    >
-      <motion.div
-        aria-hidden="true"
-        animate={{ opacity: [0.14, 0.26, 0.14] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-        className="pointer-events-none absolute top-[-12%] left-1/2 size-[420px] -translate-x-1/2"
-        style={{ background: "radial-gradient(circle, color-mix(in oklch, var(--primary) 18%, transparent) 0%, transparent 70%)" }}
-      />
-
-      <div
-        className="relative flex shrink-0 items-center justify-between px-5 pb-5"
-        style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
-      >
-        <Logo size={22} />
-        {onClose && (
-          <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
-            <X className="size-[17px]" />
-          </button>
-        )}
-      </div>
-
-      <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-6 pb-16">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
+      <AuthShell onClose={onClose}>
         {sent ? (
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-4 text-center">
-            <IconTile icon={Mail} size="lg" />
+          <div className="flex flex-col items-center gap-4 text-center">
             <div>
-              <p className="m-0 text-[20px] font-bold text-foreground">Check your email</p>
-              <p className="m-0 mt-1.5 max-w-xs text-[13.5px] leading-relaxed text-muted-foreground">
+              <p className="m-0 text-[18px] font-bold text-foreground">Check your email</p>
+              <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
                 We sent a verification link to <strong className="text-foreground">{email.trim()}</strong>. Click it to finish setting up your account.
               </p>
             </div>
@@ -106,21 +80,15 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
             <button onClick={onSwitchToLogin} className="border-none bg-transparent p-0 text-[13px] font-semibold text-muted-foreground">
               Back to sign in
             </button>
-          </motion.div>
+          </div>
         ) : (
           <>
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.05 }}>
-              <IconTile icon={UserPlus} size="md" className="mb-4" />
-              <p className="m-0 text-[22px] font-bold text-foreground">Create an account</p>
-              <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-                Save your resumes, applications, and profile once — reuse them for every future resume.
-              </p>
-            </motion.div>
+            <p className="m-0 text-[20px] font-bold text-foreground">Create an account</p>
+            <p className="m-0 mt-1.5 mb-5 text-[13.5px] leading-relaxed text-muted-foreground">
+              Save your resumes, applications, and profile once — reuse them for every future resume.
+            </p>
 
-            <motion.form
-              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.12 }}
-              onSubmit={submit} className="grid gap-1"
-            >
+            <form onSubmit={submit} className="grid gap-1">
               <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" autoComplete="email" />
               <Field label="PASSWORD" required type="password" hint="8+ characters" value={password} onChange={setPassword} placeholder="••••••••" autoComplete="new-password" />
 
@@ -135,20 +103,17 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
               <Btn variant="gold" type="submit" className="mt-2.5" disabled={submitting || !agreed} loading={submitting}>
                 {submitting ? "Creating account…" : "Create account"}
               </Btn>
-            </motion.form>
+            </form>
 
-            <motion.p
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.45, delay: 0.2 }}
-              className="m-0 text-center text-[13px] text-muted-foreground"
-            >
+            <p className="m-0 mt-5 text-center text-[13px] text-muted-foreground">
               Already have an account?{" "}
               <button onClick={onSwitchToLogin} className="border-none bg-transparent p-0 font-bold text-primary">
                 Sign in
               </button>
-            </motion.p>
+            </p>
           </>
         )}
-      </div>
+      </AuthShell>
     </motion.div>
   );
 }
