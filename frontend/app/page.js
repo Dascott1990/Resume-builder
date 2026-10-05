@@ -174,18 +174,23 @@ export default function Home() {
   const [errorResetKey, setErrorResetKey] = useState(0);
   const retryView = () => setErrorResetKey((k) => k + 1);
 
-  // Where closing out of login/signup should actually land — the screen
-  // the user was really on before auth interrupted them. A fresh visitor
-  // hitting "Sign up" from the marketing page should land back on the
-  // marketing page if they bail, not get dumped into the guest dashboard
-  // they never asked to enter. Only set on the FIRST hop into login/signup
-  // (the view !== "login"/"signup" guard) so switching back and forth
-  // between the two forms doesn't overwrite it with "login"/"signup" itself.
+  // Where closing out of THIS screen should actually land — whatever the
+  // user was really on just before. Every cross-screen navigation call
+  // (go(), below) records the view it's leaving before switching, and
+  // every screen's own onClose/X reads this back instead of a hardcoded
+  // fixed destination — previously almost every screen closed straight to
+  // "dashboard" regardless of where it was actually opened from (Profile's
+  // Shortcuts, Jobs Board's nav, Templates' Done button, all landed back
+  // on Home instead of wherever the user actually came from). Only set
+  // while leaving a real destination (the login/signup guard) so bouncing
+  // back and forth between those two forms doesn't overwrite the real
+  // origin with "login"/"signup" itself.
   const [returnView, setReturnView] = useState("dashboard");
-  const openAuth = (mode) => {
+  const go = (nextView) => {
     if (view !== "login" && view !== "signup") setReturnView(view);
-    setView(mode);
+    setView(nextView);
   };
+  const openAuth = (mode) => go(mode);
 
   // This page is server-rendered at "/" — the server has no way to know
   // whether this browser has visited before, so it always renders the
@@ -308,7 +313,7 @@ export default function Home() {
     setPendingViewAllResumes(viewAllResumes);
     setPendingQuickBuild(quickBuild);
     setSessionId((id) => id + 1);
-    setView("resume");
+    go("resume");
   };
 
   if (view === "launcher") {
@@ -340,14 +345,14 @@ export default function Home() {
           }}
           onNavigate={(id, opts) => {
             if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
-            else if (id === "scan") setView("cvscan");
-            else if (id === "jobtracker") setView("jobtracker");
-            else if (id === "news") setView("news");
-            else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); setView("apply"); }
-            else if (id === "profile") setView("profile");
-            else if (id === "personal-profile") setView("personal-profile");
-            else if (id === "jobsboard") setView("jobsboard");
-            else if (id === "templates") setView("templates");
+            else if (id === "scan") go("cvscan");
+            else if (id === "jobtracker") go("jobtracker");
+            else if (id === "news") go("news");
+            else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); go("apply"); }
+            else if (id === "profile") go("profile");
+            else if (id === "personal-profile") go("personal-profile");
+            else if (id === "jobsboard") go("jobsboard");
+            else if (id === "templates") go("templates");
           }}
         />
       </ErrorBoundary>
@@ -380,14 +385,14 @@ export default function Home() {
 
   if (view === "cvscan") {
     return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
         <CVScan
-          onClose={() => setView("dashboard")}
+          onClose={() => setView(returnView)}
           onImported={(data) => {
             setPendingImport(data);
             setPendingJobDesc(null);
             setSessionId((id) => id + 1);
-            setView("resume");
+            go("resume");
           }}
         />
       </ErrorBoundary>
@@ -396,41 +401,41 @@ export default function Home() {
 
   if (view === "jobtracker") {
     return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
-        <JobTracker onClose={() => setView("dashboard")} />
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
+        <JobTracker onClose={() => setView(returnView)} />
       </ErrorBoundary>
     );
   }
 
   if (view === "news") {
     return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
-        <News onClose={() => setView("dashboard")} />
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
+        <News onClose={() => setView(returnView)} />
       </ErrorBoundary>
     );
   }
 
   if (view === "apply") {
     return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
-        <ApplyWithAI onClose={() => setView("dashboard")} pendingRunId={pendingApplyRunId} />
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
+        <ApplyWithAI onClose={() => setView(returnView)} pendingRunId={pendingApplyRunId} />
       </ErrorBoundary>
     );
   }
 
   if (view === "profile") {
     return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
         <Profile
-          onClose={() => setView("dashboard")}
+          onClose={() => setView(returnView)}
           onOpenLogin={() => openAuth("login")}
-          onOpenPersonalProfile={() => setView("personal-profile")}
+          onOpenPersonalProfile={() => go("personal-profile")}
           go={(id, opts) => {
             if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
-            else if (id === "scan") setView("cvscan");
-            else if (id === "jobtracker") setView("jobtracker");
-            else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); setView("apply"); }
-            else if (id === "jobsboard") setView("jobsboard");
+            else if (id === "scan") go("cvscan");
+            else if (id === "jobtracker") go("jobtracker");
+            else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); go("apply"); }
+            else if (id === "jobsboard") go("jobsboard");
           }}
         />
       </ErrorBoundary>
@@ -439,7 +444,7 @@ export default function Home() {
 
   if (view === "personal-profile") {
     return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("profile")}>
         <PersonalProfile onClose={() => setView("profile")} />
       </ErrorBoundary>
     );
@@ -447,16 +452,16 @@ export default function Home() {
 
   if (view === "jobsboard") {
     return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
         <JobsBoard
-          onClose={() => setView("dashboard")}
+          onClose={() => setView(returnView)}
           onNavigate={(id, opts) => {
-            if (id === "home") setView("dashboard");
+            if (id === "home") go("dashboard");
             else if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
-            else if (id === "scan") setView("cvscan");
-            else if (id === "jobtracker") setView("jobtracker");
-            else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); setView("apply"); }
-            else if (id === "profile") setView("profile");
+            else if (id === "scan") go("cvscan");
+            else if (id === "jobtracker") go("jobtracker");
+            else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); go("apply"); }
+            else if (id === "profile") go("profile");
           }}
         />
       </ErrorBoundary>
@@ -465,15 +470,15 @@ export default function Home() {
 
   if (view === "templates") {
     return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
         <TemplatesGallery
-          onClose={() => setView("dashboard")}
+          onClose={() => setView(returnView)}
           onNavigate={(id) => {
-            if (id === "home") setView("dashboard");
+            if (id === "home") go("dashboard");
             else if (id === "resume") openResume();
-            else if (id === "apply") setView("apply");
-            else if (id === "jobtracker") setView("jobtracker");
-            else if (id === "profile") setView("profile");
+            else if (id === "apply") go("apply");
+            else if (id === "jobtracker") go("jobtracker");
+            else if (id === "profile") go("profile");
           }}
         />
       </ErrorBoundary>
@@ -493,10 +498,10 @@ export default function Home() {
       // "Try Again": remount a clean Resume tree (clears whatever state caused
       // the crash) but stays open — the user doesn't lose their place in the app.
       onReset={() => setSessionId((id) => id + 1)}
-      // "Close": back to the dashboard, not out of the app entirely.
-      onClose={() => setView("dashboard")}
+      // "Close": back to wherever this was opened from, not always Home.
+      onClose={() => setView(returnView)}
     >
-      <Resume key={sessionId} onClose={() => setView("dashboard")} onRequireAuth={openAuth} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} pendingLoadResumeId={pendingLoadResumeId} pendingViewAllResumes={pendingViewAllResumes} pendingQuickBuild={pendingQuickBuild} />
+      <Resume key={sessionId} onClose={() => setView(returnView)} onRequireAuth={openAuth} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} pendingLoadResumeId={pendingLoadResumeId} pendingViewAllResumes={pendingViewAllResumes} pendingQuickBuild={pendingQuickBuild} />
     </ErrorBoundary>
   );
 }
