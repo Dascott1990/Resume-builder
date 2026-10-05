@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, Check, ChevronDown, Download } from "lucide-react";
 import { useInstallPrompt } from "@/lib/useInstallPrompt";
-import Logo from "../Logo";
 import { InstallInstructionsModal } from "./InstallInstructionsModal";
 import { LocationPill } from "./shared";
 import { HeroScene } from "./HeroScene";
@@ -40,21 +39,23 @@ export function Hero({ onOpenSignup, intensity }) {
     <section
       id="top"
       ref={heroRef}
-      // h-[100svh], not min-h and not dvh: the whole hero — headline, CTA,
-      // the skyline panel, and the scroll hint at the very bottom — has to
-      // fit in exactly one screen on every breakpoint, never taller.
-      // min-h let it grow past one screen on short viewports, pushing the
-      // "Scroll" hint below the fold. dvh (dynamic viewport height, which
-      // this used briefly) recalculates as a mobile browser's own address
-      // bar shows/hides — on real iOS/Android Safari-class browsers that
-      // makes a `position: fixed` sibling (Navbar.js) above an exactly-
-      // dvh-tall section need a scroll/reflow before it settles into its
-      // correct spot, reading as "the navbar isn't there until I scroll."
-      // svh (small viewport height — sized as if the browser chrome is
-      // always fully expanded) never recalculates, so there's nothing for
-      // a fixed header to wait on. Paddings/gaps below are tuned tighter
-      // on mobile specifically so the fit is actually true, not just declared.
-      className="dark relative flex h-[100svh] w-full flex-col justify-center overflow-hidden bg-background pt-6 pb-4 sm:pt-10 sm:pb-6 lg:pt-20 lg:pb-10"
+      // 90svh, deliberately short of the full screen — not 100: a hero
+      // that exactly fills the viewport hides the fact that there's
+      // anything below it at all, which measurably costs scroll-through
+      // (the "does this page continue?" doubt). Leaving ~10% of the next
+      // section physically peeking into view at the bottom is a standard,
+      // well-tested pattern for exactly that reason — it's a visible
+      // promise of more, not just the "Scroll" hint's word for it. The
+      // "Scroll" hint itself still has to stay fully on-screen within
+      // that 90% (paddings/gaps below are tuned for that), so the two
+      // cues reinforce each other instead of one undercutting the other.
+      // svh, not dvh: dvh recalculates as a mobile browser's own address
+      // bar shows/hides, which can make a position: fixed sibling
+      // (Navbar.js) above it need a scroll/reflow before it settles into
+      // place on a real phone — confirmed live, read as "the navbar isn't
+      // there until I scroll." svh is sized as if the browser chrome is
+      // always expanded, so it never recalculates and nothing waits on it.
+      className="dark relative flex h-[90svh] w-full flex-col justify-center overflow-hidden bg-background pt-5 pb-3 sm:pt-8 sm:pb-5 lg:pt-14 lg:pb-7"
       style={{ scrollMarginTop: "64px" }}
     >
       <motion.div
@@ -68,20 +69,35 @@ export function Hero({ onOpenSignup, intensity }) {
       />
 
       <div className="relative z-10 mx-auto grid min-h-0 w-full max-w-6xl flex-1 grid-cols-1 items-center gap-3 px-6 sm:gap-5 sm:px-8 lg:grid-cols-2 lg:gap-12 lg:px-12">
-        {/* ── Text column, message + action, always readable, never behind the 3D ── */}
-        <div className="order-1 flex flex-col items-center gap-2.5 text-center sm:gap-4 lg:items-start lg:gap-6 lg:text-left">
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.05 }}>
-            <Logo size={34} />
-          </motion.div>
-
+        {/* ── Text column, message + action, always readable, never behind the 3D ──
+            No logo repeated here — Navbar.js already carries the full
+            lockup, fixed and persistent through this whole section, so a
+            second one competing for the same glance was pure redundancy,
+            not reinforcement (ruthless reduction, not decoration). What
+            that space becomes instead: the deliberate, generous gap
+            between the navbar and the headline below — the section's own
+            pt- above already provides it, nothing further needed here. */}
+        <div className="order-1 flex flex-col items-center text-center lg:items-start lg:text-left">
           {/* Detected, not hardcoded — Noqeev isn't an Ottawa-only product,
               see lib/useVisitorLocation.js. Renders nothing until a real
               city comes back, so there's no placeholder flash or a
-              wrong-city guess ever shown. */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
+              wrong-city guess ever shown. A quiet eyebrow sitting right on
+              top of the headline, not its own separated beat — a small
+              gap below it, not a matching one above (asymmetric on
+              purpose: it belongs to the headline, not the empty space
+              above it). */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}
+            className="mb-2.5 sm:mb-3"
+          >
             <LocationPill />
           </motion.div>
 
+          {/* Headline + subheadline: a tight, single-unit gap between them
+              (they're one thought, read together), then a distinctly
+              larger gap before the CTA below — spacing that encodes the
+              actual reading hierarchy instead of one flat rhythm repeated
+              down the page. */}
           <motion.h1
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
@@ -95,7 +111,7 @@ export function Hero({ onOpenSignup, intensity }) {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="m-0 text-[13.5px] leading-snug text-muted-foreground sm:text-[15.5px] sm:leading-relaxed"
+            className="m-0 mt-1.5 text-[13.5px] leading-snug text-muted-foreground sm:mt-2 sm:text-[15.5px] sm:leading-relaxed"
           >
             Set up your profile once. Tailor unlimited resumes after that.
           </motion.p>
@@ -127,7 +143,7 @@ export function Hero({ onOpenSignup, intensity }) {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="flex w-full max-w-sm flex-col items-center gap-2 lg:max-w-none lg:flex-row lg:justify-start lg:gap-3"
+            className="mt-6 flex w-full max-w-sm flex-col items-center gap-2 sm:mt-8 lg:mt-9 lg:max-w-none lg:flex-row lg:justify-start lg:gap-3"
           >
             <motion.button
               onClick={onOpenSignup}
