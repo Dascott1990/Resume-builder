@@ -36,38 +36,20 @@ export function Hero({ onOpenSignup, intensity }) {
   const panelOpacity = useTransform(scrollYProgress, [0, 0.85], [1, 0.2]);
 
   return (
+    // Fixed viewport stage, strict — not min-h, not a 90% peek (tried and
+    // reverted): a locked 100svh frame with its own flex column is what
+    // actually lets the rest of this layout be a real blueprint (navbar
+    // row, centered stage, bottom-pinned scroll hint) instead of
+    // everything fighting over leftover space. svh, not dvh/vh: dvh
+    // recalculates as a mobile browser's own address bar shows/hides
+    // (confirmed live, caused the fixed navbar to need a reflow before
+    // appearing); plain vh is taller than the real visible viewport on
+    // first paint on the same class of browser. svh is sized as if the
+    // chrome is always expanded — the one option that's actually stable.
     <section
       id="top"
       ref={heroRef}
-      // 90svh, deliberately short of the full screen — not 100: a hero
-      // that exactly fills the viewport hides the fact that there's
-      // anything below it at all, which measurably costs scroll-through
-      // (the "does this page continue?" doubt). Leaving ~10% of the next
-      // section physically peeking into view at the bottom is a standard,
-      // well-tested pattern for exactly that reason — it's a visible
-      // promise of more, not just the "Scroll" hint's word for it. The
-      // "Scroll" hint itself still has to stay fully on-screen within
-      // that 90% (paddings/gaps below are tuned for that), so the two
-      // cues reinforce each other instead of one undercutting the other.
-      // svh, not dvh: dvh recalculates as a mobile browser's own address
-      // bar shows/hides, which can make a position: fixed sibling
-      // (Navbar.js) above it need a scroll/reflow before it settles into
-      // place on a real phone — confirmed live, read as "the navbar isn't
-      // there until I scroll." svh is sized as if the browser chrome is
-      // always expanded, so it never recalculates and nothing waits on it.
-      //
-      // justify-between, not justify-center: centering the content block
-      // as a whole means the navbar-to-headline gap is whatever's LEFT
-      // OVER after splitting empty space evenly top and bottom — on a
-      // real phone (taller location pill text, different font metrics
-      // than this was tuned against) that remainder can shrink to almost
-      // nothing, reported live as "the navbar and hero text are maybe an
-      // inch apart." justify-between instead pins the content block to
-      // the top (right after the fixed pt- below — a real, guaranteed
-      // distance, not a remainder) and the "Scroll" hint to the bottom,
-      // so the gap near the navbar can never collapse no matter how tall
-      // the content above it gets.
-      className="dark relative flex h-[90svh] w-full flex-col justify-between overflow-hidden bg-background pt-20 pb-2 sm:pt-24 sm:pb-5 lg:pt-28 lg:pb-7"
+      className="dark relative flex h-[100svh] w-full flex-col overflow-hidden bg-background"
       style={{ scrollMarginTop: "64px" }}
     >
       <motion.div
@@ -80,161 +62,152 @@ export function Hero({ onOpenSignup, intensity }) {
         }}
       />
 
-      <div className="relative z-10 mx-auto grid w-full max-w-6xl shrink-0 grid-cols-1 items-center gap-3 px-6 sm:gap-5 sm:px-8 lg:grid-cols-2 lg:gap-12 lg:px-12">
-        {/* ── Text column, message + action, always readable, never behind the 3D ──
-            No logo repeated here — Navbar.js already carries the full
-            lockup, fixed and persistent through this whole section, so a
-            second one competing for the same glance was pure redundancy,
-            not reinforcement (ruthless reduction, not decoration). What
-            that space becomes instead: the deliberate, generous gap
-            between the navbar and the headline below — the section's own
-            pt- above already provides it, nothing further needed here. */}
-        <div className="order-1 flex flex-col items-center text-center lg:items-start lg:text-left">
-          {/* Detected, not hardcoded — Noqeev isn't an Ottawa-only product,
-              see lib/useVisitorLocation.js. Renders nothing until a real
-              city comes back, so there's no placeholder flash or a
-              wrong-city guess ever shown. A quiet eyebrow sitting right on
-              top of the headline, not its own separated beat — a small
-              gap below it, not a matching one above (asymmetric on
-              purpose: it belongs to the headline, not the empty space
-              above it). */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}
-            className="mb-2.5 sm:mb-3"
-          >
-            <LocationPill />
-          </motion.div>
+      {/* Navbar.js floats fixed above this whole section and isn't part of
+          this flex column at all — this spacer just reserves its exact
+          height (h-16, matching Navbar.js's own) so the centered stage
+          below starts its math from where the navbar actually ends, not
+          from the top of the viewport underneath it. Hero content never
+          inherits spacing FROM the navbar this way — the two are fully
+          decoupled, which is the actual fix for "fighting over the same
+          vertical space." */}
+      <div className="h-16 shrink-0" aria-hidden="true" />
 
-          {/* Headline + subheadline: a tight, single-unit gap between them
-              (they're one thought, read together), then a distinctly
-              larger gap before the CTA below — spacing that encodes the
-              actual reading hierarchy instead of one flat rhythm repeated
-              down the page. */}
-          <motion.h1
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-            className="m-0 text-balance text-[clamp(1.6rem,5.4vw,3.4rem)] leading-[1.08] font-bold tracking-tight text-foreground"
-          >
-            Tailored resumes, matched to the job.
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="m-0 mt-1.5 text-[13.5px] leading-snug text-muted-foreground sm:mt-2 sm:text-[15.5px] sm:leading-relaxed"
-          >
-            Set up your profile once. Tailor unlimited resumes after that.
-          </motion.p>
-
-          {/* Signup is the primary CTA now — set up a profile once, reuse
-              it for every resume, per the onboarding redesign. Guest mode
-              still needs no account at all; it's one quiet tap away right
-              below instead of the headline promise. Paired with Download,
-              shown only while installing is actually a real, available
-              action (see useInstallPrompt) — it disappears on its own the
-              moment the app is installed, so nobody's ever staring at a
-              button with nothing left to do. Resume Studio doesn't need
-              its own line here; it's one tap away once inside the
-              Dashboard, and still linked from the nav/footer/final CTA
-              further down the page. */}
-          {/* flex-row (and the buttons' own shrink-to-content width) only
-              kicks in at lg, the SAME breakpoint where the column above
-              switches from centered/text-center to text-left/items-start.
-              This used to switch to a row at sm (640px) while the column
-              stayed centered until lg (1024px) — on every iPad width in
-              between, that left a full-width row with no justify-content
-              set, so it defaulted to packing left inside an otherwise
-              perfectly centered hero: buttons visibly "fell" left instead
-              of stacking centered under the headline like everything else
-              on the page at that width. Now both switch together, so
-              there's never a width where the buttons disagree with the
-              text above them. */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-5 flex w-full max-w-sm flex-col items-center gap-2 sm:mt-8 lg:mt-9 lg:max-w-none lg:flex-row lg:justify-start lg:gap-3"
-          >
-            <motion.button
-              onClick={onOpenSignup}
-              whileTap={{ scale: 0.96 }}
-              transition={{ type: "spring", damping: 22, stiffness: 400 }}
-              className="flex min-h-[44px] w-full select-none items-center justify-center gap-2 rounded-2xl border-none bg-primary px-7 text-[14px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:min-h-[54px] sm:text-[15.5px] lg:w-auto"
+      {/* The center stage: everything below the navbar row, and the
+          headline/CTA/graphic cluster sits in the true optical center of
+          it — not pinned to the top, not pinned to the bottom. */}
+      <div className="relative z-10 flex flex-1 flex-col items-center justify-center overflow-hidden">
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-10 px-6 sm:px-8 lg:grid-cols-2 lg:gap-12 lg:px-12">
+          {/* ── Text column — no logo repeated here, Navbar.js already
+              carries the full lockup, fixed and persistent through this
+              whole section, so a second one would just compete for the
+              same glance. ── */}
+          <div className="order-1 flex flex-col items-center text-center lg:items-start lg:text-left">
+            {/* Detected, not hardcoded — Noqeev isn't an Ottawa-only
+                product, see lib/useVisitorLocation.js. Renders nothing
+                until a real city comes back, so there's no placeholder
+                flash or a wrong-city guess ever shown. */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}
+              className="mb-3"
             >
-              Create Your Resume
-              <ArrowRight className="size-4" />
-            </motion.button>
-            {(canInstall || showInstalledBadge) && (
+              <LocationPill />
+            </motion.div>
+
+            {/* Headline → subheadline: tight (they're one thought).
+                Subheadline → CTA: a distinctly larger, deliberate gap. */}
+            <motion.h1
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+              className="m-0 text-balance text-[clamp(1.6rem,5.4vw,3.4rem)] leading-[1.08] font-bold tracking-tight text-foreground"
+            >
+              Tailored resumes, matched to the job.
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="m-0 mt-2 text-[13.5px] leading-snug text-muted-foreground sm:text-[15.5px] sm:leading-relaxed"
+            >
+              Set up your profile once. Tailor unlimited resumes after that.
+            </motion.p>
+
+            {/* Signup is the primary CTA now — set up a profile once,
+                reuse it for every resume. Paired with Download, shown
+                only while installing is actually a real, available
+                action (see useInstallPrompt) — it disappears on its own
+                the moment the app is installed. */}
+            {/* flex-row (and the buttons' own shrink-to-content width)
+                only kicks in at lg, the SAME breakpoint where the column
+                above switches from centered to left-aligned — both
+                switch together so there's never a width where the
+                buttons disagree with the text above them. */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-8 flex w-full max-w-sm flex-col items-center gap-2 lg:max-w-none lg:flex-row lg:justify-start lg:gap-3"
+            >
               <motion.button
-                onClick={showInstalledBadge || isPrompting ? undefined : handleDownloadClick}
-                disabled={showInstalledBadge || isPrompting}
-                whileTap={showInstalledBadge || isPrompting ? undefined : { scale: 0.96 }}
+                onClick={onOpenSignup}
+                whileTap={{ scale: 0.96 }}
                 transition={{ type: "spring", damping: 22, stiffness: 400 }}
-                className={`flex min-h-[44px] w-full select-none items-center justify-center gap-2 rounded-2xl border border-border bg-transparent px-7 text-[14px] font-bold [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:min-h-[54px] sm:text-[15.5px] lg:w-auto ${
-                  showInstalledBadge || isPrompting ? "cursor-default text-muted-foreground" : "text-foreground"
-                }`}
+                className="flex min-h-[44px] w-full select-none items-center justify-center gap-2 rounded-2xl border-none bg-primary px-7 text-[14px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:min-h-[54px] sm:text-[15.5px] lg:w-auto"
               >
-                {showInstalledBadge ? (
-                  <>
-                    <Check className="size-4" />
-                    Installed
-                  </>
-                ) : (
-                  <>
-                    <Download className="size-4" />
-                    Download
-                  </>
-                )}
+                Create Your Resume
+                <ArrowRight className="size-4" />
               </motion.button>
-            )}
-          </motion.div>
+              {(canInstall || showInstalledBadge) && (
+                <motion.button
+                  onClick={showInstalledBadge || isPrompting ? undefined : handleDownloadClick}
+                  disabled={showInstalledBadge || isPrompting}
+                  whileTap={showInstalledBadge || isPrompting ? undefined : { scale: 0.96 }}
+                  transition={{ type: "spring", damping: 22, stiffness: 400 }}
+                  className={`flex min-h-[44px] w-full select-none items-center justify-center gap-2 rounded-2xl border border-border bg-transparent px-7 text-[14px] font-bold [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:min-h-[54px] sm:text-[15.5px] lg:w-auto ${
+                    showInstalledBadge || isPrompting ? "cursor-default text-muted-foreground" : "text-foreground"
+                  }`}
+                >
+                  {showInstalledBadge ? (
+                    <>
+                      <Check className="size-4" />
+                      Installed
+                    </>
+                  ) : (
+                    <>
+                      <Download className="size-4" />
+                      Download
+                    </>
+                  )}
+                </motion.button>
+              )}
+            </motion.div>
 
-          <InstallInstructionsModal
-            open={iosInstructionsOpen}
-            onClose={() => {
-              setIosInstructionsOpen(false);
-              dismissAfterIOSInstructions();
-            }}
-          />
-        </div>
-
-        {/* ── The floating-blocks showcase: two real screenshots of the
-            actual product (desktop + mobile Dashboard) scattered among
-            abstract matte/frame shapes, in its own display case beside the
-            text instead of sitting behind it. One unified panel for every
-            breakpoint (previously desktop got a boxed panel and mobile got
-            a full-bleed WebGL wallpaper behind the text; that wallpaper's
-            gone along with the isDesktop/mounted branching it needed, this
-            is plain CSS + two <div> backgrounds, cheap enough to just
-            always render). ── */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.94 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          style={{ y: panelY, opacity: panelOpacity }}
-          className="order-2 lg:order-none"
-        >
-          <div
-            aria-hidden="true"
-            className="relative h-[130px] w-full overflow-hidden rounded-[28px] border border-white/[0.1] sm:h-[280px] lg:h-[420px]"
-            style={{ boxShadow: "inset 0 0 70px rgba(0,0,0,0.45), 0 24px 70px rgba(0,0,0,0.4)" }}
-          >
-            <div className="absolute inset-0" style={{ opacity: intensity, transition: "opacity 0.25s ease" }}>
-              <HeroScene />
-            </div>
+            <InstallInstructionsModal
+              open={iosInstructionsOpen}
+              onClose={() => {
+                setIosInstructionsOpen(false);
+                dismissAfterIOSInstructions();
+              }}
+            />
           </div>
-        </motion.div>
+
+          {/* ── The showcase: a real downtown skyline of the actual resume
+              templates (see HeroScene.js), its own generous gap below the
+              CTA on mobile (the grid's own gap-10 above) so it reads as
+              an elegant anchor at the bottom of the centered cluster, not
+              a continuation crowding the button above it. ── */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            style={{ y: panelY, opacity: panelOpacity }}
+            className="order-2 lg:order-none"
+          >
+            <div
+              aria-hidden="true"
+              className="relative h-[130px] w-full overflow-hidden rounded-[28px] border border-white/[0.1] sm:h-[220px] lg:h-[380px]"
+              style={{ boxShadow: "inset 0 0 70px rgba(0,0,0,0.45), 0 24px 70px rgba(0,0,0,0.4)" }}
+            >
+              <div className="absolute inset-0" style={{ opacity: intensity, transition: "opacity 0.25s ease" }}>
+                <HeroScene />
+              </div>
+            </div>
+          </motion.div>
+        </div>
       </div>
 
+      {/* Absolute, not in the flex flow — independent of the centered
+          stage above so it never moves if that cluster's own height
+          changes, pinned to a strict bottom safety margin. */}
       <motion.a
         href="#features"
         aria-label="Scroll to explore"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.8 }}
-        className="relative z-10 mt-6 flex flex-col items-center gap-1 text-muted-foreground/60 lg:mt-10"
+        className="absolute inset-x-0 bottom-6 z-10 flex flex-col items-center gap-1 text-muted-foreground/60"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase">Scroll</span>
         <motion.span
