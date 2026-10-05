@@ -17,6 +17,22 @@ export function resumeReducer(state, action) {
     case "DEG_SCHOOL":   { const s = clone(); s.sections[action.si].degrees[action.di].school   = action.val; return s; }
     case "DEG_LOCATION": { const s = clone(); s.sections[action.si].degrees[action.di].location = action.val; return s; }
     case "DEG_PERIOD":   { const s = clone(); s.sections[action.si].degrees[action.di].period   = action.val; return s; }
+
+    // Structural edits (add/remove an entry) — everything above only ever
+    // changes a value that already exists. These are what the Builder
+    // sidebar's "+ Add" rows and per-entry delete buttons need that the
+    // canvas's click-to-edit fields never did, since editing text in place
+    // was always possible but there was never a UI for adding or removing
+    // a whole job/degree/bullet until the workspace redesign.
+    case "ADD_JOB":    { const s = clone(); s.sections[action.si].jobs.push({ role: "", company: "", location: "", period: "", bullets: [""] }); return s; }
+    case "REMOVE_JOB": { const s = clone(); s.sections[action.si].jobs.splice(action.ji, 1); return s; }
+    case "ADD_DEGREE":    { const s = clone(); s.sections[action.si].degrees.push({ degree: "", school: "", location: "", period: "" }); return s; }
+    case "REMOVE_DEGREE": { const s = clone(); s.sections[action.si].degrees.splice(action.di, 1); return s; }
+    case "ADD_JOB_BULLET":    { const s = clone(); s.sections[action.si].jobs[action.ji].bullets.push(""); return s; }
+    case "REMOVE_JOB_BULLET": { const s = clone(); s.sections[action.si].jobs[action.ji].bullets.splice(action.bi, 1); return s; }
+    case "ADD_BULLET":    { const s = clone(); s.sections[action.si].items.push(""); return s; }
+    case "REMOVE_BULLET": { const s = clone(); s.sections[action.si].items.splice(action.ii, 1); return s; }
+
     default: return state;
   }
 }
@@ -36,6 +52,14 @@ export function onEditHandler(dispatch) {
       "deg-school":   (si, di, val)         => ({ type: "DEG_SCHOOL",   si, di, val }),
       "deg-location": (si, di, val)         => ({ type: "DEG_LOCATION", si, di, val }),
       "deg-period":   (si, di, val)         => ({ type: "DEG_PERIOD",   si, di, val }),
+      "add-job":         (si)               => ({ type: "ADD_JOB",         si }),
+      "remove-job":      (si, ji)           => ({ type: "REMOVE_JOB",      si, ji }),
+      "add-degree":      (si)               => ({ type: "ADD_DEGREE",      si }),
+      "remove-degree":   (si, di)           => ({ type: "REMOVE_DEGREE",   si, di }),
+      "add-job-bullet":  (si, ji)           => ({ type: "ADD_JOB_BULLET",  si, ji }),
+      "remove-job-bullet": (si, ji, bi)     => ({ type: "REMOVE_JOB_BULLET", si, ji, bi }),
+      "add-bullet":      (si)               => ({ type: "ADD_BULLET",      si }),
+      "remove-bullet":   (si, ii)           => ({ type: "REMOVE_BULLET",   si, ii }),
     };
     const action = map[type]?.(...args);
     if (action) dispatch(action);

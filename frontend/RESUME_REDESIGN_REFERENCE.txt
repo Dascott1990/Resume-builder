@@ -1,0 +1,1358 @@
+MASTER PROMPT — REBUILD NOQEEV RESUME EDITOR TO MATCH THE PROVIDED REFERENCE EXACTLY
+THE LINK TO MY NOTE FOR MORE CLARITY 'https://www.icloud.com/notes/0d2gQ7Vohv5F9FqQ3Gna3_nAA'
+I have provided screenshots of:
+
+The reference application/interface I want.
+
+The current Noqeev application that must be redesigned.
+
+Your task is to completely transform ONLY Noqeev's resume experience so that it looks and behaves as close as technically possible to the reference screenshot.
+
+THIS IS NOT A "SIMILAR DESIGN" REQUEST.
+I do not want:
+
+Inspiration from the reference
+
+A loose interpretation
+
+A modernized version
+
+A simplified version
+
+A similar three-column layout
+
+A generic resume builder
+
+A redesigned version based on your own design preferences
+
+I want the reference interface reproduced extremely closely.
+
+Treat the reference screenshot as the visual specification.
+
+The goal is:
+
+If someone places the reference screenshot beside the redesigned Noqeev resume editor, they should immediately look like the same product experience in terms of layout, proportions, spacing, hierarchy, controls, editor structure, navigation, panels, toolbar, and interactions.
+
+The only intentional difference is that Noqeev's established black-and-white brand color system must remain intact as described below.
+
+1. PIXEL-LEVEL REFERENCE MATCH
+Do not merely recreate the "idea" of the screenshot.
+
+Study the screenshot carefully and reproduce:
+
+Exact overall composition
+
+Header height
+
+Header spacing
+
+Navigation positioning
+
+Sidebar width
+
+Center editor width
+
+Right panel width
+
+Document position
+
+Document size
+
+Toolbar position
+
+Toolbar dimensions
+
+Panel padding
+
+Control spacing
+
+Button dimensions
+
+Input dimensions
+
+Typography hierarchy
+
+Font sizing
+
+Font weights
+
+Line heights
+
+Borders
+
+Border radii
+
+Shadows
+
+Icon sizing
+
+Icon spacing
+
+Section spacing
+
+Alignment
+
+Vertical rhythm
+
+Horizontal rhythm
+
+Empty space
+
+Density
+
+Scroll behavior
+
+Expand/collapse behavior
+
+Tabs
+
+Dropdowns
+
+Controls
+
+AI actions
+
+Analysis interface
+
+Do not approximate these unnecessarily.
+
+If the screenshot shows something at a particular location, reproduce it at that location.
+
+If the screenshot shows a particular amount of whitespace, reproduce that whitespace.
+
+If the screenshot shows a particular panel width, reproduce that panel relationship.
+
+If the screenshot shows a compact control, do not replace it with a large modern card.
+
+2. THE SCREENSHOT IS THE PRIMARY VISUAL SOURCE OF TRUTH
+When deciding between multiple possible implementations:
+
+LOOK AT THE REFERENCE FIRST.
+
+Do not substitute your own preferred UI patterns.
+
+Do not redesign the interface according to a generic SaaS design system.
+
+Do not "improve" the reference design.
+
+Do not simplify something because you think it is unnecessary.
+
+Do not rearrange elements because you think another arrangement is better.
+
+The goal is to reproduce the reference.
+
+3. VERY IMPORTANT — PRESERVE NOQEEV'S COLOR IDENTITY
+There is ONE deliberate exception to exact visual copying:
+
+Do not copy the reference application's brand color palette.
+
+Noqeev's established product identity is:
+
+Black
+
+White
+
+Neutral gray
+
+That identity must remain.
+
+Therefore:
+
+Copy from reference:
+Geometry
+
+Layout
+
+Spacing
+
+Dimensions
+
+Positioning
+
+Typography hierarchy
+
+Component architecture
+
+Interaction
+
+Editor behavior
+
+Navigation structure
+
+Toolbar
+
+Sidebar
+
+Right panel
+
+Analysis experience
+
+Keep from Noqeev:
+Black
+
+White
+
+Neutral colors
+
+Existing brand identity
+
+Existing semantic colors
+
+Do NOT make the Noqeev resume editor blue simply because the reference is blue.
+
+Do NOT introduce decorative blue accents.
+
+Do NOT replace Noqeev's black primary buttons with blue buttons.
+
+The reference's visual structure should be copied extremely closely.
+
+Its brand colors should not.
+
+4. SEMANTIC COLORS
+Non-neutral colors are permitted only when they communicate meaning.
+
+Use:
+
+Green
+For:
+
+Success
+
+Saved successfully
+
+Completed
+
+Added successfully
+
+Valid state
+
+Red
+For:
+
+Error
+
+Failure
+
+Delete
+
+Remove
+
+Destructive actions
+
+Critical states
+
+Amber
+For:
+
+Warning
+
+Attention required
+
+Unsaved changes
+
+Potential problems
+
+Informational color
+Only when genuinely needed.
+
+Do not use these colors as decorative accents.
+
+The overwhelming majority of the application UI should remain black/white/gray.
+
+5. DO NOT REDESIGN THE REST OF NOQEEV
+Noqeev has many other areas.
+
+Do not touch them unnecessarily.
+
+This task is specifically:
+
+Rebuild the Noqeev RESUME EXPERIENCE.
+
+Do not redesign:
+
+Job search
+
+Companies
+
+Employer products
+
+Other dashboards
+
+Account pages
+
+Other product areas
+
+Unrelated navigation
+
+Unrelated components
+
+Only modify shared components when absolutely necessary.
+
+The resume workspace should become the new experience.
+
+6. DO NOT ASK ME TO SPECIFY EVERY DETAIL
+You have the screenshot.
+
+You have the existing application.
+
+You have the source code.
+
+Use them.
+
+Do not repeatedly stop and ask:
+
+"Should the sidebar be here?"
+
+"Should the toolbar be floating?"
+
+"Should the right panel be this width?"
+
+"Should the button look like this?"
+
+The screenshot already answers these questions.
+
+Make the complete implementation.
+
+7. REBUILD THE ENTIRE RESUME WORKSPACE
+The final architecture should closely reproduce the reference:
+
+┌────────────────────────────────────────────────────────────────────┐
+│                            HEADER                                  │
+├────────────────┬────────────────────────────────┬──────────────────┤
+│                │                                │                  │
+│                │                                │                  │
+│    BUILDER     │          RESUME EDITOR         │    ANALYSIS      │
+│                │                                │                  │
+│    TEMPLATES   │       FORMATTING TOOLBAR      │                  │
+│                │                                │                  │
+│    SECTIONS    │                                │    CONTROLS      │
+│                │        ┌──────────────┐        │                  │
+│                │        │              │        │                  │
+│                │        │    RESUME    │        │                  │
+│                │        │              │        │                  │
+│                │        └──────────────┘        │                  │
+│                │                                │                  │
+└────────────────┴────────────────────────────────┴──────────────────┘
+
+The actual dimensions should be derived from the screenshot.
+
+8. HEADER — MATCH THE REFERENCE
+Recreate the reference's resume-editor header.
+
+Match:
+
+Height
+
+Position
+
+Padding
+
+Logo placement
+
+Navigation
+
+Icons
+
+Account controls
+
+Save state
+
+Undo
+
+Redo
+
+Analyze
+
+Share
+
+Button dimensions
+
+Alignment
+
+Use Noqeev branding.
+
+Do not invent a different header architecture.
+
+9. BUILDER SIDEBAR — MATCH THE REFERENCE
+The left panel is extremely important.
+
+Reproduce its:
+
+Exact general width
+
+Padding
+
+Tab arrangement
+
+Typography
+
+Section spacing
+
+Dividers
+
+Expand/collapse controls
+
+Input dimensions
+
+Button dimensions
+
+The top should follow the reference's:
+
+Builder          Templates
+
+Then the resume sections.
+
+For example:
+
+Professional Summary                  −
+
+Education                             +
+
+Work Experience                       +
+
+Organization Experience               +
+
+Certification                         +
+
+Contacts                              +
+
+Website & Links                       +
+
+Skills                                +
+
+Hobbies                               +
+
+Use Noqeev's actual resume sections/data.
+
+10. BUILDER TAB
+The Builder tab should behave like the reference.
+
+It is not just decorative.
+
+Users must be able to:
+
+Open sections
+
+Close sections
+
+Edit content
+
+Add content
+
+Modify content
+
+Remove content where supported
+
+Reorder content where supported
+
+All actions must update the actual resume.
+
+11. TEMPLATES TAB
+The Templates tab should behave like the reference's template experience.
+
+It should provide:
+
+Existing Noqeev templates
+
+Template previews
+
+Selection state
+
+Applying a template
+
+Current template indication
+
+The interaction should happen inside the resume workspace rather than forcing users into an unrelated page.
+
+12. MAIN DOCUMENT AREA — THIS MUST LOOK LIKE THE REFERENCE
+The central editor is the most important part.
+
+Recreate the reference's:
+
+Workspace background
+
+Document placement
+
+Document scale
+
+Document proportions
+
+Page margins
+
+Shadow
+
+Border
+
+Zoom
+
+Scrolling
+
+Toolbar relationship to the document
+
+The resume must look like a document being edited, not a normal website card.
+
+The page should be centered within the workspace.
+
+13. THE RESUME MUST REMAIN REAL
+Do NOT create a static screenshot.
+
+Do NOT render the resume as an image.
+
+Do NOT fake text editing.
+
+Do NOT hardcode the example resume from the screenshot.
+
+Use Noqeev's actual:
+
+Resume data
+
+User data
+
+Editor
+
+Renderer
+
+Templates
+
+Persistence
+
+APIs
+
+The screenshot determines how the interface looks.
+
+Noqeev's data determines what the document contains.
+
+14. FLOATING FORMATTING TOOLBAR
+Recreate the reference toolbar extremely closely.
+
+Match:
+
+Position
+
+Width
+
+Height
+
+Padding
+
+Control order
+
+Icon sizing
+
+Separators
+
+Dropdown dimensions
+
+Alignment
+
+Shadows
+
+Border
+
+Radius
+
+Include the functionality supported by Noqeev:
+
+Font
+
+Font size
+
+Color
+
+Bold
+
+Italic
+
+Underline
+
+Strike
+
+Lists
+
+Alignment
+
+Quote
+
+Divider
+
+Position
+
+Other existing formatting tools
+
+Do not redesign the toolbar into another pattern.
+
+15. RIGHT-SIDE PANEL — MATCH IT EXTREMELY CLOSELY
+Recreate the reference's right panel.
+
+This is NOT simply a generic settings sidebar.
+
+It should have the same hierarchy and density.
+
+For example:
+
+Skill Alignment                         1 / 4
+
+3 skills found in your profile
+that are not listed here.
+
+[ Ignore ]       [ Add skills ]
+
+
+Alignment
+
+[ alignment controls ]
+
+
+Size
+
+W [     ] px       H [     ] px
+
+
+Text
+
+Font
+Weight
+Size
+Line height
+Letter spacing
+
+
+Colors
+
+[ color ]
+
+Match the reference's:
+
+Panel width
+
+Padding
+
+Section headers
+
+Dividers
+
+Control groups
+
+Inputs
+
+Dropdowns
+
+Buttons
+
+Icon sizes
+
+Spacing
+
+Typography
+
+Vertical rhythm
+
+Only translate its colors into Noqeev's monochrome system.
+
+16. SKILL ALIGNMENT
+The Skill Alignment experience should look and behave like the reference.
+
+Use the actual Noqeev AI/data system.
+
+Do not generate fake recommendations.
+
+If Noqeev already has skill matching functionality, connect the UI to it.
+
+The user should be able to:
+
+See missing skills
+
+Ignore them
+
+Add them
+
+Understand why they were suggested
+
+The visual treatment should closely match the reference.
+
+17. AI TOOLBAR / ACTIONS
+Where Noqeev supports them, integrate actions similar to the reference:
+
+Rewrite
+Match Job Description
+Improve Clarity
+Change Tone
+
+Match the reference's:
+
+Position
+
+Size
+
+Spacing
+
+Typography
+
+Iconography
+
+Dropdown behavior
+
+Use actual Noqeev AI functionality.
+
+Do not build fake interactions.
+
+18. ANALYZE BUTTON
+Reproduce the reference's Analyze action.
+
+Same general:
+
+Location
+
+Size
+
+Shape
+
+Weight
+
+Hierarchy
+
+But use:
+
+Noqeev black/white styling.
+
+Connect it to the actual analysis functionality.
+
+19. SHARE BUTTON
+Reproduce the reference's Share action.
+
+Same:
+
+Position
+
+Size
+
+Alignment
+
+Hierarchy
+
+Interaction
+
+But use Noqeev's black/white system.
+
+Preserve existing sharing functionality.
+
+20. TYPOGRAPHY MUST BE CLOSE
+Do not overlook typography.
+
+Match the reference's visual hierarchy for:
+
+Navbar
+
+Sidebar labels
+
+Section headings
+
+Inputs
+
+Buttons
+
+Resume text
+
+Analysis headings
+
+Secondary text
+
+Metadata
+
+Match:
+
+Font size
+
+Weight
+
+Line height
+
+Letter spacing
+
+Capitalization
+
+Density
+
+If Noqeev already has an appropriate font, use it.
+
+Do not introduce a new font just for the sake of changing the brand.
+
+21. SPACING MUST BE CLOSE
+This is a high-priority requirement.
+
+Do not use arbitrary spacing.
+
+Measure/reason from the screenshot.
+
+Pay particular attention to:
+
+Header padding
+
+Sidebar padding
+
+Panel padding
+
+Section gaps
+
+Button gaps
+
+Toolbar gaps
+
+Document margins
+
+Right panel spacing
+
+Vertical rhythm
+
+The difference between a professional reproduction and a generic imitation is often spacing.
+
+22. ICONS MUST BE CLOSE
+Use a consistent icon set.
+
+Match the reference's:
+
+Icon size
+
+Stroke weight
+
+Alignment
+
+Spacing
+
+Button placement
+
+Use black/gray icons by default.
+
+Use semantic colors only for semantic states.
+
+23. BORDERS AND SHADOWS
+Match the reference's subtle visual depth.
+
+Use:
+
+Thin borders
+
+Light gray dividers
+
+Controlled radius
+
+Subtle shadow
+
+Do not introduce:
+
+Giant shadows
+
+Excessive rounded cards
+
+Glassmorphism
+
+Gradients
+
+Decorative effects
+
+24. INTERACTION MUST ALSO MATCH
+The target is not just visual.
+
+Reproduce the reference's interaction model.
+
+Examples:
+
+Sidebar
+Expand/collapse
+
+Tab switching
+
+Toolbar
+Contextual appearance
+
+Dropdowns
+
+Active formatting state
+
+Document
+Selection
+
+Editing
+
+Formatting
+
+Right panel
+Contextual controls
+
+Scroll
+
+AI suggestions
+
+Header
+Save state
+
+Analyze
+
+Share
+
+Undo/redo
+
+The experience should feel like the reference, not merely resemble it in a screenshot.
+
+25. KEEP NOQEEV'S FUNCTIONALITY
+Do not sacrifice existing functionality for visual similarity.
+
+Preserve:
+
+Resume data
+
+Saving
+
+Autosave
+
+Templates
+
+Editing
+
+AI
+
+Analysis
+
+Export
+
+PDF
+
+Word
+
+User data
+
+Authentication
+
+Persistence
+
+Existing resume features
+
+If something currently exists but is not shown in the reference, integrate it into the new architecture intelligently.
+
+Do not delete it.
+
+26. RESPONSIVE VERSION
+The desktop screenshot is the primary visual target.
+
+However, make the redesigned workspace responsive.
+
+On smaller screens:
+
+Left builder becomes a drawer
+
+Right analysis becomes a drawer
+
+Toolbar becomes compact/scrollable
+
+Resume remains usable
+
+Document remains correctly proportioned
+
+Do not destroy the desktop layout just to make mobile easy.
+
+Desktop fidelity is the highest priority.
+
+27. DO NOT "IMPROVE" THE REFERENCE
+This is important.
+
+If you think:
+
+"I could make this cleaner."
+
+Don't.
+
+If you think:
+
+"A card layout would be better."
+
+Don't.
+
+If you think:
+
+"This sidebar should be on the other side."
+
+Don't.
+
+If you think:
+
+"Users would prefer a different toolbar."
+
+Don't.
+
+The task is reproduction, not redesign.
+
+The screenshot is already the design decision.
+
+28. DO NOT SUBSTITUTE GENERIC COMPONENTS
+Do not take a generic:
+
+Sidebar
+Card
+Dropdown
+Settings panel
+Dashboard
+
+and assume the job is finished.
+
+Each component should be styled and positioned to reproduce the reference.
+
+29. NO PLACEHOLDER UI
+Do not leave:
+
+TODO
+Coming soon
+Placeholder
+Lorem ipsum
+Fake AI result
+Fake resume
+Fake buttons
+
+in the final implementation.
+
+Everything visible in the redesigned workspace should either:
+
+Work, or
+
+Be an existing Noqeev feature represented appropriately.
+
+30. USE THE CURRENT CODEBASE INTELLIGENTLY
+Before implementing:
+
+Find the current resume route.
+
+Find the current resume components.
+
+Find the current resume state.
+
+Find the current editor.
+
+Find the current renderer.
+
+Find the current template system.
+
+Find the current AI functionality.
+
+Find the current save/autosave system.
+
+Find export functionality.
+
+Identify reusable functionality.
+
+Identify what needs to be replaced.
+
+Build the new workspace around the existing functionality.
+
+Do not unnecessarily rewrite working backend systems.
+
+31. REFACTOR WHERE NECESSARY
+If the existing frontend architecture prevents the target experience, refactor it.
+
+The final architecture should be clean enough to support:
+
+ResumeWorkspace
+│
+├── Header
+│
+├── BuilderSidebar
+│   ├── Builder
+│   └── Templates
+│
+├── EditorWorkspace
+│   ├── FormattingToolbar
+│   └── ResumeCanvas
+│
+└── AnalysisPanel
+    ├── SkillAlignment
+    ├── AI Actions
+    ├── Alignment
+    ├── Size
+    ├── Text
+    └── Colors
+
+Use the existing project's conventions where appropriate.
+
+32. NOQEEV COLOR TOKENS
+Create/maintain centralized color tokens.
+
+Conceptually:
+
+Background      → white / neutral
+Surface         → white
+Text            → black
+Secondary text  → gray
+Border          → light gray
+Strong border   → dark gray
+
+Success         → green
+Danger          → red
+Warning         → amber
+Info            → restrained informational color
+
+Never scatter arbitrary colors across the resume interface.
+
+33. THE RESUME ITSELF
+Do not confuse the application UI with the resume document.
+
+The application interface should follow:
+
+Noqeev black/white/neutral system.
+
+The resume itself should preserve legitimate Noqeev template customization.
+
+If the existing system allows users to choose resume accent colors, keep that capability.
+
+34. VISUAL VALIDATION — REQUIRED
+After implementation, compare the actual rendered result to the provided reference screenshot.
+
+Do not rely solely on code inspection.
+
+Actually inspect the rendered page.
+
+Compare:
+
+Header
+Height
+
+Alignment
+
+Spacing
+
+Buttons
+
+Navigation
+
+Left sidebar
+Width
+
+Tabs
+
+Section spacing
+
+Typography
+
+Controls
+
+Center
+Document scale
+
+Position
+
+Toolbar
+
+Workspace margins
+
+Right panel
+Width
+
+Section layout
+
+Control density
+
+Spacing
+
+Overall
+Proportions
+
+Whitespace
+
+Alignment
+
+Typography
+
+Borders
+
+Shadows
+
+Density
+
+35. FIX VISUAL DIFFERENCES
+If the rendered result does not look close enough to the screenshot:
+
+DO NOT STOP.
+
+Adjust:
+
+Widths
+
+Heights
+
+Margins
+
+Padding
+
+Font sizes
+
+Line heights
+
+Element positions
+
+Borders
+
+Shadows
+
+Toolbar position
+
+Panel dimensions
+
+Document scale
+
+Control spacing
+
+Then inspect again.
+
+Repeat until the result is visually very close.
+
+36. PRIORITY ORDER
+When making implementation decisions, use this exact priority:
+
+1. Reference screenshot fidelity
+The final interface must look as close as technically possible to the screenshot.
+
+2. Existing Noqeev functionality
+Do not break the product.
+
+3. Noqeev black/white identity
+Do not copy the reference brand colors.
+
+4. Responsive behavior
+The desktop reference is the primary target, but smaller screens must remain usable.
+
+5. Accessibility
+Maintain keyboard and accessibility standards.
+
+6. Code quality
+Keep the implementation maintainable and consistent with the existing project.
+
+37. ABSOLUTE DO-NOT-MISS REQUIREMENTS
+The final implementation must include the complete experience.
+
+Do NOT forget:
+
+Header
+
+Resume title
+
+Save status
+
+Undo
+
+Redo
+
+Analyze
+
+Share
+
+Builder
+
+Templates
+
+Builder sections
+
+Expand/collapse
+
+Main document
+
+Document workspace
+
+Floating formatting toolbar
+
+Font controls
+
+Font size
+
+Formatting controls
+
+Alignment controls
+
+Right-side panel
+
+Skill Alignment
+
+AI actions
+
+Alignment section
+
+Size section
+
+Text section
+
+Colors section
+
+Semantic states
+
+Template selection
+
+Existing resume data
+
+Existing AI
+
+Existing save system
+
+Existing export
+
+Responsive behavior
+
+Everything shown in the reference should have an intentional equivalent in Noqeev.
+
+38. FINAL VISUAL TARGET
+This is the most important instruction in the entire prompt:
+
+The final Noqeev resume editor should visually reproduce the interface I pasted as closely as technically possible.
+
+Not:
+
+"similar to it."
+
+Not:
+
+"inspired by it."
+
+Not:
+
+"a modern interpretation of it."
+
+Not:
+
+"a Noqeev-style version of it."
+
+Instead:
+
+Reproduce the reference's actual layout, composition, proportions, spacing, editor architecture, panels, toolbar, controls, hierarchy, and interaction model.
+
+The only intentional visual translation is:
+
+Replace the reference's brand color treatment with Noqeev's established black/white/neutral system.
+
+39. FINAL QUALITY BAR
+Before finishing, imagine taking a screenshot of the redesigned Noqeev resume editor and placing it directly beside the reference screenshot.
+
+Ask:
+
+Does the overall silhouette look the same?
+
+Are the major panels in the same places?
+
+Are the proportions the same?
+
+Is the document positioned the same way?
+
+Is the toolbar positioned the same way?
+
+Does the left sidebar have the same density?
+
+Does the right panel have the same density?
+
+Are the controls arranged the same way?
+
+Is the typography hierarchy comparable?
+
+Are the spaces between elements comparable?
+
+Does it feel like the same editor architecture?
+
+If any answer is no, continue refining the implementation.
+
+THE ONE-SENTENCE GOAL
+Take the Noqeev resume functionality that already exists and completely rebuild its user interface so that, when rendered beside the reference screenshot I provided, it is as close to visually and behaviorally identical as technically possible — including the navbar, builder, templates, resume canvas, floating toolbar, analysis panel, skill alignment, controls, spacing, sizing, typography, alignment, and interaction — while preserving Noqeev's black-and-white brand identity and semantic colors.
+
+Do the entire redesign as one cohesive implementation. Do not wait for me to tell you what component to build next.

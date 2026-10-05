@@ -85,6 +85,18 @@ services:
         sync: false
       - key: MAIL_FROM
         value: Noqeev <noreply@noqeev.com>
+      # Every email link (verify-email, reset-password — see api/auth.py)
+      # and the email template's own logo used to build off this. Never
+      # declared here before, so on this service it silently fell back to
+      # mail.py/auth.py's own "http://localhost:3000" default — a host no
+      # real recipient can reach. Confirmed live via the logo rendering
+      # broken in delivered email; same root cause would also send a
+      # localhost link in every verify/reset email. Declaring the real
+      # value here is the actual fix; the logo itself was also moved to
+      # pure CSS (no <img>) so it can't break again even if this var ever
+      # goes unset for some other reason.
+      - key: FRONTEND_URL
+        value: https://noqeev.com
       - key: ALLOWED_ORIGINS
         value: https://noqeev.com,https://www.noqeev.com,https://resume-builder-orpin-theta.vercel.app,https://resume-builder-c6l75mdzi-dascott1990s-projects.vercel.app,http://localhost:3000
       - key: PYTHON_VERSION

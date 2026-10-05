@@ -20,7 +20,7 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-export function Hero({ onOpenDashboard, onOpenSignup, intensity }) {
+export function Hero({ onOpenSignup, intensity }) {
   const heroRef = useRef(null);
   const reducedMotion = usePrefersReducedMotion();
   const { canShow: canInstall, isIOS, showInstalledBadge, isPrompting, promptInstall, dismissAfterIOSInstructions } = useInstallPrompt();
@@ -148,16 +148,6 @@ export function Hero({ onOpenDashboard, onOpenSignup, intensity }) {
               </motion.button>
             )}
           </motion.div>
-
-          <motion.button
-            onClick={onOpenDashboard}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.35 }}
-            className="border-none bg-transparent p-0 text-[13.5px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
-          >
-            Continue without an account →
-          </motion.button>
 
           <InstallInstructionsModal
             open={iosInstructionsOpen}

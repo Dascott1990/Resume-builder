@@ -14,15 +14,18 @@
  */
 import { useState, useEffect, useRef, useCallback, useReducer } from "react";
 import { motion } from "framer-motion";
-import { X, RefreshCw, ScanLine, Bookmark, Check } from "lucide-react";
+import { toast } from "sonner";
+import { X, RefreshCw, ScanLine, Bookmark, Check, Zap } from "lucide-react";
 import Logo3D from "../Logo3D";
 import { Btn } from "./components/primitives";
 import { LivePreview } from "./components/LivePreview";
 import { ResumeSkeleton } from "./components/ResumeSkeleton";
+import { ScanningResume } from "./components/ScanningResume";
 import { PackagePreviewModal } from "./components/PackagePreviewModal";
 import { DesktopTabNav } from "./components/DesktopTabNav";
 import { MobileNav } from "./components/MobileNav";
 import { InfoStep } from "./components/PanelContent/InfoStep";
+import { QuickBuildIntro } from "./components/PanelContent/QuickBuildIntro";
 import { JobDescStep } from "./components/PanelContent/JobDescStep";
 import { ResultStep } from "./components/PanelContent/ResultStep";
 import { StyleTab } from "./components/PanelContent/StyleTab";
@@ -36,13 +39,22 @@ import { downloadDocx } from "./export/docx";
 import { downloadCoverLetterDocx } from "./export/coverLetterDocx";
 import { printPdf, printCoverLetterPdf } from "../shared/printPdf";
 import { useViewport } from "@/lib/useViewport";
+import { useAuth } from "@/lib/useAuth";
 import { useSignupNudge } from "@/lib/useSignupNudge";
 import { SignupNudgeModal } from "../shared/SignupNudgeModal";
 import { DownloadCapModal } from "./components/DownloadCapModal";
+import { DidYouApplyModal } from "./components/DidYouApplyModal";
+import { AtsScoreModal } from "./components/AtsScoreModal";
+import { BuilderSidebar } from "./components/workspace/BuilderSidebar";
+import { FormattingToolbar } from "./components/workspace/FormattingToolbar";
+import { AnalysisPanel } from "./components/workspace/AnalysisPanel";
 import { getToken } from "@/lib/authToken";
+import { getPreferredTemplate } from "@/lib/templatePreference";
+import { apiRequest } from "../shared/api";
 
-export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, pendingViewAllResumes, onRequireAuth }) {
+export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, pendingViewAllResumes, pendingQuickBuild, onRequireAuth }) {
   const { isPhone, isTablet, isDesktop } = useViewport();
+  const { user } = useAuth();
   const signupNudge = useSignupNudge();
   // Real, server-tracked cap (see backend/app/models.py's
   // GuestDownloadCount) — signed-in sessions never see this banner or
@@ -75,6 +87,38 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
     }
   };
 
+  // "Did you apply?" — asked once per generated resume (appliedPromptDone
+  // resets on a fresh generate/optimize and on "Build another"), fired
+  // from the first successful download of it. Saying yes writes a real
+  // row to the Job Tracker with the pasted job description as its notes
+  // and this resume linked by id — the whole point being someone who just
+  // actually applied doesn't also have to go re-type it into the tracker
+  // by hand afterward.
+  const [appliedPromptOpen, setAppliedPromptOpen] = useState(false);
+  const [appliedPromptDone, setAppliedPromptDone] = useState(false);
+  const maybeAskIfApplied = () => {
+    if (appliedPromptDone) return;
+    setAppliedPromptDone(true);
+    setAppliedPromptOpen(true);
+  };
+  const saveApplication = async ({ company, role }) => {
+    try {
+      await apiRequest("/api/v1/applications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company, role, status: "applied",
+          date_applied: new Date().toISOString().slice(0, 10),
+          notes: jobDesc.slice(0, 900),
+          resume_id: resume?.saved_id || genResult?.saved_id || null,
+        }),
+      });
+      toast.success("Added to your Job Tracker");
+    } catch (e) {
+      toast.error(e.message || "Couldn't save that application.");
+    }
+  };
+
   // Tablet used to be lumped in with phone — a single full-screen view at a
   // time, switching between the style/form panel and the resume preview.
   // On an iPad that's needless: there's plenty of width for both side by
@@ -95,6 +139,12 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
   // The preview stays the full-screen base the whole time; this just
   // tracks whether the style controls are showing as a sheet over it.
   const [styleSheetOpen, setStyleSheetOpen] = useState(false);
+  // Phone's own entry point into the same BuilderSidebar desktop's workspace
+  // uses — same bottom-sheet pattern as Style above, just over the Build
+  // accordion (sections, add/remove entries, the AI rewrite bar) instead of
+  // font/layout controls. Only ever opens once a resume actually exists —
+  // before that, phone's existing 2-step wizard is still how one gets built.
+  const [buildSheetOpen, setBuildSheetOpen] = useState(false);
 
   // One localStorage read on mount, reused below to seed every persisted field.
   const [draftAtMount]   = useState(loadDraft);
@@ -129,8 +179,22 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
   const [step,       setStep]       = useState(() => {
     if (pendingImport || pendingLoadResumeId) return 3;
     if (pendingJobDesc) return hasUsableProfile ? 2 : 1;
+    // Quick Build always lands on step 1 first, even with a usable profile
+    // — it's just a different, much shorter step 1 (QuickBuildIntro below,
+    // name + phone + email choice only) rather than skipping straight to
+    // the job posting paste the way it used to. Without a profile yet,
+    // it's the exact same full InfoStep everyone else sees — Quick Build
+    // needs one real build on file before it has anything to reuse.
+    if (pendingQuickBuild) return 1;
     return draftAtMount?.step || 1;
   });       // 1 | 2 | 3
+  // Quick Build (Dashboard's Tools chip) skips straight to "just paste a
+  // job description" using the saved profile for everything else — same
+  // screen as step 2 always was, just entered without stopping at step 1
+  // first. Stays true across "Build another" in resetWizard below, so a
+  // whole quick session (several jobs in a row) keeps skipping step 1,
+  // not just the first one.
+  const [quickMode, setQuickMode] = useState(!!pendingQuickBuild && hasUsableProfile);
 
   // The floating nav recedes while someone's actively scrolling down through
   // a form (same idea as Instagram's bar shrinking on scroll) and comes back
@@ -191,6 +255,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
   // Mirrors what clicking "Optimize" does — the review package opens
   // immediately when the import already came back tailored to a job.
   const [packageOpen, setPackageOpen] = useState(() => !!pendingImport?.cover_letter);
+  const [atsModalOpen, setAtsModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   // pendingLoadResumeId starts this at null (not draftAtMount?.resume) for
   // the exact same reason as `info` above — the correct resume is on its
@@ -199,7 +264,14 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
   // own pendingLoadResumeId effect further down).
   const [resume,     dispatch]      = useReducer(resumeReducer, pendingImport || (pendingLoadResumeId ? null : draftAtMount?.resume) || null);
   const onEdit = useCallback(onEditHandler(dispatch), [dispatch]);
-  const [docStyle,   setDocStyle]   = useState(() => draftAtMount?.docStyle || DEFAULT_STYLE);
+  // A draft in progress always wins (same reasoning as every other
+  // draftAtMount field); failing that, an explicitly-picked template (see
+  // Dashboard's Templates card / lib/templatePreference.js) beats
+  // DEFAULT_STYLE's own "classic" fallback.
+  const [docStyle,   setDocStyle]   = useState(() => draftAtMount?.docStyle || {
+    ...DEFAULT_STYLE,
+    layout: getPreferredTemplate() || DEFAULT_STYLE.layout,
+  });
   // Restored on mount only if there's actually something worth telling the user about.
   const [draftRestored, setDraftRestored] = useState(() => !pendingImport && !pendingLoadResumeId && !!(draftAtMount?.resume || draftAtMount?.jobDesc));
   // A one-time banner distinct from draftRestored — this is "we just parsed
@@ -306,6 +378,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
       dispatch({ type: "SET", resume: resumeObj });
       setGenResult({ keywords: data.keywords || [], saved_id: data.saved_id, job_location: data.job_location });
       setStep(3);
+      setAppliedPromptDone(false);
       signupNudge.recordAction();
     } catch (e) {
       setError(e.message || "Generation failed. Try again.");
@@ -341,6 +414,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
     setInterviewTips(data.interview_tips || []);
     setApplication(data.application || null);
     setStep(3);
+    setAppliedPromptDone(false);
     setOptimizing(false);
     signupNudge.recordAction();
 
@@ -388,6 +462,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
       const name = (resume.contact?.name || info.name || "Resume").replace(/\s+/g, "_");
       await downloadDocx(resume, docStyle, `${name}_Resume.docx`);
       if (coverLetter) await downloadCoverLetterDocx(coverLetter, resume.contact || info, docStyle, `${name}_Cover_Letter.docx`);
+      maybeAskIfApplied();
     } catch (e) {
       setError("Download failed: " + e.message);
     } finally {
@@ -456,6 +531,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
     try {
       const name = resume.contact?.name?.replace(/\s+/g, "_") || "Resume";
       await downloadDocx(resume, docStyle, `${name}_Resume.docx`);
+      maybeAskIfApplied();
     } catch (e) {
       setError("Download failed: " + e.message);
     } finally {
@@ -470,6 +546,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
     const raf = requestAnimationFrame(() => {
       if (previewRef.current) {
         printPdf(previewRef.current);
+        maybeAskIfApplied();
       } else {
         setError("Nothing to export yet — generate a resume first.");
       }
@@ -499,6 +576,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
       return;
     }
     printPdf(previewRef.current);
+    maybeAskIfApplied();
     setTimeout(() => setDownloading(null), 1500);
   };
 
@@ -506,10 +584,11 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
   // saved info (name, contact, background, education, skills) — that's the
   // whole point of saving it. Only the job-specific stuff resets.
   const resetWizard = () => {
-    setStep(1); setJobDesc("");
+    setStep(quickMode && hasUsableProfile ? 2 : 1); setJobDesc("");
     setError(""); setGenResult(null);
     setCoverLetter(""); setInterviewTips([]);
     setApplication(null); setPackageOpen(false);
+    setAppliedPromptDone(false); setAppliedPromptOpen(false);
     dispatch({ type: "SET", resume: null }); // was never cleared before — stale resume could linger
     if (!showSplit) setMobileView("panel");
     clearDraft();
@@ -553,13 +632,13 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
         paddingBottom: mobileNavClearance ?? (isPhone ? 24 : 48),
       }}>
       <p className="m-0 mb-2.5 px-3 text-center font-mono text-[9px] tracking-[0.08em] text-[#666] select-none">
-        {loadingResumeId ? "Loading…" : `${Math.round(scale * 100)}% · ${resume ? "Tap any text to edit" : "Generate to see your resume"}`}
+        {loadingResumeId ? "Loading…" : (generating || optimizing) ? "Building your resume…" : `${Math.round(scale * 100)}% · ${resume ? "Tap any text to edit" : "Generate to see your resume"}`}
       </p>
-      {loadingResumeId ? (
+      {loadingResumeId || generating || optimizing ? (
         <div style={{ width: scaledW, height: scaledH }} className="relative shrink-0">
           <div style={{ width: A4w, height: A4h, transform: `scale(${scale})` }}
             className="absolute top-0 left-0 origin-top-left shadow-[0_6px_40px_rgba(0,0,0,0.35)]">
-            <ResumeSkeleton />
+            {loadingResumeId ? <ResumeSkeleton /> : <ScanningResume />}
           </div>
         </div>
       ) : (
@@ -620,6 +699,19 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
             </div>
           )}
 
+          {/* Quick Build tapped with no saved profile yet — there's nothing
+              to reuse, so this silently fell back to the full form above;
+              say so explicitly instead of a chip that just quietly did
+              something other than what it promised. */}
+          {pendingQuickBuild && !hasUsableProfile && step === 1 && (
+            <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2.5">
+              <Zap className="size-[13px] shrink-0 text-primary" />
+              <span className="flex-1 text-xs text-foreground">
+                Quick Build needs one resume built first, to reuse your background from. Fill this in once — every build after this one will be this fast.
+              </span>
+            </div>
+          )}
+
           {step === 3 && genResult && (
             <ResultStep
               genResult={genResult}
@@ -657,7 +749,17 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
                 </div>
               )}
 
-              {step === 1 && (
+              {step === 1 && quickMode && hasUsableProfile && (
+                <QuickBuildIntro
+                  info={info}
+                  set={set}
+                  accountEmail={user?.email || ""}
+                  isPhone={isPhone}
+                  onNext={() => { setError(""); setStep(2); }}
+                />
+              )}
+
+              {step === 1 && !(quickMode && hasUsableProfile) && (
                 <InfoStep
                   info={info}
                   set={set}
@@ -728,6 +830,15 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
     </>
   );
 
+  // The full 3-pane workspace (Build/Templates sidebar, floating toolbar +
+  // canvas, Skill Alignment/Text/Colors panel) only replaces the old 2-pane
+  // split once there's an actual resume to work on, on tablet/desktop — the
+  // AI-generation wizard (steps 1-2) and phone both keep their existing,
+  // already-working UI untouched. DesktopTabNav's Build/Style/Saved/
+  // Settings tab strip is hidden here too: Build/Templates now lives inside
+  // BuilderSidebar itself, and Style's old controls moved into AnalysisPanel.
+  const isWorkspace = showSplit && tab === "new" && step === 3 && !!genResult;
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-background font-sans">
@@ -781,9 +892,21 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {isWorkspace && (
+            <Btn small icon="Gauge" onClick={() => setAtsModalOpen(true)} variant="ghost">
+              Analyze
+            </Btn>
+          )}
           {/* Phone only — tablet/desktop already have Style as a permanent
               tab in DesktopTabNav next to the always-visible split preview,
               so a second entry point here would be redundant for them. */}
+          {!showSplit && step === 3 && genResult && (
+            <Btn small icon="Pencil" onClick={() => { setTab("new"); setMobileView("preview"); setBuildSheetOpen(true); }}
+              className="max-[380px]:gap-0 max-[380px]:px-2.5"
+              disabled={!resume} variant="ghost">
+              <span className="max-[380px]:hidden">Build</span>
+            </Btn>
+          )}
           {!showSplit && (
             <Btn small icon="Palette" onClick={() => { setTab("style"); setMobileView("preview"); setStyleSheetOpen(true); }}
               className="max-[380px]:gap-0 max-[380px]:px-2.5"
@@ -804,7 +927,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
         </div>
       </header>
 
-      {showSplit && <DesktopTabNav tab={tab} onChange={setTab} />}
+      {showSplit && !isWorkspace && <DesktopTabNav tab={tab} onChange={setTab} />}
 
       {/* ── Body — split (sidebar + always-visible preview) on tablet and
           desktop, one full-screen view at a time on phone. Tablet's sidebar
@@ -812,7 +935,28 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
           768px-wide iPad would leave the preview too cramped to actually
           read while styling it, defeating the point of showing it at all. ── */}
       <div className="flex flex-1 overflow-hidden">
-        {showSplit ? (
+        {isWorkspace ? (
+          <>
+            <div className="flex w-[280px] shrink-0 flex-col border-r border-border bg-card">
+              <BuilderSidebar resume={resume} onEdit={onEdit} jobDesc={jobDesc} docStyle={docStyle} setDocStyle={setDocStyle} onBuildAnother={resetWizard} />
+            </div>
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <div className="flex shrink-0 justify-center pt-4 pb-1">
+                <FormattingToolbar docStyle={docStyle} setDocStyle={setDocStyle} />
+              </div>
+              {PreviewCanvas()}
+            </div>
+            <div className="flex w-[288px] shrink-0 flex-col border-l border-border bg-card">
+              <AnalysisPanel
+                resume={resume}
+                jobDescription={jobDesc}
+                onApplyAts={(fixed) => dispatch({ type: "SET", resume: { ...resume, contact: fixed.contact, sections: fixed.sections } })}
+                docStyle={docStyle}
+                setDocStyle={setDocStyle}
+              />
+            </div>
+          </>
+        ) : showSplit ? (
           <>
             <div className={`flex ${isDesktop ? "w-[380px]" : "w-[300px]"} shrink-0 flex-col border-r border-border bg-card`}>
               {PanelContent()}
@@ -848,6 +992,22 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
                 </div>
               </div>
             )}
+            {tab === "new" && buildSheetOpen && mobileView !== "panel" && step === 3 && genResult && (
+              <div className="flex shrink-0 flex-col border-t border-border bg-card" style={{ maxHeight: "60vh" }}>
+                <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+                  <span className="text-[15px] font-bold text-foreground">Build</span>
+                  <button
+                    onClick={() => setBuildSheetOpen(false)}
+                    className="flex h-8 items-center gap-1.5 rounded-full border-none bg-primary px-3.5 text-[13px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent]"
+                  >
+                    <Check className="size-3.5" /> Done
+                  </button>
+                </div>
+                <div className="min-h-0 flex-1 overflow-hidden" style={{ paddingBottom: mobileNavClearance }}>
+                  <BuilderSidebar resume={resume} onEdit={onEdit} jobDesc={jobDesc} docStyle={docStyle} setDocStyle={setDocStyle} onBuildAnother={resetWizard} />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -858,8 +1018,9 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
           mobileView={mobileView}
           navHidden={navHidden}
           onNavigate={(id) => {
-            if (id === "preview") { setStyleSheetOpen(false); setMobileView("preview"); return; }
+            if (id === "preview") { setStyleSheetOpen(false); setBuildSheetOpen(false); setMobileView("preview"); return; }
             setStyleSheetOpen(false);
+            setBuildSheetOpen(false);
             setTab(id);
             setMobileView("panel");
           }}
@@ -884,6 +1045,24 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
       />
 
       <SignupNudgeModal open={signupNudge.show} onDismiss={signupNudge.dismiss} />
+      <DownloadCapModal
+        open={capModalOpen}
+        onClose={() => setCapModalOpen(false)}
+        onRequireAuth={onRequireAuth}
+      />
+      <DidYouApplyModal
+        open={appliedPromptOpen}
+        onClose={() => setAppliedPromptOpen(false)}
+        defaultRole={info.title}
+        onConfirm={saveApplication}
+      />
+      <AtsScoreModal
+        open={atsModalOpen}
+        onClose={() => setAtsModalOpen(false)}
+        resume={resume}
+        jobDescription={jobDesc}
+        onApply={(fixed) => dispatch({ type: "SET", resume: { ...resume, contact: fixed.contact, sections: fixed.sections } })}
+      />
     </motion.div>
   );
 }

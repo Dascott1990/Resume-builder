@@ -1218,6 +1218,50 @@ def ats_improve():
     }}), 200
 
 
+REWRITE_BLOCK_SYSTEM = """You rewrite ONE piece of resume text at a time — a summary paragraph or a
+single bullet point, never a whole resume. Preserve every real fact in it (employers, numbers, tools,
+outcomes) exactly — you may rephrase, tighten, reorder, or re-emphasize, but never invent an employer,
+metric, or achievement that wasn't already there. Return ONLY the rewritten text itself: no quotes, no
+markdown, no preamble, no explanation of what you changed."""
+
+REWRITE_BLOCK_MODES = {
+    "rewrite": "Rewrite this to read more sharply and professionally, same length roughly.",
+    "match_jd": "Rewrite this to use more of the job description's own keywords and phrasing, without inventing anything the original text doesn't already say.",
+    "clarity": "Rewrite this to be clearer and more direct — cut filler words, keep every real fact.",
+    "tone": "Rewrite this in a more confident, achievement-oriented tone.",
+}
+
+
+@resume_bp.route("/rewrite-block", methods=["POST"])
+@limiter.limit("40 per hour")
+def rewrite_block():
+    """One resume field (a summary paragraph, a single bullet) in, one
+    rewritten version back — the workspace's inline AI action bar (Rewrite /
+    Match job description / Improve clarity / Change tone) calls this per
+    field the person is actively editing, not the whole-resume generate/
+    optimize/ats-improve endpoints above, which are deliberately a bigger
+    operation (a fresh or fully-rescored resume) than "fix this one line.\""""
+    body = request.get_json(force=True) or {}
+    text = (body.get("text") or "").strip()
+    mode = body.get("mode")
+    job_desc = (body.get("job_description") or "").strip()[:4000]
+
+    if not text:
+        raise APIError("text is required", 400)
+    if mode not in REWRITE_BLOCK_MODES:
+        raise APIError(f"mode must be one of {sorted(REWRITE_BLOCK_MODES)}", 400)
+    if mode == "match_jd" and not job_desc:
+        raise APIError("job_description is required for mode=match_jd", 400)
+
+    prompt = f"TEXT:\n{text}\n\n"
+    if job_desc:
+        prompt += f"JOB DESCRIPTION (for context):\n{job_desc}\n\n"
+    prompt += f"TASK:\n{REWRITE_BLOCK_MODES[mode]}"
+
+    rewritten = _ai_complete(system=REWRITE_BLOCK_SYSTEM, prompt=prompt, effort="low", max_tokens=400, groq_temperature=0.4)
+    return jsonify({"success": True, "data": {"text": rewritten.strip()}}), 200
+
+
 def _saved_scope_filter(query):
     """Signed-in user_id wins if present; otherwise falls back to guest_id.
     Neither present means no rows — never "show everything" as a fallback."""

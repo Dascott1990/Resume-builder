@@ -15,16 +15,10 @@ import { Button } from "@/components/ui/button";
 import { Field, Btn } from "./guest/components/primitives";
 import Emoji3D from "./shared/Emoji3D";
 import { tintFor, initialsOf } from "./shared/artisanDisplay";
+import { avatarPhotoUrl } from "./shared/Avatar";
 import { EmojiPicker } from "./shared/EmojiPicker";
 import { useAuth } from "@/lib/useAuth";
 import { apiRequest } from "./shared/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL;
-
-function avatarPhotoUrl(userId, version) {
-  const v = version ? `?v=${version}` : "";
-  return `${API_BASE}/api/v1/auth/avatar-photo/${userId}${v}`;
-}
 
 export default function PersonalProfile({ onClose }) {
   const { user, loading: authLoading, updateProfile, refreshUser } = useAuth();

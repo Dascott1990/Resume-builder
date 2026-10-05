@@ -15,7 +15,7 @@ const LINKS = [
   { href: "#faq", label: "FAQ" },
 ];
 
-export function Footer({ onOpen, onOpenDashboard, onOpenSignup }) {
+export function Footer({ onOpenSignup }) {
   return (
     // Extra bottom clearance on narrow screens only — the floating 3D
     // intensity control sits fixed bottom-right and would otherwise overlap
@@ -33,23 +33,6 @@ export function Footer({ onOpen, onOpenDashboard, onOpenSignup }) {
                 {l.label}
               </a>
             ))}
-            {/* Same quiet secondary link FinalCTA.js already offers next to
-                its own primary button — the footer had the prop wired in
-                from LandingPage.js but never actually rendered it. */}
-            {onOpen && (
-              <button
-                onClick={onOpen}
-                className="border-none bg-transparent p-0 text-[13px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
-              >
-                Resume Studio
-              </button>
-            )}
-            <button
-              onClick={onOpenDashboard}
-              className="border-none bg-transparent p-0 text-[13px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
-            >
-              Continue without an account
-            </button>
             <button
               onClick={onOpenSignup}
               className="rounded-full border border-primary/25 bg-primary/10 px-4 py-2 text-[13px] font-bold text-primary-text [-webkit-tap-highlight-color:transparent]"

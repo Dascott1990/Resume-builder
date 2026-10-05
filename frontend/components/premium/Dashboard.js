@@ -21,19 +21,28 @@
  * stays separate from decoration.
  */
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
-  ArrowRight, ChevronRight, X, Clock, MapPin, ExternalLink,
-  Inbox, Check, AlertTriangle, CheckCircle2,
+  ArrowRight, ChevronRight, X, Clock, ExternalLink,
+  Inbox, Check, AlertTriangle, CheckCircle2, LogOut, Loader2, Zap, Plus,
   MoreVertical, Trash2, StickyNote,
 } from "lucide-react";
+
+// Wrapped to the same { Svg } shape ArtTile/ToolChip expect everywhere
+// else — a plain lucide icon, not a custom art asset, since "quick build"
+// is a behavior (skip straight to pasting a job description) rather than
+// its own illustrated concept the way Resume/Auto Apply/Tracker are.
+const QUICK_BUILD_ART = { Svg: Zap };
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { Btn } from "./guest/components/primitives";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
-import { tintFor, initialsOf } from "./shared/artisanDisplay";
-import Emoji3D from "./shared/Emoji3D";
+import { Avatar } from "./shared/Avatar";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
 import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
@@ -47,6 +56,9 @@ import { QUICK_ACTION_ART } from "./shared/quickActionArt";
 import { DASHBOARD_ART } from "./shared/dashboardArt";
 import { SparkleBackground } from "./shared/SparkleBackground";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TemplatePreview } from "./shared/TemplatePreview";
+import { LAYOUTS } from "./shared/resumeLayouts/registry";
+import { getPreferredTemplate, setPreferredTemplate } from "@/lib/templatePreference";
 import Logo from "./Logo";
 
 // One neutral system-accent tile behind every illustrated icon on this
@@ -70,9 +82,11 @@ function navArt(art) {
   };
 }
 
+// "Jobs" means the Jobs Board — see NavRail.js's own NAV_ITEMS comment,
+// same bug, same fix, mirrored here for the mobile bottom bar.
 const MOBILE_NAV_ITEMS = [
   { id: "home", Icon: navArt(DASHBOARD_ART.home), label: "Home" },
-  { id: "apply", Icon: navArt(QUICK_ACTION_ART.apply), label: "Jobs" },
+  { id: "jobsboard", Icon: navArt(QUICK_ACTION_ART.jobsboard), label: "Jobs" },
   { id: "jobtracker", Icon: navArt(QUICK_ACTION_ART.tracker), label: "Applications" },
   { id: "profile", Icon: navArt(DASHBOARD_ART.profile), label: "Profile" },
 ];
@@ -149,57 +163,74 @@ function JobSearchStatsCard({ applications, loading, onViewAll }) {
   );
 }
 
+// One compact row per job, not the old full card — this now shares a
+// half-width column with TemplatesCard (see ExploreRow below) instead of
+// owning the full page width, so 2 real listings beats cramming 4 in.
+function RecommendedJobRow({ job }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted font-mono text-[10px] font-bold text-muted-foreground">
+        {job.company_name.slice(0, 2).toUpperCase()}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="m-0 truncate text-[12px] font-bold text-foreground">{job.title}</p>
+        <p className="m-0 truncate text-[10.5px] text-muted-foreground">
+          {job.company_name}{job.remote ? " · Remote" : ""}
+        </p>
+      </div>
+      <a
+        href={job.url} target="_blank" rel="noreferrer" aria-label={`Apply to ${job.title}`}
+        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground [-webkit-tap-highlight-color:transparent]"
+      >
+        <ExternalLink className="size-3" />
+      </a>
+    </div>
+  );
+}
+
 // Real listings from the verified jobs pipeline (see JobsBoard.js /
 // backend/app/jobs_ingest/) — always populated regardless of whether
 // this particular account has done anything yet, which is what actually
 // keeps Home from ever looking empty. Not personalized (no real matching
 // engine exists) — freshest, most-verified listings, honestly, rather
 // than pretending this is tailored to the viewer.
-function RecommendedJobCard({ job }) {
+function RecommendedCard({ jobs, loading, onSeeAll }) {
   return (
-    <div className="glass-surface flex flex-col gap-2.5 rounded-2xl p-4">
-      <div className="flex items-center gap-2.5">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-muted font-mono text-[11px] font-bold text-muted-foreground">
-          {job.company_name.slice(0, 2).toUpperCase()}
-        </span>
-        <div className="min-w-0">
-          <p className="m-0 truncate text-[13px] font-bold text-foreground">{job.title}</p>
-          <p className="m-0 truncate text-[11px] text-muted-foreground">{job.company_name}</p>
-        </div>
+    <div className="glass-surface flex h-full flex-col gap-2.5 rounded-2xl p-4">
+      <SectionHeader onViewAll={onSeeAll} viewAllLabel="See all">Recommended</SectionHeader>
+      <div className="flex flex-col gap-2.5">
+        {loading ? (
+          <><Skeleton className="h-9 w-full" /><Skeleton className="h-9 w-full" /></>
+        ) : jobs.length === 0 ? (
+          <p className="m-0 text-[12px] text-muted-foreground">Nothing fresh right now — check back soon.</p>
+        ) : (
+          jobs.slice(0, 2).map((j) => <RecommendedJobRow key={j.id} job={j} />)
+        )}
       </div>
-      <p className="m-0 flex items-center gap-1 text-[11px] text-muted-foreground">
-        {job.remote ? "Remote" : <><MapPin className="size-3" />{job.location || "Onsite"}</>}
-      </p>
-      {/* Real, employer-entered text off the source's own payload (see
-          backend/app/jobs_ingest/sources.py's fetch_remotive) — only
-          Remotive exposes real compensation data today, so this is
-          absent (not guessed) on every other source's jobs. */}
-      {job.salary && <p className="m-0 text-[12px] font-bold text-success">{job.salary}</p>}
-      <a
-        href={job.url} target="_blank" rel="noreferrer"
-        className="flex w-fit items-center gap-1 self-start rounded-[10px] bg-primary px-3.5 py-1.5 text-[12px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent]"
-      >
-        Apply <ExternalLink className="size-3" />
-      </a>
     </div>
   );
 }
 
-function RecommendedJobs({ jobs, loading, onSeeAll }) {
-  if (!loading && jobs.length === 0) return null;
+// Sibling to RecommendedCard in the same ExploreRow — a handful of real
+// layouts (shared/resumeLayouts/registry.js's LAYOUTS, the same list
+// GuestMode's own Style tab reads), not a placeholder. Picking one here
+// just saves a preference (lib/templatePreference.js) the NEXT resume
+// started reads as its default — this card never touches an existing one.
+function TemplatesCard({ onSeeAll, onPick, selected }) {
   return (
-    <div className="mb-6">
-      <SectionHeader onViewAll={onSeeAll} viewAllLabel="See all">Recommended for you</SectionHeader>
-      {/* grid-cols-2 unconditionally, even on phones — stacked
-          full-width cards meant all 4 real jobs cost a whole screen's
-          worth of scroll before anything past them (Tools, recent
-          activity) came into view. Two-up keeps every job real and
-          visible without burying what comes after it. */}
-      <div className="grid grid-cols-2 gap-2.5">
-        {loading
-          ? <><Skeleton className="h-[126px] w-full rounded-2xl" /><Skeleton className="h-[126px] w-full rounded-2xl" /></>
-          : jobs.slice(0, 4).map((j) => <RecommendedJobCard key={j.id} job={j} />)}
+    <div className="glass-surface flex h-full flex-col gap-2.5 rounded-2xl p-4">
+      <SectionHeader onViewAll={onSeeAll} viewAllLabel="See all">Templates</SectionHeader>
+      <div className="flex gap-2">
+        {LAYOUTS.map((l) => (
+          <button
+            key={l.id} type="button" onClick={() => onPick(l.id)} aria-label={l.label} aria-pressed={selected === l.id}
+            className={`rounded-lg p-0.5 [-webkit-tap-highlight-color:transparent] ${selected === l.id ? "ring-2 ring-primary/40" : ""}`}
+          >
+            <TemplatePreview layoutId={l.id} width={48} height={64} />
+          </button>
+        ))}
       </div>
+      <p className="m-0 text-[11px] text-muted-foreground">Pick a look for your next resume.</p>
     </div>
   );
 }
@@ -249,6 +280,76 @@ function ToolChip({ art, label, onClick }) {
   );
 }
 
+// Mobile only — a raised circular "+" sitting on top of BottomNav's own
+// center, the same spot an even 4-item bar's midpoint already falls at, so
+// no change to BottomNav itself was needed. This is the one and only mobile
+// entry point into "Your Resume" + Tools now (see CreateSheet) — Build
+// First Resume used to be a whole card at the top of every scroll; this is
+// the same action, just reachable from the nav instead of spending a
+// section of vertical space on every visit.
+function CreateFab({ onClick }) {
+  return (
+    <motion.button
+      type="button" onClick={onClick} aria-label="Create"
+      whileTap={{ scale: 0.9 }}
+      className="fixed left-1/2 z-50 flex size-16 -translate-x-1/2 items-center justify-center rounded-full border-[3px] border-background bg-primary text-primary-foreground shadow-[0_10px_28px_rgba(0,0,0,0.4)] [-webkit-tap-highlight-color:transparent]"
+      style={{ bottom: "calc(34px + env(safe-area-inset-bottom, 0px))" }}
+    >
+      <Plus className="size-7" />
+    </motion.button>
+  );
+}
+
+// The sheet CreateFab opens — exactly "Your Resume" + Tools, the same two
+// sections and the same components (ResumeStatusCard, ToolChip) that used
+// to sit inline on the page, just reached through one tap instead of
+// always taking up scroll space.
+function CreateSheet({ open, onClose, latestResume, go }) {
+  const act = (id, opts) => { onClose(); go(id, opts); };
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 z-[60] bg-black/40"
+          />
+          <motion.div
+            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 30, stiffness: 340 }}
+            className="fixed inset-x-0 bottom-0 z-[61] rounded-t-[26px] border-t border-border bg-card p-5"
+            style={{ paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))" }}
+          >
+            <div className="mx-auto mb-4 h-1 w-10 shrink-0 rounded-full bg-border" />
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-[16px] font-bold text-foreground">Create</span>
+              <button onClick={onClose} aria-label="Close" className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground [-webkit-tap-highlight-color:transparent]">
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <ResumeStatusCard
+              latestResume={latestResume}
+              onOpen={() => act("resume", latestResume ? { resumeId: latestResume.id } : undefined)}
+            />
+
+            <div className="mt-5">
+              <SectionHeader>Tools</SectionHeader>
+              <div className="grid grid-cols-2 gap-2">
+                <ToolChip art={QUICK_BUILD_ART} label="Quick Build" onClick={() => act("resume", { quickBuild: true })} />
+                <ToolChip art={QUICK_ACTION_ART.apply} label="Auto Apply" onClick={() => act("apply")} />
+                <ToolChip art={QUICK_ACTION_ART.scan} label="CV Scan" onClick={() => act("scan")} />
+                <ToolChip art={QUICK_ACTION_ART.tracker} label="Tracker" onClick={() => act("jobtracker")} />
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
 // The desktop-only mirror of the left nav rail: "Your resume" and Tools
 // live here, fixed beside the scrollable middle column, so they're always
 // on screen instead of waiting at the bottom of a long scroll.
@@ -262,8 +363,12 @@ function DesktopRightRail({ savedResumes, go }) {
       />
       <div>
         <SectionHeader>Tools</SectionHeader>
+        {/* No "Resume" chip here — the "Your resume" card right above this
+            already is that entry point (Start / View · Edit). A second
+            button doing the identical thing read as clutter, not a
+            shortcut — see the Dashboard cleanup note in DashboardContent. */}
         <div className="grid grid-cols-1 gap-2">
-          <ToolChip art={DASHBOARD_ART.resume} label="Resume" onClick={() => go("resume")} />
+          <ToolChip art={QUICK_BUILD_ART} label="Quick Build" onClick={() => go("resume", { quickBuild: true })} />
           <ToolChip art={QUICK_ACTION_ART.apply} label="Auto Apply" onClick={() => go("apply")} />
           <ToolChip art={QUICK_ACTION_ART.scan} label="CV Scan" onClick={() => go("scan")} />
           <ToolChip art={QUICK_ACTION_ART.tracker} label="Tracker" onClick={() => go("jobtracker")} />
@@ -368,6 +473,71 @@ function NotificationsDialog({ open, onClose, items, onOpenItem }) {
   );
 }
 
+// Only rendered on a rejected application — two short questions, not a
+// whole screen: "why" and "reapply" each fetch one AI-generated 2-3
+// sentence answer (see backend's POST /applications/<id>/insight) on
+// demand, cached per-kind so re-opening one already fetched this render
+// doesn't re-call the AI for text that hasn't changed.
+function RejectionHelp({ appId }) {
+  const [answers, setAnswers] = useState({}); // kind -> text
+  const [loadingKind, setLoadingKind] = useState(null);
+  const [openKind, setOpenKind] = useState(null);
+
+  const ask = async (kind) => {
+    if (openKind === kind) { setOpenKind(null); return; }
+    setOpenKind(kind);
+    if (answers[kind]) return;
+    setLoadingKind(kind);
+    try {
+      const data = await apiRequest(`/api/v1/applications/${appId}/insight`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind }),
+      });
+      setAnswers((a) => ({ ...a, [kind]: data.text }));
+    } catch (e) {
+      setAnswers((a) => ({ ...a, [kind]: e.message || "Couldn't load that right now." }));
+    } finally {
+      setLoadingKind(null);
+    }
+  };
+
+  return (
+    <div className="mt-2 border-t border-border pt-2">
+      <div className="flex gap-1.5">
+        <button
+          onClick={() => ask("why")}
+          className={`flex-1 rounded-lg border px-2.5 py-1.5 text-[11.5px] font-bold [-webkit-tap-highlight-color:transparent] ${
+            openKind === "why" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"
+          }`}
+        >
+          What happened?
+        </button>
+        <button
+          onClick={() => ask("reapply")}
+          className={`flex-1 rounded-lg border px-2.5 py-1.5 text-[11.5px] font-bold [-webkit-tap-highlight-color:transparent] ${
+            openKind === "reapply" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"
+          }`}
+        >
+          Worth reapplying?
+        </button>
+      </div>
+      {openKind && (
+        <div className="mt-2 flex items-start gap-2 rounded-lg bg-muted/40 p-2.5 text-[12px] leading-relaxed text-foreground">
+          {loadingKind === openKind ? (
+            <>
+              <Loader2 className="mt-0.5 size-3.5 shrink-0 animate-spin text-muted-foreground" />
+              <span className="text-muted-foreground">Thinking…</span>
+            </>
+          ) : (
+            answers[openKind]
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SectionHeader({ children, onViewAll, viewAllLabel = "View all" }) {
   return (
     <div className="mb-2.5 flex items-center justify-between">
@@ -389,9 +559,9 @@ function GreetingAvatar({ user, onClick }) {
       type="button"
       onClick={onClick}
       aria-label="Personal profile"
-      className={`flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border [-webkit-tap-highlight-color:transparent] ${user?.avatar_emoji ? "" : "font-mono text-xs font-bold"} ${tintFor(user?.name || user?.email || "?")}`}
+      className="shrink-0 border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
     >
-      {user?.avatar_emoji ? <Emoji3D emoji={user.avatar_emoji} size={36} /> : initialsOf(user?.name || user?.email || "?")}
+      <Avatar user={user} size={36} />
     </button>
   );
 }
@@ -403,12 +573,20 @@ function GreetingAvatar({ user, onClick }) {
 function DashboardContent({
   user, statsLoading, savedResumes, applications, recommendedJobs, recommendedLoading,
   go, onDeleteResume, onDeleteApplication, onUpdateApplicationStatus, onAddNote, isDesktop, onOpenPersonalProfile,
-  showResumeAndTools = true,
 }) {
   const recentResumes = savedResumes.slice(0, 3);
   const recentApps = applications.slice(0, 3);
   const followupCount = applications.filter((a) => a.needs_followup).length;
-  const latestResume = savedResumes[0];
+
+  // Deleting either of these is permanent — asked for up front rather than
+  // firing straight off the dropdown item. setTimeout defers opening the
+  // AlertDialog until after the dropdown's own closing animation, same
+  // trick onAddNote already uses below for the same reason.
+  const [confirmDeleteResumeId, setConfirmDeleteResumeId] = useState(null);
+  const [confirmDeleteApplicationId, setConfirmDeleteApplicationId] = useState(null);
+
+  const [selectedTemplate, setSelectedTemplate] = useState(() => getPreferredTemplate() || "classic");
+  const pickTemplate = (id) => { setPreferredTemplate(id); setSelectedTemplate(id); };
 
   const greetingRow = (
     <div className="flex items-center gap-3">
@@ -427,7 +605,10 @@ function DashboardContent({
       {isDesktop ? (
         <motion.div
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-          className="dark relative mb-2 flex h-[130px] items-center overflow-hidden rounded-3xl"
+          // Sticky to the top of the scrollable center column, same as the
+          // nav rail is fixed beside it — the greeting never has to be
+          // scrolled back up to, it's just always there.
+          className="dark sticky top-0 z-20 mb-2 flex h-[130px] items-center overflow-hidden rounded-3xl"
         >
           <img src="/dashboard/greeting-banner.jpg" alt="" className="absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/10" />
@@ -435,12 +616,16 @@ function DashboardContent({
               (no new color — bg-background is the same token the stats
               card sits on) so the banner dissolves into what's below it
               instead of ending on a hard photographic edge right above
-              the card. */}
+              the card. Also doubles as the sticky banner's opaque floor —
+              scrolled content passing underneath never shows through. */}
           <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-b from-transparent to-background" />
           <div className="relative w-full px-6">{greetingRow}</div>
         </motion.div>
       ) : (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mb-5">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+          className="sticky top-0 z-20 mb-5 bg-background pt-1 pb-3"
+        >
           {greetingRow}
         </motion.div>
       )}
@@ -464,39 +649,16 @@ function DashboardContent({
         <JobSearchStatsCard applications={applications} loading={statsLoading} onViewAll={() => go("jobtracker")} />
       </motion.div>
 
-      {/* On mobile (showResumeAndTools is only true there — desktop
-          renders this same pair in its own right rail instead, see
-          DesktopRightRail), Tools comes before Recommended-for-you:
-          actions you take right now shouldn't sit under a whole
-          scroll's worth of job cards first. Reordering here is
-          invisible to desktop since it renders these two elsewhere. */}
-      {showResumeAndTools && (
-        <>
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
-            <ResumeStatusCard latestResume={latestResume} onOpen={() => go("resume", latestResume ? { resumeId: latestResume.id } : undefined)} />
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.15 }} className="mb-6">
-            <SectionHeader>Tools</SectionHeader>
-            {/* grid-cols-2, not a single flex row — a row of 4 chips has
-                no room left for labels once the viewport gets much
-                narrower than a typical phone (checked live down to a
-                344px foldable cover screen: labels shrank to an
-                unreadable sliver before they ever actually overflowed).
-                Two columns keeps every label legible at any width this
-                app runs at. */}
-            <div className="grid grid-cols-2 gap-2">
-              <ToolChip art={DASHBOARD_ART.resume} label="Resume" onClick={() => go("resume")} />
-              <ToolChip art={QUICK_ACTION_ART.apply} label="Auto Apply" onClick={() => go("apply")} />
-              <ToolChip art={QUICK_ACTION_ART.scan} label="CV Scan" onClick={() => go("scan")} />
-              <ToolChip art={QUICK_ACTION_ART.tracker} label="Tracker" onClick={() => go("jobtracker")} />
-            </div>
-          </motion.div>
-        </>
-      )}
-
+      {/* "Your Resume" and Tools used to live here inline on mobile (desktop
+          still has them in its own right rail — DesktopRightRail). Moved
+          into the Create sheet (CreateFab/CreateSheet below) instead: two
+          whole sections of vertical space back on every phone, and Create
+          is one tap away either way, now from the bottom nav itself. */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }}>
-        <RecommendedJobs jobs={recommendedJobs} loading={recommendedLoading} onSeeAll={() => go("jobsboard")} />
+        <div className="grid grid-cols-2 gap-3">
+          <TemplatesCard onSeeAll={() => go("templates")} onPick={pickTemplate} selected={selectedTemplate} />
+          <RecommendedCard jobs={recommendedJobs} loading={recommendedLoading} onSeeAll={() => go("jobsboard")} />
+        </div>
       </motion.div>
 
       {recentResumes.length > 0 && (
@@ -523,7 +685,7 @@ function DashboardContent({
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>
-                      <DropdownMenuItem className="text-destructive data-highlighted:text-destructive" onSelect={() => onDeleteResume(r.id)}>
+                      <DropdownMenuItem className="text-destructive data-highlighted:text-destructive" onSelect={() => setTimeout(() => setConfirmDeleteResumeId(r.id), 0)}>
                         <Trash2 className="size-3.5" /> Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -543,39 +705,42 @@ function DashboardContent({
                 const meta = STATUS_META[a.status] || STATUS_META.applied;
                 const since = daysSinceApplied(a.date_applied);
                 return (
-                  <div key={a.id} className="glass-surface flex items-center gap-2 rounded-xl p-3">
-                    <button onClick={() => go("jobtracker")}
-                      className="min-w-0 flex-1 border-none bg-transparent p-0 text-left [-webkit-tap-highlight-color:transparent]">
-                      <div className="flex items-center gap-2">
-                        <p className="m-0 min-w-0 flex-1 truncate text-[13px] font-bold text-foreground">{a.role}</p>
-                        <span className={`shrink-0 text-[11.5px] font-bold ${meta.className}`}>{meta.label}</span>
-                      </div>
-                      <p className="m-0 truncate text-[11.5px] text-muted-foreground">
-                        {a.company}{since ? ` · Applied ${since}` : ""}
-                      </p>
-                      {a.notes && <p className="m-0 mt-0.5 truncate text-[11px] text-muted-foreground/75">{a.notes}</p>}
-                    </button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button aria-label="More options" onClick={(e) => e.stopPropagation()}
-                          className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted hover:text-foreground">
-                          <MoreVertical className="size-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        {STATUS_ORDER.filter((s) => s !== a.status).map((s) => (
-                          <DropdownMenuItem key={s} onSelect={() => onUpdateApplicationStatus(a.id, s)}>
-                            Mark as {STATUS_META[s].label}
+                  <div key={a.id} className="glass-surface rounded-xl p-3">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => go("jobtracker")}
+                        className="min-w-0 flex-1 border-none bg-transparent p-0 text-left [-webkit-tap-highlight-color:transparent]">
+                        <div className="flex items-center gap-2">
+                          <p className="m-0 min-w-0 flex-1 truncate text-[13px] font-bold text-foreground">{a.role}</p>
+                          <span className={`shrink-0 text-[11.5px] font-bold ${meta.className}`}>{meta.label}</span>
+                        </div>
+                        <p className="m-0 truncate text-[11.5px] text-muted-foreground">
+                          {a.company}{since ? ` · Applied ${since}` : ""}
+                        </p>
+                        {a.notes && <p className="m-0 mt-0.5 truncate text-[11px] text-muted-foreground/75">{a.notes}</p>}
+                      </button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button aria-label="More options" onClick={(e) => e.stopPropagation()}
+                            className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted hover:text-foreground">
+                            <MoreVertical className="size-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          {STATUS_ORDER.filter((s) => s !== a.status).map((s) => (
+                            <DropdownMenuItem key={s} onSelect={() => onUpdateApplicationStatus(a.id, s)}>
+                              Mark as {STATUS_META[s].label}
+                            </DropdownMenuItem>
+                          ))}
+                          <DropdownMenuItem onSelect={() => setTimeout(() => onAddNote(a), 0)}>
+                            <StickyNote className="size-3.5" /> {a.notes ? "Edit note" : "Add note"}
                           </DropdownMenuItem>
-                        ))}
-                        <DropdownMenuItem onSelect={() => setTimeout(() => onAddNote(a), 0)}>
-                          <StickyNote className="size-3.5" /> {a.notes ? "Edit note" : "Add note"}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive data-highlighted:text-destructive" onSelect={() => onDeleteApplication(a.id)}>
-                          <Trash2 className="size-3.5" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <DropdownMenuItem className="text-destructive data-highlighted:text-destructive" onSelect={() => setTimeout(() => setConfirmDeleteApplicationId(a.id), 0)}>
+                            <Trash2 className="size-3.5" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    {a.status === "rejected" && <RejectionHelp appId={a.id} />}
                   </div>
                 );
               })}
@@ -583,12 +748,48 @@ function DashboardContent({
         </motion.div>
       )}
 
+      <AlertDialog open={!!confirmDeleteResumeId} onOpenChange={(o) => !o && setConfirmDeleteResumeId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this resume?</AlertDialogTitle>
+            <AlertDialogDescription>This can't be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => { onDeleteResume(confirmDeleteResumeId); setConfirmDeleteResumeId(null); }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmDeleteApplicationId} onOpenChange={(o) => !o && setConfirmDeleteApplicationId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this application?</AlertDialogTitle>
+            <AlertDialogDescription>This can't be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => { onDeleteApplication(confirmDeleteApplicationId); setConfirmDeleteApplicationId(null); }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }
 
-export default function Dashboard({ onClose, onNavigate }) {
-  const { user, loading: authLoading } = useAuth();
+export default function Dashboard({ onNavigate, onSignOut }) {
+  const { user, loading: authLoading, logout } = useAuth();
   const { isDesktop } = useViewport();
   const unread = useUnreadNotifications();
   const [savedResumes, setSavedResumes] = useState([]);
@@ -654,6 +855,7 @@ export default function Dashboard({ onClose, onNavigate }) {
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [noteApp, setNoteApp] = useState(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const go = (id, opts) => {
     tapFeedback();
@@ -662,6 +864,11 @@ export default function Dashboard({ onClose, onNavigate }) {
   };
 
   const openNotification = (item) => go("apply", { runId: item.run.id });
+
+  const signOut = () => {
+    logout();
+    onSignOut?.();
+  };
 
   const deleteResume = async (id) => {
     setSavedResumes((list) => list.filter((r) => r.id !== id));
@@ -701,7 +908,6 @@ export default function Dashboard({ onClose, onNavigate }) {
     onUpdateApplicationStatus: updateApplicationStatus,
     onAddNote: setNoteApp,
     onOpenPersonalProfile: () => go("personal-profile"),
-    showResumeAndTools: !isDesktop,
   };
 
   if (isDesktop) {
@@ -710,17 +916,10 @@ export default function Dashboard({ onClose, onNavigate }) {
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="absolute inset-0 z-50 flex bg-background font-sans"
       >
-        <NavRail active="home" user={user} onNavigate={go} onNotifClick={() => setNotifOpen(true)} />
+        <NavRail active="home" user={user} onNavigate={go} onNotifClick={() => setNotifOpen(true)} onSignOut={signOut} />
 
         <main className="relative min-w-0 flex-1 overflow-y-auto">
           <SparkleBackground />
-          {onClose && (
-            <div className="flex justify-end p-4" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}>
-              <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
-                <X className="size-4" />
-              </button>
-            </div>
-          )}
           <DashboardContent {...contentProps} />
         </main>
         <DesktopRightRail savedResumes={savedResumes} go={go} />
@@ -741,7 +940,6 @@ export default function Dashboard({ onClose, onNavigate }) {
       >
         <Logo size={22} />
         <div className="flex items-center gap-2">
-          <ThemeToggle compact />
           <button onClick={() => setNotifOpen(true)} aria-label="Notifications" className="relative flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <ArtTile art={DASHBOARD_ART.bell} size={24} iconSize={14} />
             {needsAttention && (
@@ -754,11 +952,24 @@ export default function Dashboard({ onClose, onNavigate }) {
               )
             )}
           </button>
-          {onClose && (
-            <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
-              <X className="size-[17px]" />
-            </button>
-          )}
+          <ThemeToggle compact />
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button aria-label="Sign out" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
+                <LogOut className="size-[15px]" />
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Sign out?</AlertDialogTitle>
+                <AlertDialogDescription>You'll need to sign back in to see your resumes and applications again.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={signOut}>Sign out</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </header>
 
@@ -772,6 +983,8 @@ export default function Dashboard({ onClose, onNavigate }) {
         active="home"
         onChange={(id) => go(id)}
       />
+      <CreateFab onClick={() => setCreateOpen(true)} />
+      <CreateSheet open={createOpen} onClose={() => setCreateOpen(false)} latestResume={savedResumes[0]} go={go} />
       <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={openNotification} />
       <AddNoteDialog app={noteApp} open={!!noteApp} onClose={() => setNoteApp(null)} onSaved={onNoteSaved} />
     </motion.div>

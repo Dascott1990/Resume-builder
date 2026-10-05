@@ -1,9 +1,12 @@
 "use client";
 /**
- * useAuth.js — entirely optional session layer on top of the anonymous
- * guest_id system. Nothing in the app requires being signed in; this only
- * exists so someone who wants their saved resumes / job tracker / CV scans
- * to follow them across devices can opt into that.
+ * useAuth.js — session layer on top of the anonymous guest_id system.
+ * guest_id itself still exists (every backend model is scoped by it, and
+ * it's what signup/login migrate a browser's anonymous data INTO an
+ * account from), but app/page.js now gates every real screen behind an
+ * actual account — see resolveLandingView() there. Saved resumes / job
+ * tracker / CV scans following you across devices is the reason this
+ * exists at all.
  */
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "@/components/premium/shared/api";

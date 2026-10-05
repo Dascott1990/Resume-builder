@@ -8,17 +8,21 @@
  * back-button-header pattern, so navigating there doesn't feel like
  * leaving the app.
  *
- * `active` is a NAV_ITEMS id, or nothing (JobsBoard isn't one of the four
- * primary destinations, so it highlights none of them rather than
- * guessing which is "closest").
+ * `active` is a NAV_ITEMS id — JobsBoard.js is "jobsboard", one of the
+ * four primary destinations now (not an afterthought screen none of them
+ * highlight for).
  */
-import { tintFor, initialsOf } from "./artisanDisplay";
-import Emoji3D from "./Emoji3D";
+import { LogOut } from "lucide-react";
+import { Avatar } from "./Avatar";
 import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
 import { ThemeToggle } from "./ThemeToggle";
 import { QUICK_ACTION_ART } from "./quickActionArt";
 import { DASHBOARD_ART } from "./dashboardArt";
 import Logo from "../Logo";
+import {
+  AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 function ArtTile({ art, size = 32, iconSize }) {
   const { Svg } = art;
@@ -32,14 +36,21 @@ function ArtTile({ art, size = 32, iconSize }) {
   );
 }
 
+// "Jobs" means the Jobs Board (browse verified listings) — it used to
+// route to id "apply" (the Auto Apply agent), the exact same destination
+// as the Tools "Auto Apply" chip, so two differently-labeled buttons
+// silently did the identical thing and the real Jobs Board was only
+// reachable via "See all" on the Recommended card. jobsboard is its own
+// real view (see app/page.js) and now the one this nav item actually
+// means.
 export const NAV_ITEMS = [
   { id: "home", art: DASHBOARD_ART.home, label: "Home" },
-  { id: "apply", art: QUICK_ACTION_ART.apply, label: "Jobs" },
+  { id: "jobsboard", art: QUICK_ACTION_ART.jobsboard, label: "Jobs" },
   { id: "jobtracker", art: QUICK_ACTION_ART.tracker, label: "Applications" },
   { id: "profile", art: DASHBOARD_ART.profile, label: "Profile" },
 ];
 
-export function NavRail({ active, user, onNavigate, onNotifClick }) {
+export function NavRail({ active, user, onNavigate, onNotifClick, onSignOut }) {
   const unread = useUnreadNotifications();
   const needsAttention = unread.count > 0;
 
@@ -70,9 +81,7 @@ export function NavRail({ active, user, onNavigate, onNotifClick }) {
             onClick={() => onNavigate("profile")}
             className="flex w-full items-center gap-2.5 rounded-xl border border-border bg-muted/40 p-3 text-left [-webkit-tap-highlight-color:transparent] hover:border-primary/30"
           >
-            <div className={`flex size-8 shrink-0 items-center justify-center rounded-full border ${user.avatar_emoji ? "" : "font-mono text-xs font-bold"} ${tintFor(user.name || user.email)}`}>
-              {user.avatar_emoji ? <Emoji3D emoji={user.avatar_emoji} size={32} /> : initialsOf(user.name || user.email)}
-            </div>
+            <Avatar user={user} size={32} />
             <div className="min-w-0">
               <p className="m-0 truncate text-[12.5px] font-bold text-foreground">{user.name || user.email}</p>
             </div>
@@ -89,7 +98,6 @@ export function NavRail({ active, user, onNavigate, onNotifClick }) {
       </div>
 
       <div className="flex items-center justify-between border-t border-border p-3">
-        <ThemeToggle compact />
         <button
           onClick={onNotifClick}
           aria-label="Notifications"
@@ -106,6 +114,29 @@ export function NavRail({ active, user, onNavigate, onNotifClick }) {
             )
           )}
         </button>
+        <ThemeToggle compact />
+        {onSignOut && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                aria-label="Sign out"
+                className="flex size-10 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
+              >
+                <LogOut className="size-[15px]" />
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Sign out?</AlertDialogTitle>
+                <AlertDialogDescription>You'll need to sign back in to see your resumes and applications again.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={onSignOut}>Sign out</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
     </aside>
   );

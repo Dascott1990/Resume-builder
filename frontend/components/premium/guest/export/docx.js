@@ -12,6 +12,13 @@ export function buildDocx(resume, docStyle) {
   const sz        = Math.round((docStyle.fontSize || 11) * 2);
   const szSm      = sz - 2;
   const szLg      = sz + 8;
+  // Which of the three real on-screen layouts (see shared/resumeLayouts/
+  // registry.js — the same list the Style tab's own picker reads) this
+  // download should match. Previously ignored entirely: every download was
+  // the classic centered layout no matter what someone picked on screen —
+  // confirmed live, a "Modern Sidebar" or "Minimal" resume's .docx never
+  // matched its own preview.
+  const layout = docStyle.layout === "sidebar" || docStyle.layout === "minimal" ? docStyle.layout : "classic";
 
   function esc(s) {
     return String(s || "")
@@ -35,7 +42,8 @@ export function buildDocx(resume, docStyle) {
   function ppr(opts = {}) {
     const jc     = opts.align  ? `<w:jc w:val="${opts.align}"/>` : "";
     const sp     = `<w:spacing w:before="${opts.before ?? 0}" w:after="${opts.after ?? 120}"/>`;
-    const bdr    = opts.border ? `<w:pBdr><w:bottom w:val="single" w:sz="${opts.bdrSz ?? 6}" w:space="1" w:color="${accentHex}"/></w:pBdr>` : "";
+    const bdrSide = opts.borderTop ? "top" : "bottom";
+    const bdr    = opts.border ? `<w:pBdr><w:${bdrSide} w:val="single" w:sz="${opts.bdrSz ?? 6}" w:space="1" w:color="${opts.bdrColor ?? accentHex}"/></w:pBdr>` : "";
     const num    = opts.bullet ? `<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>` : "";
     const ind    = opts.indent ? `<w:ind w:left="${opts.indent}"/>` : "";
     return `<w:pPr>${num}${sp}${jc}${bdr}${ind}</w:pPr>`;
@@ -45,59 +53,131 @@ export function buildDocx(resume, docStyle) {
     return `<w:p>${ppr(opts)}${runs}</w:p>`;
   }
 
+  // Minimal mirrors the on-screen layout's own quiet styling (see
+  // blockBuilders.js's buildMinimalBlocks): a hairline rule ABOVE each
+  // label instead of a colored box below it, dark-grey ink instead of the
+  // accent color on the label itself — the accent still shows, just as
+  // the rule, same as the preview.
   function sectionHeading(label) {
+    if (layout === "minimal") {
+      return p(
+        r(label.toUpperCase(), { bold: true, sz: sz, color: "1A1A1A", spacing: 60 }),
+        { before: 260, after: 100, border: true, borderTop: true, bdrSz: 4 }
+      );
+    }
     return p(
       r(label.toUpperCase(), { bold: true, sz: sz + 2, color: accentHex, spacing: 40 }),
       { before: 200, after: 80, border: true, bdrSz: 4 }
     );
   }
 
-  let body = "";
-
-  // Header
-  body += p(r(contact.name || "", { bold: true, sz: szLg, color: accentHex, spacing: 20 }), { align: "center", after: 40 });
-  body += p(r(contact.title || "", { italic: true, sz: sz + 2, color: "595959" }), { align: "center", after: 60 });
-  const contactParts = [contact.location, contact.phone, contact.email].filter(Boolean);
-  body += p(r(contactParts.join("  |  "), { sz: szSm, color: "595959" }), { align: "center", after: 200, border: true, bdrSz: 6 });
-
-  // Sections
-  for (const sec of (sections || [])) {
-    body += sectionHeading(sec.label || "");
-
+  // The part of each section type that doesn't depend on layout — reused
+  // for classic/minimal's single body and for sidebar's two independent
+  // columns (main gets text/jobs/education, sidebar cell gets bullets —
+  // same split buildSidebarContent uses on screen) so all three downloads
+  // share one real implementation of "how a job entry renders" instead of
+  // three hand-copies drifting apart.
+  function sectionBody(sec, { bulletColor } = {}) {
+    let out = sectionHeading(sec.label || "");
     if (sec.type === "text") {
-      body += p(r(sec.content || "", { sz }), { after: 100 });
-
+      out += p(r(sec.content || "", { sz, color: bulletColor }), { after: 100 });
     } else if (sec.type === "bullets") {
       for (const item of (sec.items || [])) {
-        body += p(r(item, { sz }), { bullet: true, after: 60 });
+        out += p(r(item, { sz, color: bulletColor }), { bullet: true, after: 60 });
       }
-
     } else if (sec.type === "jobs") {
       for (const job of (sec.jobs || [])) {
         const loc = job.location ? `  •  ${job.location}` : "";
-        body += p(
-          r(job.role || "", { bold: true, sz }) +
-          r(`  —  ${job.company || ""}${loc}`, { sz, color: "444444" }) +
+        out += p(
+          r(job.role || "", { bold: true, sz, color: bulletColor }) +
+          r(`  —  ${job.company || ""}${loc}`, { sz, color: bulletColor || "444444" }) +
           `<w:r><w:rPr><w:rFonts w:ascii="${fontName}" w:hAnsi="${fontName}"/><w:sz w:val="${szSm}"/></w:rPr><w:tab/></w:r>` +
-          r(job.period || "", { sz: szSm, color: "595959" }),
+          r(job.period || "", { sz: szSm, color: bulletColor || "595959" }),
           { before: 120, after: 60 }
         );
         for (const bullet of (job.bullets || [])) {
-          body += p(r(bullet, { sz }), { bullet: true, after: 40 });
+          out += p(r(bullet, { sz, color: bulletColor }), { bullet: true, after: 40 });
         }
       }
-
     } else if (sec.type === "education") {
       for (const deg of (sec.degrees || [])) {
-        body += p(
-          r(deg.degree || "", { bold: true, sz }) +
-          r(`  •  ${deg.school || ""}`, { sz }) +
-          r(`  •  ${deg.location || ""}`, { sz: szSm, color: "595959" }),
+        out += p(
+          r(deg.degree || "", { bold: true, sz, color: bulletColor }) +
+          r(`  •  ${deg.school || ""}`, { sz, color: bulletColor }) +
+          r(`  •  ${deg.location || ""}`, { sz: szSm, color: bulletColor || "595959" }),
           { before: 80, after: 30 }
         );
-        body += p(r(deg.period || "", { italic: true, sz: szSm, color: "595959" }), { after: 80 });
+        out += p(r(deg.period || "", { italic: true, sz: szSm, color: bulletColor || "595959" }), { after: 80 });
       }
     }
+    return out;
+  }
+
+  let body = "";
+
+  if (layout === "sidebar") {
+    // Two real Word columns via a single-row, borderless table — same
+    // split as the on-screen Modern Sidebar layout (see blockBuilders.js's
+    // buildSidebarContent): every "bullets" section (skills, languages,
+    // certs) goes in the shaded left column with the contact header;
+    // everything else (summary, jobs, education) goes in the plain right
+    // column. Page content area is 10080 twips wide (12240 page − 1080×2
+    // margins, same sectPr as every other layout below) — split roughly
+    // 30/70, which is what the on-screen SIDEBAR_WIDTH_PX works out to.
+    const sidebarW = 3060;
+    const mainW = 7020;
+    const sidebarSections = (sections || []).filter((s) => s.type === "bullets");
+    const mainSections = (sections || []).filter((s) => s.type !== "bullets");
+
+    let sidebarBody = "";
+    sidebarBody += p(r(contact.name || "", { bold: true, sz: sz + 6, color: "FFFFFF" }), { after: 40 });
+    sidebarBody += p(r(contact.title || "", { italic: true, sz: sz + 1, color: "FFFFFF" }), { after: 160 });
+    for (const line of [contact.location, contact.phone, contact.email].filter(Boolean)) {
+      sidebarBody += p(r(line, { sz: szSm, color: "FFFFFF" }), { after: 40 });
+    }
+    for (const sec of sidebarSections) {
+      sidebarBody += p(r((sec.label || "").toUpperCase(), { bold: true, sz: szSm, color: "FFFFFF", spacing: 40 }), { before: 240, after: 80 });
+      for (const item of (sec.items || [])) {
+        sidebarBody += p(r(item, { sz: szSm, color: "FFFFFF" }), { bullet: true, after: 40 });
+      }
+    }
+
+    let mainBody = "";
+    for (const sec of mainSections) mainBody += sectionBody(sec);
+
+    body += `<w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="0" w:type="auto"/>
+        <w:tblBorders>
+          <w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+          <w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+          <w:bottom w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+          <w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+          <w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+          <w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+        </w:tblBorders>
+        <w:tblLayout w:type="fixed"/>
+      </w:tblPr>
+      <w:tblGrid><w:gridCol w:w="${sidebarW}"/><w:gridCol w:w="${mainW}"/></w:tblGrid>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:tcW w:w="${sidebarW}" w:type="dxa"/><w:shd w:val="clear" w:fill="${accentHex}"/><w:tcMar><w:top w:w="280" w:type="dxa"/><w:left w:w="260" w:type="dxa"/><w:bottom w:w="280" w:type="dxa"/><w:right w:w="220" w:type="dxa"/></w:tcMar></w:tcPr>
+          ${sidebarBody}
+        </w:tc>
+        <w:tc>
+          <w:tcPr><w:tcW w:w="${mainW}" w:type="dxa"/><w:tcMar><w:top w:w="280" w:type="dxa"/><w:left w:w="260" w:type="dxa"/><w:bottom w:w="280" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tcMar></w:tcPr>
+          ${mainBody}
+        </w:tc>
+      </w:tr>
+    </w:tbl>`;
+  } else {
+    // Header
+    body += p(r(contact.name || "", { bold: true, sz: szLg, color: layout === "minimal" ? "1A1A1A" : accentHex, spacing: 20 }), { align: layout === "minimal" ? "left" : "center", after: 40 });
+    body += p(r(contact.title || "", { italic: layout !== "minimal", sz: sz + 2, color: "595959" }), { align: layout === "minimal" ? "left" : "center", after: 60 });
+    const contactParts = [contact.location, contact.phone, contact.email].filter(Boolean);
+    body += p(r(contactParts.join("  |  "), { sz: szSm, color: "595959" }), { align: layout === "minimal" ? "left" : "center", after: 200, border: layout !== "minimal", bdrSz: 6 });
+
+    for (const sec of (sections || [])) body += sectionBody(sec);
   }
 
   // ── XML files ────────────────────────────────────────────────────────────

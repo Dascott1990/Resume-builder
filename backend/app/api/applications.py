@@ -11,10 +11,11 @@ app/utils/auth.get_scope for how the two are told apart.
 """
 from datetime import date, datetime
 from flask import Blueprint, request, jsonify
-from app import db
+from app import db, limiter
 from app.models import JobApplication, Media
 from app.middleware.error_handlers import APIError
 from app.utils.auth import get_scope
+from app.utils.ai_client import ai_complete
 
 applications_bp = Blueprint("applications", __name__)
 
@@ -130,6 +131,43 @@ def update_application(app_id):
 
     db.session.commit()
     return jsonify({"success": True, "data": _serialize(app_row)}), 200
+
+
+INSIGHT_PROMPTS = {
+    # Short on purpose — this renders inline under one Recent Applications
+    # row, not in its own screen. 2-3 plain sentences, no lists, no headers.
+    "why": "This job application was rejected. In 2-3 short, encouraging sentences, give ONE or TWO plausible, constructive reasons this might not have worked out and what to look at for next time. Be concrete where the role/notes give you something to go on, not generic platitudes.",
+    "reapply": "This job application was rejected. In 2-3 short, encouraging sentences, say whether it's generally worth reapplying to this company/role in the future (and roughly when), or better to focus elsewhere.",
+}
+
+
+@applications_bp.route("/<app_id>/insight", methods=["POST"])
+@limiter.limit("30 per hour")
+def application_insight(app_id):
+    """On-demand, not stored — see Dashboard.js's rejection-help buttons.
+    Cheap enough (one short completion, max_tokens=160) to regenerate on
+    every click rather than add a column and cache-invalidation story for
+    something this disposable."""
+    query, _, _ = _scope_filter(JobApplication.query.filter_by(id=app_id))
+    app_row = query.first()
+    if not app_row:
+        raise APIError("Application not found", 404)
+
+    body = request.get_json(force=True) or {}
+    kind = body.get("kind")
+    if kind not in INSIGHT_PROMPTS:
+        raise APIError("kind must be 'why' or 'reapply'", 400)
+
+    context = f"Role: {app_row.role}\nCompany: {app_row.company}"
+    if app_row.notes:
+        context += f"\nNotes / job description excerpt: {app_row.notes[:600]}"
+
+    text = ai_complete(
+        system="You are a calm, direct career coach. Keep responses extremely short — 2-3 sentences, no lists, no headers, no fluff, no preamble like \"Sure,\" just the sentences themselves.",
+        prompt=f"{context}\n\n{INSIGHT_PROMPTS[kind]}",
+        effort="low", max_tokens=160,
+    )
+    return jsonify({"success": True, "data": {"text": text}}), 200
 
 
 @applications_bp.route("/<app_id>", methods=["DELETE"])

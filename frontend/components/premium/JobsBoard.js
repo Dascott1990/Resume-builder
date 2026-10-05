@@ -21,8 +21,8 @@
  * back-button pattern — narrower viewports don't have room to spare for
  * a third column.
  */
-import { useCallback, useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, ExternalLink, ShieldCheck, ShieldQuestion, MapPin, Search,
   ChevronDown, Loader2, Inbox, Info, X, Flame, TrendingUp,
@@ -247,6 +247,28 @@ function TrendingChip({ field, active, onClick }) {
   );
 }
 
+// What search + filters (mobile) / search alone (desktop, filters live in
+// the always-visible right rail there) collapse down to once scrolled —
+// tap it to bring the full controls back. Used to be two separate icons
+// (Search + Filters) on mobile, but both ever did the exact same thing —
+// tapping either expanded the identical combined panel — which read as
+// broken ("I tapped Filters and it opened search too"), not as two real
+// options. One button now; the dot is still the "something's set" signal,
+// matching every other notification-dot in this app (NavRail's bell, etc).
+function CollapsedControls({ onExpand, filtersActive }) {
+  return (
+    <div className="mb-2.5 flex items-center gap-2">
+      <button
+        type="button" onClick={onExpand} aria-label="Search and filters"
+        className="relative flex size-10 items-center justify-center rounded-full border border-border bg-card text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
+      >
+        <Search className="size-4" />
+        {filtersActive && <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />}
+      </button>
+    </div>
+  );
+}
+
 function TrendingRow({ fields, activeId, onPick }) {
   if (!fields?.length) return null;
   return (
@@ -295,6 +317,40 @@ export default function JobsBoard({ onClose, onNavigate }) {
   // came back empty, since most of those 6 matched a different one of
   // the field's 4 keywords, not the first).
   const [activeTrending, setActiveTrending] = useState(null);
+
+  // Search (both breakpoints) and Filters (mobile only — desktop's own
+  // Filters live in the always-visible right rail, never in this scrolling
+  // header) collapse to a single icon each once you've scrolled down far
+  // enough to start reading results, and come back the instant you scroll
+  // back up near the top or tap either icon — same delta-based scroll
+  // direction read GuestMode.js's own nav-hide behavior already uses, not
+  // a new pattern.
+  const [controlsCollapsed, setControlsCollapsed] = useState(false);
+  // Tapping the collapsed Search/Filters icon re-expands the panel — but on
+  // mobile that tap often lands mid-momentum-scroll (the same flick that
+  // collapsed it in the first place is still decelerating), so the very
+  // next scroll frame would see another delta > 8 and instantly re-collapse
+  // the thing someone just tapped to open, or a focus/keyboard-driven
+  // scroll-into-view while picking a filter would do the same. Confirmed
+  // live: this read as the panel "malfunctioning" — flickering shut right
+  // after opening. pinnedOpen suppresses scroll-driven auto-collapse from
+  // the moment of a manual expand until the container actually returns
+  // near the top, at which point normal scroll-to-collapse behavior
+  // resumes (that re-collapse, on a fresh deliberate scroll down, is
+  // correct — only the immediate flicker right after tapping was the bug).
+  const [pinnedOpen, setPinnedOpen] = useState(false);
+  const lastScrollY = useRef(0);
+  const expandControls = () => { setControlsCollapsed(false); setPinnedOpen(true); };
+  const handleScroll = (e) => {
+    const y = Math.max(0, e.target.scrollTop);
+    const delta = y - lastScrollY.current;
+    if (y < 32) { setControlsCollapsed(false); setPinnedOpen(false); }
+    else if (pinnedOpen) { /* ignore scroll-driven collapse until back near top */ }
+    else if (delta > 8) setControlsCollapsed(true);
+    else if (delta < -8) setControlsCollapsed(false);
+    lastScrollY.current = y;
+  };
+  const filtersActive = !!(category || country || remote || minLevel);
 
   const LIMIT = 20;
 
@@ -420,9 +476,9 @@ export default function JobsBoard({ onClose, onNavigate }) {
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="absolute inset-0 z-50 flex bg-background font-sans text-foreground"
       >
-        <NavRail user={user} onNavigate={go} onNotifClick={() => go("home")} />
+        <NavRail active="jobsboard" user={user} onNavigate={go} onNotifClick={() => go("home")} />
 
-        <main className="relative min-w-0 flex-1 overflow-y-auto">
+        <main className="relative min-w-0 flex-1 overflow-y-auto" onScroll={handleScroll}>
           <div className="mx-auto w-full max-w-4xl px-8 py-8">
             <div className="mb-5">
               <p className="m-0 text-[22px] font-bold text-foreground">Jobs board</p>
@@ -433,7 +489,17 @@ export default function JobsBoard({ onClose, onNavigate }) {
 
             <div className="sticky top-0 z-10 -mx-8 mb-4 bg-background px-8 pt-1 pb-3">
               <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
-              {searchOrActiveTrending}
+              <AnimatePresence mode="wait" initial={false}>
+                {controlsCollapsed ? (
+                  <motion.div key="collapsed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <CollapsedControls onExpand={expandControls} />
+                  </motion.div>
+                ) : (
+                  <motion.div key="expanded" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                    {searchOrActiveTrending}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {resultsList}
@@ -489,17 +555,27 @@ export default function JobsBoard({ onClose, onNavigate }) {
         )}
       </div>
 
-      <div className="mx-auto w-full max-w-3xl min-h-0 flex-1 overflow-y-auto px-5 pb-6">
+      <div className="mx-auto w-full max-w-3xl min-h-0 flex-1 overflow-y-auto px-5 pb-6" onScroll={handleScroll}>
         <div className="sticky top-0 z-10 -mx-5 mb-4 bg-background px-5 pt-1 pb-3">
           <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
-          {searchOrActiveTrending}
-          <FiltersPanel
-            category={category} setCategory={setCategory}
-            country={country} setCountry={setCountry}
-            remote={remote} setRemote={setRemote}
-            minLevel={minLevel} setMinLevel={setMinLevel}
-            categoryOptions={categoryOptions} countryOptions={countryOptions}
-          />
+          <AnimatePresence mode="wait" initial={false}>
+            {controlsCollapsed ? (
+              <motion.div key="collapsed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                <CollapsedControls onExpand={expandControls} filtersActive={filtersActive} />
+              </motion.div>
+            ) : (
+              <motion.div key="expanded" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                {searchOrActiveTrending}
+                <FiltersPanel
+                  category={category} setCategory={setCategory}
+                  country={country} setCountry={setCountry}
+                  remote={remote} setRemote={setRemote}
+                  minLevel={minLevel} setMinLevel={setMinLevel}
+                  categoryOptions={categoryOptions} countryOptions={countryOptions}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {resultsList}

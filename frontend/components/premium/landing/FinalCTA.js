@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP, CARD, SectionGlow } from "./shared";
 import { LogoMark } from "../Logo";
 
-export function FinalCTA({ onOpen, onOpenDashboard, onOpenSignup }) {
+export function FinalCTA({ onOpenSignup }) {
   return (
     <section className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden py-24 sm:py-28">
       <SectionGlow color="amber" side="left" />
@@ -29,20 +29,6 @@ export function FinalCTA({ onOpen, onOpenDashboard, onOpenSignup }) {
               Create Your Resume
               <ArrowRight className="size-4" />
             </motion.button>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-              <button
-                onClick={onOpenDashboard}
-                className="border-none bg-transparent p-0 text-[13px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
-              >
-                Continue without an account →
-              </button>
-              <button
-                onClick={onOpen}
-                className="border-none bg-transparent p-0 text-[13px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
-              >
-                Resume Studio →
-              </button>
-            </div>
           </Reveal>
         </div>
       </ScrollBlend>

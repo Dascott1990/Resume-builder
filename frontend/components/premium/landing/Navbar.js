@@ -10,7 +10,7 @@ const LINKS = [
   { href: "#faq", label: "FAQ" },
 ];
 
-export function Navbar({ onOpenDashboard, onOpenSignup }) {
+export function Navbar({ onOpenSignup }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -58,17 +58,16 @@ export function Navbar({ onOpenDashboard, onOpenSignup }) {
           ))}
         </nav>
 
-        {/* Signup is the primary CTA — set up a profile once, reuse it for
-            every resume. Guest mode is still one click away (Hero's own
-            "Continue without an account" link, and Footer's), just not
-            competing for space in this compact bar. */}
+        {/* Signup is the only forward path now — set up a profile once,
+            reuse it for every resume. No anonymous/guest option anywhere
+            on this page. */}
         <div className="flex shrink-0 items-center gap-2">
           <motion.button
             onClick={onOpenSignup}
             whileTap={{ scale: 0.95 }}
             className="hidden min-h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-[13px] font-bold text-primary-foreground sm:flex"
           >
-            Sign up
+            Get Started
             <ArrowRight className="size-3.5" />
           </motion.button>
           <motion.button

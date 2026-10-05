@@ -6,6 +6,7 @@ import ErrorBoundary from "../components/premium/ErrorBoundary";
 import LandingPage from "../components/premium/landing/LandingPage";
 import Dashboard from "../components/premium/Dashboard";
 import Logo from "../components/premium/Logo";
+import { getToken, hasAccountOnDevice } from "@/lib/authToken";
 
 // Every screen here used to be a plain static import — meaning a
 // brand-new visitor's very first page load pulled down the full code for
@@ -34,6 +35,7 @@ const Resume = dynamicScreen(() => import("../components/premium/guest"));
 const Profile = dynamicScreen(() => import("../components/premium/Profile"));
 const PersonalProfile = dynamicScreen(() => import("../components/premium/PersonalProfile"));
 const JobsBoard = dynamicScreen(() => import("../components/premium/JobsBoard"));
+const TemplatesGallery = dynamicScreen(() => import("../components/premium/TemplatesGallery"));
 const Login = dynamicScreen(() => import("../components/premium/auth/Login"));
 const Signup = dynamicScreen(() => import("../components/premium/auth/Signup"));
 const CVScan = dynamicScreen(() => import("../components/premium/CVScan"));
@@ -74,22 +76,15 @@ function ScreenLoading() {
   );
 }
 
-// Once someone's actually used the product, refreshing the tab shouldn't
-// bounce them back out to the marketing page — that's a re-onboarding
-// flow you'd only want for a brand-new visitor. This is the one thing
-// that decides "have they entered the app before," so a plain refresh
-// lands back on the dashboard instead.
-const ENTERED_KEY = "noqeev_entered_app";
-
-// Which screen a refresh should land back on — the last one actually
-// worth returning to. Deliberately excludes "launcher" (governed by
-// ENTERED_KEY instead) and "login"/"signup" (transient forms; refreshing
-// mid-signup and finding the same empty form again isn't "picking up
-// where you left off," it's just confusing — dashboard is the more
-// sensible landing spot for those two).
+// Which screen a refresh should land back on — for an ALREADY-authenticated
+// visitor only; resolveLandingView() below never calls this without a real
+// token in hand. Deliberately excludes "login"/"signup" (transient forms;
+// refreshing mid-signup and finding the same empty form again isn't
+// "picking up where you left off," it's just confusing — dashboard is the
+// more sensible landing spot for those two).
 const VIEW_KEY = "noqeev_last_view";
 const RESTORABLE_VIEWS = new Set([
-  "dashboard", "resume", "cvscan", "jobtracker", "news", "apply", "profile", "personal-profile", "jobsboard", "brand-workspace",
+  "dashboard", "resume", "cvscan", "jobtracker", "news", "apply", "profile", "personal-profile", "jobsboard", "templates", "brand-workspace",
 ]);
 
 // The branding workspace has no account to restore into — RESTORABLE_VIEWS
@@ -98,7 +93,9 @@ const RESTORABLE_VIEWS = new Set([
 // value alongside VIEW_KEY. Same "the token in the URL is the whole
 // access control" shape the backend uses (see BrandWorkspace.token) —
 // this is just where the browser keeps hold of it between visits, not a
-// second credential.
+// second credential. It's also the one screen exempt from the auth gating
+// below: a brand client opening this link was never meant to need a
+// Noqeev account at all.
 const WORKSPACE_TOKEN_KEY = "noqeev_brand_workspace_token";
 
 function restoreView() {
@@ -108,6 +105,19 @@ function restoreView() {
   } catch {
     return "dashboard";
   }
+}
+
+// The single source of truth for "what should a page load show." No more
+// anonymous dashboard access — every one of RESTORABLE_VIEWS is gated on
+// a real account now, not just "has this browser been in the app before":
+// a valid token wins outright (restore wherever they were); no token but
+// this browser has signed in/up before gets Sign in, not a blank Sign up
+// form or the marketing pitch they've already seen; genuinely first-time
+// gets the marketing launcher, signup as the only forward path.
+function resolveLandingView() {
+  if (getToken()) return restoreView();
+  if (hasAccountOnDevice()) return "login";
+  return "launcher";
 }
 
 export default function Home() {
@@ -146,6 +156,12 @@ export default function Home() {
   // job" bookmarklet (see lib/bookmarklet.js) — set once, from the ?jd=
   // query param below, consumed once by GuestMode, then cleared.
   const [pendingJobDesc, setPendingJobDesc] = useState(null);
+  // Set only by Dashboard's "Quick Build" tool chip — skips straight to
+  // "just paste a job description" using the saved profile for name/title/
+  // location/background, same as pendingJobDesc's own skip-step-1 case
+  // (see GuestMode.js's step initializer) but entered directly rather than
+  // via a job description handed in from outside.
+  const [pendingQuickBuild, setPendingQuickBuild] = useState(false);
   // The branding workspace's own access token — set from the ?ws= deep
   // link (mount effect below) or restored from WORKSPACE_TOKEN_KEY,
   // never anywhere else. No login means this literally IS the session.
@@ -157,6 +173,19 @@ export default function Home() {
   // usage note.
   const [errorResetKey, setErrorResetKey] = useState(0);
   const retryView = () => setErrorResetKey((k) => k + 1);
+
+  // Where closing out of login/signup should actually land — the screen
+  // the user was really on before auth interrupted them. A fresh visitor
+  // hitting "Sign up" from the marketing page should land back on the
+  // marketing page if they bail, not get dumped into the guest dashboard
+  // they never asked to enter. Only set on the FIRST hop into login/signup
+  // (the view !== "login"/"signup" guard) so switching back and forth
+  // between the two forms doesn't overwrite it with "login"/"signup" itself.
+  const [returnView, setReturnView] = useState("dashboard");
+  const openAuth = (mode) => {
+    if (view !== "login" && view !== "signup") setReturnView(view);
+    setView(mode);
+  };
 
   // This page is server-rendered at "/" — the server has no way to know
   // whether this browser has visited before, so it always renders the
@@ -193,11 +222,9 @@ export default function Home() {
         })
         .catch(() => {
           // Expired/already used/network hiccup — fall back to the normal
-          // "have they visited before" flow below rather than stalling on
-          // a blank screen.
-          try {
-            if (localStorage.getItem(ENTERED_KEY) === "1") setView(restoreView());
-          } catch { /* best-effort */ }
+          // landing-resolution flow below rather than stalling on a blank
+          // screen.
+          try { setView(resolveLandingView()); } catch { /* best-effort */ }
         })
         // Held until the fetch settles either way — flipping this straight
         // away would flash the marketing launcher for a moment (view is
@@ -225,37 +252,43 @@ export default function Home() {
     }
 
     try {
-      if (localStorage.getItem(ENTERED_KEY) === "1") {
-        const restored = restoreView();
-        if (restored === "brand-workspace") {
-          const savedToken = localStorage.getItem(WORKSPACE_TOKEN_KEY);
-          // No saved token somehow (cleared storage, a different
-          // browser) — there's nothing this screen can do without one,
-          // so land on the dashboard instead of a workspace view stuck
-          // showing its own "invalid link" state forever.
-          if (savedToken) { setWorkspaceToken(savedToken); setView("brand-workspace"); }
-          else setView("dashboard");
-        } else {
-          setView(restored);
-        }
+      // Brand-workspace is the one exception to the auth gating below —
+      // see WORKSPACE_TOKEN_KEY's own comment — so it's checked on its own
+      // saved token, independent of whether this browser has ever signed
+      // up or signed in.
+      if (localStorage.getItem(VIEW_KEY) === "brand-workspace") {
+        const savedToken = localStorage.getItem(WORKSPACE_TOKEN_KEY);
+        // No saved token somehow (cleared storage, a different browser) —
+        // there's nothing this screen can do without one, so fall back to
+        // the normal landing resolution instead of a workspace view stuck
+        // showing its own "invalid link" state forever.
+        if (savedToken) { setWorkspaceToken(savedToken); setView("brand-workspace"); }
+        else setView(resolveLandingView());
+      } else {
+        setView(resolveLandingView());
       }
     } catch { /* best-effort */ }
     setMounted(true);
   }, []);
 
-  // Marks "entered" the moment they leave the launcher via any path —
-  // Dashboard's own tiles, the landing page's direct CTAs, all of it.
+  // The hard guarantee behind resolveLandingView() above: even if `view`
+  // somehow ends up on an authenticated screen without a real token (a
+  // stray setView call, a future bug), yank it back before anything
+  // renders rather than silently showing dashboard/resume/etc. content to
+  // someone who was never actually signed in. brand-workspace is exempt —
+  // it was never gated on a Noqeev account to begin with.
   useEffect(() => {
-    if (!mounted || view === "launcher") return;
-    try { localStorage.setItem(ENTERED_KEY, "1"); } catch { /* best-effort */ }
+    if (!mounted || getToken() || view === "brand-workspace") return;
+    if (RESTORABLE_VIEWS.has(view)) {
+      setView(hasAccountOnDevice() ? "login" : "launcher");
+    }
   }, [mounted, view]);
 
   // Remembers whichever restorable screen is current, so a refresh lands
   // back where they actually were instead of always bouncing to the
-  // dashboard — the same reasoning as ENTERED_KEY above, one level more
-  // specific. Only ever reads back through restoreView() at mount time
-  // (above), never mid-session, so this can't fight with normal in-app
-  // navigation.
+  // dashboard default. Only ever reads back through restoreView() at mount
+  // time (above), never mid-session, so this can't fight with normal
+  // in-app navigation.
   useEffect(() => {
     if (!mounted) return;
     try {
@@ -268,15 +301,12 @@ export default function Home() {
     return <ScreenLoading />;
   }
 
-  const openResume = (resumeId, { viewAllResumes = false } = {}) => {
+  const openResume = (resumeId, { viewAllResumes = false, quickBuild = false } = {}) => {
     setPendingImport(null);
     setPendingJobDesc(null);
-    // openResume is also used directly as an onClick handler in a few
-    // places (FinalCTA.js, Footer.js's onOpen) — React calls it with the
-    // SyntheticEvent as the first argument there, not a resume id. The
-    // typeof guard is what keeps that from ever being mistaken for one.
     setPendingLoadResumeId(typeof resumeId === "string" ? resumeId : null);
     setPendingViewAllResumes(viewAllResumes);
+    setPendingQuickBuild(quickBuild);
     setSessionId((id) => id + 1);
     setView("resume");
   };
@@ -284,11 +314,7 @@ export default function Home() {
   if (view === "launcher") {
     return (
       <ErrorBoundary key={errorResetKey} onReset={retryView}>
-        <LandingPage
-          onOpen={openResume}
-          onOpenDashboard={() => setView("dashboard")}
-          onOpenSignup={() => setView("signup")}
-        />
+        <LandingPage onOpenSignup={() => openAuth("signup")} />
       </ErrorBoundary>
     );
   }
@@ -299,19 +325,21 @@ export default function Home() {
         key={errorResetKey}
         onReset={retryView}
         onClose={() => {
-          try { localStorage.removeItem(ENTERED_KEY); localStorage.removeItem(VIEW_KEY); } catch { /* best-effort */ }
+          try { localStorage.removeItem(VIEW_KEY); } catch { /* best-effort */ }
           setView("launcher");
         }}
       >
         <Dashboard
-          // The one true exit back to the marketing page — everywhere else,
-          // "close" means "back to the dashboard," not "back out of the app."
-          onClose={() => {
-            try { localStorage.removeItem(ENTERED_KEY); localStorage.removeItem(VIEW_KEY); } catch { /* best-effort */ }
-            setView("launcher");
+          // Sign out is the only way out of the authenticated app now — see
+          // NavRail's sign-out icon — so this clears VIEW_KEY the same way
+          // the old "close" button used to, just via signOut() -> onSignOut
+          // in Dashboard.js instead of a button in the header.
+          onSignOut={() => {
+            try { localStorage.removeItem(VIEW_KEY); } catch { /* best-effort */ }
+            setView("login");
           }}
           onNavigate={(id, opts) => {
-            if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes });
+            if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
             else if (id === "scan") setView("cvscan");
             else if (id === "jobtracker") setView("jobtracker");
             else if (id === "news") setView("news");
@@ -319,6 +347,7 @@ export default function Home() {
             else if (id === "profile") setView("profile");
             else if (id === "personal-profile") setView("personal-profile");
             else if (id === "jobsboard") setView("jobsboard");
+            else if (id === "templates") setView("templates");
           }}
         />
       </ErrorBoundary>
@@ -327,11 +356,11 @@ export default function Home() {
 
   if (view === "login") {
     return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
         <Login
-          onClose={() => setView("dashboard")}
+          onClose={() => setView(returnView)}
           onSuccess={() => setView("dashboard")}
-          onSwitchToSignup={() => setView("signup")}
+          onSwitchToSignup={() => openAuth("signup")}
         />
       </ErrorBoundary>
     );
@@ -339,11 +368,11 @@ export default function Home() {
 
   if (view === "signup") {
     return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
         <Signup
-          onClose={() => setView("dashboard")}
+          onClose={() => setView(returnView)}
           onSuccess={() => setView("dashboard")}
-          onSwitchToLogin={() => setView("login")}
+          onSwitchToLogin={() => openAuth("login")}
         />
       </ErrorBoundary>
     );
@@ -394,10 +423,10 @@ export default function Home() {
       <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
         <Profile
           onClose={() => setView("dashboard")}
-          onOpenLogin={() => setView("login")}
+          onOpenLogin={() => openAuth("login")}
           onOpenPersonalProfile={() => setView("personal-profile")}
           go={(id, opts) => {
-            if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes });
+            if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
             else if (id === "scan") setView("cvscan");
             else if (id === "jobtracker") setView("jobtracker");
             else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); setView("apply"); }
@@ -423,10 +452,27 @@ export default function Home() {
           onClose={() => setView("dashboard")}
           onNavigate={(id, opts) => {
             if (id === "home") setView("dashboard");
-            else if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes });
+            else if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
             else if (id === "scan") setView("cvscan");
             else if (id === "jobtracker") setView("jobtracker");
             else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); setView("apply"); }
+            else if (id === "profile") setView("profile");
+          }}
+        />
+      </ErrorBoundary>
+    );
+  }
+
+  if (view === "templates") {
+    return (
+      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+        <TemplatesGallery
+          onClose={() => setView("dashboard")}
+          onNavigate={(id) => {
+            if (id === "home") setView("dashboard");
+            else if (id === "resume") openResume();
+            else if (id === "apply") setView("apply");
+            else if (id === "jobtracker") setView("jobtracker");
             else if (id === "profile") setView("profile");
           }}
         />
@@ -450,7 +496,7 @@ export default function Home() {
       // "Close": back to the dashboard, not out of the app entirely.
       onClose={() => setView("dashboard")}
     >
-      <Resume key={sessionId} onClose={() => setView("dashboard")} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} pendingLoadResumeId={pendingLoadResumeId} pendingViewAllResumes={pendingViewAllResumes} />
+      <Resume key={sessionId} onClose={() => setView("dashboard")} onRequireAuth={openAuth} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} pendingLoadResumeId={pendingLoadResumeId} pendingViewAllResumes={pendingViewAllResumes} pendingQuickBuild={pendingQuickBuild} />
     </ErrorBoundary>
   );
 }

@@ -24,8 +24,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Btn } from "./guest/components/primitives";
-import Emoji3D from "./shared/Emoji3D";
-import { tintFor, initialsOf } from "./shared/artisanDisplay";
+import { Avatar } from "./shared/Avatar";
 import { ThemeModePicker } from "./shared/ThemeToggle";
 import { useBrightness } from "@/lib/useBrightness";
 import { useAuth } from "@/lib/useAuth";
@@ -143,9 +142,9 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
           <div className="mb-6 flex items-center gap-4">
             <button
               type="button" onClick={onOpenPersonalProfile} aria-label="Personal profile"
-              className={`flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border [-webkit-tap-highlight-color:transparent] ${user.avatar_emoji ? "" : "font-mono text-lg font-bold"} ${tintFor(user.name || user.email)}`}
+              className="shrink-0 border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
             >
-              {user.avatar_emoji ? <Emoji3D emoji={user.avatar_emoji} size={64} /> : initialsOf(user.name || user.email)}
+              <Avatar user={user} size={64} />
             </button>
             <div className="min-w-0">
               <p className="m-0 truncate text-[19px] font-bold text-foreground">{user.name || user.email.split("@")[0]}</p>
@@ -230,9 +229,23 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
               </div>
 
               <Card className="p-0">
-                <button type="button" onClick={logout} className="flex w-full items-center gap-3 border-none bg-transparent p-3.5 text-left text-muted-foreground [-webkit-tap-highlight-color:transparent]">
-                  <LogOut className="size-3.5" /> <span className="text-[13px] font-semibold">Sign out</span>
-                </button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <button type="button" className="flex w-full items-center gap-3 border-none bg-transparent p-3.5 text-left text-muted-foreground [-webkit-tap-highlight-color:transparent]">
+                      <LogOut className="size-3.5" /> <span className="text-[13px] font-semibold">Sign out</span>
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Sign out?</AlertDialogTitle>
+                      <AlertDialogDescription>You'll need to sign back in to see your resumes and applications again.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={logout}>Sign out</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
                 <div className="border-t border-border">
                   <AlertDialog open={confirmDeleteAccountOpen} onOpenChange={setConfirmDeleteAccountOpen}>
                     <AlertDialogTrigger asChild>
