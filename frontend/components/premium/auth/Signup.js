@@ -85,7 +85,7 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
           <>
             <p className="m-0 text-[20px] font-bold text-foreground">Create an account</p>
             <p className="m-0 mt-1.5 mb-5 text-[13.5px] leading-relaxed text-muted-foreground">
-              Save your resumes, applications, and profile once — reuse them for every future resume.
+              Save your resumes, applications, and profile once. Reuse them for every future resume.
             </p>
 
             <form onSubmit={submit} className="grid gap-1">

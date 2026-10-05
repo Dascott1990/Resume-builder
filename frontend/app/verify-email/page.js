@@ -50,7 +50,7 @@ function VerifyEmailContent() {
             <div>
               <p className="m-0 text-[18px] font-bold text-foreground">Email verified</p>
               <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-                You're signed in — your account is ready to go.
+                You're signed in. Your account is ready to go.
               </p>
             </div>
             <Btn variant="gold" small onClick={() => router.replace("/")}>Continue</Btn>

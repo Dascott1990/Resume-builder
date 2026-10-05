@@ -144,7 +144,7 @@ export default function News({ onClose }) {
         </div>
 
         {!loading && updates.length === 0 && worldFeed.length === 0 && (
-          <p className="m-0 text-[12.5px] text-muted-foreground">Nothing new right now — check back later.</p>
+          <p className="m-0 text-[12.5px] text-muted-foreground">Nothing new right now. Check back later.</p>
         )}
 
         {updates.length > 0 && (

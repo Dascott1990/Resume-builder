@@ -42,8 +42,8 @@ const REMOTE_OPTIONS = [
 
 const LEVEL_OPTIONS = [
   { id: "", label: "Any verification level" },
-  { id: "2", label: "Level 2+ — domain confirmed" },
-  { id: "3", label: "Level 3+ — domain + age checked" },
+  { id: "2", label: "Level 2+: domain confirmed" },
+  { id: "3", label: "Level 3+: domain + age checked" },
 ];
 
 const SOURCE_LABELS = { remotive: "Remotive", arbeitnow: "Arbeitnow", greenhouse: "Greenhouse", ashby: "Ashby", scrapegraphai: "company careers page" };
@@ -141,7 +141,7 @@ function JobCard({ job }) {
       {job.salary && <p className="m-0 text-[12.5px] font-bold text-success">{job.salary}</p>}
 
       {SOURCES_WITHOUT_DIRECT_LINK.has(job.source) && (
-        <p className="m-0 text-[10.5px] text-muted-foreground/70">Opens {job.company_name}'s jobs page — search for this title there.</p>
+        <p className="m-0 text-[10.5px] text-muted-foreground/70">Opens {job.company_name}'s jobs page. Search for this title there.</p>
       )}
 
       {/* flex-wrap — both children are shrink-0 (the badge must never
@@ -585,7 +585,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
         <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={() => setHealthOpen(false)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-t-2xl border border-border bg-card p-4 sm:rounded-2xl">
             <div className="mb-3 flex items-center justify-between">
-              <p className="m-0 text-[14px] font-bold text-foreground">Source health — latest run</p>
+              <p className="m-0 text-[14px] font-bold text-foreground">Source health: latest run</p>
               <button onClick={() => setHealthOpen(false)} aria-label="Close"><X className="size-4 text-muted-foreground" /></button>
             </div>
             {sourceHealthList}

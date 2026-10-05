@@ -548,7 +548,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
         printPdf(previewRef.current);
         maybeAskIfApplied();
       } else {
-        setError("Nothing to export yet — generate a resume first.");
+        setError("Nothing to export yet. Generate a resume first.");
       }
       setPendingPrint(false);
       setTimeout(() => setDownloading(null), 1500);
@@ -557,7 +557,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
   }, [pendingPrint, mobileView, showSplit]);
 
   const handlePdf = async () => {
-    if (!resume) { setError("Nothing to export yet — generate a resume first."); return; }
+    if (!resume) { setError("Nothing to export yet. Generate a resume first."); return; }
     if (!(await checkDownloadAllowed())) return;
     setDownloading("pdf");
     // On phone the preview isn't rendered while the form panel is showing,
@@ -572,7 +572,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
     }
     if (!previewRef.current) {
       setDownloading(null);
-      setError("Nothing to export yet — generate a resume first.");
+      setError("Nothing to export yet. Generate a resume first.");
       return;
     }
     printPdf(previewRef.current);
@@ -689,8 +689,8 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
               <Bookmark className="size-[13px] text-primary" />
               <span className="flex-1 text-xs text-foreground">
                 {step === 1
-                  ? "Job description brought in from the bookmarklet — finish your info to tailor a resume to it."
-                  : "Job description brought in from the bookmarklet — ready below."}
+                  ? "Job description brought in from the bookmarklet. Finish your info to tailor a resume to it."
+                  : "Job description brought in from the bookmarklet, ready below."}
               </span>
               <button onClick={() => setJobDescNoticeVisible(false)} aria-label="Dismiss"
                 className="border-none bg-transparent p-0.5 text-muted-foreground/60">

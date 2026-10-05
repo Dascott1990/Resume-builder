@@ -73,7 +73,7 @@ function BulletsSection({ section, si, onEdit }) {
     <Row>
       {(section.items || []).map((item, ii) => (
         <div key={ii} className="flex items-center gap-1.5">
-          {miniInput(item, (v) => onEdit("bullet", si, ii, v), "—")}
+          {miniInput(item, (v) => onEdit("bullet", si, ii, v), "Bullet point")}
           <RemoveBtn label="Remove" onClick={() => onEdit("remove-bullet", si, ii)} />
         </div>
       ))}
@@ -94,7 +94,7 @@ function JobsSection({ section, si, onEdit, jobDesc, active, setActive }) {
           {miniInput(job.company, (v) => onEdit("job-company", si, ji, v), "Company")}
           <div className="flex gap-1.5">
             {miniInput(job.location, (v) => onEdit("job-location", si, ji, v), "Location")}
-            {miniInput(job.period, (v) => onEdit("job-period", si, ji, v), "2023 — Present")}
+            {miniInput(job.period, (v) => onEdit("job-period", si, ji, v), "2023 to Present")}
           </div>
           <div className="mt-1 flex flex-col gap-1.5">
             {(job.bullets || []).map((b, bi) => {
@@ -102,7 +102,7 @@ function JobsSection({ section, si, onEdit, jobDesc, active, setActive }) {
               return (
                 <div key={bi} className="flex flex-col gap-1">
                   <div className="flex items-center gap-1.5">
-                    {miniInput(b, (v) => onEdit("job-bullet", si, ji, bi, v), "—")}
+                    {miniInput(b, (v) => onEdit("job-bullet", si, ji, bi, v), "Bullet point")}
                     <RemoveBtn label="Remove bullet" onClick={() => onEdit("remove-job-bullet", si, ji, bi)} />
                   </div>
                   <div onFocus={() => setActive(key)} tabIndex={-1}>
@@ -138,7 +138,7 @@ function EducationSection({ section, si, onEdit }) {
           {miniInput(deg.school, (v) => onEdit("deg-school", si, di, v), "School")}
           <div className="flex gap-1.5">
             {miniInput(deg.location, (v) => onEdit("deg-location", si, di, v), "Location")}
-            {miniInput(deg.period, (v) => onEdit("deg-period", si, di, v), "2019 — 2023")}
+            {miniInput(deg.period, (v) => onEdit("deg-period", si, di, v), "2019 to 2023")}
           </div>
         </div>
       ))}

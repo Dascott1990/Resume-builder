@@ -10,7 +10,7 @@ import { toast } from "sonner";
 // "Save as PDF" isn't always the obviously-highlighted option. This toast
 // is the fix for that specific failure mode: not code, guidance, right
 // before the dialog most likely to be misread appears.
-const PDF_INSTRUCTION = "A print screen will open — choose \"Save as PDF\" as the destination, then tap Save.";
+const PDF_INSTRUCTION = "A print screen will open. Choose \"Save as PDF\" as the destination, then tap Save.";
 
 // ── PDF: text-based via browser print (preserves selectable text) ─────────────
 // We inject a dedicated print stylesheet and isolate the preview element.
@@ -60,7 +60,7 @@ export function printPdf(previewEl) {
   style.textContent = `
     /* Without this, the browser falls back to its own default print
        margins — the exact space it uses to stamp its own header
-       (document.title, which literally includes "— Noqeev") and footer
+       (document.title, which literally includes "· Noqeev") and footer
        (date + URL) onto every page. A resume that comes out of "Download
        PDF" carrying that is not just ugly, it reads as obviously
        machine-generated to anyone screening it — the resume's own real
@@ -148,7 +148,7 @@ export function printCoverLetterPdf(coverLetter, contact) {
   style.id = "__cover_letter_print_style__";
   style.textContent = `
     /* Same fix as printPdf() above — otherwise the browser draws its own
-       header (document.title, "— Noqeev") and footer (date + URL) in its
+       header (document.title, "· Noqeev") and footer (date + URL) in its
        default print margin. The page element itself already carries a
        real 1in padding (set inline above), so this doesn't remove the
        cover letter's own margins, only the browser's extra ones on top. */

@@ -8,12 +8,12 @@ import { KeepAlive } from "./KeepAlive";
 import { ThemeSync } from "./ThemeSync";
 
 const SITE_NAME = "Noqeev";
-const SITE_TITLE = "Noqeev — AI Resume Builder";
+const SITE_TITLE = "Noqeev · AI Resume Builder";
 const SITE_DESCRIPTION = "Set up your profile once. Get a tailored, ATS-ready resume for every job in minutes.";
 
 export const metadata = {
   metadataBase: new URL("https://www.noqeev.com"),
-  title: { default: SITE_TITLE, template: "%s — Noqeev" },
+  title: { default: SITE_TITLE, template: "%s · Noqeev" },
   description: SITE_DESCRIPTION,
   alternates: { canonical: "/" },
   // Root gets an explicit index:true rather than relying on default

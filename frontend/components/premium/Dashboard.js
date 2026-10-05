@@ -202,7 +202,7 @@ function RecommendedCard({ jobs, loading, onSeeAll }) {
         {loading ? (
           <><Skeleton className="h-9 w-full" /><Skeleton className="h-9 w-full" /></>
         ) : jobs.length === 0 ? (
-          <p className="m-0 text-[12px] text-muted-foreground">Nothing fresh right now — check back soon.</p>
+          <p className="m-0 text-[12px] text-muted-foreground">Nothing fresh right now. Check back soon.</p>
         ) : (
           jobs.slice(0, 2).map((j) => <RecommendedJobRow key={j.id} job={j} />)
         )}
@@ -406,7 +406,7 @@ function AddNoteDialog({ app, open, onClose, onSaved }) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Note — {app.role} at {app.company}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Note for {app.role} at {app.company}</DialogTitle></DialogHeader>
         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="What's worth remembering about this one?" autoFocus />
         <DialogFooter>
           <Btn small variant="ghost" onClick={onClose}>Cancel</Btn>
@@ -423,10 +423,10 @@ function applyRunNotifCopy(run) {
   let company = "that application";
   try { company = new URL(run.target_url).hostname.replace(/^www\./, ""); } catch { /* keep the fallback */ }
   const map = {
-    submitted: { Icon: Check, title: `Application submitted — ${company}`, subtitle: "Added to your Job Tracker." },
-    failed: { Icon: AlertTriangle, title: `Couldn't finish — ${company}`, subtitle: run.error_message || "Something went wrong." },
-    cancelled: { Icon: X, title: `Cancelled — ${company}`, subtitle: "Nothing was submitted." },
-    expired: { Icon: AlertTriangle, title: `Review window expired — ${company}`, subtitle: "Nothing was submitted." },
+    submitted: { Icon: Check, title: `Application submitted: ${company}`, subtitle: "Added to your Job Tracker." },
+    failed: { Icon: AlertTriangle, title: `Couldn't finish: ${company}`, subtitle: run.error_message || "Something went wrong." },
+    cancelled: { Icon: X, title: `Cancelled: ${company}`, subtitle: "Nothing was submitted." },
+    expired: { Icon: AlertTriangle, title: `Review window expired: ${company}`, subtitle: "Nothing was submitted." },
   };
   return map[run.status] || map.failed;
 }
@@ -655,13 +655,7 @@ function DashboardContent({
           whole sections of vertical space back on every phone, and Create
           is one tap away either way, now from the bottom nav itself. */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }}>
-        {/* Side-by-side only on desktop's much wider center column — at a
-            phone's width, splitting this in half left real job titles with
-            only ~70px to render in (icon + Apply button eating the rest),
-            truncating almost everything down to 3-4 letters + "…". Full
-            width and stacked on mobile instead, so a title like "Staff
-            Engineer" has room to actually read as a title, not just dots. */}
-        <div className={isDesktop ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
+        <div className="grid grid-cols-2 gap-3">
           <TemplatesCard onSeeAll={() => go("templates")} onPick={pickTemplate} selected={selectedTemplate} />
           <RecommendedCard jobs={recommendedJobs} loading={recommendedLoading} onSeeAll={() => go("jobsboard")} />
         </div>

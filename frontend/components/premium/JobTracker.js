@@ -89,7 +89,7 @@ export default function JobTracker({ onClose }) {
 
   const resumeLabel = (id) => {
     const r = savedResumes.find((r) => r.id === id);
-    return r ? `${r.name || "Untitled"} — ${r.role || "—"}` : null;
+    return r ? `${r.name || "Untitled"} (${r.role || "No role"})` : null;
   };
 
   const startAdd = () => { setEditingId(null); setForm(EMPTY_FORM); setFormOpen(true); };
@@ -227,7 +227,7 @@ export default function JobTracker({ onClose }) {
                   <SelectContent>
                     <SelectItem value="__none__">None</SelectItem>
                     {savedResumes.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>{r.name || "Untitled"} — {r.role || "—"}</SelectItem>
+                      <SelectItem key={r.id} value={r.id}>{r.name || "Untitled"} ({r.role || "No role"})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

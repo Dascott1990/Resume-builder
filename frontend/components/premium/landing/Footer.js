@@ -58,7 +58,7 @@ export function Footer({ onOpenSignup }) {
             </p>
           </div>
           <p className="m-0 text-[11.5px] text-muted-foreground/80">
-            Guest mode is anonymous — sign up any time to save your profile.
+            Sign up any time to save your profile.
           </p>
         </div>
       </div>

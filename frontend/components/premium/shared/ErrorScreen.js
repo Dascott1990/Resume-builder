@@ -26,12 +26,12 @@ import { usePrefersReducedMotion } from "@/lib/usePrefersReducedMotion";
 const COPY = {
   crash: {
     title: "Something went wrong",
-    message: "Your work isn't lost — this screen just hit a snag. You can pick back up from here.",
+    message: "Your work isn't lost. This screen just hit a snag. You can pick back up from here.",
     retryLabel: "Try Again",
   },
   offline: {
     title: "Can't reach Noqeev",
-    message: "Check your connection and try again — nothing here was lost.",
+    message: "Check your connection and try again. Nothing here was lost.",
     retryLabel: "Try Again",
   },
   notfound: {

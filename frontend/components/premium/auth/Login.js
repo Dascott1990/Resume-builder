@@ -50,7 +50,7 @@ export default function Login({ onClose, onSuccess, onSwitchToSignup }) {
     setResending(true);
     try {
       await resendVerification(email.trim());
-      toast.success("Verification email sent — check your inbox.");
+      toast.success("Verification email sent. Check your inbox.");
     } catch (e) {
       toast.error(e.message);
     } finally {

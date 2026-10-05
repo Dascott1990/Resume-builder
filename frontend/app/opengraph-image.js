@@ -10,7 +10,7 @@ import { MARK_PATH, MARK_STROKE } from "@/components/premium/logoMarkPath";
 // benefit here.
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Noqeev — Every career deserves a second chance.";
+export const alt = "Noqeev: Every career deserves a second chance.";
 
 // Next auto-injects this into every route's og:image/twitter:image unless
 // a route defines its own override (see app/layout.js's openGraph/twitter

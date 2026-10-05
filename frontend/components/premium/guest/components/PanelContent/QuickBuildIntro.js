@@ -53,7 +53,7 @@ export function QuickBuildIntro({ info, set, accountEmail, isPhone, onNext }) {
             <Mail className="size-4 shrink-0 text-muted-foreground" />
             <span className="min-w-0 flex-1">
               <span className="block text-[12.5px] font-bold text-foreground">Account email</span>
-              <span className="block truncate text-[11px] text-muted-foreground">{accountEmail || "—"}</span>
+              <span className="block truncate text-[11px] text-muted-foreground">{accountEmail || "None"}</span>
             </span>
             {emailChoice === "account" && <Check className="size-3.5 shrink-0 text-primary" />}
           </button>

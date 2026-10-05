@@ -71,7 +71,7 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
       onClick={done}
       className={`flex items-center justify-center gap-1.5 rounded-xl bg-primary px-5 py-3 text-[13.5px] font-bold whitespace-nowrap text-primary-foreground [-webkit-tap-highlight-color:transparent] ${fullWidth ? "w-full" : ""}`}
     >
-      <Check className="size-4" /> Done — start building
+      <Check className="size-4" /> Done
     </button>
   );
 
@@ -85,7 +85,7 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
 
   const intro = (
     <p className="m-0 mb-5 text-[13px] leading-relaxed text-muted-foreground">
-      Pick the layout your next resume starts with — you can always change it again from the Style tab while building.
+      Pick the layout your next resume starts with. You can change it again from the Style tab while building.
     </p>
   );
 

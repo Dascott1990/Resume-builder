@@ -17,7 +17,7 @@ export function SavedTab({ loadingSaved, saved, loadingResumeId, onLoad, onDelet
       <div className="p-4 px-4 py-10 text-center">
         <FileText className="mx-auto size-8 text-border" />
         <p className="m-0 mt-3 mb-1 text-sm text-muted-foreground">No saved resumes yet</p>
-        <p className="m-0 mb-4 text-xs text-muted-foreground/60">Generate one — it saves automatically</p>
+        <p className="m-0 mb-4 text-xs text-muted-foreground/60">Generate one. It saves automatically</p>
         <Btn small variant="ghost" icon="Plus" onClick={onNew}>Build one now</Btn>
       </div>
     );

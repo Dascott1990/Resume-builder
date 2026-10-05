@@ -167,7 +167,7 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
                   {securityOpen && (
                     <div className="border-t border-border p-3.5">
                       <ChangePasswordForm onSubmit={changePassword} />
-                      <p className="m-0 mt-3 text-[11px] text-muted-foreground">Two-factor authentication — coming soon.</p>
+                      <p className="m-0 mt-3 text-[11px] text-muted-foreground">Two-factor authentication coming soon.</p>
                     </div>
                   )}
                   <div className="border-t border-border">
@@ -258,7 +258,7 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete your account?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This can't be undone — your saved resumes, job tracker, and profile are permanently deleted.
+                          This can't be undone. Your saved resumes, job tracker, and profile are permanently deleted.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
