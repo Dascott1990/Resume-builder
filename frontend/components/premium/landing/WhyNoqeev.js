@@ -18,7 +18,17 @@ const FEATURES = [
 
 export function WhyNoqeev() {
   return (
-    <section id="features" className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
+    <section id="features" className="relative flex min-h-[100svh] flex-col justify-center py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
+      {/* No overflow-hidden on this section (every sibling section still
+          has it) — this glow's own radial falloff was still well short of
+          fully transparent right at this section's own top edge, so with
+          the clip in place, SeeItHappenSection above had none of this
+          glow at all and WhyNoqeev started with a visible amount of it
+          right at the shared boundary — a hard line where "no glow" met
+          "glow," not a blend. Letting it bleed upward into the section
+          above instead (same soft radial gradient, same color, nothing
+          changed about it) is what actually makes the transition
+          disappear. */}
       <SectionGlow color="amber" side="left" />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
