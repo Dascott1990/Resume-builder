@@ -34,6 +34,12 @@ export default function CVScan({ onClose, onImported }) {
   const [dragging, setDragging] = useState(false);
   const [file, setFile] = useState(null);
   const [jobDesc, setJobDesc] = useState(() => loadFormDraft(CVSCAN_DRAFT_KEY)?.jobDesc || "");
+  // The picked File itself never survives a refresh (browsers won't let a
+  // page re-read an arbitrary local file without the user choosing it
+  // again) — captured once at mount so it only ever reflects "did we
+  // restore a draft," never flips back on if the user later clears the
+  // textarea by hand.
+  const [restoredWithoutFile] = useState(() => !!loadFormDraft(CVSCAN_DRAFT_KEY)?.jobDesc);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
   const tailoring = jobDesc.trim().length >= MIN_JOB_DESC;
@@ -149,6 +155,12 @@ export default function CVScan({ onClose, onImported }) {
             </>
           )}
         </button>
+
+        {restoredWithoutFile && !file && (
+          <p className="m-0 -mt-3 text-center text-[11.5px] text-muted-foreground">
+            Your file wasn't restored after reload — please choose it again.
+          </p>
+        )}
 
         <Field
           label="JOB DESCRIPTION" hint={tailoring ? "Will tailor ✓" : "Optional"}

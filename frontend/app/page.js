@@ -484,6 +484,7 @@ export default function Home() {
             else if (id === "jobtracker") go("jobtracker");
             else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); go("apply"); }
             else if (id === "profile") go("profile");
+            else if (id === "personal-profile") go("personal-profile");
           }}
         />
       </ErrorBoundary>

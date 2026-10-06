@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from flask import jsonify
 from sqlalchemy.exc import OperationalError
+from werkzeug.exceptions import HTTPException
 
 from app.utils.mail import send_email, wrap_email_html, FRONTEND_URL, mail_configured
 
@@ -88,6 +89,18 @@ def register_error_handlers(app):
     def handle_500(err):
         logger.error("Unhandled 500 error", exc_info=True)
         return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    # Any other real HTTP exception werkzeug raises on its own — most
+    # commonly 405 (wrong verb on a route that exists), which used to fall
+    # through to the generic Exception handler below: a bot or a
+    # misconfigured fetch hitting the wrong verb got logged/Sentry'd as a
+    # real unhandled exception (full traceback) and the client got a bare
+    # 500 instead of a 405. Flask dispatches to the most specific matching
+    # handler regardless of registration order, so this never shadows the
+    # explicit 404 handler above.
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(err):
+        return jsonify({"success": False, "error": err.description}), err.code
 
     # Catch-all for anything not already handled above (e.g. raw DB errors).
     # This is the ONLY place unexpected exceptions land, so it must log the

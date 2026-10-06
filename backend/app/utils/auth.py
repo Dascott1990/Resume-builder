@@ -225,7 +225,7 @@ def require_customer_scope(request):
     return user_id
 
 
-def get_admin_user(request):
+def get_admin_user(request, allow_query_token=False):
     """The signed-in User row for this request if (and only if) they're
     flagged is_admin — every /api/v1/admin/* route's identity check. Never
     raises: returns None for anonymous guests, non-admin users, or a
@@ -240,15 +240,20 @@ def get_admin_user(request):
     through the User row lookup below, deliberately — that's what lets
     revoking someone's is_admin flag actually take effect immediately.
 
-    Also accepts the token via ?token= query string, not just the
-    Authorization header — same "fetch header OR query string" shape
-    get_workspace already uses. Needed for routes an admin reaches via a
-    real browser navigation rather than a fetch() call (the Search
-    Console OAuth start redirect, api/admin.py's /seo/oauth/start —
-    a top-level navigation can't attach a custom header the way a
-    fetch() request can)."""
+    allow_query_token=True also accepts the token via ?token= query string,
+    not just the Authorization header — same "fetch header OR query
+    string" shape get_workspace already uses. Defaults to False: a token
+    in the query string ends up in access logs, proxy logs, and any
+    Referer header the page goes on to send, so this is opt-in per route
+    rather than accepted everywhere. Only the two SEO OAuth routes
+    (api/admin.py's /seo/oauth/start and /seo/oauth/callback) pass True —
+    those are real browser top-level navigations (Google's own redirect),
+    which can't attach a custom Authorization header the way a fetch()
+    request can."""
     auth_header = request.headers.get("Authorization", "")
-    token = auth_header[len("Bearer "):].strip() if auth_header.startswith("Bearer ") else request.args.get("token")
+    token = auth_header[len("Bearer "):].strip() if auth_header.startswith("Bearer ") else None
+    if not token and allow_query_token:
+        token = request.args.get("token")
     if token and _decode_break_glass_token(token):
         return BreakGlassAdmin()
 
@@ -266,14 +271,16 @@ def get_admin_user(request):
     return user
 
 
-def require_admin(request):
+def require_admin(request, allow_query_token=False):
     """Same as get_admin_user, but raises instead of returning None — the
     one-liner every admin route starts with. Returns the admin User row so
     routes that need to know "am I acting on myself" (e.g. revoking your
-    own admin access) don't have to look it up twice."""
+    own admin access) don't have to look it up twice. See get_admin_user's
+    own docstring for allow_query_token — leave it False unless this route
+    is a real browser navigation that can't send an Authorization header."""
     from app.middleware.error_handlers import APIError
 
-    user = get_admin_user(request)
+    user = get_admin_user(request, allow_query_token=allow_query_token)
     if not user:
         raise APIError("Admin access required", 403)
     return user

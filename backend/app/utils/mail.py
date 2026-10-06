@@ -18,6 +18,8 @@ import os
 
 import requests
 
+from app.utils.email_logo import email_logo_html
+
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 RESEND_API_URL = "https://api.resend.com/emails"
 # The address mail actually sends from — needs no real inbox behind it,
@@ -29,20 +31,26 @@ MAIL_FROM = os.environ.get("MAIL_FROM", "Noqeev <noreply@noqeev.com>")
 # Same per-file convention every other module reads this from (auth.py,
 # schedule_reminders.py) rather than one shared constant — matched here,
 # not "fixed," since this isn't the file to go relitigate that in.
-FRONTEND_URL = (os.environ.get("FRONTEND_URL") or "http://localhost:3000").rstrip("/")
-# A static, transparent-background PNG render of Logo.js's own mark +
-# wordmark (frontend/public/email-logo.png) — pixel-matched to the real
-# in-app logo (same bowl-and-tail mark geometry, same bronze-to-gold
-# gradient, same self-hosted Unbounded wordmark font), not a CSS
-# approximation. Depends on FRONTEND_URL actually being correct — it
-# wasn't in production for a while (missing from render.yaml's envVars,
-# silently fell back to this file's own "http://localhost:3000" default,
-# a host no recipient's email client can reach), which is why this was
-# briefly replaced with a plain CSS wordmark. That root cause is fixed now
-# (render.yaml declares the real value) — reverted back to the real,
-# exact-match image per explicit request to match the landing page's
-# branding exactly, not an approximation of it.
-LOGO_URL = f"{FRONTEND_URL}/email-logo.png"
+#
+# This has ALREADY silently broken in production once — see the old
+# version of this comment below. render.yaml declaring FRONTEND_URL
+# doesn't guarantee it actually reached the live Render service's real
+# env vars (editing render.yaml doesn't retroactively sync onto an
+# already-provisioned service), and apparently didn't. So this no longer
+# falls back to localhost when the env var is missing AND we're
+# genuinely running on Render (RENDER is a platform-injected var present
+# on every Render service regardless of app config) — it falls back to
+# the real domain instead, and logs loudly so the misconfiguration shows
+# up in Render's log stream instead of silently shipping a link no
+# recipient's email client can ever reach. Local dev (no RENDER var)
+# still defaults to localhost as before.
+if os.environ.get("FRONTEND_URL"):
+    FRONTEND_URL = os.environ["FRONTEND_URL"].rstrip("/")
+elif os.environ.get("RENDER"):
+    print("CRITICAL: FRONTEND_URL is not set on this Render service — account emails are falling back to https://noqeev.com. Set FRONTEND_URL in the Render dashboard.")
+    FRONTEND_URL = "https://noqeev.com"
+else:
+    FRONTEND_URL = "http://localhost:3000"
 
 
 def mail_configured():
@@ -104,11 +112,11 @@ def wrap_email_html(heading, body_html, cta_label=None, cta_link=None, footnote=
     plain bold-text "NOQEEV" + heading + footer shell, independently
     pasted into auth.py, messages.py, requests.py, brand.py, story.py,
     schedule_reminders.py, and admin.py's broadcast tool, each one free
-    to drift from the others. One real template now: the actual logo
-    image (LOGO_URL above — exact pixel match to the real mark, see its
-    own comment for why this isn't a CSS approximation), a gold accent
-    bar, and a consistent footer carrying the company's real mailing
-    address (CASL — Canada's anti-spam law; Noqeev is Ottawa-based).
+    to drift from the others. One real template now: the logo (see
+    email_logo.py — inline HTML/CSS, not a fetched image, so fixing it
+    there fixes every one of these senders at once), a gold accent bar,
+    and a consistent footer carrying the company's real mailing address
+    (CASL — Canada's anti-spam law; Noqeev is Ottawa-based).
 
     cta_label/cta_link are optional together — pass both for a real
     button, leave both out for a plain body-only email (a message
@@ -117,11 +125,11 @@ def wrap_email_html(heading, body_html, cta_label=None, cta_link=None, footnote=
     "didn't request this?" disclaimer, that kind of thing.
 
     Table-based layout, every style inline, no external stylesheet, no
-    inline SVG, no CSS gradient — deliberately: this has to render
-    correctly in Outlook's Word-based engine, not just modern browsers,
-    and Word supports none of those. The gold accent is a flat color for
-    the same reason (a gradient here would just silently not paint in
-    Outlook, leaving a blank bar instead of degrading gracefully)."""
+    CSS gradient — deliberately: this has to render correctly in
+    Outlook's Word-based engine, not just modern browsers, and Word
+    supports neither. The gold accent is a flat color for the same
+    reason (a gradient here would just silently not paint in Outlook,
+    leaving a blank bar instead of degrading gracefully)."""
     cta_html = ""
     if cta_label and cta_link:
         cta_html = f"""
@@ -143,7 +151,7 @@ def wrap_email_html(heading, body_html, cta_label=None, cta_link=None, footnote=
             <tr><td style="height:6px;line-height:6px;font-size:0;background-color:#f59e0b;border-radius:16px 16px 0 0;">&nbsp;</td></tr>
             <tr>
               <td style="padding:36px 36px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
-                <img src="{LOGO_URL}" alt="Noqeev" width="140" style="display:block;height:auto;margin:0 0 28px;border:0;" />
+                {email_logo_html()}
                 <h1 style="margin:0 0 14px;color:#14151a;font-size:21px;font-weight:800;line-height:1.3;">{heading}</h1>
                 <div style="color:#444;font-size:14.5px;line-height:1.65;">{body_html}</div>
                 {cta_html}

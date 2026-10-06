@@ -44,9 +44,20 @@ export function buildDocx(resume, docStyle) {
     const sp     = `<w:spacing w:before="${opts.before ?? 0}" w:after="${opts.after ?? 120}"/>`;
     const bdrSide = opts.borderTop ? "top" : "bottom";
     const bdr    = opts.border ? `<w:pBdr><w:${bdrSide} w:val="single" w:sz="${opts.bdrSz ?? 6}" w:space="1" w:color="${opts.bdrColor ?? accentHex}"/></w:pBdr>` : "";
-    const num    = opts.bullet ? `<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>` : "";
+    // numId 2 is the Minimal layout's own en-dash marker (see the
+    // numbering.xml built below) — the on-screen Minimal layout renders
+    // every bullet with "listStyleType: \"'– '\"", never the round dot
+    // classic/sidebar use (blockBuilders.js's buildMinimalBlocks), so the
+    // download has to pick the matching definition, not always numId 1.
+    const num    = opts.bullet ? `<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${layout === "minimal" ? 2 : 1}"/></w:numPr>` : "";
     const ind    = opts.indent ? `<w:ind w:left="${opts.indent}"/>` : "";
-    return `<w:pPr>${num}${sp}${jc}${bdr}${ind}</w:pPr>`;
+    // A right-aligned tab stop at the paragraph's own available width —
+    // lets one paragraph hold "left-aligned text ... [tab] ... right-
+    // aligned date" on a single row (Word's own convention for this,
+    // matches how job entries below already place their period with a
+    // literal <w:tab/> run), instead of two separate paragraphs.
+    const tabs   = opts.tabRight ? `<w:tabs><w:tab w:val="right" w:pos="${opts.tabRight}"/></w:tabs>` : "";
+    return `<w:pPr>${num}${tabs}${sp}${jc}${bdr}${ind}</w:pPr>`;
   }
 
   function p(runs, opts = {}) {
@@ -77,7 +88,7 @@ export function buildDocx(resume, docStyle) {
   // same split buildSidebarContent uses on screen) so all three downloads
   // share one real implementation of "how a job entry renders" instead of
   // three hand-copies drifting apart.
-  function sectionBody(sec, { bulletColor } = {}) {
+  function sectionBody(sec, { bulletColor, sectionWidth = 10080 } = {}) {
     let out = sectionHeading(sec.label || "");
     if (sec.type === "text") {
       out += p(r(sec.content || "", { sz, color: bulletColor }), { after: 100 });
@@ -100,14 +111,21 @@ export function buildDocx(resume, docStyle) {
         }
       }
     } else if (sec.type === "education") {
+      // Same row as the live preview (blockBuilders.js's education blocks,
+      // every layout): degree/school/location on the left, the date on
+      // the right of the SAME paragraph via a right tab stop — not two
+      // stacked paragraphs, which is what used to make every exported
+      // education entry reflow differently than what was previewed.
+      const tabStop = sectionWidth - 120; // a hair short of the full width so the date never collides with the right margin
       for (const deg of (sec.degrees || [])) {
         out += p(
           r(deg.degree || "", { bold: true, sz, color: bulletColor }) +
           r(`  •  ${deg.school || ""}`, { sz, color: bulletColor }) +
-          r(`  •  ${deg.location || ""}`, { sz: szSm, color: bulletColor || "595959" }),
-          { before: 80, after: 30 }
+          r(`  •  ${deg.location || ""}`, { sz: szSm, color: bulletColor || "595959" }) +
+          `<w:r><w:rPr><w:rFonts w:ascii="${fontName}" w:hAnsi="${fontName}"/><w:sz w:val="${szSm}"/></w:rPr><w:tab/></w:r>` +
+          r(deg.period || "", { italic: true, sz: szSm, color: bulletColor || "595959" }),
+          { before: 80, after: 80, tabRight: tabStop }
         );
-        out += p(r(deg.period || "", { italic: true, sz: szSm, color: bulletColor || "595959" }), { after: 80 });
       }
     }
     return out;
@@ -143,7 +161,10 @@ export function buildDocx(resume, docStyle) {
     }
 
     let mainBody = "";
-    for (const sec of mainSections) mainBody += sectionBody(sec);
+    // mainW (7020) minus this cell's own left+right margins (260+120) —
+    // the real available row width a right tab stop has to aim at inside
+    // the sidebar layout's narrower right-hand table cell.
+    for (const sec of mainSections) mainBody += sectionBody(sec, { sectionWidth: mainW - 260 - 120 });
 
     body += `<w:tbl>
       <w:tblPr>
@@ -206,6 +227,23 @@ export function buildDocx(resume, docStyle) {
     </w:lvl>
   </w:abstractNum>
   <w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
+  <!-- Minimal layout's own en-dash marker — matches the live preview's
+       listStyleType: "'– '" exactly (blockBuilders.js's buildMinimalBlocks),
+       instead of every download using the round-dot bullet above regardless
+       of which layout was actually picked. rFonts stays the body font here
+       (not Symbol) since an en dash is a real Unicode character every font
+       already has, not a Symbol-font glyph code point. -->
+  <w:abstractNum w:abstractNumId="1">
+    <w:multiLevelType w:val="singleLevel"/>
+    <w:lvl w:ilvl="0">
+      <w:start w:val="1"/><w:numFmt w:val="bullet"/>
+      <w:lvlText w:val="&#x2013;"/>
+      <w:lvlJc w:val="left"/>
+      <w:pPr><w:ind w:left="360" w:hanging="360"/></w:pPr>
+      <w:rPr><w:rFonts w:ascii="${fontName}" w:hAnsi="${fontName}"/><w:sz w:val="${sz}"/></w:rPr>
+    </w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num>
 </w:numbering>`;
 
   const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

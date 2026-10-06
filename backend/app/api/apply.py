@@ -15,15 +15,19 @@ POST     /api/v1/apply/runs/<id>/confirm-submit — the ONE place a real submit 
 POST     /api/v1/apply/runs/<id>/cancel     — cancel during execution or during the review window
 POST     /api/v1/apply/runs/<id>/seen       — dismiss a run from the notification bell
 
-Concurrency model: one automation running in-process at a time
-(_RUN_LOCK), held for a run's ENTIRE lifetime — including the idle window
-while a finished application sits at ready_for_review waiting on a human,
-not just the active-automation portion. That's the direct consequence of
-the founder's choice to keep the live browser session addressable so
-confirm-submit can perform the real click (see agent/browser.py's
-PendingReview) — a held Chromium process is real memory on a free-tier
-dyno, so a 15-minute review timeout auto-expires an unattended run and
-releases the lock rather than holding it indefinitely.
+Concurrency model: one automation running in-process at a time PER SCOPE
+(_RUN_LOCK, a per-user/guest pool — see _RunLockPool), held for a run's
+ENTIRE lifetime — including the idle window while a finished application
+sits at ready_for_review waiting on a human, not just the active-
+automation portion. That's the direct consequence of the founder's choice
+to keep the live browser session addressable so confirm-submit can
+perform the real click (see agent/browser.py's PendingReview) — a held
+Chromium process is real memory on a free-tier dyno, so a 15-minute
+review timeout auto-expires an unattended run and releases the lock
+rather than holding it indefinitely. Scoping the lock per user/guest
+(instead of one single process-wide lock) means this memory cost is still
+real and still per-run, but two DIFFERENT users' runs no longer block
+each other — only the same scope running a second automation does.
 
 Threading, not Celery/RQ — render.yaml runs a single gunicorn worker and
 there's no queue infrastructure anywhere in this app. A background
@@ -123,7 +127,49 @@ class _RunLock:
             pass  # already released (e.g. force-opened above) — not an error
 
 
-_RUN_LOCK = _RunLock(MAX_LOCK_HOLD_SECONDS)
+class _RunLockPool:
+    """Per-scope locks, not one process-wide lock — the single shared
+    _RunLock this used to be meant ANY second user's run attempt got a 429
+    for the entire duration of ANY other, completely unrelated user's run
+    anywhere in the app, capping real concurrent usage of this feature at
+    exactly 1 regardless of how many Chromium sessions the box could
+    actually hold. Each scope (one signed-in user_id, or one guest_id)
+    still gets its own _RunLock under the hood — the SAME user/guest still
+    can't start two concurrent runs, that guarantee is unchanged — but
+    different scopes no longer contend with each other at all.
+
+    A small meta-lock guards only the brief moment a scope's FIRST-ever
+    request needs to create its entry; an in-flight run's own hold time
+    never touches the meta-lock. Entries are never evicted — acceptable
+    here (this is one threading.Lock plus a couple of ints per scope,
+    and the process restarts on every deploy anyway), not a design this
+    bothered to build eviction for."""
+
+    def __init__(self, max_hold_seconds):
+        self._locks = {}
+        self._meta_lock = threading.Lock()
+        self._max_hold_seconds = max_hold_seconds
+
+    def _lock_for(self, scope_key):
+        lock = self._locks.get(scope_key)
+        if lock is None:
+            with self._meta_lock:
+                lock = self._locks.get(scope_key)
+                if lock is None:
+                    lock = _RunLock(self._max_hold_seconds)
+                    self._locks[scope_key] = lock
+        return lock
+
+    def try_acquire(self, scope_key):
+        return self._lock_for(scope_key).try_acquire()
+
+    def release(self, scope_key, token):
+        lock = self._locks.get(scope_key)
+        if lock is not None:
+            lock.release(token)
+
+
+_RUN_LOCK = _RunLockPool(MAX_LOCK_HOLD_SECONDS)
 # run_id -> PendingAnswer, only ever one entry per run since the loop fully
 # pauses on ask_user rather than asking multiple questions in parallel.
 _ANSWER_REGISTRY = {}
@@ -556,7 +602,7 @@ def _find_submit_ref(session):
     return None
 
 
-def _execute_run(app, run_id, lock_token):
+def _execute_run(app, run_id, scope_key, lock_token):
     try:
         with app.app_context():
             run = db.session.get(ApplicationRun, run_id)
@@ -638,7 +684,7 @@ def _execute_run(app, run_id, lock_token):
                 except Exception:
                     pass
     finally:
-        _RUN_LOCK.release(lock_token)
+        _RUN_LOCK.release(scope_key, lock_token)
 
 
 # ── Routes ──────────────────────────────────────────────────────────────
@@ -657,15 +703,19 @@ def create_run():
     if not _URL_RE.match(target_url):
         raise APIError("target_url must be a valid http(s) URL", 400)
 
-    lock_token = _RUN_LOCK.try_acquire()
+    # Per-user/guest, not global — see _RunLockPool's own docstring. The
+    # SAME scope still can't run two concurrent automations; a different
+    # user/guest starting a run never has to wait on this one.
+    scope_key = f"user:{user_id}" if user_id else f"guest:{guest_id}"
+    lock_token = _RUN_LOCK.try_acquire(scope_key)
     if lock_token is None:
-        raise APIError("An automation is already running for this app — please try again shortly.", 429)
+        raise APIError("You already have an automation running — please wait for it to finish.", 429)
 
     # The lock is held from here on — anything that fails before the
     # background thread takes ownership of lock_token (in its own
-    # finally: _RUN_LOCK.release(lock_token)) must release it itself, or a
-    # DB hiccup on this one request would wedge every future run behind a
-    # lock nothing will ever release.
+    # finally: _RUN_LOCK.release(scope_key, lock_token)) must release it
+    # itself, or a DB hiccup on this one request would wedge every future
+    # run from this same scope behind a lock nothing will ever release.
     try:
         dedup_warning = _ashby_dedup_warning(target_url, user_id, guest_id)
 
@@ -678,9 +728,9 @@ def create_run():
         db.session.commit()
 
         app_obj = current_app._get_current_object()
-        threading.Thread(target=_execute_run, args=(app_obj, run.id, lock_token), daemon=True).start()
+        threading.Thread(target=_execute_run, args=(app_obj, run.id, scope_key, lock_token), daemon=True).start()
     except Exception:
-        _RUN_LOCK.release(lock_token)
+        _RUN_LOCK.release(scope_key, lock_token)
         raise
 
     data = _serialize_run(run)

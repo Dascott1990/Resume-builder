@@ -13,12 +13,30 @@
  * screen reads as one consistent, minimal container instead of a bespoke
  * hero each time.
  */
+import { useEffect } from "react";
 import { X } from "lucide-react";
 import Logo from "../Logo";
 
 export function AuthShell({ onClose, children }) {
+  // Only Login/Signup/ForgotPassword pass onClose — they're the real
+  // dismissible overlay case (rendered absolute/inset-0 over existing
+  // page content, see Login.js). verify-email/reset-password mount this
+  // same shell as their own standalone route with nothing behind it, so
+  // dialog semantics/Escape would be wrong there — there's no "outside"
+  // to return focus/visibility to.
+  useEffect(() => {
+    if (!onClose) return;
+    const onKeyDown = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="relative flex min-h-[100dvh] w-full flex-col overflow-y-auto bg-background font-sans">
+    <div
+      className="relative flex min-h-[100dvh] w-full flex-col overflow-y-auto bg-background font-sans"
+      role={onClose ? "dialog" : undefined}
+      aria-modal={onClose ? "true" : undefined}
+    >
       {/* A static (not pulsing) wash — brand warmth without the busyness an
           infinite animation adds to what's meant to read as minimal. */}
       <div

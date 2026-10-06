@@ -280,6 +280,10 @@ function UsersTab({ selfId }) {
       toast.error("You can't remove your own admin access.");
       return;
     }
+    const msg = user.is_admin
+      ? `Remove admin access from ${user.email}?`
+      : `Grant admin access to ${user.email}? They'll be able to manage every user, resume, and application in the system.`;
+    if (!window.confirm(msg)) return;
     setBusyId(user.id);
     try {
       await apiRequest(`/api/v1/admin/users/${user.id}`, {
@@ -297,6 +301,10 @@ function UsersTab({ selfId }) {
   };
 
   const toggleVerified = async (user) => {
+    const msg = user.email_verified
+      ? `Remove verification from ${user.email}?`
+      : `Mark ${user.email} as verified?`;
+    if (!window.confirm(msg)) return;
     setBusyId(user.id);
     try {
       await apiRequest(`/api/v1/admin/users/${user.id}`, {

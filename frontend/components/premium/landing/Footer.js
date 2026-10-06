@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import Logo from "../Logo";
+import { SOCIAL_LINKS } from "./socialLinks";
 
 const LEGAL_LINKS = [
   { href: "/privacy", label: "Privacy Policy" },
@@ -47,6 +48,17 @@ export function Footer({ onOpenSignup }) {
             <Link key={l.href} href={l.href} className="text-[12px] font-semibold text-muted-foreground hover:text-foreground">
               {l.label}
             </Link>
+          ))}
+        </nav>
+
+        <nav aria-label="Social" className="flex flex-wrap items-center gap-4">
+          {SOCIAL_LINKS.map((s) => (
+            <a
+              key={s.label} href={s.href} target="_blank" rel="noreferrer" aria-label={s.label}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <s.Icon className="size-[18px]" />
+            </a>
           ))}
         </nav>
 

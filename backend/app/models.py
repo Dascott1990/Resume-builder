@@ -867,6 +867,12 @@ class GuestDownloadCount(db.Model):
     count = db.Column(db.Integer, nullable=False, default=0)
     first_download_at = db.Column(db.DateTime, nullable=True)
     last_download_at = db.Column(db.DateTime, nullable=True)
+    # Secondary signal alongside guest_id — a guest_id alone is a plain
+    # client-supplied header with no server-side binding, so clearing it
+    # (or sending a fresh random value) used to reset the cap for free.
+    # api/resume.py's consume_download() also sums every row sharing this
+    # IP, so rotating guest_id no longer resets anything on its own.
+    ip_address = db.Column(db.String(64), nullable=True, index=True)
 
     def to_dict(self):
         return {"count": self.count, "capped": self.count >= 3}

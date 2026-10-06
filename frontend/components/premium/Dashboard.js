@@ -25,7 +25,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   ArrowRight, ChevronRight, X, Clock, ExternalLink,
-  Inbox, Check, AlertTriangle, CheckCircle2, Loader2, Zap, Plus,
+  Inbox, Check, CheckCircle2, Loader2, Zap,
   MoreVertical, Trash2, StickyNote,
   Bell, Moon, Sun, Home, Briefcase, ClipboardList, CircleUser, Building2, ArrowUpRight,
 } from "lucide-react";
@@ -52,6 +52,10 @@ import { tapFeedback } from "@/lib/haptics";
 import { apiRequest } from "./shared/api";
 import { apiListSaved, apiDelete } from "./guest/api";
 import { NavRail } from "./shared/NavRail";
+import { MobileFloatingNav } from "./shared/MobileFloatingNav";
+import { JobSearchStatsCard } from "./shared/JobSearchStatsCard";
+import { NotificationsDialog } from "./shared/NotificationsDialog";
+import { WelcomeNamePrompt } from "./shared/WelcomeNamePrompt";
 import { QUICK_ACTION_ART } from "./shared/quickActionArt";
 import { DASHBOARD_ART } from "./shared/dashboardArt";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -128,71 +132,6 @@ function greeting() {
 // cards (Saved resumes/Applications/Interviews) that didn't read as one
 // story — this is the actual funnel, so it reads as one, matching the
 // approved design reference.
-function JobSearchStatsCard({ applications, loading, onViewAll, isDesktop = true }) {
-  const applied = applications.length;
-  const responses = applications.filter((a) => a.status !== "applied").length;
-  const interviews = applications.filter((a) => a.status === "interview").length;
-  const offers = applications.filter((a) => a.status === "offer").length;
-
-  // Mobile: the monochrome "borderless grid" treatment from the approved
-  // mobile dashboard reference — no card cage, no color-coded values (the
-  // whole point is one flat typographic grid), metrics float directly on
-  // the page canvas. Desktop keeps its own established glass card below,
-  // untouched.
-  if (!isDesktop) {
-    return (
-      <div className="mb-7">
-        <p className="m-0 mb-3 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70 uppercase">Your job search</p>
-        <div className="grid grid-cols-4 gap-2">
-          {loading ? (
-            <>
-              <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
-            </>
-          ) : (
-            [
-              ["Applied", applied], ["Responses", responses],
-              ["Interviews", interviews], ["Offers", offers],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <span className="block text-3xl font-bold tracking-tight text-foreground">{value}</span>
-                <span className="mt-1.5 block text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase">{label}</span>
-              </div>
-            ))
-          )}
-        </div>
-        <button onClick={onViewAll} className="mt-4 flex items-center gap-1 border-none bg-transparent p-0 text-[12.5px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent]">
-          View applications <ArrowRight className="size-3.5" />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="glass-surface mb-5 rounded-2xl p-5">
-      <p className="m-0 mb-4 font-mono text-[10px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">Your job search</p>
-      <div className="mb-4 grid grid-cols-4 gap-2.5">
-        {loading ? (
-          <>
-            <Skeleton className="h-11 w-full" /><Skeleton className="h-11 w-full" />
-            <Skeleton className="h-11 w-full" /><Skeleton className="h-11 w-full" />
-          </>
-        ) : (
-          <>
-            <div><span className="block text-[24px] font-bold text-foreground">{applied}</span><span className="text-[11px] text-muted-foreground">Applied</span></div>
-            <div><span className="block text-[24px] font-bold text-foreground">{responses}</span><span className="text-[11px] text-muted-foreground">Responses</span></div>
-            <div><span className="block text-[24px] font-bold text-success">{interviews}</span><span className="text-[11px] text-muted-foreground">Interviews</span></div>
-            <div><span className="block text-[24px] font-bold text-success">{offers}</span><span className="text-[11px] text-muted-foreground">Offers</span></div>
-          </>
-        )}
-      </div>
-      <button onClick={onViewAll} className="flex items-center gap-1 border-none bg-transparent p-0 text-[13px] font-bold text-primary [-webkit-tap-highlight-color:transparent]">
-        View applications <ArrowRight className="size-3.5" />
-      </button>
-    </div>
-  );
-}
-
 // Real listings from the verified jobs pipeline (see JobsBoard.js /
 // backend/app/jobs_ingest/) — always populated regardless of whether
 // this particular account has done anything yet, which is what actually
@@ -535,64 +474,9 @@ function ToolChip({ art, label, onClick }) {
   );
 }
 
-// The glassmorphic floating nav island from the approved mobile reference —
-// detached from both side edges and the bottom edge (inset-x-4, a real
-// bottom gap, not flush), a blurred translucent surface, Home/Jobs/
-// Applications/Profile as plain single-stroke icons (solid-filled + bold
-// label on the active tab, resting grey outline otherwise), and the "+"
-// create button as one literal pitch-black circle breaking through its own
-// top edge — the one deliberately theme-constant element on this whole
-// screen, same as a camera app's shutter button stays the same in light or
-// dark mode. Replaces the old separate BottomNav + CreateFab pairing: this
-// is one visual object now, matching the reference exactly.
-function MobileFloatingNav({ items, active, onChange, onCreate }) {
-  return (
-    <nav
-      className="fixed inset-x-4 z-40 flex items-center rounded-[26px] border border-border/60 bg-background/80 shadow-[0_20px_40px_rgba(0,0,0,0.12)] backdrop-blur-xl backdrop-saturate-150"
-      style={{ bottom: "calc(16px + env(safe-area-inset-bottom, 0px))" }}
-    >
-      {items.slice(0, 2).map((item) => (
-        <NavGlyph key={item.id} item={item} isActive={item.id === active} onClick={() => onChange(item.id)} />
-      ))}
-
-      {/* Reserves the center slot the "+" floats above — the row stays a
-          true even 4-up grid, the button itself is purely decorative/
-          positioned via the absolute button below it. */}
-      <span className="flex-1" aria-hidden="true" />
-
-      {items.slice(2, 4).map((item) => (
-        <NavGlyph key={item.id} item={item} isActive={item.id === active} onClick={() => onChange(item.id)} />
-      ))}
-
-      <motion.button
-        type="button" onClick={onCreate} aria-label="Create"
-        whileTap={{ scale: 0.9 }}
-        className="absolute left-1/2 flex size-14 -translate-x-1/2 items-center justify-center rounded-full shadow-[0_10px_24px_rgba(0,0,0,0.35)] [-webkit-tap-highlight-color:transparent]"
-        style={{ top: -22, background: "#0a0a0a" }}
-      >
-        <Plus className="size-6 text-white" strokeWidth={2} />
-      </motion.button>
-    </nav>
-  );
-}
-
-function NavGlyph({ item, isActive, onClick }) {
-  return (
-    <button
-      type="button" onClick={onClick} aria-label={item.label} aria-selected={isActive}
-      className="flex flex-1 flex-col items-center justify-center gap-1 border-none bg-transparent py-3 [-webkit-tap-highlight-color:transparent]"
-    >
-      <item.Icon
-        className={`size-5 ${isActive ? "text-foreground" : "text-muted-foreground/50"}`}
-        strokeWidth={1.75}
-        fill={isActive ? "currentColor" : "none"}
-      />
-      <span className={`text-[10px] ${isActive ? "font-bold text-foreground" : "font-medium text-muted-foreground/50"}`}>
-        {item.label}
-      </span>
-    </button>
-  );
-}
+// MobileFloatingNav now lives in shared/MobileFloatingNav.js — JobsBoard.js
+// needs the exact same floating glass nav + FAB, so it's a shared
+// component instead of a second hand-copy drifting out of sync.
 
 // The sheet CreateFab opens — exactly "Your Resume" + Tools, the same two
 // sections and the same components (ResumeStatusCard, ToolChip) that used
@@ -706,62 +590,6 @@ function AddNoteDialog({ app, open, onClose, onSaved }) {
           <Btn small variant="ghost" onClick={onClose}>Cancel</Btn>
           <Btn small variant="gold" onClick={save} loading={saving}>Save note</Btn>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// Apply with AI's own item shape — the only kind useUnreadNotifications
-// surfaces now that the artisan-message side of that hook is gone.
-function applyRunNotifCopy(run) {
-  let company = "that application";
-  try { company = new URL(run.target_url).hostname.replace(/^www\./, ""); } catch { /* keep the fallback */ }
-  const map = {
-    submitted: { Icon: Check, title: `Application submitted: ${company}`, subtitle: "Added to your Job Tracker." },
-    failed: { Icon: AlertTriangle, title: `Couldn't finish: ${company}`, subtitle: run.error_message || "Something went wrong." },
-    cancelled: { Icon: X, title: `Cancelled: ${company}`, subtitle: "Nothing was submitted." },
-    expired: { Icon: AlertTriangle, title: `Review window expired: ${company}`, subtitle: "Nothing was submitted." },
-  };
-  return map[run.status] || map.failed;
-}
-
-function NotificationsDialog({ open, onClose, items, onOpenItem }) {
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent showCloseButton className="flex max-h-[70dvh] w-full max-w-[420px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[420px]">
-        <div className="shrink-0 border-b border-border p-4">
-          <p className="m-0 text-lg font-bold text-foreground">Notifications</p>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {items.length === 0 ? (
-            <div className="grid justify-items-center gap-2.5 px-5 py-10 text-center">
-              <div className="flex size-11 items-center justify-center rounded-full border border-border bg-card">
-                <Inbox className="size-[18px] text-muted-foreground" />
-              </div>
-              <p className="m-0 text-sm font-bold text-foreground">All caught up</p>
-            </div>
-          ) : (
-            items.map((it) => {
-              const { Icon, title, subtitle } = applyRunNotifCopy(it.run);
-              return (
-                <button
-                  key={it.run.id}
-                  type="button"
-                  onClick={() => onOpenItem(it)}
-                  className="flex w-full items-start gap-3 border-b border-border p-4 text-left last:border-b-0 hover:bg-muted/50"
-                >
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
-                    <Icon className="size-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="m-0 text-[13px] font-bold text-foreground">{title}</p>
-                    <p className="m-0 mt-0.5 truncate text-[12px] text-muted-foreground">{subtitle}</p>
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
       </DialogContent>
     </Dialog>
   );
@@ -1107,7 +935,7 @@ function DashboardContent({
 }
 
 export default function Dashboard({ onNavigate, onSignOut }) {
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading, logout, updateProfile } = useAuth();
   const { isDesktop } = useViewport();
   const { theme, toggleTheme } = useTheme();
   const unread = useUnreadNotifications();
@@ -1190,19 +1018,31 @@ export default function Dashboard({ onNavigate, onSignOut }) {
   };
 
   const deleteResume = async (id) => {
+    const prev = savedResumes;
     setSavedResumes((list) => list.filter((r) => r.id !== id));
     const ok = await apiDelete(id);
-    if (!ok) toast.error("Couldn't delete that resume.");
+    if (!ok) {
+      // Optimistic removal didn't actually happen server-side — restore
+      // it instead of leaving the UI permanently out of sync with the
+      // real saved-resumes list (previously the toast was the only
+      // signal, and a later reload would silently bring it back,
+      // reading as "my save was lost").
+      setSavedResumes(prev);
+      toast.error("Couldn't delete that resume.");
+    }
   };
   const deleteApplication = async (id) => {
+    const prev = applications;
     setApplications((list) => list.filter((a) => a.id !== id));
     try {
       await apiRequest(`/api/v1/applications/${id}`, { method: "DELETE" });
     } catch (e) {
+      setApplications(prev);
       toast.error(e.message || "Couldn't delete that application.");
     }
   };
   const updateApplicationStatus = async (id, status) => {
+    const prev = applications;
     setApplications((list) => list.map((a) => (a.id === id ? { ...a, status } : a)));
     try {
       const updated = await apiRequest(`/api/v1/applications/${id}`, {
@@ -1210,6 +1050,7 @@ export default function Dashboard({ onNavigate, onSignOut }) {
       });
       setApplications((list) => list.map((a) => (a.id === id ? { ...a, ...updated } : a)));
     } catch (e) {
+      setApplications(prev);
       toast.error(e.message || "Couldn't update that application.");
     }
   };
@@ -1247,6 +1088,7 @@ export default function Dashboard({ onNavigate, onSignOut }) {
         <DesktopRightRail savedResumes={savedResumes} go={go} />
         <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={openNotification} />
         <AddNoteDialog app={noteApp} open={!!noteApp} onClose={() => setNoteApp(null)} onSaved={onNoteSaved} />
+        <WelcomeNamePrompt user={user} updateProfile={updateProfile} />
       </motion.div>
     );
   }
@@ -1304,6 +1146,7 @@ export default function Dashboard({ onNavigate, onSignOut }) {
       <CreateSheet open={createOpen} onClose={() => setCreateOpen(false)} latestResume={savedResumes[0]} go={go} />
       <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={openNotification} />
       <AddNoteDialog app={noteApp} open={!!noteApp} onClose={() => setNoteApp(null)} onSaved={onNoteSaved} />
+      <WelcomeNamePrompt user={user} updateProfile={updateProfile} />
     </motion.div>
   );
 }

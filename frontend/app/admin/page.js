@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { KeyRound, Loader2, ShieldAlert } from "lucide-react";
-import { apiRequest } from "@/components/premium/shared/api";
+import { apiRequest, onUnauthorized } from "@/components/premium/shared/api";
 import { getToken, setToken } from "@/lib/authToken";
 import { useAuth } from "@/lib/useAuth";
 import { Button } from "@/components/ui/button";
@@ -163,6 +163,16 @@ export default function AdminPage() {
     setToken(null);
     setStatus("needs-login");
   };
+
+  // Previously the admin token was only ever checked once, on mount — if
+  // it expired or was revoked mid-session, every tab's own API call just
+  // failed with a disconnected toast while the dashboard kept rendering
+  // as if nothing were wrong. A 401 from anywhere now bounces straight
+  // back to the sign-in gate instead.
+  useEffect(() => onUnauthorized(() => {
+    setToken(null);
+    setStatus("needs-login");
+  }), []);
 
   if (status === "checking") {
     return (

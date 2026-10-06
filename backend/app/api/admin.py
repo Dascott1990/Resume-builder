@@ -511,7 +511,10 @@ def _verify_seo_oauth_state(state):
 def seo_oauth_start():
     if not seo_client.google_oauth_configured():
         raise APIError("GOOGLE_OAUTH_CLIENT_ID/SECRET are not configured", 503)
-    admin = require_admin(request)
+    # Real top-level browser navigation (this route redirects straight to
+    # Google) — can't attach an Authorization header, so this is the one
+    # admin route that needs the ?token= fallback.
+    admin = require_admin(request, allow_query_token=True)
     state = _issue_seo_oauth_state(admin.id)
     return redirect(seo_client.build_oauth_url(state))
 

@@ -6,6 +6,7 @@ import { BRIGHTNESS_INIT_SCRIPT } from "@/lib/brightness";
 import { ServiceWorkerRegister } from "./ServiceWorkerRegister";
 import { KeepAlive } from "./KeepAlive";
 import { ThemeSync } from "./ThemeSync";
+import { KeyboardViewportFix } from "./KeyboardViewportFix";
 
 const SITE_NAME = "Noqeev";
 const SITE_TITLE = "Noqeev · AI Resume Builder";
@@ -140,6 +141,7 @@ export default function RootLayout({ children }) {
         <ServiceWorkerRegister />
         <KeepAlive />
         <ThemeSync />
+        <KeyboardViewportFix />
         {/* Screen brightness — see lib/brightness.js for why this is two
             always-mounted overlays (opacity driven purely by the CSS
             variables the script/hook above set) rather than a `filter` on

@@ -29,7 +29,11 @@ function VerifyEmailContent() {
       })
       .catch((e) => {
         setStatus("error");
-        setMessage(e.message || "This verification link is invalid or has expired.");
+        setMessage(
+          e.message
+            ? `${e.message} Sign in and we'll offer to resend the link.`
+            : "This verification link is invalid or has expired. Sign in and we'll offer to resend the link."
+        );
       });
     // Only ever run once, against whatever token was in the URL on load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -63,7 +67,7 @@ function VerifyEmailContent() {
               <p className="m-0 text-[18px] font-bold text-foreground">Link didn't work</p>
               <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">{message}</p>
             </div>
-            <Btn variant="gold" small onClick={() => router.replace("/")}>Back to Noqeev</Btn>
+            <Btn variant="gold" small onClick={() => router.replace("/")}>Go to sign in</Btn>
           </>
         )}
       </div>

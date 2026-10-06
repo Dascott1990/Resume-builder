@@ -4,6 +4,15 @@ function newId() {
   return window.crypto?.randomUUID?.() || `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 }
 
+// Private browsing / a storage quota / a policy that disables storage all
+// throw on localStorage access. Without this, getGuestId() used to return
+// "" in that case — sent as-is as X-Guest-Id on every request, with no
+// fallback, so a blocked-storage guest's saves either never round-trip or
+// (worse) collide with every other blocked-storage guest sharing the same
+// blank id. One id per page load, kept only in memory, is still enough for
+// every request in THIS session to agree on who's making it.
+let _inMemoryFallbackId = null;
+
 // A random id generated once per browser and kept in localStorage — not an
 // account, not tied to any real identity, just enough for the backend to
 // tell "your saved resumes" apart from everyone else's without a login.
@@ -19,7 +28,8 @@ export function getGuestId() {
     }
     return id;
   } catch {
-    return "";
+    if (!_inMemoryFallbackId) _inMemoryFallbackId = newId();
+    return _inMemoryFallbackId;
   }
 }
 

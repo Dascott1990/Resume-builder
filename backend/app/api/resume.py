@@ -23,6 +23,7 @@ from app import db, limiter
 from app.middleware.error_handlers import APIError
 from app.utils.auth import get_scope
 from app.utils.uploads import validate_upload
+from app.utils.geoip import client_ip
 
 resume_bp = Blueprint("resume", __name__)
 
@@ -1333,6 +1334,24 @@ def delete_saved(resume_id):
 # gets tracked at all, and this is the one place in the app that writes
 # to GuestDownloadCount. See the model's own docstring in models.py for
 # why this needs to be server-tracked rather than a client-only counter.
+#
+# guest_id alone is just a client-supplied header with no server binding
+# — clearing it (or sending a fresh random value) used to reset the cap
+# for free. IP is the second signal: _ip_download_count sums every row
+# that's ever recorded this IP, so rotating guest_id from the same
+# network no longer resets anything. Not bulletproof (shared/NAT'd IPs,
+# VPNs) but real teeth instead of none, consistent with this being a
+# soft paywall, not an access-control boundary.
+
+def _ip_download_count(ip, exclude_guest_id=None):
+    if not ip:
+        return 0
+    from app.models import GuestDownloadCount
+    q = GuestDownloadCount.query.filter_by(ip_address=ip)
+    if exclude_guest_id:
+        q = q.filter(GuestDownloadCount.guest_id != exclude_guest_id)
+    return sum(r.count for r in q.all())
+
 
 @resume_bp.route("/downloads/count", methods=["GET"])
 def get_download_count():
@@ -1342,25 +1361,30 @@ def get_download_count():
 
     from app.models import GuestDownloadCount
     record = GuestDownloadCount.query.filter_by(guest_id=guest_id).first()
-    if not record:
-        return jsonify({"success": True, "data": {"count": 0, "capped": False}}), 200
-    return jsonify({"success": True, "data": record.to_dict()}), 200
+    own_count = record.count if record else 0
+    ip_count = _ip_download_count(client_ip(request), exclude_guest_id=guest_id)
+    count = max(own_count, ip_count)
+    return jsonify({"success": True, "data": {"count": count, "capped": count >= 3}}), 200
 
 
 @resume_bp.route("/downloads/consume", methods=["POST"])
 def consume_download():
     """Called right before a guest actually builds a download — the real
     enforcement point. Signed-in callers always succeed as a no-op; a
-    guest already at 3 gets a 403 and nothing increments."""
+    guest already at 3 (by guest_id OR by this IP's combined total) gets
+    a 403 and nothing increments."""
     user_id, guest_id = get_scope(request)
     if user_id:
         return jsonify({"success": True, "data": {"count": 0, "capped": False}}), 200
     if not guest_id:
         raise APIError("Missing X-Guest-Id header", 400)
 
+    ip = client_ip(request)
     from app.models import GuestDownloadCount
     record = GuestDownloadCount.query.filter_by(guest_id=guest_id).first()
-    if record and record.count >= 3:
+    own_count = record.count if record else 0
+    ip_count = _ip_download_count(ip, exclude_guest_id=guest_id)
+    if max(own_count, ip_count) >= 3:
         raise APIError(
             "You've used your 3 free downloads. Sign up to keep going — we'll save your info as your profile.",
             403, code="DOWNLOAD_CAP_REACHED",
@@ -1372,5 +1396,6 @@ def consume_download():
         db.session.add(record)
     record.count += 1
     record.last_download_at = now
+    record.ip_address = ip
     db.session.commit()
     return jsonify({"success": True, "data": record.to_dict()}), 200

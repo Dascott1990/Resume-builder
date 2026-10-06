@@ -119,6 +119,17 @@ body {
      the actual chosen theme, not force dark underneath it. */
   background: var(--background);
   overscroll-behavior: none;
+  /* The page itself should never be able to scroll sideways — any
+     accidental horizontal overflow (a decorative element bleeding past
+     its own section's edge, e.g. landing/shared.js's SectionGlow, which
+     is deliberately positioned off-edge by design) used to show up as a
+     genuinely scrollable/shaky horizontal range instead of just being
+     invisible past the fold. This is a page-level safety net, not a
+     fix for any one offending element — it's orthogonal to any child's
+     own overflow-x-auto (the Templates carousel, any future horizontal
+     list), which still scrolls exactly as before; this only clips what
+     would otherwise widen the PAGE itself. */
+  overflow-x: hidden;
   /* Stops iOS/Android bumping text size up when the phone rotates or a
      input briefly steals focus. */
   -webkit-text-size-adjust: 100%;
@@ -162,7 +173,15 @@ html:has(#noqeev-landing) body {
 }
 
 #__next {
-  height: 100%;
+  /* --app-vh is kept live by KeyboardViewportFix.js (window.visualViewport's
+     own height, in px) — every screen in the app is a fixed/absolute
+     inset-0 shell sized against THIS element, so shrinking it the instant
+     a mobile keyboard opens is what makes every one of those shells
+     reflow to the actually-visible area above the keyboard instead of
+     staying sized to the full, keyboard-covered layout viewport. Falls
+     back to the old bare 100% in any browser without VisualViewport
+     support (the custom property is simply never set there). */
+  height: var(--app-vh, 100%);
 }
 
 /* ── Native-app touch behaviour ───────────────────────────────────────────

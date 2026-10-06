@@ -7,6 +7,7 @@ scoped by any one workspace's token — it walks every workspace's due
 ScheduledPost rows in one pass — so it's gated by a separate shared
 secret instead, checked before anything else runs.
 """
+import hmac
 import os
 
 from flask import Blueprint, request, jsonify
@@ -22,7 +23,10 @@ def _require_cron_secret(request):
     if not secret:
         raise APIError("CRON_SECRET is not configured", 503)
     provided = request.headers.get("X-Cron-Secret") or ""
-    if not provided or provided != secret:
+    # compare_digest, not != — same idiom utils/auth.py's break-glass check
+    # already uses, so a byte-by-byte timing side-channel can't leak
+    # CRON_SECRET one character at a time.
+    if not provided or not hmac.compare_digest(provided.encode(), secret.encode()):
         raise APIError("Invalid cron secret", 401)
 
 

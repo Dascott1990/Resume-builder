@@ -9,7 +9,7 @@
  * exists at all.
  */
 import { useCallback, useEffect, useState } from "react";
-import { apiRequest } from "@/components/premium/shared/api";
+import { apiRequest, onUnauthorized } from "@/components/premium/shared/api";
 import { getToken, setToken } from "./authToken";
 import { rotateGuestId } from "./guestId";
 
@@ -26,16 +26,38 @@ export function useAuth() {
     try {
       const data = await apiRequest("/api/v1/auth/me");
       setUser(data);
-    } catch {
-      // Token missing/expired/invalid — same as never having signed in.
-      setToken(null);
-      setUser(null);
+    } catch (err) {
+      // Only a genuine 401 means THIS token is actually invalid/expired —
+      // every other failure (a transient 503 from the DB being briefly
+      // unreachable, confirmed live during a real Neon quota hiccup; a
+      // network blip; anything else) says nothing about whether the
+      // token itself is still good. Clearing it on any of those used to
+      // silently sign a real, still-valid session out — on a device
+      // whose only copy of that session is this token, logged out by an
+      // outage that had nothing to do with them, with no way back in
+      // except typing their password again once the outage passes.
+      // 401 still goes through the normal onUnauthorized path below.
+      if (err.status === 401) {
+        setToken(null);
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => { refreshUser(); }, [refreshUser]);
+
+  // Any request anywhere in the app coming back 401 means THIS session's
+  // token is no longer valid — clear it and drop `user` back to null so
+  // every screen gated on "am I signed in" (see app/page.js's own
+  // auth-gated view resolution) reacts the same way it would to a real
+  // sign-out, instead of silently rendering stale "signed in" UI while
+  // every request underneath it keeps failing.
+  useEffect(() => onUnauthorized(() => {
+    setToken(null);
+    setUser(null);
+  }), []);
 
   // Does NOT sign the user in — the account exists but is unverified until
   // they click the link that just landed in their inbox. Returns the

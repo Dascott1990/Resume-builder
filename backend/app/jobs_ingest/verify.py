@@ -23,6 +23,7 @@ of jobs from the same employer share one domain check, not one each.
 import re
 import time
 import socket
+import ipaddress
 import logging
 from datetime import datetime, timezone
 
@@ -84,6 +85,31 @@ def _level1(job):
 _domain_cache = {}
 
 
+def _resolves_to_public_address(domain):
+    """SSRF guard — company_domain can originate from a third-party
+    source's own free-text field (sources.py's Arbeitnow fetcher derives
+    it straight from a listing's employer_url, unlike the hand-seeded
+    domains in company_seeds.py), so a crafted listing could point this
+    at an internal host or a cloud metadata address. Every domain reaching
+    _check_domain goes through this first, regardless of which source
+    produced it — resolving once and rejecting any private/loopback/
+    link-local/reserved result before a single request is made."""
+    try:
+        addrs = {info[4][0] for info in socket.getaddrinfo(domain, None)}
+    except socket.gaierror:
+        return False
+    if not addrs:
+        return False
+    for addr in addrs:
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError:
+            return False
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            return False
+    return True
+
+
 def _check_domain(domain):
     """Level 2 + 3 for one domain, cached — HTTPS reachability (root, plus
     a couple of common careers paths as a bonus signal) and WHOIS domain
@@ -91,6 +117,14 @@ def _check_domain(domain):
     level3_note, age_days_or_None}."""
     if domain in _domain_cache:
         return _domain_cache[domain]
+
+    if not _resolves_to_public_address(domain):
+        result = {
+            "level2_pass": False, "level2_note": "domain did not resolve to a public address",
+            "level3_pass": False, "level3_note": "",
+        }
+        _domain_cache[domain] = result
+        return result
 
     result = {"level2_pass": False, "level2_note": "", "level3_pass": False, "level3_note": ""}
 

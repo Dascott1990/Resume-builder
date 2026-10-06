@@ -33,13 +33,14 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, request, jsonify, send_file
+from flask_limiter.util import get_remote_address
 from app import db, limiter
 from app.models import (
     User, Media, JobApplication, CareerProfile, ApplicationRun,
     PushSubscription, BrandNews, BrandTask, LoginGeo,
 )
 from app.middleware.error_handlers import APIError
-from app.utils.uploads import validate_upload
+from app.utils.uploads import validate_upload, sniff_image_mimetype
 from app.utils.auth import (
     hash_password, verify_password, issue_token, get_scope, require_customer_scope,
     break_glass_configured, verify_break_glass_credentials, issue_break_glass_token,
@@ -52,11 +53,38 @@ auth_bp = Blueprint("auth", __name__)
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 VERIFICATION_TOKEN_TTL = timedelta(hours=24)
 RESET_TOKEN_TTL = timedelta(hours=1)
-FRONTEND_URL = (os.environ.get("FRONTEND_URL") or "http://localhost:3000").rstrip("/")
+# This has already silently broken in production once — render.yaml
+# declaring FRONTEND_URL doesn't guarantee it actually reached the live
+# Render service's real env vars (editing render.yaml doesn't
+# retroactively sync onto an already-provisioned service), and apparently
+# didn't. So this no longer falls back to localhost when the env var is
+# missing AND we're genuinely running on Render (RENDER is a platform-
+# injected var present on every Render service regardless of app config)
+# — it falls back to the real domain instead, and logs loudly so the
+# misconfiguration shows up in Render's log stream instead of silently
+# shipping a verify-email/reset-password link no recipient's email
+# client can ever reach. Local dev (no RENDER var) still defaults to
+# localhost as before. Same fix applied in utils/mail.py, which defines
+# this same constant independently (see that file's own note).
+if os.environ.get("FRONTEND_URL"):
+    FRONTEND_URL = os.environ["FRONTEND_URL"].rstrip("/")
+elif os.environ.get("RENDER"):
+    print("CRITICAL: FRONTEND_URL is not set on this Render service — account emails are falling back to https://noqeev.com. Set FRONTEND_URL in the Render dashboard.")
+    FRONTEND_URL = "https://noqeev.com"
+else:
+    FRONTEND_URL = "http://localhost:3000"
 
 
 def _new_token():
     return secrets.token_urlsafe(32)
+
+
+def _hash_token(raw):
+    """verification_token/reset_token are stored hashed, never in plaintext
+    — a DB leak shouldn't hand over live, unused account-takeover tokens
+    for every pending signup/reset. The raw token still goes out in the
+    emailed link; only the DB-side value and lookup key are hashed."""
+    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 def _clean_emoji(raw):
@@ -138,8 +166,19 @@ def _send_reset_email(user, token):
     )
 
 
+def _target_email_key():
+    """Keys a rate limit by the email address a request is ABOUT, not the
+    caller's own IP — the IP-keyed limits on signup/resend-verification
+    stop one IP from spamming itself, but do nothing to stop one attacker
+    from email-bombing a single victim by rotating IPs. Stacked alongside
+    the existing per-IP limit, not replacing it."""
+    body = request.get_json(silent=True) or {}
+    return (body.get("email") or "").strip().lower() or get_remote_address()
+
+
 @auth_bp.route("/signup", methods=["POST"])
 @limiter.limit("8 per hour")
+@limiter.limit("3 per hour", key_func=_target_email_key)
 def signup():
     body = request.get_json(force=True) or {}
     email = (body.get("email") or "").strip().lower()
@@ -157,7 +196,7 @@ def signup():
         email=email,
         password_hash=hash_password(password),
         email_verified=False,
-        verification_token=token,
+        verification_token=_hash_token(token),
         verification_token_expires=_utcnow() + VERIFICATION_TOKEN_TTL,
     )
     db.session.add(user)
@@ -173,19 +212,30 @@ def signup():
     if guest_id:
         _migrate_guest_data(guest_id, user.id)
 
-    # Send before committing — an account nobody can ever verify (because
-    # the email silently failed) is worse than no account at all.
+    # The account itself commits regardless of whether this send succeeds —
+    # a transient provider blip (not just local misconfiguration) used to
+    # roll back the whole signup, destroying the user row and forcing a
+    # full resubmission even though nothing about THEIR input was wrong.
+    # /resend-verification already exists as the real retry path, so a
+    # send failure here degrades to "tell them to use that" instead of
+    # losing the account.
+    email_failed = False
     try:
         _send_verification_email(user, token)
     except Exception as exc:
-        db.session.rollback()
+        email_failed = True
         print(f"❌ Failed to send verification email to {email}: {exc}")
-        raise APIError("Could not send verification email — please try again", 502)
 
     db.session.commit()
+    message = (
+        "Account created — we had trouble sending the verification email right away. "
+        "Use \"Resend verification email\" on the sign-in screen to get a new link."
+        if email_failed else
+        "Check your email to verify your account before signing in."
+    )
     return jsonify({
         "success": True,
-        "data": {"email": user.email, "message": "Check your email to verify your account before signing in."},
+        "data": {"email": user.email, "message": message, "email_failed": email_failed},
     }), 201
 
 
@@ -196,7 +246,7 @@ def verify_email():
     if not token:
         raise APIError("Missing verification token", 400)
 
-    user = User.query.filter_by(verification_token=token).first()
+    user = User.query.filter_by(verification_token=_hash_token(token)).first()
     if not user or not user.verification_token_expires or user.verification_token_expires < _utcnow():
         raise APIError("This verification link is invalid or has expired", 400)
 
@@ -210,6 +260,7 @@ def verify_email():
 
 @auth_bp.route("/resend-verification", methods=["POST"])
 @limiter.limit("5 per hour")
+@limiter.limit("3 per hour", key_func=_target_email_key)
 def resend_verification():
     body = request.get_json(force=True) or {}
     email = (body.get("email") or "").strip().lower()
@@ -217,7 +268,7 @@ def resend_verification():
 
     if user and not user.email_verified:
         token = _new_token()
-        user.verification_token = token
+        user.verification_token = _hash_token(token)
         user.verification_token_expires = _utcnow() + VERIFICATION_TOKEN_TTL
         db.session.commit()
         try:
@@ -402,7 +453,7 @@ def forgot_password():
 
     if user:
         token = _new_token()
-        user.reset_token = token
+        user.reset_token = _hash_token(token)
         user.reset_token_expires = _utcnow() + RESET_TOKEN_TTL
         db.session.commit()
         try:
@@ -426,7 +477,7 @@ def reset_password():
     if len(password) < 8:
         raise APIError("Password must be at least 8 characters", 400)
 
-    user = User.query.filter_by(reset_token=token).first()
+    user = User.query.filter_by(reset_token=_hash_token(token)).first()
     if not user or not user.reset_token_expires or user.reset_token_expires < _utcnow():
         raise APIError("This reset link is invalid or has expired", 400)
 
@@ -496,7 +547,10 @@ def upload_avatar_photo():
     data = validate_upload(file, allowed_mimetypes=("image/",), max_bytes=MAX_AVATAR_PHOTO_BYTES)
 
     user.avatar_photo_data = data
-    user.avatar_photo_mime_type = file.mimetype
+    # Derived from the real decoded image bytes, never file.mimetype — that's
+    # the client's own Content-Type header, and this gets served back from a
+    # public, unauthenticated URL (get_avatar_photo below).
+    user.avatar_photo_mime_type = sniff_image_mimetype(data)
     user.avatar_photo_version = (user.avatar_photo_version or 0) + 1
     db.session.commit()
     return jsonify({"success": True, "data": user.to_dict()}), 200

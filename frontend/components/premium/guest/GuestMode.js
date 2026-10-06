@@ -224,8 +224,29 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
     // loadSaved()'s async fetch below — starting from an unrelated draft's
     // info here would just be a flash of the wrong person's contact card.
     if (pendingLoadResumeId) return EMPTY_INFO;
-    return draftAtMount?.info || profileAtMount || EMPTY_INFO;
+    if (draftAtMount?.info) return draftAtMount.info;
+    // profileAtMount is purely local (localStorage, this browser only) —
+    // it has no name yet on a brand-new device/browser even for someone
+    // who already set one on their account (see WelcomeNamePrompt.js,
+    // asked once right after first login). Falling back to the real
+    // account's user.name here — never overwriting a name the local
+    // profile already has — is what makes that account-level name
+    // actually reach the resume builder instead of silently only
+    // affecting the dashboard greeting.
+    const base = profileAtMount || EMPTY_INFO;
+    return base.name ? base : { ...base, name: user?.name || "" };
   });
+  // useAuth()'s user arrives asynchronously (a real fetch, not available on
+  // the very first render) — the useState initializer above only ever runs
+  // ONCE, at mount, so it can miss user.name entirely if this component
+  // mounted before that fetch resolved (the common case). Catches that:
+  // fills info.name from the account the moment it does resolve, but only
+  // if nothing already filled it first (a restored draft, a local profile,
+  // or someone who's already started typing one by hand).
+  useEffect(() => {
+    if (!user?.name || pendingImport?.contact || pendingLoadResumeId) return;
+    setInfo((cur) => (cur.name ? cur : { ...cur, name: user.name }));
+  }, [user?.name]);
   // Shown once, only when we actually pre-filled the form from a saved profile
   // (not when restoring a live draft — that already gets its own banner).
   const [infoFromProfile, setInfoFromProfile] = useState(() => !pendingImport && !pendingLoadResumeId && !draftAtMount?.info && !!profileAtMount);
@@ -325,9 +346,13 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
   }, [resume, step, showSplit]);
 
   // Mirror the in-progress build to localStorage (debounced) so a refresh
-  // restores it instead of wiping it. Best-effort only — a write failure
-  // (storage full/blocked) is swallowed rather than surfaced as an app error.
+  // restores it instead of wiping it. A write failure (storage full/
+  // blocked) still doesn't block the app, but it's no longer swallowed
+  // silently — this is the one safety net protecting unsaved work, so the
+  // user gets told once (not on every debounced attempt while broken,
+  // which would spam identical toasts) rather than just losing it quietly.
   const draftSaveTimer = useRef(null);
+  const draftSaveWarnedRef = useRef(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
@@ -337,7 +362,12 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
           tab, step, info, jobDesc, genResult, coverLetter, interviewTips,
           application, resume, docStyle,
         }));
-      } catch { /* best-effort */ }
+      } catch {
+        if (!draftSaveWarnedRef.current) {
+          draftSaveWarnedRef.current = true;
+          toast.error("Couldn't save your progress locally — your browser's storage may be full.");
+        }
+      }
     }, 300);
     return () => clearTimeout(draftSaveTimer.current);
   }, [tab, step, info, jobDesc, genResult, coverLetter, interviewTips, application, resume, docStyle]);

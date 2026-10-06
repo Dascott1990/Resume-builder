@@ -7,6 +7,7 @@
  */
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { useAuth } from "@/lib/useAuth";
 import { Field, Btn } from "../guest/components/primitives";
 import { TermsConsent } from "@/components/shared/TermsConsent";
@@ -54,6 +55,9 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
     setResending(true);
     try {
       await resendVerification(email.trim());
+      toast.success("Verification email sent. Check your inbox.");
+    } catch (e) {
+      toast.error(e.message);
     } finally {
       setResending(false);
     }

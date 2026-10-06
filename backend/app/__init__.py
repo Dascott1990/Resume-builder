@@ -215,23 +215,39 @@ def create_app():
     # means due-task push reminders (and the world feed refresh) won't
     # fire until the next successful boot; every other route (including
     # the task list and news pages themselves) still works.
-    try:
-        from app.utils.task_reminders import start_scheduler
-        from app.utils.world_feed import start_world_feed_scheduler
-        from app.utils.vendors import start_vendor_news_scheduler
-        from app.utils.seo_scheduler import start_seo_scheduler
-        scheduler = start_scheduler(app)
-        if scheduler:
-            start_world_feed_scheduler(scheduler, app)
-            start_vendor_news_scheduler(scheduler, app)
-            start_seo_scheduler(scheduler, app)
-        # Scheduled-post reminders are deliberately NOT wired into this
-        # in-process scheduler — driven by an external ping instead
-        # (api/cron.py's /api/v1/cron/due-reminders, called by a scheduled
-        # GitHub Action), per the branding workspace's "no task queue, no
-        # server-side timer for this" constraint.
-    except Exception as exc:
-        print(f"❌ Background scheduler failed to start: {exc}")
+    #
+    # Gated on actually running on Render (which auto-injects RENDER=true
+    # on every deployed service — nothing to configure) rather than
+    # starting unconditionally. DATABASE_URL in local .env points at the
+    # same live production Neon branch Render itself uses (no separate
+    # dev database exists), so running `python run.py` locally used to
+    # start a SECOND copy of these 4 jobs (every 8/15/20 min, plus daily)
+    # against that same shared, free-tier DB on top of whatever Render
+    # already has running — never letting Neon's compute endpoint
+    # autosuspend, and confirmed live as a real contributor to the free
+    # tier's quota getting exhausted far faster than one deployed
+    # instance alone would. ENABLE_SCHEDULERS=1 overrides this for anyone
+    # who genuinely needs to test scheduler behavior locally.
+    if os.environ.get("RENDER") or os.environ.get("ENABLE_SCHEDULERS") == "1":
+        try:
+            from app.utils.task_reminders import start_scheduler
+            from app.utils.world_feed import start_world_feed_scheduler
+            from app.utils.vendors import start_vendor_news_scheduler
+            from app.utils.seo_scheduler import start_seo_scheduler
+            scheduler = start_scheduler(app)
+            if scheduler:
+                start_world_feed_scheduler(scheduler, app)
+                start_vendor_news_scheduler(scheduler, app)
+                start_seo_scheduler(scheduler, app)
+            # Scheduled-post reminders are deliberately NOT wired into this
+            # in-process scheduler — driven by an external ping instead
+            # (api/cron.py's /api/v1/cron/due-reminders, called by a scheduled
+            # GitHub Action), per the branding workspace's "no task queue, no
+            # server-side timer for this" constraint.
+        except Exception as exc:
+            print(f"❌ Background scheduler failed to start: {exc}")
+    else:
+        print("⏭️  Background schedulers skipped (not running on Render) — set ENABLE_SCHEDULERS=1 to force them locally.")
 
     return app
 

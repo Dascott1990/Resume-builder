@@ -12,6 +12,22 @@ import { getBrandKey } from "@/lib/brandKey";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL;
 
+// A 401 means the token itself is invalid/expired (not "not an admin" —
+// that's a 403, handled separately by admin/page.js's own gate screen).
+// Previously nothing reacted to this centrally: ~30 call sites across the
+// app just toast an error or swallow it into an empty list, so a session
+// that goes stale mid-use silently degrades to "0 resumes, 0
+// applications" instead of prompting a clean re-sign-in — the UI keeps
+// rendering as signed-in while every real request fails underneath it.
+// Plain subscriber set (not a single slot) so the main app's useAuth()
+// and the separately-routed admin panel can each react on their own
+// terms without needing to import each other.
+const unauthorizedListeners = new Set();
+export function onUnauthorized(fn) {
+  unauthorizedListeners.add(fn);
+  return () => unauthorizedListeners.delete(fn);
+}
+
 export async function apiRequest(path, options = {}) {
   if (!BASE) {
     // No silent fallback to localhost here on purpose — that fallback is
@@ -70,6 +86,11 @@ export async function apiRequest(path, options = {}) {
     // cases the UI needs to branch on, not just display — see auth.py.
     if (json.code) err.code = json.code;
     err.status = res.status;
+    // Fire-and-still-throw: every existing call site's own catch/toast
+    // keeps working unchanged, this just ALSO lets a subscriber force a
+    // clean logout/redirect instead of the request's failure being the
+    // only (easy-to-miss) signal anything is wrong.
+    if (res.status === 401) unauthorizedListeners.forEach((fn) => fn());
     throw err;
   }
   // Checked by key presence, not `json.data ?? json` — a `??` fallback
