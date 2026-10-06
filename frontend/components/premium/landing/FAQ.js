@@ -27,9 +27,13 @@ function FAQItem({ q, a }) {
   );
 }
 
+// No overflow-hidden on this section's own className below — same fix as
+// WhyNoqeev.js: lets this glow bleed upward into the section above
+// instead of getting hard-clipped at this section's own top edge, which
+// is what was reading as a visible line at the boundary.
 export function FAQ() {
   return (
-    <section id="faq" className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
+    <section id="faq" className="relative flex min-h-[100svh] flex-col justify-center py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
       <SectionGlow color="emerald" side="right" />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2 lg:gap-16">

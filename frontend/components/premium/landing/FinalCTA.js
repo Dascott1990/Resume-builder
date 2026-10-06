@@ -4,9 +4,13 @@ import { ArrowRight } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP, CARD, SectionGlow } from "./shared";
 import { LogoMark } from "../Logo";
 
+// No overflow-hidden on this section's own className below — same fix as
+// WhyNoqeev.js: lets this glow bleed upward into FAQ above instead of
+// getting hard-clipped at this section's own top edge, which is what was
+// reading as a visible line at the boundary.
 export function FinalCTA({ onOpenSignup }) {
   return (
-    <section className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden py-24 sm:py-28">
+    <section className="relative flex min-h-[100svh] flex-col justify-center py-24 sm:py-28">
       <SectionGlow color="amber" side="left" />
       <ScrollBlend className={`${SECTION_WRAP} relative`}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">

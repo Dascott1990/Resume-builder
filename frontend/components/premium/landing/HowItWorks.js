@@ -8,9 +8,15 @@ const STEPS = [
   { Icon: Download, step: "03", title: "Download and apply" },
 ];
 
+// No overflow-hidden on this section's own className below — same fix as
+// WhyNoqeev.js: this glow's radial falloff isn't fully transparent yet at
+// this section's own top edge, so clipping it there left a visible hard
+// line at the boundary instead of a blend. Letting it bleed upward into
+// the section above (same color/gradient, nothing changed about it) is
+// what removes the line.
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
+    <section id="how-it-works" className="relative flex min-h-[100svh] flex-col justify-center py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
       <SectionGlow color="emerald" side="right" />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
