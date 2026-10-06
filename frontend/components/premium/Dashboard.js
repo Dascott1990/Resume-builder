@@ -20,14 +20,16 @@
  * (success/destructive) is untouched — it means something specific and
  * stays separate from decoration.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   ArrowRight, ChevronRight, X, Clock, ExternalLink,
-  Inbox, Check, AlertTriangle, CheckCircle2, LogOut, Loader2, Zap, Plus,
+  Inbox, Check, AlertTriangle, CheckCircle2, Loader2, Zap, Plus,
   MoreVertical, Trash2, StickyNote,
+  Bell, Moon, Sun, Home, Briefcase, ClipboardList, CircleUser, Building2, ArrowUpRight,
 } from "lucide-react";
+import { useTheme } from "@/lib/useTheme";
 
 // Wrapped to the same { Svg } shape ArtTile/ToolChip expect everywhere
 // else — a plain lucide icon, not a custom art asset, since "quick build"
@@ -49,14 +51,10 @@ import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
 import { tapFeedback } from "@/lib/haptics";
 import { apiRequest } from "./shared/api";
 import { apiListSaved, apiDelete } from "./guest/api";
-import { BottomNav } from "./shared/BottomNav";
-import { ThemeToggle } from "./shared/ThemeToggle";
 import { NavRail } from "./shared/NavRail";
 import { QUICK_ACTION_ART } from "./shared/quickActionArt";
 import { DASHBOARD_ART } from "./shared/dashboardArt";
-import { SparkleBackground } from "./shared/SparkleBackground";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TemplatePreview } from "./shared/TemplatePreview";
 import { LAYOUTS } from "./shared/resumeLayouts/registry";
 import { getPreferredTemplate, setPreferredTemplate } from "@/lib/templatePreference";
 import Logo from "./Logo";
@@ -76,19 +74,17 @@ function ArtTile({ art, size = 32, iconSize }) {
   );
 }
 
-function navArt(art) {
-  return function NavArtIcon() {
-    return <ArtTile art={art} size={26} iconSize={15} />;
-  };
-}
-
 // "Jobs" means the Jobs Board — see NavRail.js's own NAV_ITEMS comment,
-// same bug, same fix, mirrored here for the mobile bottom bar.
+// same bug, same fix, mirrored here for the mobile floating nav. Plain
+// single-stroke lucide icons (not the colored ArtTile illustrations the
+// rest of this screen's cards use) — MobileFloatingNav fills them solid
+// on the active tab and leaves everything else a resting grey outline,
+// per the approved monochrome mobile reference.
 const MOBILE_NAV_ITEMS = [
-  { id: "home", Icon: navArt(DASHBOARD_ART.home), label: "Home" },
-  { id: "jobsboard", Icon: navArt(QUICK_ACTION_ART.jobsboard), label: "Jobs" },
-  { id: "jobtracker", Icon: navArt(QUICK_ACTION_ART.tracker), label: "Applications" },
-  { id: "profile", Icon: navArt(DASHBOARD_ART.profile), label: "Profile" },
+  { id: "home", Icon: Home, label: "Home" },
+  { id: "jobsboard", Icon: Briefcase, label: "Jobs" },
+  { id: "jobtracker", Icon: ClipboardList, label: "Applications" },
+  { id: "profile", Icon: CircleUser, label: "Profile" },
 ];
 
 const RECOMMENDED_CACHE_KEY = "noqeev_cached_recommended_jobs";
@@ -132,11 +128,45 @@ function greeting() {
 // cards (Saved resumes/Applications/Interviews) that didn't read as one
 // story — this is the actual funnel, so it reads as one, matching the
 // approved design reference.
-function JobSearchStatsCard({ applications, loading, onViewAll }) {
+function JobSearchStatsCard({ applications, loading, onViewAll, isDesktop = true }) {
   const applied = applications.length;
   const responses = applications.filter((a) => a.status !== "applied").length;
   const interviews = applications.filter((a) => a.status === "interview").length;
   const offers = applications.filter((a) => a.status === "offer").length;
+
+  // Mobile: the monochrome "borderless grid" treatment from the approved
+  // mobile dashboard reference — no card cage, no color-coded values (the
+  // whole point is one flat typographic grid), metrics float directly on
+  // the page canvas. Desktop keeps its own established glass card below,
+  // untouched.
+  if (!isDesktop) {
+    return (
+      <div className="mb-7">
+        <p className="m-0 mb-3 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70 uppercase">Your job search</p>
+        <div className="grid grid-cols-4 gap-2">
+          {loading ? (
+            <>
+              <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+            </>
+          ) : (
+            [
+              ["Applied", applied], ["Responses", responses],
+              ["Interviews", interviews], ["Offers", offers],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <span className="block text-3xl font-bold tracking-tight text-foreground">{value}</span>
+                <span className="mt-1.5 block text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase">{label}</span>
+              </div>
+            ))
+          )}
+        </div>
+        <button onClick={onViewAll} className="mt-4 flex items-center gap-1 border-none bg-transparent p-0 text-[12.5px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent]">
+          View applications <ArrowRight className="size-3.5" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="glass-surface mb-5 rounded-2xl p-5">
@@ -163,74 +193,299 @@ function JobSearchStatsCard({ applications, loading, onViewAll }) {
   );
 }
 
-// One compact row per job, not the old full card — this now shares a
-// half-width column with TemplatesCard (see ExploreRow below) instead of
-// owning the full page width, so 2 real listings beats cramming 4 in.
-function RecommendedJobRow({ job }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted font-mono text-[10px] font-bold text-muted-foreground">
-        {job.company_name.slice(0, 2).toUpperCase()}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="m-0 truncate text-[12px] font-bold text-foreground">{job.title}</p>
-        <p className="m-0 truncate text-[10.5px] text-muted-foreground">
-          {job.company_name}{job.remote ? " · Remote" : ""}
-        </p>
-      </div>
-      <a
-        href={job.url} target="_blank" rel="noreferrer" aria-label={`Apply to ${job.title}`}
-        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground [-webkit-tap-highlight-color:transparent]"
-      >
-        <ExternalLink className="size-3" />
-      </a>
-    </div>
-  );
-}
-
 // Real listings from the verified jobs pipeline (see JobsBoard.js /
 // backend/app/jobs_ingest/) — always populated regardless of whether
 // this particular account has done anything yet, which is what actually
 // keeps Home from ever looking empty. Not personalized (no real matching
 // engine exists) — freshest, most-verified listings, honestly, rather
-// than pretending this is tailored to the viewer.
+// than pretending this is tailored to the viewer. A line-weight building
+// glyph, not a text-initials tile ("SP") — the strict monochrome pass
+// drops every placeholder-initial circle in favor of real vector icons,
+// desktop included.
+function RecommendedJobRow({ job }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+        <Building2 className="size-4 text-muted-foreground/70" strokeWidth={1.75} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="m-0 truncate text-[12.5px] font-bold tracking-tight text-foreground">{job.title}</p>
+        <p className="m-0 truncate text-[11px] font-medium text-muted-foreground/70">
+          {job.company_name}{job.remote ? " · Remote" : ""}
+        </p>
+      </div>
+      <a
+        href={job.url} target="_blank" rel="noreferrer" aria-label={`Apply to ${job.title}`}
+        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-foreground [-webkit-tap-highlight-color:transparent]"
+      >
+        <ArrowUpRight className="size-3.5" strokeWidth={1.75} />
+      </a>
+    </div>
+  );
+}
+
+// Desktop — now its own full-width section (no longer squeezed into a
+// half-width grid cell beside Templates, see DashboardContent), so this
+// shows real listings 4-wide instead of cropping to 2.
 function RecommendedCard({ jobs, loading, onSeeAll }) {
   return (
-    <div className="glass-surface flex h-full flex-col gap-2.5 rounded-2xl p-4">
+    <div className="mb-7">
       <SectionHeader onViewAll={onSeeAll} viewAllLabel="See all">Recommended</SectionHeader>
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col divide-y divide-border">
         {loading ? (
-          <><Skeleton className="h-9 w-full" /><Skeleton className="h-9 w-full" /></>
+          <><Skeleton className="my-2.5 h-9 w-full" /><Skeleton className="my-2.5 h-9 w-full" /></>
         ) : jobs.length === 0 ? (
-          <p className="m-0 text-[12px] text-muted-foreground">Nothing fresh right now. Check back soon.</p>
+          <p className="m-0 py-2 text-[12px] text-muted-foreground">Nothing fresh right now. Check back soon.</p>
         ) : (
-          jobs.slice(0, 2).map((j) => <RecommendedJobRow key={j.id} job={j} />)
+          jobs.slice(0, 4).map((j) => (
+            <div key={j.id} className="py-2.5">
+              <RecommendedJobRow job={j} />
+            </div>
+          ))
         )}
       </div>
     </div>
   );
 }
 
-// Sibling to RecommendedCard in the same ExploreRow — a handful of real
-// layouts (shared/resumeLayouts/registry.js's LAYOUTS, the same list
-// GuestMode's own Style tab reads), not a placeholder. Picking one here
-// just saves a preference (lib/templatePreference.js) the NEXT resume
-// started reads as its default — this card never touches an existing one.
-function TemplatesCard({ onSeeAll, onPick, selected }) {
+// ── Template micro-previews — one real, structurally distinct miniature
+// per LAYOUTS entry, not one generic shape reused three times. Each
+// mirrors how that layout actually builds a resume (see
+// shared/resumeLayouts/blockBuilders.js): classic's centered header +
+// full-width section rules, sidebar's real two-column split with its own
+// shaded panel, minimal's quiet single column with no section framing at
+// all. A small square-plus-bar glyph stands in for a real section label
+// ("■ EXPERIENCE") — legible as structure at 2px scale, not just texture.
+function SectionLabel({ width = "32%" }) {
   return (
-    <div className="glass-surface flex h-full flex-col gap-2.5 rounded-2xl p-4">
-      <SectionHeader onViewAll={onSeeAll} viewAllLabel="See all">Templates</SectionHeader>
-      <div className="flex gap-2">
+    <div className="flex items-center gap-[3px]">
+      <span className="size-[3px] shrink-0 rounded-[1px] bg-foreground/70" />
+      <span className="h-[2.5px] rounded-full bg-foreground/60" style={{ width }} />
+    </div>
+  );
+}
+function Line({ width = "100%", tone = "bg-muted-foreground/25" }) {
+  return <div className={`h-[2px] rounded-full ${tone}`} style={{ width }} />;
+}
+
+function ClassicThumb() {
+  return (
+    <div className="flex h-full w-full flex-col items-center px-3 pt-3.5">
+      <div className="h-[7px] w-[56%] rounded-sm bg-foreground" />
+      <div className="mt-[5px] h-[3px] w-[36%] rounded-full bg-muted-foreground/35" />
+      <div className="mt-2.5 h-px w-full bg-border" />
+      <div className="mt-3 flex w-full flex-col gap-[6px]">
+        <SectionLabel width="34%" />
+        <div className="flex flex-col gap-[3px] pl-[6px]">
+          <Line /><Line width="88%" /><Line width="94%" />
+        </div>
+      </div>
+      <div className="mt-2.5 flex w-full flex-col gap-[6px]">
+        <SectionLabel width="28%" />
+        <div className="flex flex-col gap-[3px] pl-[6px]">
+          <Line width="90%" /><Line width="70%" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SidebarThumb() {
+  return (
+    <div className="flex h-full w-full">
+      <div className="flex w-[34%] shrink-0 flex-col items-center gap-[5px] bg-muted/70 px-2 pt-3.5">
+        <div className="size-6 shrink-0 rounded-full bg-foreground/15" />
+        <div className="mt-1 flex w-full flex-col gap-[4px]">
+          {["82%", "65%", "72%"].map((w, i) => (
+            <span key={i} className="h-[5px] rounded-full bg-foreground/20" style={{ width: w }} />
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-1 flex-col gap-[6px] px-2.5 pt-3.5">
+        <div className="h-[6px] w-[80%] rounded-sm bg-foreground" />
+        <div className="mt-1.5 flex flex-col gap-[6px]">
+          <SectionLabel width="40%" />
+          <div className="flex items-center justify-between pl-[6px]">
+            <Line width="52%" tone="bg-foreground/50" /><Line width="20%" />
+          </div>
+          <div className="flex flex-col gap-[3px] pl-[6px]">
+            <Line width="92%" /><Line width="75%" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MinimalThumb() {
+  return (
+    <div className="flex h-full w-full flex-col items-center px-4 pt-5">
+      <div className="h-[5px] w-[42%] rounded-sm bg-foreground/80" />
+      <div className="mt-[6px] h-[2.5px] w-[26%] rounded-full bg-muted-foreground/30" />
+      <div className="mt-5 flex w-full flex-col items-center gap-[9px]">
+        <Line width="78%" /><Line width="64%" /><Line width="70%" />
+      </div>
+    </div>
+  );
+}
+
+const THUMB_BODY = { classic: ClassicThumb, sidebar: SidebarThumb, minimal: MinimalThumb };
+
+// The mobile/desktop shared physical-document thumbnail. Depth (the active
+// card's scale + shadow) is driven by the SAME real `selected` state
+// TemplatesCard already saves via templatePreference.js — picking a
+// layout here IS what moves it forward, not a separate decorative scroll
+// position. Sized to an actual Letter-page ratio (~0.77) so each one
+// reads as a real document, not an icon.
+function DocThumb({ layoutId, active, size = "md" }) {
+  const Body = THUMB_BODY[layoutId] || ClassicThumb;
+  const dims = size === "lg"
+    ? { w: active ? 172 : 148, h: active ? 224 : 192 }
+    : { w: active ? 148 : 122, h: active ? 192 : 158 };
+  return (
+    <div
+      className="flex shrink-0 flex-col overflow-hidden rounded-xl bg-background transition-all duration-300 ease-out"
+      style={{
+        width: dims.w,
+        height: dims.h,
+        boxShadow: active ? "0 16px 40px rgba(0,0,0,0.1)" : "none",
+        opacity: active ? 1 : 0.5,
+        border: active ? "none" : "1px solid var(--border)",
+      }}
+    >
+      <Body />
+    </div>
+  );
+}
+
+// Horizontal scroll-snap carousel — snap-x snap-mandatory with snap-center
+// on every card, plus symmetric edge padding equal to half the active
+// card's own width so the FIRST and LAST cards can still reach true dead
+// center (without that padding a flex track can only ever center items
+// strictly between its edges, never the ones nearest them — that was the
+// "uncentered, unstable" bug). Tapping a card both selects it (the real
+// templatePreference write) and scrolls it to center, so the active
+// template always sits confidently in the middle of the frame, never
+// off to one side.
+function TemplatesCarousel({ onSeeAll, onPick, selected }) {
+  // 50vw, not 50% — this track bleeds past its own parent's padded column
+  // via -mx-5 below, so percentages here would resolve against that
+  // narrower containing block (the padded column), not the actual screen
+  // width the track visually spans, under-centering every card by exactly
+  // that padding amount. vw is anchored to the real viewport instead.
+  const edgePad = "calc(50vw - 74px)";
+  const trackRef = useRef(null);
+
+  // Center the already-selected card the instant this mounts — without
+  // this, a fresh page load starts the native scroll position at 0 (the
+  // track's own left edge), so the real default template sat visually
+  // left-of-center until someone touched the carousel. "auto", not
+  // "smooth": a jump on first paint should be invisible, not animated.
+  useEffect(() => {
+    const el = trackRef.current?.querySelector('[aria-pressed="true"]');
+    el?.scrollIntoView({ behavior: "auto", inline: "center", block: "nearest" });
+  }, []);
+
+  const pick = (id, el) => {
+    onPick(id);
+    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  };
+
+  return (
+    <div className="mb-8">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-[11px] font-bold tracking-[0.12em] text-foreground/70 uppercase">Templates</span>
+        {onSeeAll && (
+          <button onClick={onSeeAll} className="flex items-center border-none bg-transparent p-0 text-muted-foreground/60 [-webkit-tap-highlight-color:transparent]">
+            <ChevronRight className="size-4" />
+          </button>
+        )}
+      </div>
+      <div
+        ref={trackRef}
+        className="-mx-5 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-1 [scrollbar-width:none]"
+        style={{ paddingLeft: edgePad, paddingRight: edgePad }}
+      >
         {LAYOUTS.map((l) => (
           <button
-            key={l.id} type="button" onClick={() => onPick(l.id)} aria-label={l.label} aria-pressed={selected === l.id}
-            className={`rounded-lg p-0.5 [-webkit-tap-highlight-color:transparent] ${selected === l.id ? "ring-2 ring-primary/40" : ""}`}
+            key={l.id} type="button" onClick={(e) => pick(l.id, e.currentTarget)}
+            aria-label={l.label} aria-pressed={selected === l.id}
+            className="shrink-0 snap-center border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
           >
-            <TemplatePreview layoutId={l.id} width={48} height={64} />
+            <DocThumb layoutId={l.id} active={selected === l.id} />
           </button>
         ))}
       </div>
-      <p className="m-0 text-[11px] text-muted-foreground">Pick a look for your next resume.</p>
+    </div>
+  );
+}
+
+// Desktop — a dedicated, fully centered grid (not sharing a half-width
+// column with Recommended anymore, see DashboardContent) so each card
+// actually sits centered within its own grid cell instead of being
+// squeezed against the next one.
+function TemplatesGridDesktop({ onSeeAll, onPick, selected }) {
+  return (
+    <div className="mb-8">
+      <SectionHeader onViewAll={onSeeAll} viewAllLabel="See all">Templates</SectionHeader>
+      <div className="grid grid-cols-3 content-center justify-items-center gap-8 py-2">
+        {LAYOUTS.map((l) => (
+          <button
+            key={l.id} type="button" onClick={() => onPick(l.id)}
+            aria-label={l.label} aria-pressed={selected === l.id}
+            className="border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
+          >
+            <DocThumb layoutId={l.id} active={selected === l.id} size="lg" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Mobile-only row for RecommendedCard's real job data — a line-weight
+// building glyph instead of a colored initials tile, and a translucent
+// grey arrow button instead of a solid primary-colored one, matching the
+// strict monochrome treatment. Same real fields (job.title/company_name/
+// remote/url) as RecommendedJobRow, just restyled.
+function RecommendedJobRowMobile({ job }) {
+  return (
+    <div className="flex items-center gap-3 py-2.5">
+      <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-muted">
+        <Building2 className="size-[22px] text-muted-foreground/70" strokeWidth={1.75} />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <p className="m-0 truncate text-sm font-bold tracking-tight text-foreground">{job.title}</p>
+        <p className="m-0 truncate text-xs font-medium text-muted-foreground/70">
+          {job.company_name}{job.remote ? " · Remote" : ""}
+        </p>
+      </div>
+      <a
+        href={job.url} target="_blank" rel="noreferrer" aria-label={`Apply to ${job.title}`}
+        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground [-webkit-tap-highlight-color:transparent]"
+      >
+        <ArrowUpRight className="size-4" strokeWidth={1.75} />
+      </a>
+    </div>
+  );
+}
+
+// Mobile-only replacement for RecommendedCard — same borderless-canvas
+// treatment as the stats strip above it (no outer card), real jobs,
+// stacked with hairline dividers instead of each row owning its own card.
+function RecommendedListMobile({ jobs, loading }) {
+  return (
+    <div className="mb-7">
+      <span className="mb-1 block text-[11px] font-bold tracking-[0.12em] text-foreground/70 uppercase">Recommended</span>
+      <div className="flex flex-col divide-y divide-border">
+        {loading ? (
+          <><Skeleton className="my-2.5 h-12 w-full" /><Skeleton className="my-2.5 h-12 w-full" /></>
+        ) : jobs.length === 0 ? (
+          <p className="m-0 py-2.5 text-[12px] text-muted-foreground">Nothing fresh right now. Check back soon.</p>
+        ) : (
+          jobs.slice(0, 3).map((j) => <RecommendedJobRowMobile key={j.id} job={j} />)
+        )}
+      </div>
     </div>
   );
 }
@@ -280,23 +535,62 @@ function ToolChip({ art, label, onClick }) {
   );
 }
 
-// Mobile only — a raised circular "+" sitting on top of BottomNav's own
-// center, the same spot an even 4-item bar's midpoint already falls at, so
-// no change to BottomNav itself was needed. This is the one and only mobile
-// entry point into "Your Resume" + Tools now (see CreateSheet) — Build
-// First Resume used to be a whole card at the top of every scroll; this is
-// the same action, just reachable from the nav instead of spending a
-// section of vertical space on every visit.
-function CreateFab({ onClick }) {
+// The glassmorphic floating nav island from the approved mobile reference —
+// detached from both side edges and the bottom edge (inset-x-4, a real
+// bottom gap, not flush), a blurred translucent surface, Home/Jobs/
+// Applications/Profile as plain single-stroke icons (solid-filled + bold
+// label on the active tab, resting grey outline otherwise), and the "+"
+// create button as one literal pitch-black circle breaking through its own
+// top edge — the one deliberately theme-constant element on this whole
+// screen, same as a camera app's shutter button stays the same in light or
+// dark mode. Replaces the old separate BottomNav + CreateFab pairing: this
+// is one visual object now, matching the reference exactly.
+function MobileFloatingNav({ items, active, onChange, onCreate }) {
   return (
-    <motion.button
-      type="button" onClick={onClick} aria-label="Create"
-      whileTap={{ scale: 0.9 }}
-      className="fixed left-1/2 z-50 flex size-16 -translate-x-1/2 items-center justify-center rounded-full border-[3px] border-background bg-primary text-primary-foreground shadow-[0_10px_28px_rgba(0,0,0,0.4)] [-webkit-tap-highlight-color:transparent]"
-      style={{ bottom: "calc(34px + env(safe-area-inset-bottom, 0px))" }}
+    <nav
+      className="fixed inset-x-4 z-40 flex items-center rounded-[26px] border border-border/60 bg-background/80 shadow-[0_20px_40px_rgba(0,0,0,0.12)] backdrop-blur-xl backdrop-saturate-150"
+      style={{ bottom: "calc(16px + env(safe-area-inset-bottom, 0px))" }}
     >
-      <Plus className="size-7" />
-    </motion.button>
+      {items.slice(0, 2).map((item) => (
+        <NavGlyph key={item.id} item={item} isActive={item.id === active} onClick={() => onChange(item.id)} />
+      ))}
+
+      {/* Reserves the center slot the "+" floats above — the row stays a
+          true even 4-up grid, the button itself is purely decorative/
+          positioned via the absolute button below it. */}
+      <span className="flex-1" aria-hidden="true" />
+
+      {items.slice(2, 4).map((item) => (
+        <NavGlyph key={item.id} item={item} isActive={item.id === active} onClick={() => onChange(item.id)} />
+      ))}
+
+      <motion.button
+        type="button" onClick={onCreate} aria-label="Create"
+        whileTap={{ scale: 0.9 }}
+        className="absolute left-1/2 flex size-14 -translate-x-1/2 items-center justify-center rounded-full shadow-[0_10px_24px_rgba(0,0,0,0.35)] [-webkit-tap-highlight-color:transparent]"
+        style={{ top: -22, background: "#0a0a0a" }}
+      >
+        <Plus className="size-6 text-white" strokeWidth={2} />
+      </motion.button>
+    </nav>
+  );
+}
+
+function NavGlyph({ item, isActive, onClick }) {
+  return (
+    <button
+      type="button" onClick={onClick} aria-label={item.label} aria-selected={isActive}
+      className="flex flex-1 flex-col items-center justify-center gap-1 border-none bg-transparent py-3 [-webkit-tap-highlight-color:transparent]"
+    >
+      <item.Icon
+        className={`size-5 ${isActive ? "text-foreground" : "text-muted-foreground/50"}`}
+        strokeWidth={1.75}
+        fill={isActive ? "currentColor" : "none"}
+      />
+      <span className={`text-[10px] ${isActive ? "font-bold text-foreground" : "font-medium text-muted-foreground/50"}`}>
+        {item.label}
+      </span>
+    </button>
   );
 }
 
@@ -600,6 +894,19 @@ function DashboardContent({
     </div>
   );
 
+  // Mobile-only — pure typography, no avatar (the header's own avatar-ring
+  // button already covers that tap target, see Dashboard's header below),
+  // tight line-height, a bolder headline than the desktop banner's version
+  // per the approved mobile reference.
+  const mobileGreetingRow = (
+    <div className="min-w-0">
+      <p className="m-0 truncate text-[13px] font-semibold text-muted-foreground">
+        {greeting()}{user ? `, ${user.name || user.email.split("@")[0]}` : ""}
+      </p>
+      <h1 className="m-0 mt-0.5 text-3xl font-extrabold tracking-tight text-foreground">Let's get you hired.</h1>
+    </div>
+  );
+
   return (
     <div className="mx-auto w-full max-w-3xl px-5 py-6 sm:px-8 sm:py-8 lg:max-w-4xl">
       {isDesktop ? (
@@ -624,9 +931,10 @@ function DashboardContent({
       ) : (
         <motion.div
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-          className="sticky top-0 z-20 mb-5 bg-background pt-1 pb-3"
+          className="sticky top-0 z-20 mb-6 bg-background pt-1 pb-4"
         >
-          {greetingRow}
+          {mobileGreetingRow}
+          <div className="mt-4 h-px bg-border" />
         </motion.div>
       )}
 
@@ -646,19 +954,29 @@ function DashboardContent({
       )}
 
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.05 }}>
-        <JobSearchStatsCard applications={applications} loading={statsLoading} onViewAll={() => go("jobtracker")} />
+        <JobSearchStatsCard applications={applications} loading={statsLoading} onViewAll={() => go("jobtracker")} isDesktop={isDesktop} />
       </motion.div>
 
       {/* "Your Resume" and Tools used to live here inline on mobile (desktop
           still has them in its own right rail — DesktopRightRail). Moved
-          into the Create sheet (CreateFab/CreateSheet below) instead: two
-          whole sections of vertical space back on every phone, and Create
-          is one tap away either way, now from the bottom nav itself. */}
+          into the Create sheet (CreateSheet, opened from the floating nav's
+          own "+") instead: two whole sections of vertical space back on
+          every phone, and Create is one tap away either way. Templates used
+          to share a cramped half-width column with Recommended on desktop —
+          that's exactly what made the cards read as uncentered/squeezed.
+          Both are now their own full-width section on every breakpoint,
+          each one centered in its own container. */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }}>
-        <div className="grid grid-cols-2 gap-3">
-          <TemplatesCard onSeeAll={() => go("templates")} onPick={pickTemplate} selected={selectedTemplate} />
+        {isDesktop ? (
+          <TemplatesGridDesktop onSeeAll={() => go("templates")} onPick={pickTemplate} selected={selectedTemplate} />
+        ) : (
+          <TemplatesCarousel onSeeAll={() => go("templates")} onPick={pickTemplate} selected={selectedTemplate} />
+        )}
+        {isDesktop ? (
           <RecommendedCard jobs={recommendedJobs} loading={recommendedLoading} onSeeAll={() => go("jobsboard")} />
-        </div>
+        ) : (
+          <RecommendedListMobile jobs={recommendedJobs} loading={recommendedLoading} />
+        )}
       </motion.div>
 
       {recentResumes.length > 0 && (
@@ -791,6 +1109,7 @@ function DashboardContent({
 export default function Dashboard({ onNavigate, onSignOut }) {
   const { user, loading: authLoading, logout } = useAuth();
   const { isDesktop } = useViewport();
+  const { theme, toggleTheme } = useTheme();
   const unread = useUnreadNotifications();
   const [savedResumes, setSavedResumes] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -918,8 +1237,11 @@ export default function Dashboard({ onNavigate, onSignOut }) {
       >
         <NavRail active="home" user={user} onNavigate={go} onNotifClick={() => setNotifOpen(true)} onSignOut={signOut} />
 
+        {/* No SparkleBackground here — its amber/emerald twinkle dots are
+            exactly the decorative accent color the strict monochrome pass
+            now rules out on desktop too (see the mobile branch's own note
+            below), not just mobile. */}
         <main className="relative min-w-0 flex-1 overflow-y-auto">
-          <SparkleBackground />
           <DashboardContent {...contentProps} />
         </main>
         <DesktopRightRail savedResumes={savedResumes} go={go} />
@@ -939,12 +1261,12 @@ export default function Dashboard({ onNavigate, onSignOut }) {
         style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
       >
         <Logo size={22} />
-        <div className="flex items-center gap-2">
-          <button onClick={() => setNotifOpen(true)} aria-label="Notifications" className="relative flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
-            <ArtTile art={DASHBOARD_ART.bell} size={24} iconSize={14} />
+        <div className="flex items-center gap-3">
+          <button onClick={() => setNotifOpen(true)} aria-label="Notifications" className="relative flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]">
+            <Bell className="size-[18px]" strokeWidth={1.75} />
             {needsAttention && (
               unread.count > 0 ? (
-                <span className="absolute top-0.5 right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
+                <span className="absolute top-0 right-0 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
                   {unread.count > 9 ? "9+" : unread.count}
                 </span>
               ) : (
@@ -952,38 +1274,33 @@ export default function Dashboard({ onNavigate, onSignOut }) {
               )
             )}
           </button>
-          <ThemeToggle compact />
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button aria-label="Sign out" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
-                <LogOut className="size-[15px]" />
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Sign out?</AlertDialogTitle>
-                <AlertDialogDescription>You'll need to sign back in to see your resumes and applications again.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={signOut}>Sign out</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <button
+            onClick={toggleTheme}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            className="flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]"
+          >
+            {theme === "dark" ? <Sun className="size-[18px]" strokeWidth={1.75} /> : <Moon className="size-[18px]" strokeWidth={1.75} />}
+          </button>
+          <button
+            onClick={() => go("personal-profile")}
+            aria-label="Personal profile"
+            className="rounded-full ring-1 ring-border [-webkit-tap-highlight-color:transparent]"
+          >
+            <Avatar user={user} size={34} />
+          </button>
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto" style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}>
-        <SparkleBackground />
+      <div className="min-h-0 flex-1 overflow-y-auto" style={{ paddingBottom: "calc(110px + env(safe-area-inset-bottom, 0px))" }}>
         <DashboardContent {...contentProps} />
       </div>
 
-      <BottomNav
+      <MobileFloatingNav
         items={MOBILE_NAV_ITEMS}
         active="home"
         onChange={(id) => go(id)}
+        onCreate={() => setCreateOpen(true)}
       />
-      <CreateFab onClick={() => setCreateOpen(true)} />
       <CreateSheet open={createOpen} onClose={() => setCreateOpen(false)} latestResume={savedResumes[0]} go={go} />
       <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={openNotification} />
       <AddNoteDialog app={noteApp} open={!!noteApp} onClose={() => setNoteApp(null)} onSaved={onNoteSaved} />

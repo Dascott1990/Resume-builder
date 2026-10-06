@@ -12,29 +12,15 @@
  * four primary destinations now (not an afterthought screen none of them
  * highlight for).
  */
-import { LogOut } from "lucide-react";
+import { LogOut, Bell, Home, Briefcase, ClipboardList, CircleUser } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
 import { ThemeToggle } from "./ThemeToggle";
-import { QUICK_ACTION_ART } from "./quickActionArt";
-import { DASHBOARD_ART } from "./dashboardArt";
 import Logo from "../Logo";
 import {
   AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
   AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
-
-function ArtTile({ art, size = 32, iconSize }) {
-  const { Svg } = art;
-  return (
-    <span
-      className="flex shrink-0 items-center justify-center rounded-[28%] bg-primary/10"
-      style={{ width: size, height: size }}
-    >
-      <Svg size={iconSize || Math.round(size * 0.56)} />
-    </span>
-  );
-}
 
 // "Jobs" means the Jobs Board (browse verified listings) — it used to
 // route to id "apply" (the Auto Apply agent), the exact same destination
@@ -43,11 +29,17 @@ function ArtTile({ art, size = 32, iconSize }) {
 // reachable via "See all" on the Recommended card. jobsboard is its own
 // real view (see app/page.js) and now the one this nav item actually
 // means.
+//
+// Plain single-stroke lucide icons, not the colored ArtTile illustrations
+// this rail used to wrap every item in — the strict monochrome pass that
+// redesigned the mobile dashboard applies here too now (same icon set
+// Dashboard.js's own MobileFloatingNav uses), so desktop and mobile share
+// one visual language instead of two.
 export const NAV_ITEMS = [
-  { id: "home", art: DASHBOARD_ART.home, label: "Home" },
-  { id: "jobsboard", art: QUICK_ACTION_ART.jobsboard, label: "Jobs" },
-  { id: "jobtracker", art: QUICK_ACTION_ART.tracker, label: "Applications" },
-  { id: "profile", art: DASHBOARD_ART.profile, label: "Profile" },
+  { id: "home", Icon: Home, label: "Home" },
+  { id: "jobsboard", Icon: Briefcase, label: "Jobs" },
+  { id: "jobtracker", Icon: ClipboardList, label: "Applications" },
+  { id: "profile", Icon: CircleUser, label: "Profile" },
 ];
 
 export function NavRail({ active, user, onNavigate, onNotifClick, onSignOut }) {
@@ -65,10 +57,10 @@ export function NavRail({ active, user, onNavigate, onNotifClick, onSignOut }) {
               key={item.id}
               onClick={() => onNavigate(item.id)}
               className={`flex items-center gap-2.5 rounded-xl border-none px-3 py-2.5 text-left text-[13.5px] font-bold [-webkit-tap-highlight-color:transparent] ${
-                isActive ? "bg-primary/10 text-primary" : "bg-transparent text-muted-foreground hover:text-foreground"
+                isActive ? "bg-muted text-foreground" : "bg-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              <ArtTile art={item.art} size={26} iconSize={15} />
+              <item.Icon className="size-[18px]" strokeWidth={1.75} fill={isActive ? "currentColor" : "none"} />
               {item.label}
             </button>
           );
@@ -103,7 +95,7 @@ export function NavRail({ active, user, onNavigate, onNotifClick, onSignOut }) {
           aria-label="Notifications"
           className="relative flex size-10 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
         >
-          <ArtTile art={DASHBOARD_ART.bell} size={24} iconSize={14} />
+          <Bell className="size-[17px]" strokeWidth={1.75} />
           {needsAttention && (
             unread.count > 0 ? (
               <span className="absolute top-1 right-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">

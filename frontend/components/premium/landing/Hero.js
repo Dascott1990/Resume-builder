@@ -135,7 +135,7 @@ export function Hero({ onOpenSignup, intensity }) {
                 transition={{ type: "spring", damping: 22, stiffness: 400 }}
                 className="flex min-h-[44px] w-full select-none items-center justify-center gap-2 rounded-2xl border-none bg-primary px-7 text-[14px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:min-h-[54px] sm:text-[15.5px] lg:w-auto"
               >
-                Create Your Resume
+                Create Resume
                 <ArrowRight className="size-4" />
               </motion.button>
               {(canInstall || showInstalledBadge) && (
