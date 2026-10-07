@@ -65,6 +65,7 @@ def create_app():
 
     # Database configuration
     db_url = os.environ.get("DATABASE_URL")
+    is_sqlite_fallback = not db_url
     if db_url and db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     elif not db_url:
@@ -73,6 +74,29 @@ def create_app():
 
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    if not is_sqlite_fallback:
+        # Neon (like most serverless/autosuspend Postgres) only suspends
+        # its compute endpoint once it sees ZERO open connections —
+        # Flask-SQLAlchemy's default pool (SQLAlchemy's QueuePool) does
+        # the opposite of that on purpose: it keeps a baseline of real
+        # connections open and idle in the pool so the next request can
+        # reuse one instead of paying a fresh-connect cost every time.
+        # That's the right tradeoff against a normal always-on Postgres
+        # box, but against a billed-by-active-compute-time endpoint it
+        # means the database can never fully go idle as long as this
+        # process has served even one request — confirmed live as a real,
+        # fast-moving contributor to the free tier's quota draining in far
+        # less wall-clock time than anyone actually spent using the app.
+        # NullPool opens a genuinely fresh DBAPI connection per checkout
+        # and genuinely closes it on return — zero connections linger
+        # between requests, so Neon's own autosuspend can actually engage
+        # within its own normal idle window instead of never getting the
+        # chance to. Trade-off accepted on purpose: a small per-request
+        # connect cost, in exchange for compute-hour usage that finally
+        # tracks real traffic instead of "how long has this process
+        # merely existed."
+        from sqlalchemy.pool import NullPool
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"poolclass": NullPool}
 
     # CORS configuration. Reads ALLOWED_ORIGINS (render.yaml/Render's
     # Environment tab) instead of a hardcoded list — this used to be a
