@@ -7,6 +7,7 @@ import { ServiceWorkerRegister } from "./ServiceWorkerRegister";
 import { KeepAlive } from "./KeepAlive";
 import { ThemeSync } from "./ThemeSync";
 import { KeyboardViewportFix } from "./KeyboardViewportFix";
+import { LanguageProvider } from "@/lib/i18n";
 
 const SITE_NAME = "Noqeev";
 const SITE_TITLE = "Noqeev · AI Resume Builder";
@@ -135,7 +136,7 @@ export default function RootLayout({ children }) {
             canvas-rendering code); flagged as a follow-up, not done here. */}
       </head>
       <body className="m-0 overscroll-none bg-background">
-        {children}
+        <LanguageProvider>{children}</LanguageProvider>
         <OfflineBanner />
         <Toaster position="top-center" />
         <ServiceWorkerRegister />

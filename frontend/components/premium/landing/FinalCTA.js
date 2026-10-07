@@ -3,12 +3,14 @@ import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP, CARD, SectionGlow } from "./shared";
 import { LogoMark } from "../Logo";
+import { useLanguage } from "@/lib/i18n";
 
 // No overflow-hidden on this section's own className below — same fix as
 // WhyNoqeev.js: lets this glow bleed upward into FAQ above instead of
 // getting hard-clipped at this section's own top edge, which is what was
 // reading as a visible line at the boundary.
 export function FinalCTA({ onOpenSignup }) {
+  const { t } = useLanguage();
   return (
     <section className="relative flex min-h-[100svh] flex-col justify-center py-24 sm:py-28">
       <SectionGlow color="amber" side="left" />
@@ -22,7 +24,7 @@ export function FinalCTA({ onOpenSignup }) {
               same as Hero — the card only goes above the text at lg. */}
           <Reveal delay={0.1} className="order-1 flex flex-col items-start gap-6 lg:order-2">
             <h2 className="m-0 text-[clamp(1.8rem,5vw,2.5rem)] leading-[1.1] font-bold text-foreground">
-              Set up your profile once. Get a tailored resume for every job after that.
+              {t("finalCta.headline")}
             </h2>
             <motion.button
               onClick={onOpenSignup}
@@ -30,7 +32,7 @@ export function FinalCTA({ onOpenSignup }) {
               transition={{ type: "spring", damping: 22, stiffness: 400 }}
               className="flex min-h-[54px] items-center gap-2 rounded-2xl border-none bg-primary px-8 text-[15.5px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation]"
             >
-              Create Resume
+              {t("finalCta.createResume")}
               <ArrowRight className="size-4" />
             </motion.button>
           </Reveal>

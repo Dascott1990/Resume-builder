@@ -6,6 +6,7 @@ import { useInstallPrompt } from "@/lib/useInstallPrompt";
 import { InstallInstructionsModal } from "./InstallInstructionsModal";
 import { LocationPill } from "./shared";
 import { HeroScene } from "./HeroScene";
+import { useLanguage } from "@/lib/i18n";
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -21,6 +22,7 @@ function usePrefersReducedMotion() {
 
 export function Hero({ onOpenSignup, intensity }) {
   const heroRef = useRef(null);
+  const { t } = useLanguage();
   const reducedMotion = usePrefersReducedMotion();
   const { canShow: canInstall, isIOS, showInstalledBadge, isPrompting, promptInstall, dismissAfterIOSInstructions } = useInstallPrompt();
   const [iosInstructionsOpen, setIosInstructionsOpen] = useState(false);
@@ -101,7 +103,7 @@ export function Hero({ onOpenSignup, intensity }) {
               transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
               className="m-0 text-balance text-[clamp(1.6rem,5.4vw,3.4rem)] leading-[1.08] font-bold tracking-tight text-foreground"
             >
-              Tailored resumes, matched to the job.
+              {t("hero.headline")}
             </motion.h1>
 
             <motion.p
@@ -110,7 +112,7 @@ export function Hero({ onOpenSignup, intensity }) {
               transition={{ duration: 0.65, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="m-0 mt-2 text-[13.5px] leading-snug text-muted-foreground sm:text-[15.5px] sm:leading-relaxed"
             >
-              Set up your profile once. Tailor unlimited resumes after that.
+              {t("hero.subheadline")}
             </motion.p>
 
             {/* Signup is the primary CTA now — set up a profile once,
@@ -135,7 +137,7 @@ export function Hero({ onOpenSignup, intensity }) {
                 transition={{ type: "spring", damping: 22, stiffness: 400 }}
                 className="flex min-h-[44px] w-full select-none items-center justify-center gap-2 rounded-2xl border-none bg-primary px-7 text-[14px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] sm:min-h-[54px] sm:text-[15.5px] lg:w-auto"
               >
-                Create Resume
+                {t("hero.createResume")}
                 <ArrowRight className="size-4" />
               </motion.button>
               {(canInstall || showInstalledBadge) && (
@@ -151,12 +153,12 @@ export function Hero({ onOpenSignup, intensity }) {
                   {showInstalledBadge ? (
                     <>
                       <Check className="size-4" />
-                      Installed
+                      {t("hero.installed")}
                     </>
                   ) : (
                     <>
                       <Download className="size-4" />
-                      Download
+                      {t("hero.download")}
                     </>
                   )}
                 </motion.button>

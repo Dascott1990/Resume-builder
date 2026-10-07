@@ -3,16 +3,18 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ArrowRight } from "lucide-react";
 import Logo from "../Logo";
-
-const LINKS = [
-  { href: "#features", label: "Features" },
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#faq", label: "FAQ" },
-];
+import { useLanguage } from "@/lib/i18n";
+import { LanguageSwitcher } from "../shared/LanguageSwitcher";
 
 export function Navbar({ onOpenSignup }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { t } = useLanguage();
+  const LINKS = [
+    { href: "#features", label: t("nav.features") },
+    { href: "#how-it-works", label: t("nav.howItWorks") },
+    { href: "#faq", label: t("nav.faq") },
+  ];
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -68,12 +70,13 @@ export function Navbar({ onOpenSignup }) {
             reuse it for every resume. No anonymous/guest option anywhere
             on this page. */}
         <div className="flex shrink-0 items-center gap-2">
+          <LanguageSwitcher className="hidden sm:flex" />
           <motion.button
             onClick={onOpenSignup}
             whileTap={{ scale: 0.95 }}
             className="hidden min-h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-[13px] font-bold text-primary-foreground sm:flex"
           >
-            Get Started
+            {t("nav.getStarted")}
             <ArrowRight className="size-3.5" />
           </motion.button>
           <motion.button
@@ -130,6 +133,13 @@ export function Navbar({ onOpenSignup }) {
                   {l.label}
                 </a>
               ))}
+              {/* Only reachable from here below `sm` — the top bar's own
+                  icon row has no room left for a 4th control at that
+                  width (signup + hamburger already fill it). */}
+              <div className="mt-1 flex items-center justify-between px-3 py-2 sm:hidden">
+                <span className="text-[13px] font-semibold text-muted-foreground">{t("nav.language")}</span>
+                <LanguageSwitcher />
+              </div>
             </div>
           </motion.nav>
         )}
