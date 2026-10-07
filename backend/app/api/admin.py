@@ -49,6 +49,8 @@ POST   /api/v1/admin/broadcasts              — email every user in an audience
 GET    /api/v1/admin/login-geo               — logins by country, ?range=today|7d|30d (see models.LoginGeo)
 GET    /api/v1/admin/jobs-ingest-status       — the jobs board's latest ingestion run: per-source
                                                 health, category coverage, last-updated timestamp
+POST   /api/v1/admin/jobs-ingest/run          — trigger a fresh ingestion run on demand (background
+                                                thread — poll jobs-ingest-status above for the result)
                                                 (reads app/jobs_ingest/pipeline.py's own snapshot
                                                 meta — the same file api/jobs_board.py serves to
                                                 the public jobs board, just the admin-facing view)
@@ -76,7 +78,7 @@ from app import db, limiter
 from app.models import (
     User, Media, JobApplication, JdCapture, CareerProfile,
     ApplicationRun, Vendor, VendorNewsItem, GoogleSearchConsoleCredential, SeoSnapshot,
-    SchedulerStatus, AdminBroadcast, LoginGeo, SiteVisit,
+    SchedulerStatus, AdminBroadcast, LoginGeo, SiteVisit, JobsIngestRun,
 )
 from app.middleware.error_handlers import APIError
 from app.utils.auth import require_admin, JWT_SECRET, JWT_ALGORITHM
@@ -873,17 +875,40 @@ def site_visit_stats():
     }}), 200
 
 
-# ── Jobs board ingestion status — admin-facing view of the same snapshot
-# meta api/jobs_board.py serves publicly at /api/v1/jobs/meta. Kept as its
-# own admin route (rather than just pointing the admin UI at the public
-# one) so this can later show anything genuinely admin-only — the raw
-# per-run error strings, say — without exposing that to the public route.
+# ── Jobs board ingestion status — admin-facing view of the same run meta
+# api/jobs_board.py serves publicly at /api/v1/jobs/meta. Kept as its own
+# admin route (rather than just pointing the admin UI at the public one)
+# so this can later show anything genuinely admin-only — the raw per-run
+# error strings, say — without exposing that to the public route.
 @admin_bp.route("/jobs-ingest-status", methods=["GET"])
 def jobs_ingest_status():
     require_admin(request)
-    from app.jobs_ingest.pipeline import SNAPSHOT_PATH
-    if not os.path.exists(SNAPSHOT_PATH):
-        return jsonify({"success": True, "data": None}), 200
-    with open(SNAPSHOT_PATH) as f:
-        data = json.load(f)
-    return jsonify({"success": True, "data": data.get("meta")}), 200
+    run = JobsIngestRun.query.order_by(JobsIngestRun.created_at.desc()).first()
+    return jsonify({"success": True, "data": run.run_meta if run else None}), 200
+
+
+def _run_jobs_ingest(app):
+    with app.app_context():
+        from app.jobs_ingest.pipeline import run_ingestion
+        try:
+            run_ingestion(app)
+        except Exception as exc:
+            # run_ingestion already records source-level failures inside
+            # its own JobsIngestRun row — this catches something going
+            # wrong ABOVE that (a DB error on the row itself, etc.) so a
+            # "Run now" click can't leave the button stuck mid-run with
+            # no record of why, in Render's logs if nowhere else.
+            print(f"❌ Manual jobs-ingest run failed: {exc}")
+
+
+# Runs in a background thread, same shape as send_broadcast's own
+# _run_broadcast below — a full ingestion run makes several real HTTP
+# calls across 5 sources plus coverage retries, comfortably past any
+# reasonable request timeout. The admin UI polls the status route above
+# afterward rather than waiting on this response for the result.
+@admin_bp.route("/jobs-ingest/run", methods=["POST"])
+def trigger_jobs_ingest():
+    require_admin(request)
+    app_obj = current_app._get_current_object()
+    threading.Thread(target=_run_jobs_ingest, args=(app_obj,), daemon=True).start()
+    return jsonify({"success": True, "data": {"message": "Ingestion run started — check back in a minute or two."}}), 202

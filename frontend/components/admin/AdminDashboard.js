@@ -1198,23 +1198,66 @@ const JOBS_INGEST_SOURCE_LABELS = { remotive: "Remotive", arbeitnow: "Arbeitnow"
 function JobsIngestTab() {
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Separate from `loading` (a plain refresh of the display) — a real
+  // run takes several minutes (every source fetched live, plus the
+  // coverage-guarantee retry), so this drives its own "still running,
+  // don't let someone fire a second one on top of it" state, polled
+  // until last_run_at actually moves past whatever it was before this
+  // run started.
+  const [triggering, setTriggering] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
-    apiRequest("/api/v1/admin/jobs-ingest-status")
-      .then(setMeta)
-      .catch((e) => toast.error(e.message))
+    return apiRequest("/api/v1/admin/jobs-ingest-status")
+      .then((data) => { setMeta(data); return data; })
+      .catch((e) => { toast.error(e.message); return null; })
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(load, [load]);
+  useEffect(() => { load(); }, [load]);
+
+  const runNow = async () => {
+    const before = meta?.last_run_at;
+    setTriggering(true);
+    try {
+      await apiRequest("/api/v1/admin/jobs-ingest/run", { method: "POST" });
+      toast.success("Ingestion run started — this can take a few minutes.");
+    } catch (e) {
+      toast.error(e.message);
+      setTriggering(false);
+      return;
+    }
+    // Polls the same status route the manual refresh button already
+    // uses — no new endpoint needed, just repeated until the timestamp
+    // actually changes (a real new run landed), capped so a run that
+    // genuinely fails mid-flight doesn't poll forever.
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 10000));
+      const data = await load();
+      if (data?.last_run_at && data.last_run_at !== before) {
+        toast.success(`Done — ${data.new_jobs_this_run} new, ${data.total_jobs} total live jobs.`);
+        break;
+      }
+    }
+    setTriggering(false);
+  };
 
   return (
     <div>
-      <TabHeader title="Jobs board ingestion" onRefresh={load} refreshing={loading} />
+      <TabHeader
+        title="Jobs board ingestion"
+        onRefresh={load}
+        refreshing={loading}
+        extra={
+          <Button size="sm" onClick={runNow} disabled={triggering}>
+            {triggering ? <Loader2 className="size-3.5 animate-spin" /> : null}
+            {triggering ? "Running…" : "Run ingestion now"}
+          </Button>
+        }
+      />
 
       {!meta ? (
-        !loading && <p className="m-0 text-[13px] text-muted-foreground">No ingestion run has happened yet — run backend/scripts/ingest_jobs.py.</p>
+        !loading && <p className="m-0 text-[13px] text-muted-foreground">No ingestion run has happened yet — click "Run ingestion now" above.</p>
       ) : (
         <div className="grid gap-4">
           <div className="rounded-xl border border-border bg-card p-4">

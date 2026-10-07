@@ -129,6 +129,84 @@ class SiteVisit(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
+class Job(db.Model):
+    """
+    One row per verified job listing — the Jobs Board's real inventory
+    (see app/jobs_ingest/pipeline.py). Used to live as a single ~2MB JSON
+    file on local disk (backend/data/jobs/jobs.json), refreshed only by
+    someone manually running scripts/ingest_jobs.py on their own machine
+    and committing the result — Render's own web service filesystem is
+    ephemeral (no persistent disk configured in render.yaml), so a run
+    scheduled to happen ON the deployed service would have its own writes
+    silently discarded on the very next deploy or restart, reverting to
+    whatever snapshot was last committed. The database is the one storage
+    layer that actually survives a restart, same as every other piece of
+    real data in this app — moved here for exactly that reason, not
+    style. `id` is the same stable hash (`source:source_id`, see
+    sources.py's `_stable_id`) the JSON version always used, so re-running
+    ingestion against an existing row just updates it in place instead of
+    duplicating it.
+
+    `verification_level` duplicates `verification["level"]` as its own
+    indexed column — the jobs board's own min-verification-level filter
+    needs to run as a real SQL WHERE clause, not a full-table Python scan
+    over a JSON blob per request.
+    """
+    __tablename__ = "jobs"
+    id = db.Column(db.String(64), primary_key=True)
+    title = db.Column(db.String(300), nullable=False)
+    company_name = db.Column(db.String(200), nullable=False)
+    company_domain = db.Column(db.String(200), nullable=True)
+    location = db.Column(db.String(300))
+    remote = db.Column(db.Boolean, default=False, index=True)
+    country = db.Column(db.String(2), nullable=True, index=True)
+    category = db.Column(db.String(50), index=True)
+    description_text = db.Column(db.Text)
+    url = db.Column(db.Text)
+    source = db.Column(db.String(30), index=True)
+    posted_at = db.Column(db.String(40))  # kept as the source's own string, not parsed — see pipeline.py's sort comment on why
+    salary = db.Column(db.JSON, nullable=True)
+    fetched_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    verification = db.Column(db.JSON)  # full {"level", "checks_passed", "checks_not_attempted", ...}
+    verification_level = db.Column(db.Integer, index=True)
+    expired = db.Column(db.Boolean, default=False, index=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "company_name": self.company_name,
+            "company_domain": self.company_domain,
+            "location": self.location or "",
+            "remote": bool(self.remote),
+            "country": self.country,
+            "category": self.category,
+            "description_text": self.description_text,
+            "url": self.url,
+            "source": self.source,
+            "posted_at": self.posted_at,
+            "salary": self.salary,
+            "fetched_at": _iso_utc(self.fetched_at),
+            "verification": self.verification,
+            "expired": bool(self.expired),
+        }
+
+
+class JobsIngestRun(db.Model):
+    """
+    One row per ingestion run — the admin Jobs board tab's own health
+    panel (source health, category coverage, what got retried) reads the
+    single latest row. Same "DB survives a restart, a local file/log
+    doesn't" reasoning as Job above; this replaces the old run's embedded
+    jobs.json["meta"] plus the separate ingest_log.jsonl file with one
+    real, queryable table.
+    """
+    __tablename__ = "jobs_ingest_runs"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    run_meta = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
 class Media(db.Model):
     __tablename__ = "media"
 
