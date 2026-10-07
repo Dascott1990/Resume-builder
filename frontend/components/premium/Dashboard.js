@@ -62,6 +62,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LAYOUTS } from "./shared/resumeLayouts/registry";
 import { getPreferredTemplate, setPreferredTemplate } from "@/lib/templatePreference";
 import Logo from "./Logo";
+import { FONTS, ACCENTS } from "./guest/constants";
 
 // One neutral system-accent tile behind every illustrated icon on this
 // screen — deliberately ignores each art entry's own `bg` (a colored
@@ -192,38 +193,50 @@ function RecommendedCard({ jobs, loading, onSeeAll }) {
 // mirrors how that layout actually builds a resume (see
 // shared/resumeLayouts/blockBuilders.js): classic's centered header +
 // full-width section rules, sidebar's real two-column split with its own
-// shaded panel, minimal's quiet single column with no section framing at
-// all. A small square-plus-bar glyph stands in for a real section label
-// ("■ EXPERIENCE") — legible as structure at 2px scale, not just texture.
-function SectionLabel({ width = "32%" }) {
+// Real sample copy + the app's ACTUAL font-family/accent tokens (see
+// guest/constants.js) rendered at thumbnail scale — replaces an earlier
+// version that drew these as abstract gray bars (a "Line"/"SectionLabel"
+// pair of plain <div> rectangles standing in for text). Confirmed live
+// as a real complaint, not a style nitpick: at a glance these read as
+// loading-skeleton placeholders, not a preview of an actual resume —
+// the exact opposite of what a template PICKER needs to communicate
+// ("this is what yours will look like"). Real (if small) glyphs have
+// natural, irregular shapes a uniform bar can never fake, which is what
+// actually sells "this is real text" even when it's too small to read
+// word-for-word — the same reason Google Docs/Canva's own template
+// galleries render real sample text instead of bars.
+const THUMB_FONT = FONTS.find((f) => f.id === "times")?.css || FONTS[0].css;
+const THUMB_ACCENT = ACCENTS.find((a) => a.id === "navy")?.hex || "#1F3864";
+const THUMB_INK = "#1A1A1A";
+
+function ThumbSectionLabel({ children }) {
   return (
-    <div className="flex items-center gap-[3px]">
-      <span className="size-[3px] shrink-0 rounded-[1px] bg-foreground/70" />
-      <span className="h-[2.5px] rounded-full bg-foreground/60" style={{ width }} />
+    <div
+      className="w-full border-b"
+      style={{ fontFamily: THUMB_FONT, fontSize: 5.5, fontWeight: 700, letterSpacing: "0.04em", color: THUMB_ACCENT, borderColor: THUMB_ACCENT, paddingBottom: 1 }}
+    >
+      {children}
     </div>
   );
-}
-function Line({ width = "100%", tone = "bg-muted-foreground/25" }) {
-  return <div className={`h-[2px] rounded-full ${tone}`} style={{ width }} />;
 }
 
 function ClassicThumb() {
   return (
-    <div className="flex h-full w-full flex-col items-center px-3 pt-3.5">
-      <div className="h-[7px] w-[56%] rounded-sm bg-foreground" />
-      <div className="mt-[5px] h-[3px] w-[36%] rounded-full bg-muted-foreground/35" />
-      <div className="mt-2.5 h-px w-full bg-border" />
-      <div className="mt-3 flex w-full flex-col gap-[6px]">
-        <SectionLabel width="34%" />
-        <div className="flex flex-col gap-[3px] pl-[6px]">
-          <Line /><Line width="88%" /><Line width="94%" />
+    <div className="flex h-full w-full flex-col items-center px-3 pt-3.5" style={{ fontFamily: THUMB_FONT, color: THUMB_INK }}>
+      <div style={{ fontSize: 8, fontWeight: 700, lineHeight: 1.2 }}>Jordan Casey</div>
+      <div style={{ fontSize: 4.5, color: THUMB_ACCENT, marginTop: 1 }}>Senior Product Designer</div>
+      <div className="mt-2 h-px w-full bg-border" />
+      <div className="mt-2.5 flex w-full flex-col gap-[3px]">
+        <ThumbSectionLabel>EXPERIENCE</ThumbSectionLabel>
+        <div style={{ fontSize: 4.5, fontWeight: 700, marginTop: 1 }}>Product Designer — Acme Co.</div>
+        <div style={{ fontSize: 4, lineHeight: 1.35, color: "#444" }}>
+          Led redesign of the core checkout flow, lifting conversion 18%.
+          Mentored three junior designers across two product teams.
         </div>
       </div>
-      <div className="mt-2.5 flex w-full flex-col gap-[6px]">
-        <SectionLabel width="28%" />
-        <div className="flex flex-col gap-[3px] pl-[6px]">
-          <Line width="90%" /><Line width="70%" />
-        </div>
+      <div className="mt-2 flex w-full flex-col gap-[3px]">
+        <ThumbSectionLabel>EDUCATION</ThumbSectionLabel>
+        <div style={{ fontSize: 4.5, marginTop: 1 }}>B.A. Design — State University</div>
       </div>
     </div>
   );
@@ -231,24 +244,22 @@ function ClassicThumb() {
 
 function SidebarThumb() {
   return (
-    <div className="flex h-full w-full">
-      <div className="flex w-[34%] shrink-0 flex-col items-center gap-[5px] bg-muted/70 px-2 pt-3.5">
-        <div className="size-6 shrink-0 rounded-full bg-foreground/15" />
-        <div className="mt-1 flex w-full flex-col gap-[4px]">
-          {["82%", "65%", "72%"].map((w, i) => (
-            <span key={i} className="h-[5px] rounded-full bg-foreground/20" style={{ width: w }} />
-          ))}
-        </div>
+    <div className="flex h-full w-full" style={{ fontFamily: THUMB_FONT, color: THUMB_INK }}>
+      <div className="flex w-[36%] shrink-0 flex-col gap-[5px] px-2 pt-3.5" style={{ backgroundColor: THUMB_ACCENT, color: "#fff" }}>
+        <div className="size-6 shrink-0 self-center rounded-full bg-white/20" />
+        <div style={{ fontSize: 5, fontWeight: 700, textAlign: "center", lineHeight: 1.2, marginTop: 2 }}>Jordan Casey</div>
+        <div style={{ fontSize: 4, fontWeight: 700, letterSpacing: "0.05em", opacity: 0.85, marginTop: 3 }}>CONTACT</div>
+        <div style={{ fontSize: 3.5, opacity: 0.85, lineHeight: 1.5 }}>jordan@email.com<br />(555) 019-2834</div>
+        <div style={{ fontSize: 4, fontWeight: 700, letterSpacing: "0.05em", opacity: 0.85, marginTop: 3 }}>SKILLS</div>
+        <div style={{ fontSize: 3.5, opacity: 0.85, lineHeight: 1.5 }}>Figma · Prototyping<br />Design Systems</div>
       </div>
-      <div className="flex flex-1 flex-col gap-[6px] px-2.5 pt-3.5">
-        <div className="h-[6px] w-[80%] rounded-sm bg-foreground" />
-        <div className="mt-1.5 flex flex-col gap-[6px]">
-          <SectionLabel width="40%" />
-          <div className="flex items-center justify-between pl-[6px]">
-            <Line width="52%" tone="bg-foreground/50" /><Line width="20%" />
-          </div>
-          <div className="flex flex-col gap-[3px] pl-[6px]">
-            <Line width="92%" /><Line width="75%" />
+      <div className="flex flex-1 flex-col gap-[4px] px-2.5 pt-3.5">
+        <div style={{ fontSize: 6.5, fontWeight: 700, lineHeight: 1.2 }}>Senior Product Designer</div>
+        <div className="mt-1.5 flex flex-col gap-[3px]">
+          <ThumbSectionLabel>EXPERIENCE</ThumbSectionLabel>
+          <div style={{ fontSize: 4.5, fontWeight: 700, marginTop: 1 }}>Acme Co. <span style={{ fontWeight: 400, color: "#666" }}>· 2021–Present</span></div>
+          <div style={{ fontSize: 4, lineHeight: 1.35, color: "#444" }}>
+            Owns end-to-end design for the checkout and billing surfaces.
           </div>
         </div>
       </div>
@@ -258,11 +269,16 @@ function SidebarThumb() {
 
 function MinimalThumb() {
   return (
-    <div className="flex h-full w-full flex-col items-center px-4 pt-5">
-      <div className="h-[5px] w-[42%] rounded-sm bg-foreground/80" />
-      <div className="mt-[6px] h-[2.5px] w-[26%] rounded-full bg-muted-foreground/30" />
-      <div className="mt-5 flex w-full flex-col items-center gap-[9px]">
-        <Line width="78%" /><Line width="64%" /><Line width="70%" />
+    <div className="flex h-full w-full flex-col items-center px-4 pt-5 text-center" style={{ fontFamily: THUMB_FONT, color: THUMB_INK }}>
+      <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.03em" }}>JORDAN CASEY</div>
+      <div style={{ fontSize: 4, color: "#777", marginTop: 1 }}>Senior Product Designer</div>
+      <div className="mt-4 flex w-full flex-col items-center gap-[7px]">
+        <div style={{ fontSize: 4.5, fontWeight: 600 }}>Experience</div>
+        <div style={{ fontSize: 4, lineHeight: 1.4, color: "#555" }}>
+          Product Designer, Acme Co.<br />Led the checkout redesign that lifted conversion 18%.
+        </div>
+        <div style={{ fontSize: 4.5, fontWeight: 600, marginTop: 2 }}>Education</div>
+        <div style={{ fontSize: 4, color: "#555" }}>B.A. Design, State University</div>
       </div>
     </div>
   );
