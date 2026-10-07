@@ -76,7 +76,7 @@ from app import db, limiter
 from app.models import (
     User, Media, JobApplication, JdCapture, CareerProfile,
     ApplicationRun, Vendor, VendorNewsItem, GoogleSearchConsoleCredential, SeoSnapshot,
-    SchedulerStatus, AdminBroadcast, LoginGeo,
+    SchedulerStatus, AdminBroadcast, LoginGeo, SiteVisit,
 )
 from app.middleware.error_handlers import APIError
 from app.utils.auth import require_admin, JWT_SECRET, JWT_ALGORITHM
@@ -835,6 +835,41 @@ def login_geo_stats():
         "range": range_key, "since": since.isoformat() + "Z",
         "total_logins": sum(c["count"] for c in counts),
         "countries": counts,
+    }}), 200
+
+
+# ── Site visits — raw hit count on the root site (see models.SiteVisit) ────
+_SITE_VISIT_RANGES = {"today": 1, "7d": 7, "30d": 30}
+
+
+@admin_bp.route("/site-visits", methods=["GET"])
+def site_visit_stats():
+    require_admin(request)
+    range_key = request.args.get("range", "7d")
+    days = _SITE_VISIT_RANGES.get(range_key)
+    if days is None:
+        raise APIError("range must be today, 7d, or 30d", 400)
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    if range_key == "today":
+        since = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    total = db.session.query(db.func.count(SiteVisit.id)).filter(SiteVisit.created_at >= since).scalar()
+
+    # Daily breakdown within the window — cast to DATE so Postgres groups
+    # same-day timestamps together regardless of time-of-day.
+    day_col = db.cast(SiteVisit.created_at, db.Date)
+    rows = db.session.query(day_col, db.func.count(SiteVisit.id)) \
+        .filter(SiteVisit.created_at >= since) \
+        .group_by(day_col) \
+        .order_by(day_col.desc()) \
+        .all()
+    by_day = [{"date": d.isoformat(), "count": count} for d, count in rows]
+
+    return jsonify({"success": True, "data": {
+        "range": range_key, "since": since.isoformat() + "Z",
+        "total_visits": total or 0,
+        "by_day": by_day,
     }}), 200
 
 

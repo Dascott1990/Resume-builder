@@ -277,6 +277,17 @@ export default function Home() {
     setMounted(true);
   }, []);
 
+  // Admin's own "how many people click our link" ask — one raw hit per
+  // real load of this root route, regardless of which view it resolves
+  // into (landing, a restored dashboard, whatever). Plain fetch, not the
+  // shared apiRequest helper (same reasoning as the ?jd= capture fetch
+  // above: no X-Guest-Id header needed for an anonymous hit-counter, and
+  // fire-and-forget — a failed/slow network call here must never affect
+  // the page someone's actually trying to load).
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/meta/track-visit`, { method: "POST" }).catch(() => {});
+  }, []);
+
   // The hard guarantee behind resolveLandingView() above: even if `view`
   // somehow ends up on an authenticated screen without a real token (a
   // stray setView call, a future bug), yank it back before anything

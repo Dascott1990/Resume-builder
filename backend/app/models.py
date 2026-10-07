@@ -115,6 +115,20 @@ class LoginGeo(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
+class SiteVisit(db.Model):
+    """
+    One row per real load of the root site (noqeev.com) — the admin
+    panel's "Site visits" tab (see api/admin.py's site_visit_stats) reads
+    straight off this, bucketed by created_at. Same minimal shape as
+    LoginGeo above and for the same reason: no user_id, no IP, nothing
+    beyond "this happened, at this time" — a raw hit count is what was
+    actually asked for, not a visitor-identity/analytics system.
+    """
+    __tablename__ = "site_visits"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
 class Media(db.Model):
     __tablename__ = "media"
 

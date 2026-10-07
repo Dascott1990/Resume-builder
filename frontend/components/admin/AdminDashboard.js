@@ -1130,6 +1130,69 @@ function LoginGeoTab() {
   );
 }
 
+// ── Site visits — raw hit count on noqeev.com (see models.SiteVisit) ───────
+// Same shape as LoginGeoTab right above: a range picker, a big total, and
+// a plain list — here broken down by day instead of by country.
+function SiteVisitsTab() {
+  const [range, setRange] = useState("7d");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    apiRequest(`/api/v1/admin/site-visits?range=${range}`)
+      .then(setData)
+      .catch((e) => toast.error(e.message))
+      .finally(() => setLoading(false));
+  }, [range]);
+
+  useEffect(load, [load]);
+
+  return (
+    <div>
+      <TabHeader
+        title="Site visits"
+        onRefresh={load}
+        refreshing={loading}
+        extra={
+          <div className="flex overflow-hidden rounded-lg border border-border">
+            {LOGIN_GEO_RANGES.map((r) => (
+              <button
+                key={r.id} type="button" onClick={() => setRange(r.id)}
+                className={`px-3 py-1.5 text-[12.5px] font-semibold ${range === r.id ? "bg-primary/10 text-primary-text" : "text-muted-foreground hover:bg-muted"}`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        }
+      />
+
+      {data && (
+        <div className="grid gap-4">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <p className="m-0 text-[12px] font-semibold text-muted-foreground">Total visits — {LOGIN_GEO_RANGES.find((r) => r.id === range)?.label.toLowerCase()}</p>
+            <p className="m-0 text-[28px] font-bold text-foreground">{data.total_visits}</p>
+          </div>
+
+          {data.by_day.length === 0 ? (
+            <p className="m-0 text-[13px] text-muted-foreground">No visits recorded in this range yet.</p>
+          ) : (
+            <div className="grid gap-1.5">
+              {data.by_day.map((d) => (
+                <div key={d.date} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2.5">
+                  <span className="font-mono text-[13px] font-bold text-foreground">{d.date}</span>
+                  <span className="font-mono text-[13px] font-bold text-muted-foreground">{d.count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const JOBS_INGEST_SOURCE_LABELS = { remotive: "Remotive", arbeitnow: "Arbeitnow", greenhouse: "Greenhouse", ashby: "Ashby", scrapegraphai: "ScrapeGraphAI", coverage_retry: "Coverage retry" };
 
 function JobsIngestTab() {
@@ -1446,6 +1509,7 @@ export function AdminDashboard({ adminUser, onSignOut }) {
             {activeSection === "vendors" && <VendorsTab />}
             {activeSection === "jobs-ingest" && <JobsIngestTab />}
             {activeSection === "login-geo" && <LoginGeoTab />}
+            {activeSection === "site-visits" && <SiteVisitsTab />}
             {activeSection === "system" && <SystemTab />}
             {activeSection === "broadcast" && <BroadcastTab />}
           </div>

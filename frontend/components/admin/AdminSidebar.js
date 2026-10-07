@@ -17,7 +17,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   LayoutGrid, Users, FileText, Briefcase, Package, Activity,
-  Megaphone, Sparkles, KeyRound, LogOut, Loader2, Building2, Globe,
+  Megaphone, Sparkles, KeyRound, LogOut, Loader2, Building2, Globe, MousePointerClick,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ export const NAV_GROUPS = [
     items: [
       { id: "vendors", label: "Vendors", Icon: Package },
       { id: "login-geo", label: "Login geography", Icon: Globe },
+      { id: "site-visits", label: "Site visits", Icon: MousePointerClick },
       { id: "system", label: "System", Icon: Activity },
     ],
   },
