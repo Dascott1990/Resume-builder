@@ -1,47 +1,54 @@
 """
 app/utils/email_logo.py — the Noqeev mark for transactional email.
 
-Used to hand-draw an approximation with nested bordered <table> cells (a
-plain bracket shape, open on one side) instead of the real mark's
-asymmetric bowl-and-tail geometry — confirmed live this read as an
-unrelated "C", not the brand. That approximation existed because inline
-SVG and CSS gradients don't render in Outlook's Word-based engine (see
-wrap_email_html's own docstring in mail.py).
+Two wrong versions before this one, in order:
 
-Fixed properly instead of approximated: this embeds the REAL logo —
-frontend/public/email-logo.png, the exact same asset the in-app <Logo />
-component's mark renders to, pixel-for-pixel — as a base64 data: URI
-<img>. A plain raster image inside an <img> tag is one of the oldest,
-most universally supported pieces of HTML there is; Outlook's Word
-engine renders it fine (its gradient/SVG gap never applies to a raster
-image in the first place). The ONLY realistic gap is pre-2019 Outlook
-desktop occasionally refusing data: URIs specifically — degrades to the
-alt text ("NOQEEV") in that one case, not a broken-looking wrong shape.
+  1. A hand-drawn bordered-<div> approximation (three sides of a box,
+     open on the fourth) — read as a plain "C", not the brand's actual
+     asymmetric bowl-and-tail mark at all.
 
-Self-contained on purpose, same reasoning as before: no <img src="https://...">
-fetch to FRONTEND_URL means no DNS hiccup, no "click to download images"
-prompt, no dependency on that env var being correct — this IS the email,
-nothing it depends on can go missing or fail separately.
+  2. That shape's bytes replaced with the REAL logo — but embedded as a
+     base64 `data:` URI <img>, verified only by rendering the raw HTML in
+     a headless Chromium browser and screenshotting it. That screenshot
+     looked exactly right, and was still the wrong fix: browsers happily
+     render data: URI images; several major EMAIL clients (Gmail
+     foremost) strip or refuse to render them AT ALL, as a long-standing
+     anti-phishing measure — a real inbox would have shown broken-image
+     space where this logo should be, the exact bug this was supposed to
+     fix, just moved. Confirmed as the actual cause of "still broken"
+     after that version shipped. A browser screenshot of raw HTML proves
+     the markup is well-formed; it does NOT prove an email client will
+     render it — those are different rendering engines with different,
+     deliberately stricter rules around embedded content.
 
-The base64 below is the literal, unmodified bytes of frontend/public/
-email-logo.png (446x124, byte-for-byte verified against the source file
-before this landed) — regenerate it with:
-    python3 -c "import base64; print(base64.b64encode(open('frontend/public/email-logo.png','rb').read()).decode())"
-any time that source PNG changes, and paste the output back in below. Not
-read from disk at runtime on purpose — backend and frontend deploy as two
-separate services on Render with no shared filesystem, so a runtime
-`open(...)` against a path in the other service's repo would 500 in
-production even though it works locally.
+This version: a REAL, normally-hosted `<img src="https://.../api/v1/
+email-logo.png">` — the single most universally-supported way to put an
+image in an email, used by virtually every transactional-email sender
+that exists, for exactly this reason. The two things that made the
+ORIGINAL frontend-hosted <img> unreliable (see the old version of this
+docstring, preserved in git history) were FRONTEND_URL being wrong/
+unreachable and Vercel being a second service that could be down
+independently of whether mail could still send — neither applies here:
+this serves the PNG from THIS backend's own Flask app, in the same
+process that sends the email, with the exact bytes baked in below (no
+disk read, no dependency on the frontend repo at runtime). If this
+process is up enough to send the email, its own route is up too.
 
 Used by mail.py's wrap_email_html() — the ONE shared template every
-transactional email in this app sends through (auth verification/reset,
-job-request/message notifications, brand asset emails, admin broadcasts
-— see that function's own docstring), so fixing the logo here fixes it
-everywhere at once, not just for auth emails.
+transactional email in this app sends through, so fixing the logo here
+fixes it everywhere at once, not just for auth emails.
 """
+import base64
+import os
 
-# Real 446x124 PNG, unmodified — see this module's own docstring for how
-# to regenerate this if the source asset ever changes.
+from flask import Response
+
+# Same real 446x124 PNG as before (frontend/public/email-logo.png,
+# byte-for-byte — verified via sha256 against that source file), just
+# served as a real hosted image now instead of inlined as a data: URI.
+# Regenerate with:
+#   python3 -c "import base64; print(base64.b64encode(open('frontend/public/email-logo.png','rb').read()).decode())"
+# any time that source PNG changes, and paste the output back in below.
 _LOGO_PNG_BASE64 = (
     "iVBORw0KGgoAAAANSUhEUgAAAb4AAAB8CAYAAAAW2tXiAAAQAElEQVR4nOydCZgkRZXHX0RWX9Mz03RX1nR3zXQjM6CoC36L37Ls"
     "8qkgi8jKcCoIyKKgq4woAiLguiy4C+hyeiAsNwyLyKECohxyiXihsgwIKIcMzHT3TB09M93TV2VG7Iuq6u6q6joysq6oqff7vu6s"
@@ -153,16 +160,44 @@ _LOGO_PNG_BASE64 = (
     "IwiCIJoKEj6CIAiiqSDhIwiCIJoKEj6CIAiiqSDhIwiCIJoKEj6CIAiiqSDhIwiCIJoKEj6CIAiiqSDhIwiCIJoKEj6CIAiiqSDh"
     "IwiCIJqK/wcAAP//LJOQ9QAAAAZJREFUAwDWtx0tz/9V1wAAAABJRU5ErkJggg=="
 )
+_LOGO_PNG_BYTES = base64.b64decode(_LOGO_PNG_BASE64)
 _LOGO_WIDTH = 190
 _LOGO_HEIGHT = 53  # 190 * (124 / 446), rounded — preserves the source PNG's aspect ratio
 
+# RENDER_EXTERNAL_URL: platform-injected on every Render service, no
+# dashboard setup needed — unlike FRONTEND_URL (see mail.py's own
+# docstring on that one), there's no "declared in render.yaml but never
+# actually synced onto the live service" gap possible here, since this
+# isn't a value anyone has to declare at all. BACKEND_URL is a plain
+# manual override for the rare case this ever needs to point somewhere
+# else on purpose. Local dev falls back to the same port run.py itself
+# listens on.
+if os.environ.get("BACKEND_URL"):
+    _BACKEND_URL = os.environ["BACKEND_URL"].rstrip("/")
+elif os.environ.get("RENDER_EXTERNAL_URL"):
+    _BACKEND_URL = os.environ["RENDER_EXTERNAL_URL"].rstrip("/")
+else:
+    _BACKEND_URL = "http://localhost:5002"
+
 
 def email_logo_html():
-    """Ready-to-embed HTML: a single self-contained <img>, the real mark +
-    wordmark lockup, nothing hand-approximated. alt text covers the rare
-    client that can't render a data: URI image at all."""
+    """Ready-to-embed HTML: a single real hosted <img> pointing at
+    serve_email_logo() below, the real mark + wordmark lockup."""
     return (
-        f'<img src="data:image/png;base64,{_LOGO_PNG_BASE64}" '
+        f'<img src="{_BACKEND_URL}/api/v1/email-logo.png" '
         f'width="{_LOGO_WIDTH}" height="{_LOGO_HEIGHT}" alt="NOQEEV" '
         f'style="display:block;border:0;outline:none;margin:0 0 24px;">'
+    )
+
+
+def serve_email_logo():
+    """The actual route handler (registered in app/__init__.py as GET
+    /api/v1/email-logo.png) — serves the exact bytes decoded above.
+    Long max-age: this is a fixed asset baked into the deployed code
+    itself, never changes without a new deploy, which gets a fresh URL
+    anyway (nothing here needs cache-busting)."""
+    return Response(
+        _LOGO_PNG_BYTES,
+        mimetype="image/png",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
     )

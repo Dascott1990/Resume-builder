@@ -56,8 +56,17 @@ def _exempt_cors_preflight():
     429 too — which the browser reports as a CORS failure ("preflight
     doesn't pass access control check"), not a rate-limit error, since a
     non-2xx preflight response blocks the real request from ever being
-    sent. That masks the real cause and makes it look like a CORS bug."""
-    return request.method == "OPTIONS"
+    sent. That masks the real cause and makes it look like a CORS bug.
+
+    Also exempts /api/v1/email-logo.png — a fixed, auth-free static asset
+    (see utils/email_logo.py) loaded by every recipient's email client,
+    often proxied through a small number of shared IPs (Gmail's image
+    proxy is the big one) rather than the recipient's own. Rate-limiting
+    by IP here risks a shared proxy's aggregate volume 429-ing the image
+    out from under every OTHER recipient behind that same proxy, which
+    would show as a broken-image logo for reasons having nothing to do
+    with any individual recipient's own behavior."""
+    return request.method == "OPTIONS" or request.path == "/api/v1/email-logo.png"
 
 
 def create_app():
@@ -204,6 +213,13 @@ def create_app():
     @app.route("/api/v1/health")
     def health():
         return {"success": True, "status": "ok"}
+
+    # The real Noqeev mark, served as a genuinely hosted image for every
+    # transactional email's logo (see utils/email_logo.py's own docstring
+    # for the two wrong versions this replaces) — no DB hit, no auth, same
+    # as /health above, just the fixed bytes baked into this deploy.
+    from app.utils.email_logo import serve_email_logo
+    app.add_url_rule("/api/v1/email-logo.png", "email_logo", serve_email_logo)
 
     # Create tables. If a model's module never gets imported before this
     # runs, its table simply won't exist and every query against it will
