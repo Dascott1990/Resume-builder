@@ -63,6 +63,7 @@ import { LAYOUTS } from "./shared/resumeLayouts/registry";
 import { getPreferredTemplate, setPreferredTemplate } from "@/lib/templatePreference";
 import Logo from "./Logo";
 import { FONTS, ACCENTS } from "./guest/constants";
+import { firstNameOf } from "./shared/artisanDisplay";
 
 // One neutral system-accent tile behind every illustrated icon on this
 // screen — deliberately ignores each art entry's own `bg` (a colored
@@ -299,13 +300,35 @@ function DocThumb({ layoutId, active, size = "md" }) {
     : { w: active ? 148 : 122, h: active ? 192 : 158 };
   return (
     <div
-      className="flex shrink-0 flex-col overflow-hidden rounded-xl bg-background transition-all duration-300 ease-out"
+      className="flex shrink-0 flex-col overflow-hidden rounded-xl transition-all duration-300 ease-out"
       style={{
         width: dims.w,
         height: dims.h,
-        boxShadow: active ? "0 16px 40px rgba(0,0,0,0.1)" : "none",
+        // Fixed white, not bg-background — this represents an actual
+        // printed page (same as ResumePageSheet.js's real document,
+        // always `background: "white"` regardless of app theme), not
+        // reactive app chrome. Confirmed live as a real bug, not just a
+        // missing shadow: the sample text inside is a fixed dark ink
+        // color (THUMB_INK), so against dark mode's OWN bg-background
+        // this used to render dark text on a near-black background —
+        // illegible, not just low-contrast.
+        background: "white",
+        // CSS variable, not a hardcoded rgba — redefined under .dark in
+        // globals.css. A fixed black shadow this faint reads fine against
+        // a near-white light-mode page but was effectively invisible
+        // against dark mode's own near-black background, leaving the
+        // active card with NO visible cue at all once its border below
+        // was also removed — confirmed live as the real "everything
+        // disappears in dark mode" complaint, not just this one card,
+        // but this one had zero redundant cues once the shadow failed.
+        boxShadow: active ? "var(--doc-thumb-shadow)" : "none",
         opacity: active ? 1 : 0.5,
-        border: active ? "none" : "1px solid var(--border)",
+        // Always a real border now, active or not — the shadow alone
+        // was the only thing marking the active card's edge, which is
+        // exactly the single point of failure the comment above
+        // describes. A plain theme-aware border is never themeable away
+        // to invisible the way a hardcoded shadow color can be.
+        border: "1px solid var(--border)",
       }}
     >
       <Body />
@@ -731,7 +754,7 @@ function DashboardContent({
       {user && <GreetingAvatar user={user} onClick={onOpenPersonalProfile} />}
       <div className="min-w-0">
         <p className="m-0 truncate text-[13px] font-semibold text-muted-foreground">
-          {greeting()}{user ? `, ${user.name || user.email.split("@")[0]}` : ""}
+          {greeting()}{user ? `, ${firstNameOf(user.name) || user.email.split("@")[0]}` : ""}
         </p>
         <h1 className="m-0 text-[26px] font-bold text-foreground">Let's get you hired.</h1>
       </div>
@@ -745,7 +768,7 @@ function DashboardContent({
   const mobileGreetingRow = (
     <div className="min-w-0">
       <p className="m-0 truncate text-[13px] font-semibold text-muted-foreground">
-        {greeting()}{user ? `, ${user.name || user.email.split("@")[0]}` : ""}
+        {greeting()}{user ? `, ${firstNameOf(user.name) || user.email.split("@")[0]}` : ""}
       </p>
       <h1 className="m-0 mt-0.5 text-3xl font-extrabold tracking-tight text-foreground">Let's get you hired.</h1>
     </div>

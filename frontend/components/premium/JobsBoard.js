@@ -33,6 +33,7 @@ import { apiRequest } from "./shared/api";
 import { Btn } from "./guest/components/primitives";
 import { NavRail } from "./shared/NavRail";
 import { Avatar } from "./shared/Avatar";
+import { firstNameOf } from "./shared/artisanDisplay";
 import { MobileFloatingNav } from "./shared/MobileFloatingNav";
 import { NotificationsDialog } from "./shared/NotificationsDialog";
 import { JobDetail } from "./JobDetail";
@@ -248,7 +249,7 @@ function JobCardMobile({ job, applied, onOpen }) {
     <button
       type="button" onClick={onOpen}
       className="flex w-full flex-col gap-2.5 rounded-2xl border-none bg-background p-4 text-left [-webkit-tap-highlight-color:transparent]"
-      style={{ boxShadow: "0 8px 30px rgba(0,0,0,0.03)" }}
+      style={{ boxShadow: "var(--job-card-shadow)" }}
     >
       <div className="flex items-start gap-3">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
@@ -950,7 +951,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
         >
           <span className="shrink-0 rounded-full ring-1 ring-border"><Avatar user={user} size={34} /></span>
           <span className="truncate text-sm font-medium tracking-tight text-muted-foreground">
-            {greeting()}{user ? `, ${user.name || user.email.split("@")[0]}` : ""}
+            {greeting()}{user ? `, ${firstNameOf(user.name) || user.email.split("@")[0]}` : ""}
           </span>
         </button>
         {/* Same order as Dashboard.js's header (Bell, Theme) — Search has

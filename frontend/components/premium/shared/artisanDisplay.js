@@ -23,3 +23,15 @@ export function initialsOf(name) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
 }
+
+// A greeting ("Good afternoon, X") should say one name, not whatever got
+// typed into the name field whole — "Jordan Casey" read as a oddly
+// formal "Good afternoon, Jordan Casey" every time, not how a real
+// greeting talks to someone. Takes the FIRST whitespace-separated token
+// exactly as filled in, not a hardcoded assumption that word order is
+// always "First Last" (plenty of real names don't work that way) —
+// whatever word came first in the field is what shows here, nothing
+// reordered or guessed at beyond that.
+export function firstNameOf(name) {
+  return (name || "").trim().split(/\s+/)[0] || "";
+}
