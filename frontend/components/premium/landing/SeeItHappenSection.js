@@ -5,11 +5,12 @@ import { RefreshCw, Zap, FileCheck2 } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD, SectionGlow } from "./shared";
 import { ResumeDocument } from "../shared/ResumeDocument";
 import { RESUMES } from "../shared/prebuiltResumes";
+import { useLanguage } from "@/lib/i18n";
 
-const TRUST = [
-  { Icon: RefreshCw, label: "Save your profile once, reuse it every time" },
-  { Icon: Zap, label: "Tailored in under 2 minutes" },
-  { Icon: FileCheck2, label: "Real, editable .docx and PDF" },
+const trust = (t) => [
+  { Icon: RefreshCw, label: t("landing.trust1") },
+  { Icon: Zap, label: t("landing.trust2") },
+  { Icon: FileCheck2, label: t("landing.trust3") },
 ];
 
 // Same Letter-page pixel size Resume.js's own "My Resumes" mode renders
@@ -23,9 +24,9 @@ const SHOWCASE_STYLE = { font: "calibri", fontSize: 11, lineHeight: 1.4, accent:
 // Two of the three real layouts (resumeLayouts/registry.js), same content
 // (RESUMES.it), rendered through the actual ResumeDocument renderer every
 // real resume in the app uses — never a mockup image.
-const SHOWCASE_LAYOUTS = [
-  { layout: "classic", label: "Classic" },
-  { layout: "sidebar", label: "Sidebar" },
+const showcaseLayouts = (t) => [
+  { layout: "classic", label: t("landing.layoutClassic") },
+  { layout: "sidebar", label: t("landing.layoutSidebar") },
 ];
 
 function ResumeMini({ layout, label }) {
@@ -57,6 +58,9 @@ function ResumeMini({ layout, label }) {
 // layouts rendered through the same component every actual resume in the
 // product uses, never a mockup.
 export function SeeItHappenSection() {
+  const { t } = useLanguage();
+  const TRUST = trust(t);
+  const SHOWCASE_LAYOUTS = showcaseLayouts(t);
   const containerRef = useRef(null);
   const inView = useInView(containerRef, { once: true, margin: "-15% 0px -15% 0px" });
 
@@ -82,12 +86,12 @@ export function SeeItHappenSection() {
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal>
-            <span className={EYEBROW}>See it happen</span>
+            <span className={EYEBROW}>{t("landing.seeItHappenEyebrow")}</span>
             <h2 className="m-0 text-[clamp(1.6rem,4vw,2.4rem)] leading-tight font-bold text-foreground">
-              Rough draft in. Ready to send out.
+              {t("landing.seeItHappenTitle")}
             </h2>
             <p className="m-0 mt-3 max-w-sm text-[14.5px] leading-relaxed text-muted-foreground">
-              A real, typeset resume, not a preview. Pick a layout and it's ready in minutes.
+              {t("landing.seeItHappenSubtitle")}
             </p>
             <ul className="m-0 mt-6 flex list-none flex-col gap-2.5 p-0">
               {TRUST.map(({ Icon, label }, i) => (

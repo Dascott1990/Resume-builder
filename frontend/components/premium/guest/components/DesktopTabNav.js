@@ -1,17 +1,18 @@
 "use client";
 import { Sparkles, Palette, FileText, Settings } from "lucide-react";
-
-const VIEWS = [
-  { id: "new",       Icon: Sparkles, label: "Build" },
-  { id: "style",     Icon: Palette,  label: "Style" },
-  { id: "templates", Icon: FileText, label: "Saved" },
-  { id: "settings",  Icon: Settings, label: "Settings" },
-];
+import { useLanguage } from "@/lib/i18n";
 
 // ── Desktop: top segmented nav, bigger and always labeled ──────────────────
 export function DesktopTabNav({ tab, onChange }) {
+  const { t } = useLanguage();
+  const VIEWS = [
+    { id: "new",       Icon: Sparkles, label: t("guestMode.build") },
+    { id: "style",     Icon: Palette,  label: t("guestMode.style") },
+    { id: "templates", Icon: FileText, label: t("guestMode.saved") },
+    { id: "settings",  Icon: Settings, label: t("guestMode.settings") },
+  ];
   return (
-    <div role="tablist" aria-label="View" className="flex shrink-0 border-b border-border bg-card px-2.5">
+    <div role="tablist" aria-label={t("guestMode.view")} className="flex shrink-0 border-b border-border bg-card px-2.5">
       {VIEWS.map(v => {
         const active = tab === v.id;
         return (

@@ -1,15 +1,18 @@
 "use client";
 import { Check } from "lucide-react";
 import { FONTS, ACCENTS } from "../../constants";
-import { LAYOUTS } from "../../../shared/resumeLayouts/registry";
+import { layouts } from "../../../shared/resumeLayouts/registry";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Btn } from "../primitives";
+import { useLanguage } from "@/lib/i18n";
 
 export function StyleTab({ docStyle, setDocStyle, isDesktop, onPreview }) {
+  const { t } = useLanguage();
+  const LAYOUTS = layouts(t);
   return (
     <div className="p-4">
       {/* Layout */}
-      <p className="m-0 mb-1.5 text-xs text-muted-foreground">Layout</p>
+      <p className="m-0 mb-1.5 text-xs text-muted-foreground">{t("styleTab.layout")}</p>
       <div className="mb-[18px] flex flex-col gap-1.5">
         {LAYOUTS.map(l => (
           <button key={l.id} onClick={() => setDocStyle(s => ({ ...s, layout: l.id }))}
@@ -24,7 +27,7 @@ export function StyleTab({ docStyle, setDocStyle, isDesktop, onPreview }) {
       </div>
 
       {/* Font family */}
-      <p className="m-0 mb-1.5 text-xs text-muted-foreground">Font family</p>
+      <p className="m-0 mb-1.5 text-xs text-muted-foreground">{t("styleTab.fontFamily")}</p>
       <ToggleGroup
         type="single"
         orientation="vertical"
@@ -48,7 +51,7 @@ export function StyleTab({ docStyle, setDocStyle, isDesktop, onPreview }) {
 
       {/* Font size */}
       <p className="m-0 mb-1.5 text-xs text-muted-foreground">
-        Font size <span className="text-muted-foreground/60">· {docStyle.fontSize}pt</span>
+        {t("styleTab.fontSize")} <span className="text-muted-foreground/60">· {docStyle.fontSize}pt</span>
       </p>
       <input type="range" min={9} max={13} step={0.5} value={docStyle.fontSize}
         onChange={e => setDocStyle(s => ({ ...s, fontSize: parseFloat(e.target.value) }))}
@@ -56,14 +59,14 @@ export function StyleTab({ docStyle, setDocStyle, isDesktop, onPreview }) {
 
       {/* Line spacing */}
       <p className="m-0 mb-1.5 text-xs text-muted-foreground">
-        Line spacing <span className="text-muted-foreground/60">· {docStyle.lineHeight}×</span>
+        {t("styleTab.lineSpacing")} <span className="text-muted-foreground/60">· {docStyle.lineHeight}×</span>
       </p>
       <input type="range" min={1.1} max={1.8} step={0.05} value={docStyle.lineHeight}
         onChange={e => setDocStyle(s => ({ ...s, lineHeight: parseFloat(e.target.value) }))}
         className="mb-[18px] w-full accent-primary" />
 
       {/* Accent color */}
-      <p className="m-0 mb-2.5 text-xs text-muted-foreground">Accent color</p>
+      <p className="m-0 mb-2.5 text-xs text-muted-foreground">{t("styleTab.accentColor")}</p>
       <div className="mb-4 flex flex-wrap gap-3.5">
         {ACCENTS.map(a => (
           <button key={a.id} onClick={() => setDocStyle(s => ({ ...s, accent: a.id }))}
@@ -84,7 +87,7 @@ export function StyleTab({ docStyle, setDocStyle, isDesktop, onPreview }) {
 
       {!isDesktop && (
         <Btn variant="primary" icon="Eye" onClick={onPreview} small>
-          Preview changes
+          {t("styleTab.previewChanges")}
         </Btn>
       )}
     </div>

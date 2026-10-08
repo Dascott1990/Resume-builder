@@ -21,8 +21,10 @@
  */
 import { motion } from "framer-motion";
 import { Plus } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
 export function MobileFloatingNav({ items, active, onChange, onCreate }) {
+  const { t } = useLanguage();
   return (
     <nav
       className="fixed inset-x-4 z-40 flex items-center rounded-[26px] border border-border/60 bg-background/80 shadow-[0_20px_40px_rgba(0,0,0,0.12)] backdrop-blur-xl backdrop-saturate-150"
@@ -42,7 +44,7 @@ export function MobileFloatingNav({ items, active, onChange, onCreate }) {
       ))}
 
       <motion.button
-        type="button" onClick={onCreate} aria-label="Create"
+        type="button" onClick={onCreate} aria-label={t("navRail.create")}
         whileTap={{ scale: 0.9 }}
         // ring-white/15 is deliberately theme-constant, not a dark: variant
         // — it reads as a near-invisible edge-light against the light-mode

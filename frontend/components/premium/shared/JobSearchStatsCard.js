@@ -12,8 +12,10 @@
  */
 import { ArrowRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLanguage } from "@/lib/i18n";
 
 export function JobSearchStatsCard({ applications, loading, onViewAll, isDesktop = true }) {
+  const { t } = useLanguage();
   const applied = applications.length;
   const responses = applications.filter((a) => a.status !== "applied").length;
   const interviews = applications.filter((a) => a.status === "interview").length;
@@ -22,7 +24,7 @@ export function JobSearchStatsCard({ applications, loading, onViewAll, isDesktop
   if (!isDesktop) {
     return (
       <div className="mb-7">
-        <p className="m-0 mb-3 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70 uppercase">Your job search</p>
+        <p className="m-0 mb-3 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70 uppercase">{t("jobStats.yourJobSearch")}</p>
         <div className="grid grid-cols-4 gap-2">
           {loading ? (
             <>
@@ -31,8 +33,8 @@ export function JobSearchStatsCard({ applications, loading, onViewAll, isDesktop
             </>
           ) : (
             [
-              ["Applied", applied], ["Responses", responses],
-              ["Interviews", interviews], ["Offers", offers],
+              [t("status.applied"), applied], [t("jobStats.responses"), responses],
+              [t("status.interview"), interviews], [t("status.offer"), offers],
             ].map(([label, value]) => (
               <div key={label}>
                 <span className="block text-3xl font-bold tracking-tight text-foreground">{value}</span>
@@ -43,7 +45,7 @@ export function JobSearchStatsCard({ applications, loading, onViewAll, isDesktop
         </div>
         {onViewAll && (
           <button onClick={onViewAll} className="mt-4 flex items-center gap-1 border-none bg-transparent p-0 text-[12.5px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent]">
-            View applications <ArrowRight className="size-3.5" />
+            {t("jobStats.viewApplications")} <ArrowRight className="size-3.5" />
           </button>
         )}
       </div>
@@ -52,7 +54,7 @@ export function JobSearchStatsCard({ applications, loading, onViewAll, isDesktop
 
   return (
     <div className="glass-surface mb-5 rounded-2xl p-5">
-      <p className="m-0 mb-4 font-mono text-[10px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">Your job search</p>
+      <p className="m-0 mb-4 font-mono text-[10px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{t("jobStats.yourJobSearch")}</p>
       <div className="mb-4 grid grid-cols-4 gap-2.5">
         {loading ? (
           <>
@@ -61,16 +63,16 @@ export function JobSearchStatsCard({ applications, loading, onViewAll, isDesktop
           </>
         ) : (
           <>
-            <div><span className="block text-[24px] font-bold text-foreground">{applied}</span><span className="text-[11px] text-muted-foreground">Applied</span></div>
-            <div><span className="block text-[24px] font-bold text-foreground">{responses}</span><span className="text-[11px] text-muted-foreground">Responses</span></div>
-            <div><span className="block text-[24px] font-bold text-success">{interviews}</span><span className="text-[11px] text-muted-foreground">Interviews</span></div>
-            <div><span className="block text-[24px] font-bold text-success">{offers}</span><span className="text-[11px] text-muted-foreground">Offers</span></div>
+            <div><span className="block text-[24px] font-bold text-foreground">{applied}</span><span className="text-[11px] text-muted-foreground">{t("status.applied")}</span></div>
+            <div><span className="block text-[24px] font-bold text-foreground">{responses}</span><span className="text-[11px] text-muted-foreground">{t("jobStats.responses")}</span></div>
+            <div><span className="block text-[24px] font-bold text-success">{interviews}</span><span className="text-[11px] text-muted-foreground">{t("status.interview")}</span></div>
+            <div><span className="block text-[24px] font-bold text-success">{offers}</span><span className="text-[11px] text-muted-foreground">{t("status.offer")}</span></div>
           </>
         )}
       </div>
       {onViewAll && (
         <button onClick={onViewAll} className="flex items-center gap-1 border-none bg-transparent p-0 text-[13px] font-bold text-primary [-webkit-tap-highlight-color:transparent]">
-          View applications <ArrowRight className="size-3.5" />
+          {t("jobStats.viewApplications")} <ArrowRight className="size-3.5" />
         </button>
       )}
     </div>

@@ -1,5 +1,6 @@
 "use client";
 import { motion } from "framer-motion";
+import { useLanguage } from "@/lib/i18n";
 
 // ── Mobile/tablet: floating frosted-glass bottom bar ──────────────────────────
 // Same visual language as guest/components/MobileNav.js (fixed positioning,
@@ -20,11 +21,12 @@ import { motion } from "framer-motion";
 // a blank screen that never recovers. Index-driven left/width has no
 // cross-component state to leave dangling, so it can't wedge anything.
 export function BottomNav({ items, active, onChange }) {
+  const { t } = useLanguage();
   const activeIndex = items.findIndex((item) => item.id === active);
   const slot = 100 / items.length;
 
   return (
-    <motion.nav role="tablist" aria-label="View"
+    <motion.nav role="tablist" aria-label={t("guestMode.view")}
       className="fixed right-3 left-3 z-40 flex rounded-[22px] border border-white/[0.14] pt-1.5 pb-1.5 shadow-[0_14px_40px_rgba(0,0,0,0.45),0_1px_0_rgba(255,255,255,0.07)_inset] backdrop-blur-[28px] backdrop-saturate-[190%]"
       style={{
         bottom: "calc(12px + env(safe-area-inset-bottom, 0px))",

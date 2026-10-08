@@ -2,21 +2,25 @@
 import Link from "next/link";
 import Logo from "../Logo";
 import { SOCIAL_LINKS } from "./socialLinks";
+import { useLanguage } from "@/lib/i18n";
 
-const LEGAL_LINKS = [
-  { href: "/privacy", label: "Privacy Policy" },
-  { href: "/terms", label: "Terms & Conditions" },
-  { href: "/cookies", label: "Cookie Policy" },
-  { href: "/refund-policy", label: "Refund Policy" },
+const legalLinks = (t) => [
+  { href: "/privacy", label: t("landing.privacyPolicy") },
+  { href: "/terms", label: t("landing.termsConditions") },
+  { href: "/cookies", label: t("landing.cookiePolicy") },
+  { href: "/refund-policy", label: t("landing.refundPolicy") },
 ];
 
-const LINKS = [
-  { href: "#features", label: "Features" },
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#faq", label: "FAQ" },
+const links = (t) => [
+  { href: "#features", label: t("nav.features") },
+  { href: "#how-it-works", label: t("nav.howItWorks") },
+  { href: "#faq", label: t("nav.faq") },
 ];
 
 export function Footer({ onOpenSignup }) {
+  const { t } = useLanguage();
+  const LEGAL_LINKS = legalLinks(t);
+  const LINKS = links(t);
   return (
     // Extra bottom clearance on narrow screens only — the floating 3D
     // intensity control sits fixed bottom-right and would otherwise overlap
@@ -28,7 +32,7 @@ export function Footer({ onOpenSignup }) {
             <Logo size={22} />
           </div>
 
-          <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <nav aria-label={t("landing.footerNav")} className="flex flex-wrap items-center gap-x-6 gap-y-2">
             {LINKS.map((l) => (
               <a key={l.href} href={l.href} className="text-[13px] font-semibold text-muted-foreground hover:text-foreground">
                 {l.label}
@@ -38,12 +42,12 @@ export function Footer({ onOpenSignup }) {
               onClick={onOpenSignup}
               className="rounded-full border border-primary/25 bg-primary/10 px-4 py-2 text-[13px] font-bold text-primary-text [-webkit-tap-highlight-color:transparent]"
             >
-              Get Started
+              {t("nav.getStarted")}
             </button>
           </nav>
         </div>
 
-        <nav aria-label="Legal" className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border pt-6">
+        <nav aria-label={t("landing.legalNav")} className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border pt-6">
           {LEGAL_LINKS.map((l) => (
             <Link key={l.href} href={l.href} className="text-[12px] font-semibold text-muted-foreground hover:text-foreground">
               {l.label}
@@ -51,7 +55,7 @@ export function Footer({ onOpenSignup }) {
           ))}
         </nav>
 
-        <nav aria-label="Social" className="flex flex-wrap items-center gap-4">
+        <nav aria-label={t("landing.socialNav")} className="flex flex-wrap items-center gap-4">
           {SOCIAL_LINKS.map((s) => (
             <a
               key={s.label} href={s.href} target="_blank" rel="noreferrer" aria-label={s.label}
@@ -64,13 +68,13 @@ export function Footer({ onOpenSignup }) {
 
         <div className="flex flex-col-reverse items-start justify-between gap-3 sm:flex-row sm:items-center">
           <div className="text-[11.5px] leading-relaxed text-muted-foreground/80">
-            <p className="m-0">© {new Date().getFullYear()} Noqeev Technology · 305 Rideau St, Ottawa, ON, Canada</p>
+            <p className="m-0">{t("landing.copyright", { year: new Date().getFullYear() })}</p>
             <p className="m-0">
               <a href="mailto:support@noqeev.com" className="hover:text-foreground">support@noqeev.com</a>
             </p>
           </div>
           <p className="m-0 text-[11.5px] text-muted-foreground/80">
-            Free account. No credit card, ever.
+            {t("landing.freeAccountNote")}
           </p>
         </div>
       </div>

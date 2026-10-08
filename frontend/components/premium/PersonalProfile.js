@@ -19,8 +19,10 @@ import { avatarPhotoUrl } from "./shared/Avatar";
 import { EmojiPicker } from "./shared/EmojiPicker";
 import { useAuth } from "@/lib/useAuth";
 import { apiRequest } from "./shared/api";
+import { useLanguage } from "@/lib/i18n";
 
 export default function PersonalProfile({ onClose }) {
+  const { t } = useLanguage();
   const { user, loading: authLoading, updateProfile, refreshUser } = useAuth();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -40,7 +42,7 @@ export default function PersonalProfile({ onClose }) {
     setSavingProfile(true);
     try {
       await updateProfile({ name: name.trim(), phone: phone.trim(), avatar_emoji: avatarEmoji });
-      toast.success("Profile updated");
+      toast.success(t("personalProfile.profileUpdated"));
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -60,9 +62,9 @@ export default function PersonalProfile({ onClose }) {
       form.append("file", file);
       await apiRequest("/api/v1/auth/avatar-photo", { method: "POST", body: form });
       await refreshUser();
-      toast.success("Photo updated");
+      toast.success(t("personalProfile.photoUpdated"));
     } catch (err) {
-      toast.error(err.message || "Couldn't upload that photo.");
+      toast.error(err.message || t("personalProfile.photoUploadError"));
     } finally {
       setUploadingPhoto(false);
     }
@@ -74,7 +76,7 @@ export default function PersonalProfile({ onClose }) {
       await apiRequest("/api/v1/auth/avatar-photo", { method: "DELETE" });
       await refreshUser();
     } catch (err) {
-      toast.error(err.message || "Couldn't remove that photo.");
+      toast.error(err.message || t("personalProfile.photoRemoveError"));
     } finally {
       setUploadingPhoto(false);
     }
@@ -92,10 +94,10 @@ export default function PersonalProfile({ onClose }) {
       className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-background font-sans text-foreground"
     >
       <div className="flex shrink-0 items-center gap-3 px-5 pb-3.5" style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}>
-        <Button variant="ghost" size="icon" className="size-10" aria-label="Back" onClick={onClose}>
+        <Button variant="ghost" size="icon" className="size-10" aria-label={t("personalProfile.back")} onClick={onClose}>
           <ArrowLeft className="size-5" />
         </Button>
-        <p className="m-0 text-[17px] font-bold text-foreground">Personal profile</p>
+        <p className="m-0 text-[17px] font-bold text-foreground">{t("common.personalProfile")}</p>
       </div>
 
       <div
@@ -123,7 +125,7 @@ export default function PersonalProfile({ onClose }) {
                   type="button"
                   onClick={pickPhoto}
                   disabled={uploadingPhoto}
-                  aria-label="Change photo"
+                  aria-label={t("personalProfile.changePhoto")}
                   className="absolute -right-1 -bottom-1 flex size-8 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground disabled:opacity-60"
                 >
                   {uploadingPhoto ? <Loader2 className="size-3.5 animate-spin" /> : <Camera className="size-3.5" />}
@@ -132,11 +134,11 @@ export default function PersonalProfile({ onClose }) {
               </div>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={pickPhoto} className="border-none bg-transparent p-0 text-[12.5px] font-bold text-primary">
-                  Change photo
+                  {t("personalProfile.changePhoto")}
                 </button>
                 {user.has_avatar_photo && (
                   <button type="button" onClick={removePhoto} className="flex items-center gap-1 border-none bg-transparent p-0 text-[12.5px] font-semibold text-muted-foreground">
-                    <Trash2 className="size-3.5" /> Remove
+                    <Trash2 className="size-3.5" /> {t("personalProfile.remove")}
                   </button>
                 )}
               </div>
@@ -145,21 +147,21 @@ export default function PersonalProfile({ onClose }) {
 
             <div>
               <Card className="grid gap-3 p-3.5">
-                <Field label="Name" hint="optional" placeholder="Your name" value={name} onChange={setName} />
-                <Field label="Phone number" hint="optional" placeholder="e.g. (555) 123-4567" type="tel" value={phone} onChange={setPhone} />
+                <Field label={t("personalProfile.name")} hint={t("personalProfile.optional")} placeholder={t("personalProfile.yourName")} value={name} onChange={setName} />
+                <Field label={t("personalProfile.phoneNumber")} hint={t("personalProfile.optional")} placeholder={t("personalProfile.phonePlaceholder")} type="tel" value={phone} onChange={setPhone} />
                 <div>
-                  <p className="m-0 mb-1 text-[12px] font-semibold text-muted-foreground">Account type</p>
-                  <p className="m-0 text-[13.5px] font-bold text-foreground">Personal account</p>
+                  <p className="m-0 mb-1 text-[12px] font-semibold text-muted-foreground">{t("personalProfile.accountType")}</p>
+                  <p className="m-0 text-[13.5px] font-bold text-foreground">{t("personalProfile.personalAccount")}</p>
                 </div>
                 <div>
-                  <p className="m-0 mb-1 text-[12px] font-semibold text-muted-foreground">Email address</p>
+                  <p className="m-0 mb-1 text-[12px] font-semibold text-muted-foreground">{t("personalProfile.emailAddress")}</p>
                   <div className="flex items-center gap-1.5">
                     <p className="m-0 truncate text-[13.5px] font-bold text-foreground">{user.email}</p>
                     {user.email_verified && <CheckCircle2 className="size-3.5 shrink-0 text-[var(--success)]" />}
                   </div>
                 </div>
                 <Btn small variant="gold" className="justify-self-start" disabled={savingProfile || !dirty} loading={savingProfile} onClick={saveProfile}>
-                  Save profile
+                  {t("personalProfile.saveProfile")}
                 </Btn>
               </Card>
             </div>

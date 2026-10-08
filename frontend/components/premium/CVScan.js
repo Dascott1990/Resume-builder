@@ -15,6 +15,7 @@ import { Field, Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import Logo from "./Logo";
 import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
+import { useLanguage } from "@/lib/i18n";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 // Mirrors the backend's own cutoff (see /resume/scan) — below this, a
@@ -30,6 +31,7 @@ const MIN_JOB_DESC = 50;
 const CVSCAN_DRAFT_KEY = "resumeBuilder:cvScanDraft:v1";
 
 export default function CVScan({ onClose, onImported }) {
+  const { t } = useLanguage();
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
   const [file, setFile] = useState(null);
@@ -54,10 +56,10 @@ export default function CVScan({ onClose, onImported }) {
   const validate = (f) => {
     const name = (f.name || "").toLowerCase();
     if (!name.endsWith(".pdf") && !name.endsWith(".docx")) {
-      return "Only .pdf and .docx files are supported.";
+      return t("cvScan.onlyPdfDocx");
     }
     if (f.size > MAX_BYTES) {
-      return "File is too large (8MB max).";
+      return t("cvScan.fileTooLarge");
     }
     return null;
   };
@@ -79,7 +81,7 @@ export default function CVScan({ onClose, onImported }) {
       formData.append("file", file);
       if (tailoring) formData.append("job_description", jobDesc.trim());
       const data = await apiRequest("/api/v1/resume/scan", { method: "POST", body: formData });
-      toast.success(tailoring ? "Tailored." : "Imported.");
+      toast.success(tailoring ? t("cvScan.tailored") : t("cvScan.imported"));
       clearFormDraft(CVSCAN_DRAFT_KEY);
       onImported(data);
     } catch (e) {
@@ -101,7 +103,7 @@ export default function CVScan({ onClose, onImported }) {
       >
         <Logo size={22} />
         {onClose && (
-          <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
+          <button onClick={onClose} aria-label={t("common.close")} className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <X className="size-[17px]" />
           </button>
         )}
@@ -116,7 +118,7 @@ export default function CVScan({ onClose, onImported }) {
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-6 pb-16 lg:max-w-xl">
         <div>
           <IconTile icon={ScanLine} size="md" className="mb-3" />
-          <p className="m-0 text-[22px] font-bold text-foreground">CV Scan</p>
+          <p className="m-0 text-[22px] font-bold text-foreground">{t("dashboard.toolCvScan")}</p>
         </div>
 
         <input
@@ -150,20 +152,20 @@ export default function CVScan({ onClose, onImported }) {
           ) : (
             <>
               <UploadCloud className="size-7 text-muted-foreground" />
-              <span className="text-[13.5px] font-semibold text-foreground">Drop or tap to upload</span>
-              <span className="text-[11.5px] text-muted-foreground">.pdf or .docx, up to 8MB</span>
+              <span className="text-[13.5px] font-semibold text-foreground">{t("cvScan.dropOrTapToUpload")}</span>
+              <span className="text-[11.5px] text-muted-foreground">{t("cvScan.fileHint")}</span>
             </>
           )}
         </button>
 
         {restoredWithoutFile && !file && (
           <p className="m-0 -mt-3 text-center text-[11.5px] text-muted-foreground">
-            Your file wasn't restored after reload — please choose it again.
+            {t("cvScan.fileNotRestored")}
           </p>
         )}
 
         <Field
-          label="JOB DESCRIPTION" hint={tailoring ? "Will tailor ✓" : "Optional"}
+          label={t("cvScan.jobDescriptionLabel")} hint={tailoring ? t("cvScan.willTailor") : t("cvScan.optional")}
           value={jobDesc} onChange={setJobDesc} multiline rows={6} mono
         />
 
@@ -174,7 +176,7 @@ export default function CVScan({ onClose, onImported }) {
         )}
 
         <Btn variant="gold" disabled={!file || scanning} loading={scanning} onClick={scan}>
-          {scanning ? (tailoring ? "Reading and tailoring…" : "Reading your resume…") : (tailoring ? "Scan and tailor" : "Scan and import")}
+          {scanning ? (tailoring ? t("cvScan.readingAndTailoring") : t("cvScan.readingYourResume")) : (tailoring ? t("cvScan.scanAndTailor") : t("cvScan.scanAndImport"))}
         </Btn>
       </div>
     </motion.div>

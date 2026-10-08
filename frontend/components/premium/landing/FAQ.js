@@ -3,13 +3,14 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD, SectionGlow } from "./shared";
+import { useLanguage } from "@/lib/i18n";
 
-const FAQS = [
-  { q: "Is Noqeev really free?", a: "Yes. No credit card, no trial, no subscription." },
-  { q: "Do I need to create an account?", a: "Yes, a free one. That's what saves your resumes, profile, and job tracker and keeps them synced." },
-  { q: "How does resume tailoring actually work?", a: "Paste the job posting and it matches your background to the posting's own keywords." },
-  { q: "What files do I get, and can I edit them?", a: "An editable .docx and a clean PDF. No watermark, no locked preview." },
-  { q: "Does Auto Apply submit applications for me?", a: "No. It fills out the real application form and shows you exactly what it entered. Nothing is ever sent without you reviewing and confirming it first." },
+const faqs = (t) => [
+  { q: t("landing.faq1Q"), a: t("landing.faq1A") },
+  { q: t("landing.faq2Q"), a: t("landing.faq2A") },
+  { q: t("landing.faq3Q"), a: t("landing.faq3A") },
+  { q: t("landing.faq4Q"), a: t("landing.faq4A") },
+  { q: t("landing.faq5Q"), a: t("landing.faq5A") },
 ];
 
 function FAQItem({ q, a }) {
@@ -32,15 +33,17 @@ function FAQItem({ q, a }) {
 // instead of getting hard-clipped at this section's own top edge, which
 // is what was reading as a visible line at the boundary.
 export function FAQ() {
+  const { t } = useLanguage();
+  const FAQS = faqs(t);
   return (
     <section id="faq" className="relative flex min-h-[100svh] flex-col justify-center py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
       <SectionGlow color="emerald" side="right" />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal>
-            <span className={EYEBROW}>Questions</span>
+            <span className={EYEBROW}>{t("landing.faqEyebrow")}</span>
             <h2 className="m-0 text-[clamp(1.6rem,4vw,2.4rem)] leading-tight font-bold text-foreground">
-              How Noqeev actually works.
+              {t("landing.faqTitle")}
             </h2>
           </Reveal>
 

@@ -23,6 +23,10 @@ PATCH  /api/v1/admin/vendors/<id>          — edit any field, auto-detected or 
 DELETE /api/v1/admin/vendors/<id>
 POST   /api/v1/admin/vendors/sync          — re-run env-var detection (see utils/vendors.py)
 GET    /api/v1/admin/vendors/<id>/news     — real status-feed items, only for vendors with a status_feed_url set
+GET    /api/v1/admin/incidents             — hand-logged outage/issue history, newest-started first
+POST   /api/v1/admin/incidents             — log a new incident
+PATCH  /api/v1/admin/incidents/<id>        — edit fields; flipping status to "resolved" auto-stamps resolved_at
+DELETE /api/v1/admin/incidents/<id>
 GET    /api/v1/admin/handles               — registered social/campaign accounts
 POST   /api/v1/admin/handles               — register one (platform + handle name)
 DELETE /api/v1/admin/handles/<id>
@@ -78,7 +82,7 @@ from app import db, limiter
 from app.models import (
     User, Media, JobApplication, JdCapture, CareerProfile,
     ApplicationRun, Vendor, VendorNewsItem, GoogleSearchConsoleCredential, SeoSnapshot,
-    SchedulerStatus, AdminBroadcast, LoginGeo, SiteVisit, JobsIngestRun,
+    SchedulerStatus, AdminBroadcast, LoginGeo, SiteVisit, JobsIngestRun, Incident,
 )
 from app.middleware.error_handlers import APIError
 from app.utils.auth import require_admin, JWT_SECRET, JWT_ALGORITHM
@@ -94,6 +98,8 @@ admin_bp = Blueprint("admin", __name__)
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 VALID_APPLICATION_STATUSES = {"applied", "interview", "offer", "rejected"}
 VALID_VENDOR_CATEGORIES = {"hosting", "database", "ai", "payments", "email", "push", "monitoring", "other"}
+VALID_INCIDENT_SEVERITIES = {"minor", "major", "critical"}
+VALID_INCIDENT_STATUSES = {"investigating", "identified", "monitoring", "resolved"}
 
 
 def _clean_pagination(default_limit=50, max_limit=200):
@@ -481,6 +487,91 @@ def vendor_news(vendor_id):
         .all()
     )
     return jsonify({"success": True, "data": [i.to_dict() for i in items]}), 200
+
+
+# --- Incidents (hand-logged outage/issue history) ---
+
+@admin_bp.route("/incidents", methods=["GET"])
+def list_incidents():
+    require_admin(request)
+    items = Incident.query.order_by(Incident.started_at.desc()).all()
+    return jsonify({"success": True, "data": [i.to_dict() for i in items]}), 200
+
+
+@admin_bp.route("/incidents", methods=["POST"])
+def create_incident():
+    require_admin(request)
+    body = request.get_json(force=True) or {}
+    title = (body.get("title") or "").strip()
+    if not title:
+        raise APIError("title is required", 400)
+    severity = body.get("severity") or "minor"
+    if severity not in VALID_INCIDENT_SEVERITIES:
+        raise APIError(f"severity must be one of {sorted(VALID_INCIDENT_SEVERITIES)}", 400)
+    status = body.get("status") or "investigating"
+    if status not in VALID_INCIDENT_STATUSES:
+        raise APIError(f"status must be one of {sorted(VALID_INCIDENT_STATUSES)}", 400)
+
+    incident = Incident(
+        title=title, severity=severity, status=status,
+        description=(body.get("description") or "").strip() or None,
+        started_at=datetime.fromisoformat(body["started_at"]) if body.get("started_at") else datetime.now(timezone.utc),
+        resolved_at=datetime.fromisoformat(body["resolved_at"]) if body.get("resolved_at") else None,
+    )
+    db.session.add(incident)
+    db.session.commit()
+    return jsonify({"success": True, "data": incident.to_dict()}), 201
+
+
+@admin_bp.route("/incidents/<incident_id>", methods=["PATCH"])
+def update_incident(incident_id):
+    require_admin(request)
+    incident = db.session.get(Incident, incident_id)
+    if not incident:
+        raise APIError("Incident not found", 404)
+
+    body = request.get_json(force=True) or {}
+    if "title" in body:
+        title = (body["title"] or "").strip()
+        if not title:
+            raise APIError("title can't be empty", 400)
+        incident.title = title
+    if "severity" in body:
+        if body["severity"] not in VALID_INCIDENT_SEVERITIES:
+            raise APIError(f"severity must be one of {sorted(VALID_INCIDENT_SEVERITIES)}", 400)
+        incident.severity = body["severity"]
+    if "status" in body:
+        if body["status"] not in VALID_INCIDENT_STATUSES:
+            raise APIError(f"status must be one of {sorted(VALID_INCIDENT_STATUSES)}", 400)
+        incident.status = body["status"]
+        # Resolving via the status dropdown stamps resolved_at automatically
+        # if it isn't already set — matches how started_at is set on
+        # creation, so an admin doesn't have to fill in two fields by hand
+        # for the common case of just flipping the status to "resolved".
+        if incident.status == "resolved" and not incident.resolved_at:
+            incident.resolved_at = datetime.now(timezone.utc)
+        elif incident.status != "resolved":
+            incident.resolved_at = None
+    if "description" in body:
+        incident.description = (body["description"] or "").strip() or None
+    if "started_at" in body and body["started_at"]:
+        incident.started_at = datetime.fromisoformat(body["started_at"])
+    if "resolved_at" in body:
+        incident.resolved_at = datetime.fromisoformat(body["resolved_at"]) if body["resolved_at"] else None
+
+    incident.updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return jsonify({"success": True, "data": incident.to_dict()}), 200
+
+
+@admin_bp.route("/incidents/<incident_id>", methods=["DELETE"])
+def delete_incident(incident_id):
+    require_admin(request)
+    incident = db.session.get(Incident, incident_id)
+    if incident:
+        db.session.delete(incident)
+        db.session.commit()
+    return jsonify({"success": True}), 200
 
 
 # --- SEO dashboard (noqeev.com's own Search Console + Core Web Vitals) ---

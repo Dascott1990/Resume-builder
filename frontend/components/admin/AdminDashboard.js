@@ -11,12 +11,13 @@
  * file's own AdminDashboard() component for that responsive split.
  */
 import { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import {
   Loader2, RefreshCw, Trash2, ShieldCheck, ShieldOff,
   Users, FileText, Briefcase, LayoutGrid, Pencil, Mail, Plus, X, Sparkles,
   Newspaper, ExternalLink, Server, Bug, CheckCircle2, XCircle, ChevronDown, Table2, Activity, Menu,
-  Globe, Building2,
+  Globe, Building2, AlertTriangle,
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { getToken } from "@/lib/authToken";
@@ -34,6 +35,11 @@ import BroadcastTab from "./BroadcastTab";
 function fmtDate(iso) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 // ── Shared table shell — every tab below is "fetch a list, render rows,
@@ -1193,6 +1199,169 @@ function SiteVisitsTab() {
   );
 }
 
+// ── Incidents — hand-logged outage/issue history (backend/app/api/
+// admin.py's /incidents routes). Same "list + add/edit dialog + delete"
+// shape as Vendors above, just with severity/status chips instead of a
+// category/free badge. Nothing here is auto-detected — an admin writes
+// every row themselves after the fact (e.g. the 2026-10-06 Neon outage). ──
+const INCIDENT_SEVERITIES = ["minor", "major", "critical"];
+const INCIDENT_STATUSES = ["investigating", "identified", "monitoring", "resolved"];
+const SEVERITY_TONES = { minor: "neutral", major: "warning", critical: "bad" };
+const STATUS_TONES = { investigating: "bad", identified: "warning", monitoring: "warning", resolved: "good" };
+
+// <input type="datetime-local"> wants "YYYY-MM-DDTHH:mm" in local time —
+// toISOString() gives UTC, so this subtracts the timezone offset first
+// rather than showing an admin a time that's hours off from what they typed.
+function toDateTimeLocal(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+function IncidentFormDialog({ incident, open, onOpenChange, onSaved }) {
+  const isNew = !incident?.id;
+  const [form, setForm] = useState(incident || {});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setForm(incident ? { ...incident, started_at: toDateTimeLocal(incident.started_at), resolved_at: toDateTimeLocal(incident.resolved_at) } : {});
+  }, [incident]);
+
+  const save = async () => {
+    if (!form.title?.trim()) { toast.error("Title is required."); return; }
+    setSaving(true);
+    try {
+      const payload = {
+        title: form.title.trim(),
+        severity: form.severity || "minor",
+        status: form.status || "investigating",
+        description: form.description || "",
+        started_at: form.started_at ? new Date(form.started_at).toISOString() : null,
+        resolved_at: form.resolved_at ? new Date(form.resolved_at).toISOString() : null,
+      };
+      if (isNew) {
+        await apiRequest("/api/v1/admin/incidents", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        });
+        toast.success("Incident logged.");
+      } else {
+        await apiRequest(`/api/v1/admin/incidents/${incident.id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        });
+        toast.success("Incident updated.");
+      }
+      onOpenChange(false);
+      onSaved();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>{isNew ? "Log incident" : "Edit incident"}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5"><Label>Title</Label><Input autoFocus value={form.title || ""} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Severity</Label>
+              <Select value={form.severity || "minor"} onValueChange={(v) => setForm({ ...form, severity: v })}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {INCIDENT_SEVERITIES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Status</Label>
+              <Select value={form.status || "investigating"} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {INCIDENT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label>Started</Label><Input type="datetime-local" value={form.started_at || ""} onChange={(e) => setForm({ ...form, started_at: e.target.value })} /></div>
+            <div className="space-y-1.5">
+              <Label>Resolved</Label>
+              <Input type="datetime-local" value={form.resolved_at || ""} onChange={(e) => setForm({ ...form, resolved_at: e.target.value })} disabled={form.status !== "resolved"} />
+            </div>
+          </div>
+          <div className="space-y-1.5"><Label>What happened</Label><Textarea rows={4} value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="size-3.5 animate-spin" /> : "Save"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function IncidentsTab() {
+  const { rows, loading, busyId, load, remove } = useAdminList("/api/v1/admin/incidents");
+  const [editing, setEditing] = useState(null); // {} for "new", a row for "edit"
+
+  return (
+    <div>
+      <TabHeader
+        title="Incidents"
+        onRefresh={load}
+        refreshing={loading}
+        extra={
+          <Button size="sm" onClick={() => setEditing({})}>
+            <Plus className="size-3.5" /> Log incident
+          </Button>
+        }
+      />
+      {editing && (
+        <IncidentFormDialog incident={editing} open={!!editing} onOpenChange={(o) => !o && setEditing(null)} onSaved={load} />
+      )}
+      {!loading && rows.length === 0 ? (
+        <p className="m-0 py-16 text-center text-sm text-muted-foreground">No incidents logged. Nothing's gone wrong yet — or nothing's been written down.</p>
+      ) : (
+        <div className="grid gap-2.5">
+          {loading && rows.length === 0 && (
+            <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="size-5 animate-spin" /></div>
+          )}
+          {rows.map((incident) => (
+            <div key={incident.id} className="rounded-xl border border-border bg-card p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <AlertTriangle className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="font-semibold text-foreground">{incident.title}</span>
+                  <StatusChip tone={SEVERITY_TONES[incident.severity] || "neutral"}>{incident.severity}</StatusChip>
+                  <StatusChip tone={STATUS_TONES[incident.status] || "neutral"}>{incident.status}</StatusChip>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button size="icon-sm" variant="ghost" onClick={() => setEditing(incident)} title="Edit">
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  <Button size="icon-sm" variant="ghost" disabled={busyId === incident.id} onClick={() => remove(incident.id, `Delete "${incident.title}"?`)} title="Delete">
+                    <Trash2 className="size-3.5 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+              {incident.description && (
+                <p className="m-0 mt-2 text-[13px] whitespace-pre-wrap text-muted-foreground">{incident.description}</p>
+              )}
+              <p className="m-0 mt-2.5 text-[11.5px] text-muted-foreground/70">
+                Started {fmtDateTime(incident.started_at)}
+                {incident.resolved_at ? ` · Resolved ${fmtDateTime(incident.resolved_at)}` : ""}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const JOBS_INGEST_SOURCE_LABELS = { remotive: "Remotive", arbeitnow: "Arbeitnow", greenhouse: "Greenhouse", ashby: "Ashby", scrapegraphai: "ScrapeGraphAI", coverage_retry: "Coverage retry" };
 
 function JobsIngestTab() {
@@ -1545,16 +1714,34 @@ export function AdminDashboard({ adminUser, onSignOut }) {
 
         <main className="flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
           <div className="mx-auto max-w-6xl px-4 py-5 sm:px-8 sm:py-7">
-            {activeSection === "overview" && <OverviewTab />}
-            {activeSection === "users" && <UsersTab selfId={adminUser?.id} />}
-            {activeSection === "resumes" && <ResumesTab />}
-            {activeSection === "applications" && <ApplicationsTab />}
-            {activeSection === "vendors" && <VendorsTab />}
-            {activeSection === "jobs-ingest" && <JobsIngestTab />}
-            {activeSection === "login-geo" && <LoginGeoTab />}
-            {activeSection === "site-visits" && <SiteVisitsTab />}
-            {activeSection === "system" && <SystemTab />}
-            {activeSection === "broadcast" && <BroadcastTab />}
+            {/* Tab switches used to hard-cut with no transition at all —
+                the one surface in the app with literally zero motion.
+                AnimatePresence + a per-tab key gives every section the
+                same fade/rise entrance the rest of the app already uses
+                (see Dashboard.js's own section reveals), and actually
+                lets the outgoing tab's exit animation play instead of
+                just vanishing. */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeSection}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+              >
+                {activeSection === "overview" && <OverviewTab />}
+                {activeSection === "users" && <UsersTab selfId={adminUser?.id} />}
+                {activeSection === "resumes" && <ResumesTab />}
+                {activeSection === "applications" && <ApplicationsTab />}
+                {activeSection === "vendors" && <VendorsTab />}
+                {activeSection === "jobs-ingest" && <JobsIngestTab />}
+                {activeSection === "login-geo" && <LoginGeoTab />}
+                {activeSection === "site-visits" && <SiteVisitsTab />}
+                {activeSection === "incidents" && <IncidentsTab />}
+                {activeSection === "system" && <SystemTab />}
+                {activeSection === "broadcast" && <BroadcastTab />}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </main>
       </div>

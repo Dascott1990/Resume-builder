@@ -5,10 +5,12 @@ import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { AuthShell } from "@/components/premium/auth/AuthShell";
+import { useLanguage } from "@/lib/i18n";
 
 const ENTERED_KEY = "noqeev_entered_app";
 
 function VerifyEmailContent() {
+  const { t } = useLanguage();
   const router = useRouter();
   const params = useSearchParams();
   const { verifyEmail } = useAuth();
@@ -19,7 +21,7 @@ function VerifyEmailContent() {
     const token = params.get("token");
     if (!token) {
       setStatus("error");
-      setMessage("This verification link is missing its token.");
+      setMessage(t("verifyEmail.missingToken"));
       return;
     }
     verifyEmail(token)
@@ -31,8 +33,8 @@ function VerifyEmailContent() {
         setStatus("error");
         setMessage(
           e.message
-            ? `${e.message} Sign in and we'll offer to resend the link.`
-            : "This verification link is invalid or has expired. Sign in and we'll offer to resend the link."
+            ? `${e.message} ${t("verifyEmail.resendOffer")}`
+            : t("verifyEmail.invalidOrExpired")
         );
       });
     // Only ever run once, against whatever token was in the URL on load.
@@ -45,29 +47,29 @@ function VerifyEmailContent() {
         {status === "verifying" && (
           <>
             <Loader2 className="size-7 animate-spin text-primary" />
-            <p className="m-0 text-[14px] text-muted-foreground">Verifying your email…</p>
+            <p className="m-0 text-[14px] text-muted-foreground">{t("verifyEmail.verifying")}</p>
           </>
         )}
 
         {status === "success" && (
           <>
             <div>
-              <p className="m-0 text-[18px] font-bold text-foreground">Email verified</p>
+              <p className="m-0 text-[18px] font-bold text-foreground">{t("verifyEmail.emailVerified")}</p>
               <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-                You're signed in. Your account is ready to go.
+                {t("verifyEmail.signedInReady")}
               </p>
             </div>
-            <Btn variant="gold" small onClick={() => router.replace("/")}>Continue</Btn>
+            <Btn variant="gold" small onClick={() => router.replace("/")}>{t("verifyEmail.continue")}</Btn>
           </>
         )}
 
         {status === "error" && (
           <>
             <div>
-              <p className="m-0 text-[18px] font-bold text-foreground">Link didn't work</p>
+              <p className="m-0 text-[18px] font-bold text-foreground">{t("common.linkDidntWork")}</p>
               <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">{message}</p>
             </div>
-            <Btn variant="gold" small onClick={() => router.replace("/")}>Go to sign in</Btn>
+            <Btn variant="gold" small onClick={() => router.replace("/")}>{t("common.goToSignIn")}</Btn>
           </>
         )}
       </div>

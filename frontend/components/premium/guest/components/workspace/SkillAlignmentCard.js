@@ -14,8 +14,10 @@ import { useEffect, useState } from "react";
 import { Loader2, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "../../../shared/api";
+import { useLanguage } from "@/lib/i18n";
 
 export function SkillAlignmentCard({ resume, jobDescription, onApply }) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [fixing, setFixing] = useState(false);
   const [result, setResult] = useState(null);
@@ -46,10 +48,10 @@ export function SkillAlignmentCard({ resume, jobDescription, onApply }) {
         body: JSON.stringify({ resume, job_description: jobDescription || "" }),
       });
       onApply(data.resume);
-      toast.success("Resume updated");
+      toast.success(t("skillAlignment.resumeUpdated"));
       setResult({ score: data.score, summary: data.summary, issues: data.issues });
     } catch (e) {
-      toast.error(e.message || "Couldn't update the resume.");
+      toast.error(e.message || t("skillAlignment.couldntUpdate"));
     } finally {
       setFixing(false);
     }
@@ -72,7 +74,7 @@ export function SkillAlignmentCard({ resume, jobDescription, onApply }) {
 
       {loading ? (
         <div className="mt-3 flex items-center gap-2 text-[12px] text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin" /> Checking alignment…
+          <Loader2 className="size-3.5 animate-spin" /> {t("skillAlignment.checkingAlignment")}
         </div>
       ) : result ? (
         <>
@@ -83,20 +85,20 @@ export function SkillAlignmentCard({ resume, jobDescription, onApply }) {
                 onClick={() => setDismissed(true)}
                 className="h-7 flex-1 rounded-full border border-border text-[11.5px] font-bold text-foreground [-webkit-tap-highlight-color:transparent]"
               >
-                Ignore
+                {t("skillAlignment.ignore")}
               </button>
               <button
                 onClick={fix}
                 disabled={fixing}
                 className="flex h-7 flex-1 items-center justify-center gap-1 rounded-full bg-primary text-[11.5px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent] disabled:opacity-60"
               >
-                {fixing && <Loader2 className="size-3 animate-spin" />} Add skills
+                {fixing && <Loader2 className="size-3 animate-spin" />} {t("skillAlignment.addSkills")}
               </button>
             </div>
           )}
         </>
       ) : (
-        <p className="m-0 mt-2.5 text-[12px] text-muted-foreground">Couldn't check this resume right now.</p>
+        <p className="m-0 mt-2.5 text-[12px] text-muted-foreground">{t("skillAlignment.couldntCheck")}</p>
       )}
     </div>
   );

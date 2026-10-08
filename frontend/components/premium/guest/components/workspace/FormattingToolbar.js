@@ -14,7 +14,8 @@
 import { ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { FONTS } from "../../constants";
-import { LAYOUTS } from "../../../shared/resumeLayouts/registry";
+import { layouts } from "../../../shared/resumeLayouts/registry";
+import { useLanguage } from "@/lib/i18n";
 
 function ToolbarSelect({ label, children }) {
   return (
@@ -30,6 +31,8 @@ function ToolbarSelect({ label, children }) {
 }
 
 export function FormattingToolbar({ docStyle, setDocStyle }) {
+  const { t } = useLanguage();
+  const LAYOUTS = layouts(t);
   const font = FONTS.find((f) => f.id === docStyle.font) || FONTS[0];
   const layout = LAYOUTS.find((l) => l.id === (docStyle.layout || "classic")) || LAYOUTS[0];
 

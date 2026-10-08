@@ -1,12 +1,13 @@
 "use client";
 import { motion } from "framer-motion";
 import { Sparkles, Eye, FileText, Settings } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
-const VIEWS = [
-  { id: "new",       Icon: Sparkles, label: "Build" },
-  { id: "preview",   Icon: Eye,      label: "Preview" },
-  { id: "templates", Icon: FileText, label: "Saved" },
-  { id: "settings",  Icon: Settings, label: "Settings" },
+const views = (t) => [
+  { id: "new",       Icon: Sparkles, label: t("guestMode.build") },
+  { id: "preview",   Icon: Eye,      label: t("guestMode.preview") },
+  { id: "templates", Icon: FileText, label: t("guestMode.saved") },
+  { id: "settings",  Icon: Settings, label: t("guestMode.settings") },
 ];
 
 // ── Mobile/tablet: floating frosted-glass bottom bar ──────────────────────────
@@ -44,11 +45,13 @@ function isActive(v, tab, mobileView) {
 }
 
 export function MobileNav({ tab, mobileView, navHidden, onNavigate }) {
+  const { t } = useLanguage();
+  const VIEWS = views(t);
   const activeIndex = VIEWS.findIndex((v) => isActive(v, tab, mobileView));
   const slot = 100 / VIEWS.length;
 
   return (
-    <motion.nav role="tablist" aria-label="View"
+    <motion.nav role="tablist" aria-label={t("guestMode.view")}
       initial={false}
       animate={{ y: navHidden ? 90 : 0, opacity: navHidden ? 0 : 1, scale: navHidden ? 0.94 : 1 }}
       transition={{ type: "spring", damping: 28, stiffness: 320 }}

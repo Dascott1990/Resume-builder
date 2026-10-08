@@ -12,8 +12,10 @@ import { useAuth } from "@/lib/useAuth";
 import { Field, Btn } from "../guest/components/primitives";
 import { TermsConsent } from "@/components/shared/TermsConsent";
 import { AuthShell } from "./AuthShell";
+import { useLanguage } from "@/lib/i18n";
 
 export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
+  const { t } = useLanguage();
   const { signup, resendVerification } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,15 +29,15 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
     e.preventDefault();
     setError("");
     if (!email.trim() || !password) {
-      setError("Enter your email and password.");
+      setError(t("auth.enterEmailPassword"));
       return;
     }
     if (!agreed) {
-      setError("Please agree to the Terms & Conditions and Privacy Policy.");
+      setError(t("auth.agreeTerms"));
       return;
     }
     if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+      setError(t("auth.passwordMinLength"));
       return;
     }
     setSubmitting(true);
@@ -55,7 +57,7 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
     setResending(true);
     try {
       await resendVerification(email.trim());
-      toast.success("Verification email sent. Check your inbox.");
+      toast.success(t("auth.verificationSent"));
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -69,9 +71,9 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
         {sent ? (
           <div className="flex flex-col items-center gap-4 text-center">
             <div>
-              <p className="m-0 text-[18px] font-bold text-foreground">Check your email</p>
+              <p className="m-0 text-[18px] font-bold text-foreground">{t("auth.checkYourEmail")}</p>
               <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-                We sent a verification link to <strong className="text-foreground">{email.trim()}</strong>. Click it to finish setting up your account.
+                {t("auth.verificationLinkSentTo", { email: email.trim() })}
               </p>
             </div>
             <button
@@ -79,22 +81,22 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
               disabled={resending}
               className="border-none bg-transparent p-0 text-[13px] font-bold text-primary disabled:opacity-50"
             >
-              {resending ? "Sending…" : "Didn't get it? Resend"}
+              {resending ? t("auth.sending") : t("auth.didntGetItResend")}
             </button>
             <button onClick={onSwitchToLogin} className="border-none bg-transparent p-0 text-[13px] font-semibold text-muted-foreground">
-              Back to sign in
+              {t("auth.backToSignIn")}
             </button>
           </div>
         ) : (
           <>
-            <p className="m-0 text-[20px] font-bold text-foreground">Create an account</p>
+            <p className="m-0 text-[20px] font-bold text-foreground">{t("auth.createAnAccount")}</p>
             <p className="m-0 mt-1.5 mb-5 text-[13.5px] leading-relaxed text-muted-foreground">
-              Save your resumes, applications, and profile once. Reuse them for every future resume.
+              {t("auth.saveOnceSubtitle")}
             </p>
 
             <form onSubmit={submit} className="grid gap-1">
-              <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" autoComplete="email" />
-              <Field label="PASSWORD" required type="password" hint="8+ characters" value={password} onChange={setPassword} placeholder="••••••••" autoComplete="new-password" />
+              <Field label={t("auth.email")} required type="email" value={email} onChange={setEmail} placeholder={t("auth.emailPlaceholder")} autoComplete="email" />
+              <Field label={t("auth.password")} required type="password" hint={t("auth.passwordHint")} value={password} onChange={setPassword} placeholder="••••••••" autoComplete="new-password" />
 
               <TermsConsent checked={agreed} onChange={setAgreed} id="signup-terms-consent" />
 
@@ -105,14 +107,14 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
               )}
 
               <Btn variant="gold" type="submit" className="mt-2.5" disabled={submitting || !agreed} loading={submitting}>
-                {submitting ? "Creating account…" : "Create account"}
+                {submitting ? t("auth.creatingAccount") : t("auth.createAccount")}
               </Btn>
             </form>
 
             <p className="m-0 mt-5 text-center text-[13px] text-muted-foreground">
-              Already have an account?{" "}
+              {t("auth.alreadyHaveAccount")}{" "}
               <button onClick={onSwitchToLogin} className="border-none bg-transparent p-0 font-bold text-primary">
-                Sign in
+                {t("auth.signIn")}
               </button>
             </p>
           </>

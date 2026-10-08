@@ -4,10 +4,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
 import { Field, Btn } from "@/components/premium/guest/components/primitives";
 import { AuthShell } from "@/components/premium/auth/AuthShell";
+import { useLanguage } from "@/lib/i18n";
 
 const ENTERED_KEY = "noqeev_entered_app";
 
 function ResetPasswordContent() {
+  const { t } = useLanguage();
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get("token");
@@ -27,11 +29,11 @@ function ResetPasswordContent() {
     setError("");
     setTokenInvalid(false);
     if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+      setError(t("resetPassword.passwordMinLength"));
       return;
     }
     if (password !== confirm) {
-      setError("Passwords don't match.");
+      setError(t("resetPassword.passwordsDontMatch"));
       return;
     }
     setSubmitting(true);
@@ -52,12 +54,12 @@ function ResetPasswordContent() {
       <AuthShell>
         <div className="flex flex-col items-center gap-4 text-center">
           <div>
-            <p className="m-0 text-[18px] font-bold text-foreground">Link didn't work</p>
+            <p className="m-0 text-[18px] font-bold text-foreground">{t("common.linkDidntWork")}</p>
             <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-              This reset link is missing its token. Sign in and use "Forgot password?" to request a new one.
+              {t("resetPassword.missingTokenExplain")}
             </p>
           </div>
-          <Btn variant="gold" small onClick={() => router.replace("/")}>Go to sign in</Btn>
+          <Btn variant="gold" small onClick={() => router.replace("/")}>{t("common.goToSignIn")}</Btn>
         </div>
       </AuthShell>
     );
@@ -65,27 +67,27 @@ function ResetPasswordContent() {
 
   return (
     <AuthShell>
-      <p className="m-0 text-[20px] font-bold text-foreground">Choose a new password</p>
+      <p className="m-0 text-[20px] font-bold text-foreground">{t("resetPassword.chooseNewPassword")}</p>
       <p className="m-0 mt-1.5 mb-5 text-[13.5px] leading-relaxed text-muted-foreground">
-        You'll be signed in right after.
+        {t("resetPassword.signedInRightAfter")}
       </p>
 
       <form onSubmit={submit} className="grid gap-1">
-        <Field label="NEW PASSWORD" required type="password" hint="8+ characters" value={password} onChange={setPassword} placeholder="••••••••" autoComplete="new-password" />
-        <Field label="CONFIRM PASSWORD" required type="password" value={confirm} onChange={setConfirm} placeholder="••••••••" autoComplete="new-password" />
+        <Field label={t("resetPassword.newPasswordLabel")} required type="password" hint={t("auth.passwordHint")} value={password} onChange={setPassword} placeholder="••••••••" autoComplete="new-password" />
+        <Field label={t("resetPassword.confirmPasswordLabel")} required type="password" value={confirm} onChange={setConfirm} placeholder="••••••••" autoComplete="new-password" />
 
         {error && (
           <div role="alert" className="mt-1 mb-1 flex flex-col gap-2 border-l-2 border-destructive py-0.5 pl-[11px] text-[12.5px] leading-relaxed text-destructive">
             <span>{error}</span>
             {tokenInvalid && (
               <span className="text-foreground">
-                This link may have expired or already been used —{" "}
+                {t("resetPassword.linkExpiredPrefix")}{" "}
                 <button
                   type="button"
                   onClick={() => router.replace("/")}
                   className="border-none bg-transparent p-0 font-bold text-primary underline"
                 >
-                  sign in and request a new one
+                  {t("resetPassword.signInRequestNew")}
                 </button>.
               </span>
             )}
@@ -93,7 +95,7 @@ function ResetPasswordContent() {
         )}
 
         <Btn variant="gold" type="submit" className="mt-2.5" disabled={submitting} loading={submitting}>
-          {submitting ? "Updating…" : "Update password"}
+          {submitting ? t("resetPassword.updating") : t("resetPassword.updatePassword")}
         </Btn>
       </form>
     </AuthShell>

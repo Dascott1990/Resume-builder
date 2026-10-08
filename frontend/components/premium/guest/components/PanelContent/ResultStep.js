@@ -4,21 +4,23 @@ import { Check } from "lucide-react";
 import { Btn, TextLink, KwPill } from "../primitives";
 import { ApplyBanner } from "../ApplyBanner";
 import { AtsScoreModal } from "../AtsScoreModal";
+import { useLanguage } from "@/lib/i18n";
 
 // ── Step 3 result — one bold action, everything else a quiet text link ───────
 export function ResultStep({
   genResult, application, coverLetter, isPhone, isDesktop, downloading, resume, jobDescription,
   onOpenPackage, onDownloadWord, onOpenPreview, onDownloadPdf, onBuildAnother, onApplyAts,
 }) {
+  const { t } = useLanguage();
   const [atsOpen, setAtsOpen] = useState(false);
   return (
     <div className="p-4 pt-0 pb-[18px]">
       <div className="mb-4 border-b border-border pb-3.5">
         <p className="m-0 mb-1 flex items-center gap-2 font-serif text-lg italic text-foreground">
-          <Check className="size-[15px] text-[var(--success)]" /> Resume ready
+          <Check className="size-[15px] text-[var(--success)]" /> {t("resultStep.resumeReady")}
         </p>
         <p className="m-0 text-[12.5px] text-muted-foreground">
-          {isPhone ? "Open Preview to edit" : "Click any text to edit"}
+          {isPhone ? t("resultStep.openPreviewToEdit") : t("resultStep.clickAnyTextToEdit")}
           {genResult.job_location && ` · ${genResult.job_location}`}
         </p>
       </div>
@@ -26,7 +28,7 @@ export function ResultStep({
       {genResult.keywords?.length > 0 && (
         <div className="mb-4">
           <p className="m-0 mb-1.5 text-[11.5px] text-muted-foreground">
-            Keywords matched
+            {t("resultStep.keywordsMatched")}
           </p>
           <div className="flex flex-wrap gap-y-[3px]">
             {genResult.keywords.map((k, i) => (
@@ -55,31 +57,31 @@ export function ResultStep({
         {coverLetter ? (
           <Btn variant="gold" icon="FileDown" onClick={onOpenPackage}
             disabled={!!downloading} loading={downloading === "docx"}>
-            Review & Download
+            {t("resultStep.reviewAndDownload")}
           </Btn>
         ) : (
           <Btn variant="gold" icon="FileDown" onClick={onDownloadWord}
             disabled={!!downloading} loading={downloading === "docx"}>
-            Download Word
+            {t("resultStep.downloadWord")}
           </Btn>
         )}
 
         <div className="flex flex-wrap items-center justify-center [row-gap:2px]">
           {!isDesktop && (
             <>
-              <TextLink onClick={onOpenPreview}>Open Preview</TextLink>
+              <TextLink onClick={onOpenPreview}>{t("resultStep.openPreview")}</TextLink>
               <span className="px-1.5 text-xs text-muted-foreground/60">·</span>
             </>
           )}
           {!coverLetter && (
             <>
-              <TextLink onClick={onDownloadPdf} disabled={!!downloading}>Download PDF</TextLink>
+              <TextLink onClick={onDownloadPdf} disabled={!!downloading}>{t("resultStep.downloadPdf")}</TextLink>
               <span className="px-1.5 text-xs text-muted-foreground/60">·</span>
             </>
           )}
-          <TextLink onClick={() => setAtsOpen(true)}>ATS score</TextLink>
+          <TextLink onClick={() => setAtsOpen(true)}>{t("resultStep.atsScore")}</TextLink>
           <span className="px-1.5 text-xs text-muted-foreground/60">·</span>
-          <TextLink onClick={onBuildAnother}>Build another</TextLink>
+          <TextLink onClick={onBuildAnother}>{t("workspace.buildAnother")}</TextLink>
         </div>
       </div>
 

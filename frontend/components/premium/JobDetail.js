@@ -20,8 +20,9 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { ArrowLeft, Share2, Building2, ShieldCheck, ShieldQuestion, Check } from "lucide-react";
 import { SOURCE_LABELS, SOURCES_WITHOUT_DIRECT_LINK, timeAgo } from "./shared/jobsBoardShared";
+import { useLanguage } from "@/lib/i18n";
 
-const TABS = ["Description", "Company", "Review"];
+const TAB_IDS = ["Description", "Company", "Review"];
 const READ_MORE_CUTOFF = 280;
 
 // Defense in depth, not the real fix — backend/app/jobs_ingest/sources.py's
@@ -71,13 +72,15 @@ function splitQualifications(text) {
 }
 
 export function JobDetail({ job, applied, onClose }) {
+  const { t } = useLanguage();
+  const TAB_LABELS = { Description: t("jobDetail.tabDescription"), Company: t("jobDetail.tabCompany"), Review: t("jobDetail.tabReview") };
   const [tab, setTab] = useState("Description");
   const [expanded, setExpanded] = useState(false);
   const { about, qualifications } = splitQualifications(stripTags(job.description_text));
 
   const specs = [
     job.category,
-    job.remote ? "Remote" : (job.location ? "Onsite" : null),
+    job.remote ? t("common.remote") : (job.location ? t("jobDetail.onsite") : null),
     job.location,
   ].filter(Boolean);
 
@@ -89,9 +92,9 @@ export function JobDetail({ job, applied, onClose }) {
     }
     try {
       await navigator.clipboard.writeText(job.url);
-      toast.success("Link copied");
+      toast.success(t("jobDetail.linkCopied"));
     } catch {
-      toast.error("Couldn't copy the link");
+      toast.error(t("jobDetail.couldntCopyLink"));
     }
   };
 
@@ -105,10 +108,10 @@ export function JobDetail({ job, applied, onClose }) {
       className="fixed inset-0 z-[70] flex flex-col bg-background font-sans text-foreground"
     >
       <div className="flex shrink-0 items-center justify-between px-5" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}>
-        <button onClick={onClose} aria-label="Back" className="flex size-9 items-center justify-center border-none bg-transparent p-0 text-foreground [-webkit-tap-highlight-color:transparent]">
+        <button onClick={onClose} aria-label={t("personalProfile.back")} className="flex size-9 items-center justify-center border-none bg-transparent p-0 text-foreground [-webkit-tap-highlight-color:transparent]">
           <ArrowLeft className="size-5" strokeWidth={1.75} />
         </button>
-        <button onClick={share} aria-label="Share" className="flex size-9 items-center justify-center border-none bg-transparent p-0 text-foreground [-webkit-tap-highlight-color:transparent]">
+        <button onClick={share} aria-label={t("jobDetail.share")} className="flex size-9 items-center justify-center border-none bg-transparent p-0 text-foreground [-webkit-tap-highlight-color:transparent]">
           <Share2 className="size-[18px]" strokeWidth={1.75} />
         </button>
       </div>
@@ -124,7 +127,7 @@ export function JobDetail({ job, applied, onClose }) {
           </p>
           {applied && (
             <span className="mt-2 flex items-center gap-1 rounded-full bg-success/10 px-2.5 py-1 text-[11px] font-bold text-success">
-              <Check className="size-3" strokeWidth={2.5} /> You&apos;ve applied at {job.company_name}
+              <Check className="size-3" strokeWidth={2.5} /> {t("jobDetail.youveAppliedAt", { company: job.company_name })}
             </span>
           )}
         </div>
@@ -140,13 +143,13 @@ export function JobDetail({ job, applied, onClose }) {
         )}
 
         <div className="mt-6 grid grid-cols-3 border-b border-border">
-          {TABS.map((t) => (
+          {TAB_IDS.map((id) => (
             <button
-              key={t} type="button" onClick={() => setTab(t)}
-              className={`border-none bg-transparent pb-3 text-[13px] font-semibold [-webkit-tap-highlight-color:transparent] ${tab === t ? "text-foreground" : "text-muted-foreground/50"}`}
-              style={tab === t ? { borderBottom: "2px solid var(--foreground)" } : undefined}
+              key={id} type="button" onClick={() => setTab(id)}
+              className={`border-none bg-transparent pb-3 text-[13px] font-semibold [-webkit-tap-highlight-color:transparent] ${tab === id ? "text-foreground" : "text-muted-foreground/50"}`}
+              style={tab === id ? { borderBottom: "2px solid var(--foreground)" } : undefined}
             >
-              {t}
+              {TAB_LABELS[id]}
             </button>
           ))}
         </div>
@@ -156,7 +159,7 @@ export function JobDetail({ job, applied, onClose }) {
             <>
               {about ? (
                 <div className="mb-6">
-                  <h2 className="m-0 mb-2 text-[15px] font-bold text-foreground">About this role</h2>
+                  <h2 className="m-0 mb-2 text-[15px] font-bold text-foreground">{t("jobDetail.aboutThisRole")}</h2>
                   <p className="m-0 text-[13.5px] leading-relaxed whitespace-pre-line text-neutral-700 dark:text-neutral-300">
                     {expanded || about.length <= READ_MORE_CUTOFF ? about : `${about.slice(0, READ_MORE_CUTOFF).trimEnd()}…`}{" "}
                     {about.length > READ_MORE_CUTOFF && (
@@ -164,18 +167,18 @@ export function JobDetail({ job, applied, onClose }) {
                         type="button" onClick={() => setExpanded((v) => !v)}
                         className="border-none bg-transparent p-0 font-semibold text-foreground underline [-webkit-tap-highlight-color:transparent]"
                       >
-                        {expanded ? "Show less" : "Read more"}
+                        {expanded ? t("jobDetail.showLess") : t("jobDetail.readMore")}
                       </button>
                     )}
                   </p>
                 </div>
               ) : qualifications.length === 0 ? (
-                <p className="m-0 text-[13px] text-muted-foreground">No description was provided for this listing.</p>
+                <p className="m-0 text-[13px] text-muted-foreground">{t("jobDetail.noDescriptionProvided")}</p>
               ) : null}
 
               {qualifications.length > 0 && (
                 <div>
-                  <h2 className="m-0 mb-2 text-[15px] font-bold text-foreground">Qualifications</h2>
+                  <h2 className="m-0 mb-2 text-[15px] font-bold text-foreground">{t("jobDetail.qualifications")}</h2>
                   <ul className="m-0 flex list-disc flex-col gap-3 pl-5 text-[13.5px] leading-relaxed text-neutral-700 dark:text-neutral-300">
                     {qualifications.map((q, i) => <li key={i}>{q}</li>)}
                   </ul>
@@ -189,18 +192,18 @@ export function JobDetail({ job, applied, onClose }) {
               <div>
                 <h2 className="m-0 mb-1 text-[15px] font-bold text-foreground">{job.company_name}</h2>
                 <p className="m-0 text-[13px] text-muted-foreground">
-                  Listed via {SOURCE_LABELS[job.source] || job.source}{job.posted_at ? ` · ${timeAgo(job.posted_at)}` : ""}
+                  {t("jobDetail.listedVia", { source: SOURCE_LABELS[job.source] || job.source })}{job.posted_at ? ` · ${timeAgo(job.posted_at, t)}` : ""}
                 </p>
                 {SOURCES_WITHOUT_DIRECT_LINK.has(job.source) && (
-                  <p className="m-0 mt-1 text-[12px] text-muted-foreground/70">Opens {job.company_name}'s jobs page. Search for this title there.</p>
+                  <p className="m-0 mt-1 text-[12px] text-muted-foreground/70">{t("jobDetail.opensCompanyJobsPage", { company: job.company_name })}</p>
                 )}
               </div>
               <div>
-                <h2 className="m-0 mb-2.5 text-[11px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">Verification</h2>
+                <h2 className="m-0 mb-2.5 text-[11px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{t("jobDetail.verification")}</h2>
                 <div className="flex items-center gap-2 text-foreground">
                   <VerifyIcon className="size-4" strokeWidth={1.75} />
                   <span className="text-[13px] font-semibold">
-                    Level {level} · {level >= 3 ? "Domain + age verified" : level === 2 ? "Domain confirmed" : "Source verified"}
+                    {t("jobDetail.levelLabel", { n: level, detail: level >= 3 ? t("jobDetail.domainAgeVerified") : level === 2 ? t("jobDetail.domainConfirmed") : t("jobDetail.sourceVerified") })}
                   </span>
                 </div>
                 {checks_passed?.length > 0 && (
@@ -210,7 +213,7 @@ export function JobDetail({ job, applied, onClose }) {
                 )}
                 {checks_not_attempted?.length > 0 && (
                   <p className="m-0 mt-2 text-[11.5px] text-muted-foreground/60">
-                    Not attempted: {checks_not_attempted.map((c) => c.replace(/^level\d_/, "").replace(/_/g, " ")).join(", ")}
+                    {t("jobDetail.notAttempted", { list: checks_not_attempted.map((c) => c.replace(/^level\d_/, "").replace(/_/g, " ")).join(", ") })}
                   </p>
                 )}
               </div>
@@ -219,8 +222,8 @@ export function JobDetail({ job, applied, onClose }) {
 
           {tab === "Review" && (
             <div className="grid justify-items-center gap-2 py-10 text-center">
-              <p className="m-0 text-[13px] font-semibold text-foreground">No reviews yet</p>
-              <p className="m-0 text-[12.5px] text-muted-foreground">Employer reviews aren&apos;t available for this listing.</p>
+              <p className="m-0 text-[13px] font-semibold text-foreground">{t("jobDetail.noReviewsYet")}</p>
+              <p className="m-0 text-[12.5px] text-muted-foreground">{t("jobDetail.reviewsNotAvailable")}</p>
             </div>
           )}
         </div>
@@ -240,7 +243,7 @@ export function JobDetail({ job, applied, onClose }) {
           className="mx-auto flex h-[52px] w-full max-w-xl items-center justify-center rounded-2xl text-[15px] font-bold text-white [-webkit-tap-highlight-color:transparent]"
           style={{ background: "#0a0a0a" }}
         >
-          Apply this job
+          {t("jobDetail.applyThisJob")}
         </a>
       </div>
     </motion.div>

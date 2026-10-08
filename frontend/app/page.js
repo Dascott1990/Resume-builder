@@ -188,6 +188,15 @@ export default function Home() {
   // origin with "login"/"signup" itself.
   const [returnView, setReturnView] = useState("dashboard");
   const go = (nextView) => {
+    // Navigating to the screen already showing would set returnView to
+    // itself — every X/back button on that screen reads returnView, so
+    // it'd silently become a no-op (stuck until a refresh resets state)
+    // instead of actually closing anything. Individual screens guard
+    // their own nav items against this today (e.g. Dashboard.js's and
+    // JobsBoard.js's local go() wrappers), but this is the one choke
+    // point every navigation actually passes through, so the guard
+    // belongs here too — it's a correctness no-op either way.
+    if (nextView === view) return;
     if (view !== "login" && view !== "signup") setReturnView(view);
     setView(nextView);
   };

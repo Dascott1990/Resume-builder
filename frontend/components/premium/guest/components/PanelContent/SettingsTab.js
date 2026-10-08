@@ -4,42 +4,44 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { Btn } from "../primitives";
+import { useLanguage } from "@/lib/i18n";
 
 export function SettingsTab({ saved, onResetStyle, onClearAll }) {
+  const { t } = useLanguage();
   return (
     <div className="p-4">
       <p className="m-0 mb-4 font-serif text-[17px] italic text-foreground">
-        Settings
+        {t("guestMode.settings")}
       </p>
 
       <div className="mb-4 border-b border-border pb-4">
-        <p className="m-0 mb-0.5 text-[13px] font-semibold text-foreground">Style defaults</p>
+        <p className="m-0 mb-0.5 text-[13px] font-semibold text-foreground">{t("settingsTab.styleDefaults")}</p>
         <Btn small variant="ghost" icon="RefreshCw" onClick={onResetStyle}>
-          Reset style
+          {t("settingsTab.resetStyle")}
         </Btn>
       </div>
 
       <div className="mb-4 border-b border-border pb-4">
-        <p className="m-0 mb-0.5 text-[13px] font-semibold text-foreground">Saved resumes</p>
+        <p className="m-0 mb-0.5 text-[13px] font-semibold text-foreground">{t("settingsTab.savedResumes")}</p>
         <p className="m-0 mb-2.5 text-xs leading-relaxed text-muted-foreground">
           {saved.length > 0
-            ? `${saved.length} resume${saved.length !== 1 ? "s" : ""} stored on the server.`
-            : "Nothing saved yet."}
+            ? t(saved.length === 1 ? "settingsTab.resumesStoredOne" : "settingsTab.resumesStoredOther", { n: saved.length })
+            : t("settingsTab.nothingSavedYet")}
         </p>
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Btn small variant="danger" icon="Trash2" disabled={saved.length === 0}>
-              Clear all saved resumes
+              {t("settingsTab.clearAllSaved")}
             </Btn>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete all {saved.length} saved resumes?</AlertDialogTitle>
-              <AlertDialogDescription>This can't be undone.</AlertDialogDescription>
+              <AlertDialogTitle>{t("settingsTab.deleteAllQuestion", { n: saved.length })}</AlertDialogTitle>
+              <AlertDialogDescription>{t("settingsTab.cantUndo")}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction variant="destructive" onClick={onClearAll}>Yes, delete</AlertDialogAction>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" onClick={onClearAll}>{t("settingsTab.yesDelete")}</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

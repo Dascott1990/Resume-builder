@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Textarea } from "@/components/ui/textarea";
+import { useLanguage } from "@/lib/i18n";
 
 // ── Cover letter: click-to-edit, read as real paragraphs ───────────────────────
 // Same interaction as the resume itself — click the text, it becomes editable,
@@ -9,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 // of one dense pre-wrap blob, so the whole letter reads at a glance instead of
 // needing to be scrolled and parsed line by line.
 export function CoverLetterView({ value, onChange }) {
+  const { t } = useLanguage();
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value);
   const taRef = useRef(null);
@@ -37,7 +39,7 @@ export function CoverLetterView({ value, onChange }) {
   return (
     <div
       onClick={() => setEditing(true)}
-      title="Click to edit"
+      title={t("editableSpan.clickToEdit")}
       className="cursor-text touch-manipulation rounded-lg border border-dashed border-border p-3.5 transition-colors hover:border-primary/45 [-webkit-tap-highlight-color:transparent]"
     >
       {paragraphs.length ? paragraphs.map((p, i) => (
@@ -46,7 +48,7 @@ export function CoverLetterView({ value, onChange }) {
         </p>
       )) : (
         <p className="m-0 font-serif text-[14.5px] leading-[1.75] text-muted-foreground italic">
-          Click to write your cover letter…
+          {t("coverLetterView.clickToWrite")}
         </p>
       )}
     </div>

@@ -16,17 +16,18 @@ import { Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import { apiRequest } from "./shared/api";
 import Logo from "./Logo";
+import { useLanguage } from "@/lib/i18n";
 
 // Same source /brand/news reads (backend/app/api/brand.py's GET /news and
 // /world-feed — both public reads, no admin gate) — this is the read-only
 // consumer-facing view of the same real content, not a second copy of it.
-const FEED_CATEGORY_META = {
-  world: { label: "World", Icon: Globe },
-  tech: { label: "Technology", Icon: Cpu },
-  physics: { label: "Physics", Icon: Atom },
-  history: { label: "History", Icon: Landmark },
-  jobs: { label: "Jobs", Icon: Briefcase },
-};
+const feedCategoryMeta = (t) => ({
+  world: { label: t("news.categoryWorld"), Icon: Globe },
+  tech: { label: t("news.categoryTechnology"), Icon: Cpu },
+  physics: { label: t("news.categoryPhysics"), Icon: Atom },
+  history: { label: t("news.categoryHistory"), Icon: Landmark },
+  jobs: { label: t("news.categoryJobs"), Icon: Briefcase },
+});
 
 // Fixed (not random) scatter of points so server- and client-rendered markup
 // match exactly — same dot-network visual language as the landing page's
@@ -36,12 +37,12 @@ const CATEGORY_ART_DOTS = [
   [70, 45], [82, 70], [91, 22], [15, 88], [62, 92],
 ];
 
-function timeAgo(iso) {
+function timeAgo(iso, t) {
   if (!iso) return "";
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (days < 1) return "today";
-  if (days === 1) return "yesterday";
-  return `${days}d ago`;
+  if (days < 1) return t("common.today");
+  if (days === 1) return t("common.yesterday");
+  return t("common.daysAgo", { n: days });
 }
 
 // Every "Worth a look" card gets a brand-owned image: our own muted surface
@@ -63,7 +64,7 @@ function CategoryArt({ meta }) {
   );
 }
 
-function SectionHeader({ children, onViewAll, viewAllLabel = "View all" }) {
+function SectionHeader({ children, onViewAll, viewAllLabel }) {
   return (
     <div className="mb-3 flex items-center justify-between">
       <span className="font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{children}</span>
@@ -88,6 +89,7 @@ function ExternalLinkDialog({ link, onClose }) {
     catch { return null; }
   })();
 
+  const { t } = useLanguage();
   const proceed = () => {
     window.open(link.url, "_blank", "noopener,noreferrer");
     onClose();
@@ -96,10 +98,10 @@ function ExternalLinkDialog({ link, onClose }) {
   return (
     <Dialog open={!!link} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-[380px]">
-        <DialogHeader><DialogTitle>Leaving Noqeev</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("news.leavingNoqeev")}</DialogTitle></DialogHeader>
         <DialogFooter>
-          <Btn small variant="ghost" onClick={onClose}>Cancel</Btn>
-          <Btn small variant="ghost" onClick={proceed}>Continue{domain ? ` to ${domain}` : ""}</Btn>
+          <Btn small variant="ghost" onClick={onClose}>{t("common.cancel")}</Btn>
+          <Btn small variant="ghost" onClick={proceed}>{domain ? t("news.continueTo", { domain }) : t("news.continue")}</Btn>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -107,6 +109,8 @@ function ExternalLinkDialog({ link, onClose }) {
 }
 
 export default function News({ onClose }) {
+  const { t } = useLanguage();
+  const FEED_CATEGORY_META = feedCategoryMeta(t);
   const [updates, setUpdates] = useState([]);
   const [worldFeed, setWorldFeed] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -131,7 +135,7 @@ export default function News({ onClose }) {
       >
         <Logo size={22} />
         {onClose && (
-          <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
+          <button onClick={onClose} aria-label={t("common.close")} className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <X className="size-[17px]" />
           </button>
         )}
@@ -140,17 +144,17 @@ export default function News({ onClose }) {
       <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-5 py-6 sm:px-8 lg:max-w-4xl">
         <div className="mb-6 flex items-center gap-3">
           <IconTile icon={Megaphone} size="sm" />
-          <h1 className="m-0 text-xl font-bold text-foreground">News</h1>
+          <h1 className="m-0 text-xl font-bold text-foreground">{t("news.title")}</h1>
         </div>
 
         {!loading && updates.length === 0 && worldFeed.length === 0 && (
-          <p className="m-0 text-[12.5px] text-muted-foreground">Nothing new right now. Check back later.</p>
+          <p className="m-0 text-[12.5px] text-muted-foreground">{t("news.nothingNew")}</p>
         )}
 
         {updates.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mb-6">
             <SectionHeader>
-              <span className="flex items-center gap-1.5"><Megaphone className="size-3.5" /> What's new</span>
+              <span className="flex items-center gap-1.5"><Megaphone className="size-3.5" /> {t("news.whatsNew")}</span>
             </SectionHeader>
             <div className="grid gap-2">
               {updates.slice(0, 3).map((u) => (
@@ -158,13 +162,13 @@ export default function News({ onClose }) {
                   <p className="m-0 text-[13px] font-bold text-foreground">{u.title}</p>
                   {u.body && <p className="m-0 mt-1 text-[12px] leading-relaxed text-muted-foreground">{u.body}</p>}
                   <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                    <span className="text-[10.5px] text-muted-foreground/60">{timeAgo(u.created_at)}</span>
+                    <span className="text-[10.5px] text-muted-foreground/60">{timeAgo(u.created_at, t)}</span>
                     {u.link && (
                       <button
                         type="button" onClick={() => setPendingLink({ url: u.link })}
                         className="border-none bg-transparent p-0 text-[10.5px] font-semibold text-primary [-webkit-tap-highlight-color:transparent]"
                       >
-                        Learn more
+                        {t("news.learnMore")}
                       </button>
                     )}
                   </div>
@@ -176,8 +180,8 @@ export default function News({ onClose }) {
 
         {worldFeed.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }} className="mb-6">
-            <SectionHeader onViewAll={() => setShowAllFeed((v) => !v)} viewAllLabel={showAllFeed ? "Show less" : "View all"}>
-              Worth a look
+            <SectionHeader onViewAll={() => setShowAllFeed((v) => !v)} viewAllLabel={showAllFeed ? t("news.showLess") : t("common.viewAll")}>
+              {t("news.worthALook")}
             </SectionHeader>
             {/* Horizontal, not another vertical list — this is idle-moment
                 browsing, not a task queue. Items aren't lost when they
@@ -203,7 +207,7 @@ export default function News({ onClose }) {
                         <meta.Icon className="size-3" /> {meta.label}
                       </span>
                       <p className="m-0 text-[12.5px] leading-snug font-bold text-foreground">{item.title}</p>
-                      <span className="mt-auto pt-1 text-[10px] text-muted-foreground/50">{timeAgo(item.published_at || item.fetched_at)}</span>
+                      <span className="mt-auto pt-1 text-[10px] text-muted-foreground/50">{timeAgo(item.published_at || item.fetched_at, t)}</span>
                     </div>
                   </button>
                 );

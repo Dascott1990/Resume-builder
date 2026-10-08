@@ -12,8 +12,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useLanguage } from "@/lib/i18n";
 
 export function SignupNudgeModal({ open, onDismiss }) {
+  const { t } = useLanguage();
   const { signup } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +27,7 @@ export function SignupNudgeModal({ open, onDismiss }) {
     e.preventDefault();
     setError("");
     if (!email.trim() || password.length < 8) {
-      setError("Enter your email and an 8+ character password.");
+      setError(t("signupNudge.enterEmailPassword"));
       return;
     }
     setSubmitting(true);
@@ -49,11 +51,11 @@ export function SignupNudgeModal({ open, onDismiss }) {
             <div className="flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary">
               <Mail className="size-5" />
             </div>
-            <DialogTitle>Check your email</DialogTitle>
+            <DialogTitle>{t("auth.checkYourEmail")}</DialogTitle>
             <p className="m-0 text-[13.5px] leading-relaxed text-muted-foreground">
-              We sent a verification link to <strong className="text-foreground">{email.trim()}</strong>. Click it to finish setting up your account — your resumes will already be waiting for it.
+              {t("signupNudge.verificationSentTo", { email: email.trim() })}
             </p>
-            <Button onClick={onDismiss} className="mt-1 w-full">Got it</Button>
+            <Button onClick={onDismiss} className="mt-1 w-full">{t("signupNudge.gotIt")}</Button>
           </div>
         ) : (
           <>
@@ -61,26 +63,26 @@ export function SignupNudgeModal({ open, onDismiss }) {
               <div className="mb-1 flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary">
                 <Sparkles className="size-5" />
               </div>
-              <DialogTitle>Don&apos;t lose this</DialogTitle>
+              <DialogTitle>{t("signupNudge.dontLoseThis")}</DialogTitle>
               <DialogDescription>
-                Create a free account so your resumes and job tracker follow you across every device. Takes 10 seconds — no credit card.
+                {t("signupNudge.explain")}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={submit} className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="nudge-email">Email</Label>
+                <Label htmlFor="nudge-email">{t("signupNudge.email")}</Label>
                 <Input id="nudge-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="nudge-password">Password</Label>
-                <Input id="nudge-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" placeholder="8+ characters" />
+                <Label htmlFor="nudge-password">{t("signupNudge.password")}</Label>
+                <Input id="nudge-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" placeholder={t("auth.passwordHint")} />
               </div>
               {error && <p className="m-0 text-[13px] text-destructive">{error}</p>}
               <Button type="submit" disabled={submitting} className="w-full">
-                {submitting ? "Creating account…" : "Create free account"}
+                {submitting ? t("auth.creatingAccount") : t("signupNudge.createFreeAccount")}
               </Button>
               <button type="button" onClick={onDismiss} className="w-full cursor-pointer border-none bg-transparent p-0 py-1 text-center text-[13px] font-semibold text-muted-foreground">
-                Maybe later
+                {t("signupNudge.maybeLater")}
               </button>
             </form>
           </>

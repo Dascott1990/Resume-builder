@@ -51,8 +51,10 @@ import { AnalysisPanel } from "./components/workspace/AnalysisPanel";
 import { getToken } from "@/lib/authToken";
 import { getPreferredTemplate } from "@/lib/templatePreference";
 import { apiRequest } from "../shared/api";
+import { useLanguage } from "@/lib/i18n";
 
 export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, pendingViewAllResumes, pendingQuickBuild, onRequireAuth }) {
+  const { t } = useLanguage();
   const { isPhone, isTablet, isDesktop } = useViewport();
   const { user } = useAuth();
   const signupNudge = useSignupNudge();
@@ -113,9 +115,9 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
           resume_id: resume?.saved_id || genResult?.saved_id || null,
         }),
       });
-      toast.success("Added to your Job Tracker");
+      toast.success(t("guestMode.addedToJobTracker"));
     } catch (e) {
-      toast.error(e.message || "Couldn't save that application.");
+      toast.error(e.message || t("guestMode.couldntSaveApplication"));
     }
   };
 
@@ -365,7 +367,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
       } catch {
         if (!draftSaveWarnedRef.current) {
           draftSaveWarnedRef.current = true;
-          toast.error("Couldn't save your progress locally — your browser's storage may be full.");
+          toast.error(t("guestMode.couldntSaveProgress"));
         }
       }
     }, 300);
@@ -694,9 +696,9 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
             <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2.5">
               <RefreshCw className="size-[13px] text-primary" />
               <span className="flex-1 text-xs text-muted-foreground">
-                Restored your in-progress draft from before the refresh.
+                {t("guestMode.draftRestored")}
               </span>
-              <button onClick={() => setDraftRestored(false)} aria-label="Dismiss"
+              <button onClick={() => setDraftRestored(false)} aria-label={t("guestMode.dismiss")}
                 className="border-none bg-transparent p-0.5 text-muted-foreground/60">
                 <X className="size-[13px]" />
               </button>
@@ -706,9 +708,9 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
             <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2.5">
               <ScanLine className="size-[13px] text-primary" />
               <span className="flex-1 text-xs text-foreground">
-                Imported from your uploaded resume — review everything below before downloading.
+                {t("guestMode.importedNotice")}
               </span>
-              <button onClick={() => setImportNoticeVisible(false)} aria-label="Dismiss"
+              <button onClick={() => setImportNoticeVisible(false)} aria-label={t("guestMode.dismiss")}
                 className="border-none bg-transparent p-0.5 text-muted-foreground/60">
                 <X className="size-[13px]" />
               </button>
@@ -719,10 +721,10 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
               <Bookmark className="size-[13px] text-primary" />
               <span className="flex-1 text-xs text-foreground">
                 {step === 1
-                  ? "Job description brought in from the bookmarklet. Finish your info to tailor a resume to it."
-                  : "Job description brought in from the bookmarklet, ready below."}
+                  ? t("guestMode.jobDescNoticeStep1")
+                  : t("guestMode.jobDescNoticeReady")}
               </span>
-              <button onClick={() => setJobDescNoticeVisible(false)} aria-label="Dismiss"
+              <button onClick={() => setJobDescNoticeVisible(false)} aria-label={t("guestMode.dismiss")}
                 className="border-none bg-transparent p-0.5 text-muted-foreground/60">
                 <X className="size-[13px]" />
               </button>
@@ -891,7 +893,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
       >
 
         <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden">
-          <button onClick={requestClose} aria-label="Close Noqeev"
+          <button onClick={requestClose} aria-label={t("guestMode.closeNoqeev")}
             className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <X className="size-[17px]" />
           </button>
@@ -924,7 +926,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
         <div className="flex shrink-0 items-center gap-2">
           {isWorkspace && (
             <Btn small icon="Gauge" onClick={() => setAtsModalOpen(true)} variant="ghost">
-              Analyze
+              {t("guestMode.analyze")}
             </Btn>
           )}
           {/* Phone only — tablet/desktop already have Style as a permanent
@@ -934,14 +936,14 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
             <Btn small icon="Pencil" onClick={() => { setTab("new"); setMobileView("preview"); setBuildSheetOpen(true); }}
               className="max-[380px]:gap-0 max-[380px]:px-2.5"
               disabled={!resume} variant="ghost">
-              <span className="max-[380px]:hidden">Build</span>
+              <span className="max-[380px]:hidden">{t("guestMode.build")}</span>
             </Btn>
           )}
           {!showSplit && (
             <Btn small icon="Palette" onClick={() => { setTab("style"); setMobileView("preview"); setStyleSheetOpen(true); }}
               className="max-[380px]:gap-0 max-[380px]:px-2.5"
               disabled={!resume} variant="ghost">
-              <span className="max-[380px]:hidden">Style</span>
+              <span className="max-[380px]:hidden">{t("guestMode.style")}</span>
             </Btn>
           )}
           <Btn small icon="FileDown" loading={downloading === "docx"}
@@ -1009,12 +1011,12 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
             {tab === "style" && styleSheetOpen && mobileView !== "panel" && (
               <div className="flex shrink-0 flex-col border-t border-border bg-card" style={{ maxHeight: "38vh" }}>
                 <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
-                  <span className="text-[15px] font-bold text-foreground">Style</span>
+                  <span className="text-[15px] font-bold text-foreground">{t("guestMode.style")}</span>
                   <button
                     onClick={() => setStyleSheetOpen(false)}
                     className="flex h-8 items-center gap-1.5 rounded-full border-none bg-primary px-3.5 text-[13px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent]"
                   >
-                    <Check className="size-3.5" /> Done
+                    <Check className="size-3.5" /> {t("guestMode.done")}
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]" style={{ paddingBottom: mobileNavClearance }}>
@@ -1025,12 +1027,12 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
             {tab === "new" && buildSheetOpen && mobileView !== "panel" && step === 3 && genResult && (
               <div className="flex shrink-0 flex-col border-t border-border bg-card" style={{ maxHeight: "60vh" }}>
                 <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
-                  <span className="text-[15px] font-bold text-foreground">Build</span>
+                  <span className="text-[15px] font-bold text-foreground">{t("guestMode.build")}</span>
                   <button
                     onClick={() => setBuildSheetOpen(false)}
                     className="flex h-8 items-center gap-1.5 rounded-full border-none bg-primary px-3.5 text-[13px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent]"
                   >
-                    <Check className="size-3.5" /> Done
+                    <Check className="size-3.5" /> {t("guestMode.done")}
                   </button>
                 </div>
                 <div className="min-h-0 flex-1 overflow-hidden" style={{ paddingBottom: mobileNavClearance }}>

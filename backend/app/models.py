@@ -643,6 +643,34 @@ class VendorNewsItem(db.Model):
         }
 
 
+class Incident(db.Model):
+    """
+    A hand-logged entry in the admin panel's "Incidents" tab — outages,
+    data issues, anything worth a permanent record of what happened and
+    when, instead of living only in Slack/memory (e.g. the 2026-10-06
+    Neon quota outage). Nothing here is auto-detected; an admin writes
+    every row themselves, same as Vendor's manually-added rows.
+    """
+    __tablename__ = "incidents"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    title = db.Column(db.String(200), nullable=False)
+    severity = db.Column(db.String(10), nullable=False, default="minor")  # minor|major|critical
+    status = db.Column(db.String(20), nullable=False, default="investigating")  # investigating|identified|monitoring|resolved
+    description = db.Column(db.Text, nullable=True)
+    started_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "title": self.title, "severity": self.severity, "status": self.status,
+            "description": self.description,
+            "started_at": _iso_utc(self.started_at), "resolved_at": _iso_utc(self.resolved_at),
+            "created_at": _iso_utc(self.created_at), "updated_at": _iso_utc(self.updated_at),
+        }
+
+
 class BrandWorkspace(db.Model):
     """
     The branding workspace's whole identity system: one long random

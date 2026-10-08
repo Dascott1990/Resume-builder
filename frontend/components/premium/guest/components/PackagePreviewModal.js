@@ -6,6 +6,7 @@ import { Btn, TextLink } from "./primitives";
 import { CoverLetterView } from "./CoverLetterView";
 import { ApplyBanner } from "./ApplyBanner";
 import { InterviewChat } from "./InterviewChat";
+import { useLanguage } from "@/lib/i18n";
 
 // ── Package preview modal ─────────────────────────────────────────────────────
 // Opens automatically right after Optimize finishes — the whole application
@@ -16,6 +17,7 @@ export function PackagePreviewModal({
   onCopyCoverLetter, copied, onDownloadAll, downloading,
   onCoverLetterDocx, onCoverLetterPdf, onCoverLetterChange,
 }) {
+  const { t } = useLanguage();
   const [practiceOpen, setPracticeOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -26,10 +28,10 @@ export function PackagePreviewModal({
         {/* Header — pinned */}
         <div className="shrink-0 border-b border-border px-[22px] pt-[22px] pb-3.5">
           <p className="m-0 mb-1 flex items-center gap-2 font-serif text-xl italic text-foreground">
-            <Check className="size-[17px] text-[var(--success)]" /> Your application package is ready
+            <Check className="size-[17px] text-[var(--success)]" /> {t("packagePreview.packageReady")}
           </p>
           <p className="m-0 text-[12.5px] text-muted-foreground">
-            Review everything below, then download it all with one click.
+            {t("packagePreview.reviewThenDownload")}
             {genResult?.job_location && ` · ${genResult.job_location}`}
           </p>
         </div>
@@ -44,11 +46,11 @@ export function PackagePreviewModal({
             <div className="mb-4">
               <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5">
                 <p className="m-0 text-[11.5px] text-muted-foreground">
-                  Cover letter <span className="text-muted-foreground/60">· click to edit</span>
+                  {t("packagePreview.coverLetter")} <span className="text-muted-foreground/60">· {t("packagePreview.clickToEdit")}</span>
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   <Btn variant="ghost" icon={copied ? "Check" : "Clipboard"} onClick={onCopyCoverLetter} small>
-                    {copied ? "Copied" : "Copy"}
+                    {copied ? t("packagePreview.copied") : t("packagePreview.copy")}
                   </Btn>
                   <Btn variant="ghost" icon="FileDown" onClick={onCoverLetterDocx}
                     loading={downloading === "cl-docx"} disabled={!!downloading} small>
@@ -68,10 +70,10 @@ export function PackagePreviewModal({
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <p className="m-0 text-[11.5px] text-muted-foreground">
-                  Interview talking points
+                  {t("packagePreview.interviewTalkingPoints")}
                 </p>
                 <Btn variant="ghost" icon="MessageCircle" onClick={() => setPracticeOpen(true)} small>
-                  Practice
+                  {t("packagePreview.practice")}
                 </Btn>
               </div>
               <div className="flex flex-col gap-2">
@@ -102,12 +104,12 @@ export function PackagePreviewModal({
         >
           <Btn variant="gold" icon="FileDown" onClick={onDownloadAll}
             disabled={!!downloading} loading={downloading === "docx"}>
-            Download Package
+            {t("packagePreview.downloadPackage")}
           </Btn>
           <div className="flex items-center justify-center">
-            <TextLink onClick={onCoverLetterPdf} disabled={!!downloading} small>Prefer PDF instead?</TextLink>
+            <TextLink onClick={onCoverLetterPdf} disabled={!!downloading} small>{t("packagePreview.preferPdfInstead")}</TextLink>
             <span className="px-1.5 text-[11px] text-muted-foreground/60">·</span>
-            <TextLink onClick={onClose} small>Keep editing</TextLink>
+            <TextLink onClick={onClose} small>{t("packagePreview.keepEditing")}</TextLink>
           </div>
         </div>
       </DialogContent>

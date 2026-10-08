@@ -34,6 +34,7 @@ import {
   AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
   AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
+import { useLanguage } from "@/lib/i18n";
 
 function GroupLabel({ children }) {
   return <p className="m-0 mb-1.5 px-1 font-mono text-[10px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{children}</p>;
@@ -62,22 +63,24 @@ function Row({ icon: Icon, label, sublabel, onClick, disabled, danger, trailing,
 }
 
 function BrightnessSlider() {
+  const { t } = useLanguage();
   const { brightness, setBrightness, min, max, default: defaultValue } = useBrightness();
   return (
     <div>
       <div className="mb-2 flex items-baseline justify-between">
-        <p className="m-0 text-[12px] font-semibold text-muted-foreground">Screen brightness</p>
+        <p className="m-0 text-[12px] font-semibold text-muted-foreground">{t("profile.screenBrightness")}</p>
         <span className="font-mono text-[11px] text-muted-foreground/70">{brightness}%</span>
       </div>
       <input type="range" min={min} max={max} step={5} value={brightness} onChange={(e) => setBrightness(parseFloat(e.target.value))} className="w-full accent-primary" />
       {brightness !== defaultValue && (
-        <button type="button" onClick={() => setBrightness(defaultValue)} className="border-none bg-transparent p-0 text-[10.5px] font-bold text-primary">Reset</button>
+        <button type="button" onClick={() => setBrightness(defaultValue)} className="border-none bg-transparent p-0 text-[10.5px] font-bold text-primary">{t("profile.reset")}</button>
       )}
     </div>
   );
 }
 
 export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, go }) {
+  const { t } = useLanguage();
   const { user, loading: authLoading, changePassword, logout, deleteAccount } = useAuth();
   const [securityOpen, setSecurityOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
@@ -94,7 +97,7 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
     setDeletingAccount(true);
     try {
       await deleteAccount();
-      toast.success("Your account has been deleted.");
+      toast.success(t("profile.accountDeleted"));
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -108,9 +111,9 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
       className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-background font-sans text-foreground"
     >
       <div className="flex shrink-0 items-center justify-between px-5 pb-3.5" style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}>
-        <p className="m-0 text-[17px] font-bold text-foreground">Profile</p>
+        <p className="m-0 text-[17px] font-bold text-foreground">{t("profile.title")}</p>
         {onClose && (
-          <Button variant="ghost" size="icon" className="size-10" aria-label="Close" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="size-10" aria-label={t("common.close")} onClick={onClose}>
             <X className="size-5" />
           </Button>
         )}
@@ -129,9 +132,9 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
             <div className="flex size-11 items-center justify-center rounded-full border border-border bg-muted">
               <User className="size-[18px] text-muted-foreground" />
             </div>
-            <p className="m-0 text-[13.5px] font-bold text-foreground">Not signed in</p>
-            <p className="m-0 max-w-[240px] text-[12.5px] leading-relaxed text-muted-foreground">Sync across devices</p>
-            <Btn small variant="gold" onClick={onOpenLogin}>Sign in</Btn>
+            <p className="m-0 text-[13.5px] font-bold text-foreground">{t("profile.notSignedIn")}</p>
+            <p className="m-0 max-w-[240px] text-[12.5px] leading-relaxed text-muted-foreground">{t("navRail.syncAcrossDevices")}</p>
+            <Btn small variant="gold" onClick={onOpenLogin}>{t("auth.signIn")}</Btn>
           </Card>
         ) : (
           // Hero identity row — a plain display, not a second button: the
@@ -142,7 +145,7 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
             <Avatar user={user} size={64} />
             <div className="min-w-0">
               <p className="m-0 truncate text-[19px] font-bold text-foreground">{user.name || user.email.split("@")[0]}</p>
-              <p className="m-0 mt-0.5 truncate text-[12.5px] text-muted-foreground">{savedResumesCount} resume{savedResumesCount === 1 ? "" : "s"} built · Personal account</p>
+              <p className="m-0 mt-0.5 truncate text-[12.5px] text-muted-foreground">{t(savedResumesCount === 1 ? "profile.resumesBuiltOne" : "profile.resumesBuiltOther", { n: savedResumesCount })}</p>
             </div>
           </div>
         )}
@@ -152,16 +155,16 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
             {/* Left column — Account, Grow */}
             <div>
               <div className="mb-6">
-                <GroupLabel>Account</GroupLabel>
+                <GroupLabel>{t("profile.account")}</GroupLabel>
                 <Card className="p-0">
-                  <Row icon={User} label="Personal profile" sublabel={user.email} onClick={onOpenPersonalProfile} />
+                  <Row icon={User} label={t("common.personalProfile")} sublabel={user.email} onClick={onOpenPersonalProfile} />
                   <div className="border-t border-border">
-                    <Row icon={Lock} label="Security center" onClick={() => setSecurityOpen((v) => !v)} expanded={securityOpen} />
+                    <Row icon={Lock} label={t("profile.securityCenter")} onClick={() => setSecurityOpen((v) => !v)} expanded={securityOpen} />
                   </div>
                   {securityOpen && (
                     <div className="border-t border-border p-3.5">
                       <ChangePasswordForm onSubmit={changePassword} />
-                      <p className="m-0 mt-3 text-[11px] text-muted-foreground">Two-factor authentication coming soon.</p>
+                      <p className="m-0 mt-3 text-[11px] text-muted-foreground">{t("profile.twoFactorComingSoon")}</p>
                     </div>
                   )}
                   {/* A stat, not a second button to the same place "My
@@ -171,16 +174,16 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
                     <div className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted">
                       <FileText className="size-3.5 text-muted-foreground" />
                     </div>
-                    <p className="m-0 flex-1 text-[13px] font-bold text-foreground">Resumes built</p>
+                    <p className="m-0 flex-1 text-[13px] font-bold text-foreground">{t("profile.resumesBuilt")}</p>
                     <span className="font-mono text-[13px] font-bold text-foreground">{savedResumesCount}</span>
                   </div>
                 </Card>
               </div>
 
               <div>
-                <GroupLabel>Grow</GroupLabel>
+                <GroupLabel>{t("profile.grow")}</GroupLabel>
                 <Card className="p-0">
-                  <Row icon={Gift} label="Invite a friend" sublabel="Coming soon" disabled />
+                  <Row icon={Gift} label={t("profile.inviteAFriend")} sublabel={t("profile.comingSoon")} disabled />
                 </Card>
               </div>
             </div>
@@ -190,20 +193,20 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
                 un-grouped final card. */}
             <div>
               <div className="mb-6">
-                <GroupLabel>Shortcuts</GroupLabel>
+                <GroupLabel>{t("profile.shortcuts")}</GroupLabel>
                 <Card className="p-0">
-                  <Row icon={FileText} label="My resumes" onClick={() => go("resume", { viewAllResumes: true })} />
-                  <div className="border-t border-border"><Row icon={ScanLine} label="CV Scan" onClick={() => go("scan")} /></div>
-                  <div className="border-t border-border"><Row icon={ClipboardList} label="Job tracker" onClick={() => go("jobtracker")} /></div>
-                  <div className="border-t border-border"><Row icon={Sparkles} label="Jobs" sublabel="Apply with AI" onClick={() => go("apply")} /></div>
-                  <div className="border-t border-border"><Row icon={Building2} label="Job board" sublabel="Browse verified listings" onClick={() => go("jobsboard")} /></div>
+                  <Row icon={FileText} label={t("profile.myResumes")} onClick={() => go("resume", { viewAllResumes: true })} />
+                  <div className="border-t border-border"><Row icon={ScanLine} label={t("dashboard.toolCvScan")} onClick={() => go("scan")} /></div>
+                  <div className="border-t border-border"><Row icon={ClipboardList} label={t("profile.jobTracker")} onClick={() => go("jobtracker")} /></div>
+                  <div className="border-t border-border"><Row icon={Sparkles} label={t("profile.jobs")} sublabel={t("profile.applyWithAi")} onClick={() => go("apply")} /></div>
+                  <div className="border-t border-border"><Row icon={Building2} label={t("profile.jobBoard")} sublabel={t("profile.browseVerifiedListings")} onClick={() => go("jobsboard")} /></div>
                 </Card>
               </div>
 
               <div className="mb-6">
-                <GroupLabel>App</GroupLabel>
+                <GroupLabel>{t("profile.app")}</GroupLabel>
                 <Card className="p-0">
-                  <Row icon={Palette} label="Appearance" onClick={() => setAppearanceOpen((v) => !v)} expanded={appearanceOpen} />
+                  <Row icon={Palette} label={t("profile.appearance")} onClick={() => setAppearanceOpen((v) => !v)} expanded={appearanceOpen} />
                   {appearanceOpen && (
                     <div className="border-t border-border p-3.5">
                       <div className="mb-3"><ThemeModePicker /></div>
@@ -216,7 +219,7 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
                         <HelpCircle className="size-3.5 text-muted-foreground" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="m-0 text-[13px] font-bold">Help &amp; support</p>
+                        <p className="m-0 text-[13px] font-bold">{t("profile.helpSupport")}</p>
                         <p className="m-0 truncate text-[11.5px] text-muted-foreground">support@noqeev.com</p>
                       </div>
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground/50" />
@@ -229,17 +232,17 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <button type="button" className="flex w-full items-center gap-3 border-none bg-transparent p-3.5 text-left text-muted-foreground [-webkit-tap-highlight-color:transparent]">
-                      <LogOut className="size-3.5" /> <span className="text-[13px] font-semibold">Sign out</span>
+                      <LogOut className="size-3.5" /> <span className="text-[13px] font-semibold">{t("navRail.signOut")}</span>
                     </button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Sign out?</AlertDialogTitle>
-                      <AlertDialogDescription>You'll need to sign back in to see your resumes and applications again.</AlertDialogDescription>
+                      <AlertDialogTitle>{t("navRail.signOutQuestion")}</AlertDialogTitle>
+                      <AlertDialogDescription>{t("navRail.signOutDescription")}</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={logout}>Sign out</AlertDialogAction>
+                      <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                      <AlertDialogAction onClick={logout}>{t("navRail.signOut")}</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
@@ -248,19 +251,19 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
                     <AlertDialogTrigger asChild>
                       <button type="button" disabled={deletingAccount} className="flex w-full items-center gap-3 border-none bg-transparent p-3.5 text-left text-destructive [-webkit-tap-highlight-color:transparent] disabled:opacity-50">
                         {deletingAccount ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
-                        <span className="text-[13px] font-bold">{deletingAccount ? "Deleting…" : "Delete my account"}</span>
+                        <span className="text-[13px] font-bold">{deletingAccount ? t("profile.deleting") : t("profile.deleteMyAccount")}</span>
                       </button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+                        <AlertDialogTitle>{t("profile.deleteAccountQuestion")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This can't be undone. Your saved resumes, job tracker, and profile are permanently deleted.
+                          {t("profile.deleteAccountDescription")}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction variant="destructive" onClick={deleteMyAccount}>Delete account</AlertDialogAction>
+                        <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                        <AlertDialogAction variant="destructive" onClick={deleteMyAccount}>{t("profile.deleteAccountConfirm")}</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>

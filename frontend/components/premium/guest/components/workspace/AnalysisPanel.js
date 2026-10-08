@@ -19,18 +19,20 @@
  */
 import { ACCENTS } from "../../constants";
 import { SkillAlignmentCard } from "./SkillAlignmentCard";
+import { useLanguage } from "@/lib/i18n";
 
 export function AnalysisPanel({ resume, jobDescription, onApplyAts, docStyle, setDocStyle }) {
+  const { t } = useLanguage();
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-3.5">
       <SkillAlignmentCard resume={resume} jobDescription={jobDescription} onApply={onApplyAts} />
 
       <div>
-        <p className="m-0 mb-2.5 text-[10.5px] font-bold tracking-[0.08em] text-muted-foreground/60 uppercase">Text</p>
+        <p className="m-0 mb-2.5 text-[10.5px] font-bold tracking-[0.08em] text-muted-foreground/60 uppercase">{t("analysisPanel.text")}</p>
         <div className="flex flex-col gap-3">
           <div>
             <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>Size</span><span className="tabular-nums">{docStyle.fontSize}pt</span>
+              <span>{t("analysisPanel.size")}</span><span className="tabular-nums">{docStyle.fontSize}pt</span>
             </div>
             <input type="range" min={9} max={13} step={0.5} value={docStyle.fontSize}
               onChange={(e) => setDocStyle((s) => ({ ...s, fontSize: parseFloat(e.target.value) }))}
@@ -38,7 +40,7 @@ export function AnalysisPanel({ resume, jobDescription, onApplyAts, docStyle, se
           </div>
           <div>
             <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>Line height</span><span className="tabular-nums">{docStyle.lineHeight}×</span>
+              <span>{t("analysisPanel.lineHeight")}</span><span className="tabular-nums">{docStyle.lineHeight}×</span>
             </div>
             <input type="range" min={1.1} max={1.8} step={0.05} value={docStyle.lineHeight}
               onChange={(e) => setDocStyle((s) => ({ ...s, lineHeight: parseFloat(e.target.value) }))}
@@ -48,7 +50,7 @@ export function AnalysisPanel({ resume, jobDescription, onApplyAts, docStyle, se
       </div>
 
       <div>
-        <p className="m-0 mb-2.5 text-[10.5px] font-bold tracking-[0.08em] text-muted-foreground/60 uppercase">Colors</p>
+        <p className="m-0 mb-2.5 text-[10.5px] font-bold tracking-[0.08em] text-muted-foreground/60 uppercase">{t("analysisPanel.colors")}</p>
         <div className="flex flex-wrap gap-3">
           {ACCENTS.map((a) => (
             <button key={a.id} onClick={() => setDocStyle((s) => ({ ...s, accent: a.id }))}

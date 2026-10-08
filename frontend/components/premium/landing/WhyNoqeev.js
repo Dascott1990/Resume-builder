@@ -1,22 +1,25 @@
 "use client";
 import { Sparkles, RefreshCw, FileCheck2, LayoutDashboard, Bot, ClipboardList } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD, SectionGlow } from "./shared";
+import { useLanguage } from "@/lib/i18n";
 
-const FEATURES = [
-  { Icon: LayoutDashboard, title: "One dashboard for the whole job search" },
-  { Icon: Sparkles, title: "Every resume tailored to the actual posting, not a template" },
-  // The headline value prop of the onboarding redesign — set up a
-  // profile once, every resume after that reuses it automatically.
-  { Icon: RefreshCw, title: "Set up your profile once. Every resume reuses it." },
-  { Icon: FileCheck2, title: "Real, editable files. No locked preview, no watermark." },
-  // Structural guarantee, not a policy promise — apply.py's agent schema
-  // has no submit tool at all, so there's nothing for it to call even if
-  // asked to.
-  { Icon: Bot, title: "Auto Apply fills real applications. It never submits without you." },
-  { Icon: ClipboardList, title: "Scan an existing resume, or track every application you send" },
+// The headline value prop of the onboarding redesign — set up a profile
+// once, every resume after that reuses it automatically (feature3 below).
+// feature5 is a structural guarantee, not a policy promise — apply.py's
+// agent schema has no submit tool at all, so there's nothing for it to
+// call even if asked to.
+const features = (t) => [
+  { Icon: LayoutDashboard, title: t("landing.feature1") },
+  { Icon: Sparkles, title: t("landing.feature2") },
+  { Icon: RefreshCw, title: t("landing.feature3") },
+  { Icon: FileCheck2, title: t("landing.feature4") },
+  { Icon: Bot, title: t("landing.feature5") },
+  { Icon: ClipboardList, title: t("landing.feature6") },
 ];
 
 export function WhyNoqeev() {
+  const { t } = useLanguage();
+  const FEATURES = features(t);
   return (
     <section id="features" className="relative flex min-h-[100svh] flex-col justify-center py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
       {/* No overflow-hidden on this section (every sibling section still
@@ -47,12 +50,12 @@ export function WhyNoqeev() {
               same as Hero — the card only goes above the text at lg,
               where it's genuinely sitting beside it, not above it. */}
           <Reveal delay={0.1} className="order-1 lg:order-2">
-            <span className={EYEBROW}>Why Noqeev</span>
+            <span className={EYEBROW}>{t("landing.whyNoqeevEyebrow")}</span>
             <h2 className="m-0 text-[clamp(1.6rem,4vw,2.4rem)] leading-tight font-bold text-foreground">
-              Built to get you hired, not to collect your data.
+              {t("landing.whyNoqeevTitle")}
             </h2>
             <p className="m-0 mt-3 max-w-sm text-[14.5px] leading-relaxed text-muted-foreground">
-              Every tool on Noqeev works for you first. No dark patterns, no data harvesting, no locked files.
+              {t("landing.whyNoqeevSubtitle")}
             </p>
           </Reveal>
         </div>

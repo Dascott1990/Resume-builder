@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Btn } from "../guest/components/primitives";
+import { useLanguage } from "@/lib/i18n";
 
 // Dismissing ("Skip for now") shouldn't nag again every single page load
 // within the same visit, but SHOULD come back on a later visit if the
@@ -24,6 +25,7 @@ import { Btn } from "../guest/components/primitives";
 const SKIPPED_KEY = "noqeev_name_prompt_skipped";
 
 export function WelcomeNamePrompt({ user, updateProfile }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -57,21 +59,21 @@ export function WelcomeNamePrompt({ user, updateProfile }) {
     <Dialog open={open} onOpenChange={(v) => !v && skip()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>What should we call you?</DialogTitle>
+          <DialogTitle>{t("welcomeName.whatShouldWeCallYou")}</DialogTitle>
         </DialogHeader>
         <p className="m-0 -mt-2 text-[13px] text-muted-foreground">
-          We&apos;ll use this on every resume you build from here — no need to type it in each time.
+          {t("welcomeName.explain")}
         </p>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Your name"
+          placeholder={t("personalProfile.yourName")}
           autoFocus
           onKeyDown={(e) => { if (e.key === "Enter") save(); }}
         />
         <DialogFooter>
-          <Btn small variant="ghost" onClick={skip}>Skip for now</Btn>
-          <Btn small variant="gold" onClick={save} loading={saving} disabled={!name.trim()}>Save</Btn>
+          <Btn small variant="ghost" onClick={skip}>{t("welcomeName.skipForNow")}</Btn>
+          <Btn small variant="gold" onClick={save} loading={saving} disabled={!name.trim()}>{t("common.save")}</Btn>
         </DialogFooter>
       </DialogContent>
     </Dialog>

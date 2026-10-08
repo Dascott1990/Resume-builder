@@ -3,8 +3,10 @@
 // LIVE PREVIEW — fully editable inline
 // ═══════════════════════════════════════════════════════════════════════════════
 import { useState, useEffect, useRef } from "react";
+import { useLanguage } from "@/lib/i18n";
 
 export function EditableSpan({ value, onChange, style: extraStyle, multiline, bold, italic }) {
+  const { t } = useLanguage();
   const [editing, setEditing] = useState(false);
   const [val, setVal]         = useState(value);
   const ref = useRef(null);
@@ -49,14 +51,14 @@ export function EditableSpan({ value, onChange, style: extraStyle, multiline, bo
           style={shared} />;
   }
   return (
-    <span onClick={editable ? () => setEditing(true) : undefined} title={editable ? "Click to edit" : undefined}
+    <span onClick={editable ? () => setEditing(true) : undefined} title={editable ? t("editableSpan.clickToEdit") : undefined}
       style={{ cursor: editable ? "text" : "inherit", borderBottom: "1.5px dashed transparent",
         WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
         transition: "border-color 0.12s", ...extraStyle,
         fontWeight: bold ? "bold" : undefined, fontStyle: italic ? "italic" : undefined }}
       onMouseEnter={editable ? e => { e.currentTarget.style.borderBottomColor = "#3B82F680"; } : undefined}
       onMouseLeave={editable ? e => { e.currentTarget.style.borderBottomColor = "transparent"; } : undefined}>
-      {val || (editable ? <span style={{ color: "#aaa" }}>Click to edit</span> : null)}
+      {val || (editable ? <span style={{ color: "#aaa" }}>{t("editableSpan.clickToEdit")}</span> : null)}
     </span>
   );
 }

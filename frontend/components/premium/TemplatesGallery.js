@@ -13,11 +13,14 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Check } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
+import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
 import { NavRail } from "./shared/NavRail";
+import { NotificationsDialog } from "./shared/NotificationsDialog";
 import { TemplatePreview } from "./shared/TemplatePreview";
-import { LAYOUTS } from "./shared/resumeLayouts/registry";
+import { layouts } from "./shared/resumeLayouts/registry";
 import { getPreferredTemplate, setPreferredTemplate } from "@/lib/templatePreference";
 import { clearDraft } from "./guest/useGuestDraft";
+import { useLanguage } from "@/lib/i18n";
 
 function TemplateCard({ layout, selected, onSelect }) {
   return (
@@ -43,8 +46,12 @@ function TemplateCard({ layout, selected, onSelect }) {
 }
 
 export default function TemplatesGallery({ onClose, onNavigate }) {
+  const { t } = useLanguage();
+  const LAYOUTS = layouts(t);
   const { user } = useAuth();
   const { isDesktop } = useViewport();
+  const unread = useUnreadNotifications();
+  const [notifOpen, setNotifOpen] = useState(false);
   const [selected, setSelected] = useState(() => getPreferredTemplate() || "classic");
 
   const pick = (id) => {
@@ -71,7 +78,7 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
       onClick={done}
       className={`flex items-center justify-center gap-1.5 rounded-xl bg-primary px-5 py-3 text-[13.5px] font-bold whitespace-nowrap text-primary-foreground [-webkit-tap-highlight-color:transparent] ${fullWidth ? "w-full" : ""}`}
     >
-      <Check className="size-4" /> Done
+      <Check className="size-4" /> {t("templates.done")}
     </button>
   );
 
@@ -85,17 +92,17 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
 
   const intro = (
     <p className="m-0 mb-5 text-[13px] leading-relaxed text-muted-foreground">
-      Pick the layout your next resume starts with. You can change it again from the Style tab while building.
+      {t("templates.pickLayoutIntro")}
     </p>
   );
 
   if (isDesktop) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 flex bg-background font-sans text-foreground">
-        <NavRail user={user} onNavigate={onNavigate} onNotifClick={() => onNavigate("home")} />
+        <NavRail user={user} onNavigate={onNavigate} onNotifClick={() => setNotifOpen(true)} />
         <main className="relative min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-4xl px-8 py-8 pb-24">
-            <p className="m-0 mb-1 text-[22px] font-bold text-foreground">Templates</p>
+            <p className="m-0 mb-1 text-[22px] font-bold text-foreground">{t("templates.heading")}</p>
             {intro}
             {grid}
           </div>
@@ -105,6 +112,7 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
             </div>
           </div>
         </main>
+        <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={() => { setNotifOpen(false); onNavigate?.("apply"); }} />
       </motion.div>
     );
   }
@@ -113,11 +121,11 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-background font-sans text-foreground">
       <div className="flex shrink-0 items-center gap-3 px-5 pb-3" style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}>
         {onClose && (
-          <button onClick={onClose} aria-label="Back" className="flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground">
+          <button onClick={onClose} aria-label={t("personalProfile.back")} className="flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <ArrowLeft className="size-4" />
           </button>
         )}
-        <p className="m-0 text-[16px] font-bold text-foreground">Templates</p>
+        <p className="m-0 text-[16px] font-bold text-foreground">{t("templates.heading")}</p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
         {intro}

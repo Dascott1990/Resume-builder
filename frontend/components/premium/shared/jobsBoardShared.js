@@ -10,10 +10,13 @@ export const SOURCE_LABELS = { remotive: "Remotive", arbeitnow: "Arbeitnow", gre
 // company's real jobs LIST page, not a deep link to this specific posting.
 export const SOURCES_WITHOUT_DIRECT_LINK = new Set(["scrapegraphai"]);
 
-export function timeAgo(iso) {
+// `t` passed in, not read via useLanguage() — this is a plain function,
+// not a component, so it can't call a hook itself. Same common.* keys
+// Dashboard.js's own identical timeAgo reuses.
+export function timeAgo(iso, t) {
   if (!iso) return "";
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (days < 1) return "today";
-  if (days === 1) return "yesterday";
-  return `${days}d ago`;
+  if (days < 1) return t("common.today");
+  if (days === 1) return t("common.yesterday");
+  return t("common.daysAgo", { n: days });
 }

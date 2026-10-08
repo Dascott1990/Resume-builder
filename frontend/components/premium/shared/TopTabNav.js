@@ -1,11 +1,13 @@
 "use client";
+import { useLanguage } from "@/lib/i18n";
 // ── Desktop: top segmented nav, bigger and always labeled ──────────────────
 // Same visual language as guest/components/DesktopTabNav.js (bottom-border
 // active indicator, icon+label, border-b bg-card) but generic — takes a
 // plain `items` array instead of a hardcoded view list.
 export function TopTabNav({ items, active, onChange }) {
+  const { t } = useLanguage();
   return (
-    <div role="tablist" aria-label="View" className="flex shrink-0 border-b border-border bg-card px-2.5">
+    <div role="tablist" aria-label={t("guestMode.view")} className="flex shrink-0 border-b border-border bg-card px-2.5">
       {items.map((item) => {
         const isActive = item.id === active;
         return (

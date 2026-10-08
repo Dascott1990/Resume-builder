@@ -21,14 +21,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useLanguage } from "@/lib/i18n";
 
-const STATUSES = [
-  { id: "applied", label: "Applied", className: "border-border text-muted-foreground" },
-  { id: "interview", label: "Interview", className: "border-primary/30 bg-primary/10 text-primary" },
-  { id: "offer", label: "Offer", className: "border-success/30 bg-success/10 text-success" },
-  { id: "rejected", label: "Rejected", className: "border-destructive/30 bg-destructive/10 text-destructive" },
+const statuses = (t) => [
+  { id: "applied", label: t("status.applied"), className: "border-border text-muted-foreground" },
+  { id: "interview", label: t("status.interview"), className: "border-primary/30 bg-primary/10 text-primary" },
+  { id: "offer", label: t("status.offer"), className: "border-success/30 bg-success/10 text-success" },
+  { id: "rejected", label: t("status.rejected"), className: "border-destructive/30 bg-destructive/10 text-destructive" },
 ];
-const statusMeta = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0];
+const statusMeta = (id, STATUSES) => STATUSES.find((s) => s.id === id) || STATUSES[0];
 
 const EMPTY_FORM = { company: "", role: "", status: "applied", date_applied: "", notes: "", resume_id: "" };
 // Same class of bug as the resume editors — a 6-field form (including
@@ -46,6 +47,8 @@ function Field({ label, children }) {
 }
 
 export default function JobTracker({ onClose }) {
+  const { t } = useLanguage();
+  const STATUSES = statuses(t);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -89,7 +92,7 @@ export default function JobTracker({ onClose }) {
 
   const resumeLabel = (id) => {
     const r = savedResumes.find((r) => r.id === id);
-    return r ? `${r.name || "Untitled"} (${r.role || "No role"})` : null;
+    return r ? `${r.name || t("jobTracker.untitled")} (${r.role || t("jobTracker.noRole")})` : null;
   };
 
   const startAdd = () => { setEditingId(null); setForm(EMPTY_FORM); setFormOpen(true); };
@@ -105,7 +108,7 @@ export default function JobTracker({ onClose }) {
   const submit = async (e) => {
     e.preventDefault();
     if (!form.company.trim() || !form.role.trim()) {
-      toast.error("Company and role are required.");
+      toast.error(t("jobTracker.companyRoleRequired"));
       return;
     }
     setSubmitting(true);
@@ -116,14 +119,14 @@ export default function JobTracker({ onClose }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
         });
-        toast.success("Updated.");
+        toast.success(t("jobTracker.updated"));
       } else {
         await apiRequest("/api/v1/applications", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
         });
-        toast.success("Added.");
+        toast.success(t("jobTracker.added"));
       }
       setFormOpen(false);
       setForm(EMPTY_FORM);
@@ -141,7 +144,7 @@ export default function JobTracker({ onClose }) {
     try {
       await apiRequest(`/api/v1/applications/${id}`, { method: "DELETE" });
       tapFeedback();
-      toast.success("Removed.");
+      toast.success(t("jobTracker.removed"));
       setItems((l) => l.filter((x) => x.id !== id));
     } catch (e) {
       toast.error(e.message);
@@ -159,7 +162,7 @@ export default function JobTracker({ onClose }) {
       >
         <Logo size={22} />
         {onClose && (
-          <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
+          <button onClick={onClose} aria-label={t("common.close")} className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <X className="size-[17px]" />
           </button>
         )}
@@ -174,11 +177,11 @@ export default function JobTracker({ onClose }) {
           <div className="flex items-center gap-3">
             <IconTile icon={ClipboardList} size="sm" />
             <div>
-              <h1 className="m-0 text-xl font-bold text-foreground">Job Tracker</h1>
+              <h1 className="m-0 text-xl font-bold text-foreground">{t("jobTracker.title")}</h1>
             </div>
           </div>
           {!formOpen && (
-            <Btn small icon="Plus" onClick={startAdd}>Add</Btn>
+            <Btn small icon="Plus" onClick={startAdd}>{t("jobTracker.add")}</Btn>
           )}
         </div>
 
@@ -189,21 +192,21 @@ export default function JobTracker({ onClose }) {
               onSubmit={submit} className="mb-5 overflow-hidden rounded-2xl border border-border bg-card p-4"
             >
               <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm font-bold text-foreground">{editingId ? "Edit application" : "New application"}</span>
-                <button type="button" onClick={() => { setFormOpen(false); setForm(EMPTY_FORM); setEditingId(null); clearFormDraft(JOB_FORM_DRAFT_KEY); }} aria-label="Cancel"
+                <span className="text-sm font-bold text-foreground">{editingId ? t("jobTracker.editApplication") : t("jobTracker.newApplication")}</span>
+                <button type="button" onClick={() => { setFormOpen(false); setForm(EMPTY_FORM); setEditingId(null); clearFormDraft(JOB_FORM_DRAFT_KEY); }} aria-label={t("common.cancel")}
                   className="border-none bg-transparent p-0.5 text-muted-foreground/60">
                   <X className="size-4" />
                 </button>
               </div>
 
               <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2">
-                <Field label="Company">
+                <Field label={t("jobTracker.company")}>
                   <Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} placeholder="Acme Corp" className="h-11" />
                 </Field>
-                <Field label="Role">
+                <Field label={t("jobTracker.role")}>
                   <Input value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} placeholder="Software Engineer" className="h-11" />
                 </Field>
-                <Field label="Status">
+                <Field label={t("jobTracker.status")}>
                   <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
                     <SelectTrigger className="h-11 w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -211,33 +214,33 @@ export default function JobTracker({ onClose }) {
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Date applied">
+                <Field label={t("jobTracker.dateApplied")}>
                   <Input type="date" value={form.date_applied} onChange={(e) => setForm({ ...form, date_applied: e.target.value })} className="h-11" />
                 </Field>
               </div>
               {/* Full-width, not a third item in the 2-col grid above — a
                   fifth field there would sit alone in the left column with
                   an empty gap beside it on desktop. */}
-              <Field label="Resume used">
+              <Field label={t("jobTracker.resumeUsed")}>
                 <Select
                   value={form.resume_id || "__none__"}
                   onValueChange={(v) => setForm({ ...form, resume_id: v === "__none__" ? "" : v })}
                 >
-                  <SelectTrigger className="h-11 w-full"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectTrigger className="h-11 w-full"><SelectValue placeholder={t("jobTracker.none")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">None</SelectItem>
+                    <SelectItem value="__none__">{t("jobTracker.none")}</SelectItem>
                     {savedResumes.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>{r.name || "Untitled"} ({r.role || "No role"})</SelectItem>
+                      <SelectItem key={r.id} value={r.id}>{r.name || t("jobTracker.untitled")} ({r.role || t("jobTracker.noRole")})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Notes">
+              <Field label={t("jobTracker.notes")}>
                 <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
               </Field>
 
               <Btn variant="gold" type="submit" small disabled={submitting} loading={submitting}>
-                {submitting ? "Saving…" : editingId ? "Save changes" : "Add application"}
+                {submitting ? t("jobTracker.saving") : editingId ? t("jobTracker.saveChanges") : t("jobTracker.addApplication")}
               </Btn>
             </motion.form>
           )}
@@ -247,7 +250,7 @@ export default function JobTracker({ onClose }) {
           <div role="alert" className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-[12.5px] text-destructive">
             <span>{error}</span>
             <button type="button" onClick={load} className="flex shrink-0 items-center gap-1 border-none bg-transparent p-0 text-xs font-bold underline-offset-2 hover:underline">
-              <RefreshCw className="size-3" /> Try again
+              <RefreshCw className="size-3" /> {t("jobTracker.tryAgain")}
             </button>
           </div>
         )}
@@ -265,13 +268,13 @@ export default function JobTracker({ onClose }) {
               <div className="flex size-11 items-center justify-center rounded-full border border-border bg-card">
                 <ClipboardList className="size-[18px] text-muted-foreground" />
               </div>
-              <p className="m-0 text-sm font-bold text-foreground">No applications yet</p>
-              <Btn small variant="ghost" icon="Plus" onClick={startAdd}>Add</Btn>
+              <p className="m-0 text-sm font-bold text-foreground">{t("jobTracker.noApplicationsYet")}</p>
+              <Btn small variant="ghost" icon="Plus" onClick={startAdd}>{t("jobTracker.add")}</Btn>
             </div>
           )}
 
           {!loading && items.map((a) => {
-            const meta = statusMeta(a.status);
+            const meta = statusMeta(a.status, STATUSES);
             const resumeUsed = a.resume_id ? resumeLabel(a.resume_id) : null;
             return (
               <Card key={a.id} className="p-3.5">
@@ -284,14 +287,14 @@ export default function JobTracker({ onClose }) {
                     <Badge variant="outline" className={`rounded-full ${meta.className}`}>{meta.label}</Badge>
                     {a.needs_followup && (
                       <span className="flex items-center gap-1 text-[10.5px] font-bold text-primary">
-                        <Clock className="size-3" /> Follow up?
+                        <Clock className="size-3" /> {t("jobTracker.followUp")}
                       </span>
                     )}
                   </div>
                 </div>
                 {(a.date_applied || a.notes || resumeUsed) && (
                   <div className="mt-2 border-t border-border pt-2">
-                    {a.date_applied && <p className="m-0 font-mono text-[10.5px] text-muted-foreground/70">Applied {a.date_applied}</p>}
+                    {a.date_applied && <p className="m-0 font-mono text-[10.5px] text-muted-foreground/70">{t("jobTracker.appliedOn", { date: a.date_applied })}</p>}
                     {resumeUsed && (
                       <p className="m-0 mt-1 flex items-center gap-1 text-[11.5px] text-muted-foreground">
                         <FileText className="size-3 shrink-0" /> <span className="min-w-0 truncate">{resumeUsed}</span>
@@ -301,8 +304,8 @@ export default function JobTracker({ onClose }) {
                   </div>
                 )}
                 <div className="mt-2.5 flex gap-1.5">
-                  <Btn small variant="ghost" icon="Pencil" onClick={() => startEdit(a)}>Edit</Btn>
-                  <Btn small variant="danger" icon="Trash2" onClick={() => remove(a.id)}>Remove</Btn>
+                  <Btn small variant="ghost" icon="Pencil" onClick={() => startEdit(a)}>{t("jobTracker.edit")}</Btn>
+                  <Btn small variant="danger" icon="Trash2" onClick={() => remove(a.id)}>{t("jobTracker.remove")}</Btn>
                 </div>
               </Card>
             );

@@ -31,14 +31,15 @@ import {
   AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
   AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
+import { useLanguage } from "@/lib/i18n";
 
 const POLL_MS = 2500;
 const ORDER = ["queued", "reading_job", "preparing_resume", "filling_form", "needs_input", "ready_for_review", "submitted"];
-const CHECKLIST = [
-  { key: "reading_job", label: "Reading the job posting" },
-  { key: "preparing_resume", label: "Preparing your resume" },
-  { key: "filling_form", label: "Filling out the application" },
-  { key: "ready_for_review", label: "Ready for your review" },
+const checklist = (t) => [
+  { key: "reading_job", label: t("applyAi.checklistReadingJob") },
+  { key: "preparing_resume", label: t("applyAi.checklistPreparingResume") },
+  { key: "filling_form", label: t("applyAi.checklistFillingForm") },
+  { key: "ready_for_review", label: t("applyAi.checklistReadyForReview") },
 ];
 const TERMINAL_STATUSES = ["submitted", "failed", "cancelled", "expired"];
 
@@ -63,6 +64,7 @@ function Field({ label, children }) {
 const APPLY_PROFILE_DRAFT_KEY = "resumeBuilder:applyProfileDraft:v1";
 
 function ProfileForm({ initial, onConfirmed }) {
+  const { t } = useLanguage();
   // A saved draft (unconfirmed edits from before a refresh) wins over the
   // backend-fetched `initial` baseline — same reasoning as every other
   // form draft: the whole point is recovering what hasn't been saved yet.
@@ -98,7 +100,7 @@ function ProfileForm({ initial, onConfirmed }) {
   const submit = async (e) => {
     e.preventDefault();
     if (!form.full_name.trim() || !form.email.trim()) {
-      toast.error("Name and email are required.");
+      toast.error(t("applyAi.nameEmailRequired"));
       return;
     }
     setSaving(true);
@@ -119,7 +121,7 @@ function ProfileForm({ initial, onConfirmed }) {
           confirm: true,
         }),
       });
-      toast.success("Profile confirmed.");
+      toast.success(t("applyAi.profileConfirmed"));
       clearFormDraft(APPLY_PROFILE_DRAFT_KEY);
       onConfirmed(data);
     } catch (err) {
@@ -133,58 +135,58 @@ function ProfileForm({ initial, onConfirmed }) {
     <form onSubmit={submit} className="mx-auto w-full max-w-lg">
       <div className="mb-5 flex flex-col items-center gap-2 text-center">
         <IconTile icon={Sparkles} size="md" />
-        <h1 className="m-0 text-xl font-bold text-foreground">Confirm your career profile</h1>
+        <h1 className="m-0 text-xl font-bold text-foreground">{t("applyAi.confirmYourProfile")}</h1>
       </div>
 
       <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2">
-        <Field label="Full name"><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} className="h-11" /></Field>
-        <Field label="Email"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="h-11" /></Field>
-        <Field label="Phone"><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="h-11" /></Field>
-        <Field label="Location"><Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="h-11" /></Field>
+        <Field label={t("applyAi.fullName")}><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} className="h-11" /></Field>
+        <Field label={t("applyAi.email")}><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="h-11" /></Field>
+        <Field label={t("applyAi.phone")}><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="h-11" /></Field>
+        <Field label={t("applyAi.location")}><Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="h-11" /></Field>
       </div>
 
-      <Field label="Work authorization">
+      <Field label={t("applyAi.workAuthorization")}>
         <Select value={form.work_auth_status || "__unset__"} onValueChange={(v) => setForm({ ...form, work_auth_status: v === "__unset__" ? "" : v })}>
-          <SelectTrigger className="h-11 w-full"><SelectValue placeholder="Not set" /></SelectTrigger>
+          <SelectTrigger className="h-11 w-full"><SelectValue placeholder={t("applyAi.notSet")} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="__unset__">Not set</SelectItem>
-            <SelectItem value="citizen">Citizen</SelectItem>
-            <SelectItem value="permanent_resident">Permanent resident</SelectItem>
-            <SelectItem value="authorized_no_sponsorship">Authorized to work, no sponsorship needed</SelectItem>
-            <SelectItem value="visa_sponsorship_required">Requires visa sponsorship</SelectItem>
+            <SelectItem value="__unset__">{t("applyAi.notSet")}</SelectItem>
+            <SelectItem value="citizen">{t("applyAi.citizen")}</SelectItem>
+            <SelectItem value="permanent_resident">{t("applyAi.permanentResident")}</SelectItem>
+            <SelectItem value="authorized_no_sponsorship">{t("applyAi.authorizedNoSponsorship")}</SelectItem>
+            <SelectItem value="visa_sponsorship_required">{t("applyAi.visaSponsorshipRequired")}</SelectItem>
           </SelectContent>
         </Select>
       </Field>
 
       <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2">
-        <Field label="Most recent role"><Input value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="h-11" /></Field>
-        <Field label="Company"><Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="h-11" /></Field>
-        <Field label="Period"><Input value={form.period} onChange={(e) => setForm({ ...form, period: e.target.value })} placeholder="2021 – 2024" className="h-11" /></Field>
+        <Field label={t("applyAi.mostRecentRole")}><Input value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="h-11" /></Field>
+        <Field label={t("applyAi.company")}><Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="h-11" /></Field>
+        <Field label={t("applyAi.period")}><Input value={form.period} onChange={(e) => setForm({ ...form, period: e.target.value })} placeholder="2021 – 2024" className="h-11" /></Field>
       </div>
-      <Field label="What you did there (one per line)">
+      <Field label={t("applyAi.whatYouDidThere")}>
         <Textarea rows={3} value={form.bullets} onChange={(e) => setForm({ ...form, bullets: e.target.value })} />
       </Field>
       {extraWorkHistory.length > 0 && (
         <p className="m-0 mb-3 -mt-2 text-[11.5px] text-muted-foreground">
-          +{extraWorkHistory.length} earlier {extraWorkHistory.length === 1 ? "role" : "roles"}
+          {t(extraWorkHistory.length === 1 ? "applyAi.earlierRoleOne" : "applyAi.earlierRoleOther", { n: extraWorkHistory.length })}
         </p>
       )}
 
       <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2">
-        <Field label="Degree"><Input value={form.degree} onChange={(e) => setForm({ ...form, degree: e.target.value })} className="h-11" /></Field>
-        <Field label="School"><Input value={form.school} onChange={(e) => setForm({ ...form, school: e.target.value })} className="h-11" /></Field>
+        <Field label={t("applyAi.degree")}><Input value={form.degree} onChange={(e) => setForm({ ...form, degree: e.target.value })} className="h-11" /></Field>
+        <Field label={t("applyAi.school")}><Input value={form.school} onChange={(e) => setForm({ ...form, school: e.target.value })} className="h-11" /></Field>
       </div>
       {extraEducation.length > 0 && (
         <p className="m-0 mb-3 -mt-2 text-[11.5px] text-muted-foreground">
-          +{extraEducation.length} more {extraEducation.length === 1 ? "entry" : "entries"}
+          {t(extraEducation.length === 1 ? "applyAi.moreEntryOne" : "applyAi.moreEntryOther", { n: extraEducation.length })}
         </p>
       )}
-      <Field label="Skills (comma separated)">
+      <Field label={t("applyAi.skillsCommaSeparated")}>
         <Input value={form.skills} onChange={(e) => setForm({ ...form, skills: e.target.value })} placeholder="Python, React, SQL" className="h-11" />
       </Field>
 
       <Btn variant="gold" type="submit" disabled={saving} loading={saving} className="mt-1 w-full">
-        {saving ? "Saving…" : "Confirm profile"}
+        {saving ? t("applyAi.saving") : t("applyAi.confirmProfile")}
       </Btn>
     </form>
   );
@@ -194,6 +196,7 @@ const APPLY_URL_DRAFT_KEY = "resumeBuilder:applyUrlDraft:v1";
 
 // ── Phase 2: paste the job URL ──────────────────────────────────────────
 function UrlForm({ onStarted }) {
+  const { t } = useLanguage();
   const [url, setUrl] = useState(() => loadFormDraft(APPLY_URL_DRAFT_KEY)?.url || "");
   const [starting, setStarting] = useState(false);
 
@@ -207,7 +210,7 @@ function UrlForm({ onStarted }) {
   const submit = async (e) => {
     e.preventDefault();
     if (!/^https?:\/\//i.test(url.trim())) {
-      toast.error("Enter a valid job application URL.");
+      toast.error(t("applyAi.enterValidUrl"));
       return;
     }
     setStarting(true);
@@ -235,9 +238,9 @@ function UrlForm({ onStarted }) {
     <form onSubmit={submit} className="mx-auto w-full max-w-md">
       <div className="mb-5 flex flex-col items-center gap-2 text-center">
         <IconTile icon={Sparkles} size="md" />
-        <h1 className="m-0 text-xl font-bold text-foreground">Paste the application link</h1>
+        <h1 className="m-0 text-xl font-bold text-foreground">{t("applyAi.pasteApplicationLink")}</h1>
         <p className="m-0 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
-          Stops for your review before anything is submitted.
+          {t("applyAi.stopsForReview")}
         </p>
       </div>
       <Input
@@ -247,7 +250,7 @@ function UrlForm({ onStarted }) {
         autoFocus
       />
       <Btn variant="gold" type="submit" disabled={starting} loading={starting} className="mt-3 w-full">
-        {starting ? "Starting…" : "Start"}
+        {starting ? t("applyAi.starting") : t("applyAi.start")}
       </Btn>
     </form>
   );
@@ -255,6 +258,8 @@ function UrlForm({ onStarted }) {
 
 // ── Phase 3: live progress ──────────────────────────────────────────────
 function ProgressChecklist({ run, onAnswered, onCancelled }) {
+  const { t } = useLanguage();
+  const CHECKLIST = checklist(t);
   const [answer, setAnswer] = useState("");
   const [answering, setAnswering] = useState(false);
   const pendingQuestion = (run.pending_questions || []).find((q) => !q.answered);
@@ -293,7 +298,7 @@ function ProgressChecklist({ run, onAnswered, onCancelled }) {
     <div className="mx-auto w-full max-w-md">
       <div className="mb-5 flex flex-col items-center gap-2 text-center">
         <IconTile icon={Sparkles} size="md" />
-        <h1 className="m-0 text-lg font-bold text-foreground">Noqeev is working…</h1>
+        <h1 className="m-0 text-lg font-bold text-foreground">{t("applyAi.noqeevIsWorking")}</h1>
       </div>
 
       <Progress value={(doneCount / CHECKLIST.length) * 100} className="mb-5" />
@@ -315,12 +320,12 @@ function ProgressChecklist({ run, onAnswered, onCancelled }) {
       {pendingQuestion && (
         <form onSubmit={submitAnswer} className="mt-5 rounded-2xl border border-primary/30 bg-primary/5 p-4">
           <p className="m-0 mb-2 flex items-center gap-1.5 text-[12.5px] font-bold text-primary">
-            <AlertTriangle className="size-3.5" /> Noqeev needs your input
+            <AlertTriangle className="size-3.5" /> {t("applyAi.noqeevNeedsInput")}
           </p>
           <p className="m-0 mb-2.5 text-[13.5px] text-foreground">{pendingQuestion.question}</p>
           <Input value={answer} onChange={(e) => setAnswer(e.target.value)} className="h-11" autoFocus />
           <Btn variant="gold" type="submit" small disabled={answering} loading={answering} className="mt-2.5">
-            {answering ? "Sending…" : "Answer"}
+            {answering ? t("applyAi.sending") : t("applyAi.answer")}
           </Btn>
         </form>
       )}
@@ -333,13 +338,14 @@ function ProgressChecklist({ run, onAnswered, onCancelled }) {
         </div>
       )}
 
-      <Btn variant="ghost" small onClick={cancel} className="mt-4 w-full">Cancel</Btn>
+      <Btn variant="ghost" small onClick={cancel} className="mt-4 w-full">{t("applyAi.cancel")}</Btn>
     </div>
   );
 }
 
 // ── Phase 4: review before the real submit ──────────────────────────────
 function ReviewScreen({ run, onSubmitted, onCancelled }) {
+  const { t } = useLanguage();
   const [submitting, setSubmitting] = useState(false);
   const fields = (run.filled_form_snapshot?.elements) || [];
   const unfillable = run.unfillable_fields || [];
@@ -369,14 +375,14 @@ function ReviewScreen({ run, onSubmitted, onCancelled }) {
     <div className="mx-auto w-full max-w-lg">
       <div className="mb-5 flex flex-col items-center gap-2 text-center">
         <IconTile icon={Check} size="md" />
-        <h1 className="m-0 text-lg font-bold text-foreground">Ready for your review</h1>
-        <p className="m-0 text-[13px] text-muted-foreground">Nothing has been submitted yet. Check everything below.</p>
+        <h1 className="m-0 text-lg font-bold text-foreground">{t("applyAi.readyForReview")}</h1>
+        <p className="m-0 text-[13px] text-muted-foreground">{t("applyAi.nothingSubmittedYet")}</p>
       </div>
 
       {unfillable.length > 0 && (
         <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 p-3.5">
           <p className="m-0 mb-1.5 flex items-center gap-1.5 text-[12.5px] font-bold text-warning">
-            <AlertTriangle className="size-3.5" /> Needs your attention before submitting
+            <AlertTriangle className="size-3.5" /> {t("applyAi.needsAttention")}
           </p>
           {unfillable.map((f, i) => (
             <p key={i} className="m-0 text-[12.5px] text-foreground">• {typeof f === "string" ? f : f.label}</p>
@@ -385,7 +391,7 @@ function ReviewScreen({ run, onSubmitted, onCancelled }) {
       )}
 
       <div className="mb-5 grid gap-1.5 rounded-xl border border-border bg-card p-3.5">
-        {fields.length === 0 && <p className="m-0 text-[13px] text-muted-foreground">No fields captured.</p>}
+        {fields.length === 0 && <p className="m-0 text-[13px] text-muted-foreground">{t("applyAi.noFieldsCaptured")}</p>}
         {fields.map((f, i) => (
           <div key={i} className="flex items-start justify-between gap-3 border-b border-border/60 py-1.5 text-[13px] last:border-0">
             <span className="shrink-0 font-medium text-muted-foreground">{f.label}</span>
@@ -397,35 +403,36 @@ function ReviewScreen({ run, onSubmitted, onCancelled }) {
       <AlertDialog>
         <AlertDialogTrigger asChild>
           <Btn variant="gold" disabled={submitting} loading={submitting} className="w-full">
-            {submitting ? "Submitting…" : "Confirm & Submit"}
+            {submitting ? t("applyAi.submitting") : t("applyAi.confirmAndSubmit")}
           </Btn>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Submit this application?</AlertDialogTitle>
-            <AlertDialogDescription>This will submit your real application. This can't be undone.</AlertDialogDescription>
+            <AlertDialogTitle>{t("applyAi.submitThisApplication")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("applyAi.submitWarning")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("applyAi.cancel")}</AlertDialogCancel>
             <AlertDialogAction disabled={submitting} onClick={confirmSubmit}>
-              {submitting ? "Submitting…" : "Submit"}
+              {submitting ? t("applyAi.submitting") : t("applyAi.submit")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <Btn variant="ghost" small onClick={cancel} className="mt-2.5 w-full">Discard instead</Btn>
+      <Btn variant="ghost" small onClick={cancel} className="mt-2.5 w-full">{t("applyAi.discardInstead")}</Btn>
     </div>
   );
 }
 
 // ── Phase 5: terminal states ─────────────────────────────────────────────
 function TerminalScreen({ run, onRestart }) {
+  const { t } = useLanguage();
   const map = {
-    submitted: { icon: Check, title: "Application submitted", tone: "text-primary", body: "Added to your Job Tracker." },
-    failed: { icon: AlertTriangle, title: "Couldn't finish this one", tone: "text-destructive", body: run.error_message || "Something went wrong." },
-    cancelled: { icon: X, title: "Cancelled", tone: "text-muted-foreground", body: null },
-    expired: { icon: AlertTriangle, title: "Review window expired", tone: "text-muted-foreground", body: "Nothing was submitted." },
+    submitted: { icon: Check, title: t("applyAi.applicationSubmitted"), tone: "text-primary", body: t("guestMode.addedToJobTracker") },
+    failed: { icon: AlertTriangle, title: t("applyAi.couldntFinish"), tone: "text-destructive", body: run.error_message || t("applyAi.somethingWentWrong") },
+    cancelled: { icon: X, title: t("applyAi.cancelled"), tone: "text-muted-foreground", body: null },
+    expired: { icon: AlertTriangle, title: t("applyAi.reviewWindowExpired"), tone: "text-muted-foreground", body: t("applyAi.nothingWasSubmitted") },
   };
   const meta = map[run.status] || map.failed;
   const Icon = meta.icon;
@@ -434,12 +441,13 @@ function TerminalScreen({ run, onRestart }) {
       <IconTile icon={Icon} size="md" />
       <h1 className={`m-0 text-lg font-bold ${meta.tone}`}>{meta.title}</h1>
       {meta.body && <p className="m-0 text-[13.5px] leading-relaxed text-muted-foreground">{meta.body}</p>}
-      <Btn variant="gold" onClick={onRestart} className="mt-2 w-full">Start another</Btn>
+      <Btn variant="gold" onClick={onRestart} className="mt-2 w-full">{t("applyAi.startAnother")}</Btn>
     </div>
   );
 }
 
 export default function ApplyWithAI({ onClose, pendingRunId }) {
+  const { t } = useLanguage();
   const [phase, setPhase] = useState("loading"); // loading | profile | url | progress | review | terminal
   const [profile, setProfile] = useState(null);
   const [run, setRun] = useState(null);
@@ -550,7 +558,7 @@ export default function ApplyWithAI({ onClose, pendingRunId }) {
       >
         <Logo size={22} />
         {onClose && (
-          <button onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
+          <button onClick={onClose} aria-label={t("common.close")} className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground">
             <X className="size-[17px]" />
           </button>
         )}

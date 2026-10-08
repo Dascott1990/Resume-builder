@@ -10,8 +10,10 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/lib/useAuth";
 import { Field, Btn } from "../guest/components/primitives";
 import { AuthShell } from "./AuthShell";
+import { useLanguage } from "@/lib/i18n";
 
 export default function ForgotPassword({ onClose, onBackToLogin }) {
+  const { t } = useLanguage();
   const { forgotPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
@@ -22,7 +24,7 @@ export default function ForgotPassword({ onClose, onBackToLogin }) {
     e.preventDefault();
     setError("");
     if (!email.trim()) {
-      setError("Enter your email.");
+      setError(t("auth.enterEmail"));
       return;
     }
     setSubmitting(true);
@@ -42,22 +44,22 @@ export default function ForgotPassword({ onClose, onBackToLogin }) {
         {sent ? (
           <div className="flex flex-col items-center gap-4 text-center">
             <div>
-              <p className="m-0 text-[18px] font-bold text-foreground">Check your email</p>
+              <p className="m-0 text-[18px] font-bold text-foreground">{t("auth.checkYourEmail")}</p>
               <p className="m-0 mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">
-                If <strong className="text-foreground">{email.trim()}</strong> has an account, a reset link is on its way.
+                {t("auth.resetLinkSentTo", { email: email.trim() })}
               </p>
             </div>
-            <Btn variant="gold" small onClick={onBackToLogin}>Back to sign in</Btn>
+            <Btn variant="gold" small onClick={onBackToLogin}>{t("auth.backToSignIn")}</Btn>
           </div>
         ) : (
           <>
-            <p className="m-0 text-[20px] font-bold text-foreground">Reset your password</p>
+            <p className="m-0 text-[20px] font-bold text-foreground">{t("auth.resetYourPassword")}</p>
             <p className="m-0 mt-1.5 mb-5 text-[13.5px] leading-relaxed text-muted-foreground">
-              Enter the email on your account and we'll send a link to choose a new password.
+              {t("auth.resetLinkSubtitle")}
             </p>
 
             <form onSubmit={submit} className="grid gap-1">
-              <Field label="EMAIL" required type="email" value={email} onChange={setEmail} placeholder="you@example.com" autoComplete="email" />
+              <Field label={t("auth.email")} required type="email" value={email} onChange={setEmail} placeholder={t("auth.emailPlaceholder")} autoComplete="email" />
 
               {error && (
                 <div role="alert" className="mt-1 mb-1 flex gap-2 border-l-2 border-destructive py-0.5 pl-[11px] text-[12.5px] leading-relaxed text-destructive">
@@ -66,13 +68,13 @@ export default function ForgotPassword({ onClose, onBackToLogin }) {
               )}
 
               <Btn variant="gold" type="submit" className="mt-2.5" disabled={submitting} loading={submitting}>
-                {submitting ? "Sending…" : "Send reset link"}
+                {submitting ? t("auth.sending") : t("auth.sendResetLink")}
               </Btn>
             </form>
 
             <p className="m-0 mt-5 text-center text-[13px] text-muted-foreground">
               <button onClick={onBackToLogin} className="border-none bg-transparent p-0 font-bold text-primary">
-                Back to sign in
+                {t("auth.backToSignIn")}
               </button>
             </p>
           </>

@@ -12,8 +12,10 @@ import { useEffect, useState } from "react";
 import { Briefcase } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Field, Btn } from "./primitives";
+import { useLanguage } from "@/lib/i18n";
 
 export function DidYouApplyModal({ open, onClose, defaultRole, onConfirm }) {
+  const { t } = useLanguage();
   const [asking, setAsking] = useState(true);
   const [company, setCompany] = useState("");
   const [role, setRole] = useState(defaultRole || "");
@@ -52,28 +54,28 @@ export function DidYouApplyModal({ open, onClose, defaultRole, onConfirm }) {
               <div className="mb-1 flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary">
                 <Briefcase className="size-5" />
               </div>
-              <DialogTitle>Did you apply for this job?</DialogTitle>
+              <DialogTitle>{t("didYouApply.question")}</DialogTitle>
               <DialogDescription>
-                Say yes and we&apos;ll save it to your Job Tracker, job description and all — one less thing to type in twice.
+                {t("didYouApply.saveExplain")}
               </DialogDescription>
             </DialogHeader>
             <div className="flex gap-2">
-              <Btn variant="ghost" className="flex-1" onClick={close}>Not yet</Btn>
-              <Btn variant="gold" className="flex-1" onClick={() => setAsking(false)}>Yes, I applied</Btn>
+              <Btn variant="ghost" className="flex-1" onClick={close}>{t("didYouApply.notYet")}</Btn>
+              <Btn variant="gold" className="flex-1" onClick={() => setAsking(false)}>{t("didYouApply.yesApplied")}</Btn>
             </div>
           </>
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Add to your Job Tracker</DialogTitle>
-              <DialogDescription>Just the company — we&apos;ve got the rest.</DialogDescription>
+              <DialogTitle>{t("didYouApply.addToTracker")}</DialogTitle>
+              <DialogDescription>{t("didYouApply.justCompany")}</DialogDescription>
             </DialogHeader>
             <div className="grid gap-1">
-              <Field label="COMPANY" required value={company} onChange={setCompany} placeholder="Acme Corp" autoFocus />
-              <Field label="ROLE" required value={role} onChange={setRole} placeholder="Software Engineer" />
+              <Field label={t("didYouApply.companyLabel")} required value={company} onChange={setCompany} placeholder="Acme Corp" autoFocus />
+              <Field label={t("didYouApply.roleLabel")} required value={role} onChange={setRole} placeholder="Software Engineer" />
             </div>
             <Btn variant="gold" onClick={save} disabled={!company.trim() || !role.trim()} loading={saving}>
-              Save to tracker
+              {t("didYouApply.saveToTracker")}
             </Btn>
           </>
         )}

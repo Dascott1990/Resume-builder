@@ -44,35 +44,45 @@ import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
 import { useTheme } from "@/lib/useTheme";
 import { usePrefersReducedMotion } from "@/lib/usePrefersReducedMotion";
 import { tapFeedback } from "@/lib/haptics";
+import { useLanguage } from "@/lib/i18n";
 
 // Same four destinations, same icon set as Dashboard.js's own
 // MOBILE_NAV_ITEMS — one shared visual language across every mobile
-// screen that mounts MobileFloatingNav, not a second hand-copy.
-const MOBILE_NAV_ITEMS = [
-  { id: "home", Icon: Home, label: "Home" },
-  { id: "jobsboard", Icon: Briefcase, label: "Jobs" },
-  { id: "jobtracker", Icon: ClipboardList, label: "Applications" },
-  { id: "profile", Icon: CircleUser, label: "Profile" },
+// screen that mounts MobileFloatingNav, not a second hand-copy. A
+// function, not a plain array, like remoteOptions/levelOptions above —
+// needs the current language but lives outside any component.
+const mobileNavItems = (t) => [
+  { id: "home", Icon: Home, label: t("navItem.home") },
+  { id: "jobsboard", Icon: Briefcase, label: t("navItem.jobs") },
+  { id: "jobtracker", Icon: ClipboardList, label: t("navItem.applications") },
+  { id: "profile", Icon: CircleUser, label: t("navItem.profile") },
 ];
 
-function greeting() {
+// `t` passed in — same identical function as Dashboard.js's own, reused
+// here rather than imported (this file never imports from Dashboard.js
+// in either direction, see the file-level docstring's own reasoning for
+// jobsBoardShared.js existing in the first place).
+function greeting(t) {
   const h = new Date().getHours();
-  if (h < 5) return "Still up?";
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
+  if (h < 5) return t("dashboard.greeting.lateNight");
+  if (h < 12) return t("dashboard.greeting.morning");
+  if (h < 18) return t("dashboard.greeting.afternoon");
+  return t("dashboard.greeting.evening");
 }
 
-const REMOTE_OPTIONS = [
-  { id: "", label: "Remote or onsite" },
-  { id: "true", label: "Remote only" },
-  { id: "false", label: "Onsite only" },
+// Functions, not plain arrays — these feed <option> labels, which need
+// the current language, but live outside any component and can't call
+// useLanguage() themselves.
+const remoteOptions = (t) => [
+  { id: "", label: t("jobsBoard.remoteOrOnsite") },
+  { id: "true", label: t("jobsBoard.remoteOnly") },
+  { id: "false", label: t("jobsBoard.onsiteOnly") },
 ];
 
-const LEVEL_OPTIONS = [
-  { id: "", label: "Any verification level" },
-  { id: "2", label: "Level 2+: domain confirmed" },
-  { id: "3", label: "Level 3+: domain + age checked" },
+const levelOptions = (t) => [
+  { id: "", label: t("jobsBoard.anyVerificationLevel") },
+  { id: "2", label: t("jobsBoard.level2Plus") },
+  { id: "3", label: t("jobsBoard.level3Plus") },
 ];
 
 function countryName(code) {
@@ -84,11 +94,12 @@ function countryName(code) {
 }
 
 function VerificationBadge({ verification }) {
+  const { t } = useLanguage();
   const { level, checks_not_attempted } = verification;
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
   const btnRef = useRef(null);
-  const label = level >= 3 ? "Domain + age verified" : level === 2 ? "Domain confirmed" : "Source verified";
+  const label = level >= 3 ? t("jobsBoard.domainAgeVerified") : level === 2 ? t("jobsBoard.domainConfirmed") : t("jobsBoard.sourceVerified");
   const Icon = level >= 2 ? ShieldCheck : ShieldQuestion;
 
   // Every job card has its own backdrop-filter (.glass-surface's blur),
@@ -135,13 +146,13 @@ function VerificationBadge({ verification }) {
             className="fixed z-[91] w-64 rounded-xl border border-border bg-card p-3 shadow-lg"
             style={{ top: pos.top, left: pos.left }}
           >
-            <p className="m-0 mb-1.5 text-[11px] font-bold text-foreground">What was checked</p>
+            <p className="m-0 mb-1.5 text-[11px] font-bold text-foreground">{t("jobsBoard.whatWasChecked")}</p>
             <ul className="m-0 grid gap-1 p-0 pl-4 text-[11px] text-muted-foreground">
               {verification.checks_passed.map((c) => <li key={c}>{c.replace(/^level\d_/, "").replace(/_/g, " ")}</li>)}
             </ul>
             {checks_not_attempted?.length > 0 && (
               <p className="m-0 mt-1.5 text-[10.5px] text-muted-foreground/70">
-                Not attempted: {checks_not_attempted.map((c) => c.replace(/^level\d_/, "").replace(/_/g, " ")).join(", ")}
+                {t("jobsBoard.notAttempted", { list: checks_not_attempted.map((c) => c.replace(/^level\d_/, "").replace(/_/g, " ")).join(", ") })}
               </p>
             )}
           </div>
@@ -163,6 +174,7 @@ function VerificationBadge({ verification }) {
 // chips, the verification badge, source attribution — this screen's
 // whole reason to exist per its own docstring above.
 function JobCard({ job, applied, onOpen }) {
+  const { t } = useLanguage();
   // The card itself opens JobDetail on click — Apply and the verification
   // popover are real nested interactive elements, so each stops its own
   // click from bubbling up to the card (otherwise tapping Apply would
@@ -183,14 +195,14 @@ function JobCard({ job, applied, onOpen }) {
         </div>
         {applied && (
           <span className="flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10.5px] font-bold text-success">
-            <Check className="size-3" /> Applied
+            <Check className="size-3" /> {t("status.applied")}
           </span>
         )}
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-bold text-muted-foreground">{job.category}</span>
-        {job.remote && <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10.5px] font-bold text-success">Remote</span>}
+        {job.remote && <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10.5px] font-bold text-success">{t("common.remote")}</span>}
         {job.location && (
           <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
             <MapPin className="size-3" /> {job.location}
@@ -204,7 +216,7 @@ function JobCard({ job, applied, onOpen }) {
       {job.salary && <p className="m-0 text-[12.5px] font-bold text-success">{job.salary}</p>}
 
       {SOURCES_WITHOUT_DIRECT_LINK.has(job.source) && (
-        <p className="m-0 text-[10.5px] text-muted-foreground/70">Opens {job.company_name}'s jobs page. Search for this title there.</p>
+        <p className="m-0 text-[10.5px] text-muted-foreground/70">{t("jobsBoard.opensCompanyPage", { company: job.company_name })}</p>
       )}
 
       {/* flex-wrap — both children are shrink-0 (the badge must never
@@ -215,7 +227,7 @@ function JobCard({ job, applied, onOpen }) {
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <VerificationBadge verification={job.verification} />
         <span className="shrink-0 text-[10.5px] text-muted-foreground/70">
-          via {SOURCE_LABELS[job.source] || job.source} · {timeAgo(job.posted_at)}
+          {t("jobsBoard.viaSource", { source: SOURCE_LABELS[job.source] || job.source })} · {timeAgo(job.posted_at, t)}
         </span>
       </div>
 
@@ -223,7 +235,7 @@ function JobCard({ job, applied, onOpen }) {
         href={job.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
         className="flex w-fit items-center gap-1 self-start rounded-[10px] bg-primary px-3.5 py-1.5 text-[12px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent]"
       >
-        Apply <ExternalLink className="size-3" />
+        {t("jobsBoard.apply")} <ExternalLink className="size-3" />
       </a>
     </div>
   );
@@ -239,9 +251,10 @@ function JobCard({ job, applied, onOpen }) {
 // Tapping the card (not a separate Apply button) opens JobDetail — Apply
 // itself now lives on that screen's sticky action bar.
 function JobCardMobile({ job, applied, onOpen }) {
+  const { t } = useLanguage();
   const specs = [
     job.category,
-    job.remote ? "Remote" : (job.location ? "Onsite" : null),
+    job.remote ? t("common.remote") : (job.location ? t("jobsBoard.onsite") : null),
     job.location,
   ].filter(Boolean);
 
@@ -261,7 +274,7 @@ function JobCardMobile({ job, applied, onOpen }) {
             {applied && <Check className="size-3.5 shrink-0 text-foreground" strokeWidth={2.5} />}
           </div>
           <p className="m-0 truncate text-[12px] font-medium text-muted-foreground/70">
-            {job.company_name}{applied ? " · Applied" : ""}
+            {job.company_name}{applied ? ` · ${t("status.applied")}` : ""}
           </p>
         </div>
         {job.salary && (
@@ -277,7 +290,7 @@ function JobCardMobile({ job, applied, onOpen }) {
         ))}
         {job.posted_at && (
           <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground/60">
-            {specs.length > 0 && <span className="text-muted-foreground/30">&middot;</span>} {timeAgo(job.posted_at)}
+            {specs.length > 0 && <span className="text-muted-foreground/30">&middot;</span>} {timeAgo(job.posted_at, t)}
           </span>
         )}
         <span className="ml-auto shrink-0 text-muted-foreground/40">
@@ -293,6 +306,7 @@ function JobCardMobile({ job, applied, onOpen }) {
 // other chip floats as plain grey text with zero background/border, per
 // the approved monochrome reference.
 function CategoryPills({ categoryOptions, value, onChange }) {
+  const { t } = useLanguage();
   const chipClass = (selected) =>
     selected
       ? "rounded-full bg-foreground px-4 py-2 text-background"
@@ -300,7 +314,7 @@ function CategoryPills({ categoryOptions, value, onChange }) {
   return (
     <div className="-mx-5 mb-6 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
       <button type="button" onClick={() => onChange("")} className={`shrink-0 border-none text-[13px] font-semibold [-webkit-tap-highlight-color:transparent] ${chipClass(value === "")}`}>
-        All
+        {t("jobsBoard.all")}
       </button>
       {categoryOptions.filter((c) => c.id).map((c) => (
         <button
@@ -333,12 +347,13 @@ function FilterSelect({ value, onChange, options, placeholder, fullWidth }) {
 // Shared between the mobile sticky-header row (flex-wrap) and the desktop
 // right rail (stacked, full-width selects) — same four filters either way.
 function FiltersPanel({ category, setCategory, country, setCountry, remote, setRemote, minLevel, setMinLevel, categoryOptions, countryOptions, vertical }) {
+  const { t } = useLanguage();
   return (
     <div className={vertical ? "grid gap-2" : "flex flex-wrap gap-2"}>
       <FilterSelect value={category} onChange={setCategory} options={categoryOptions} fullWidth={vertical} />
       <FilterSelect value={country} onChange={setCountry} options={countryOptions} fullWidth={vertical} />
-      <FilterSelect value={remote} onChange={setRemote} options={REMOTE_OPTIONS} fullWidth={vertical} />
-      <FilterSelect value={minLevel} onChange={setMinLevel} options={LEVEL_OPTIONS} fullWidth={vertical} />
+      <FilterSelect value={remote} onChange={setRemote} options={remoteOptions(t)} fullWidth={vertical} />
+      <FilterSelect value={minLevel} onChange={setMinLevel} options={levelOptions(t)} fullWidth={vertical} />
     </div>
   );
 }
@@ -358,12 +373,13 @@ function FiltersPanel({ category, setCategory, country, setCountry, remote, setR
 // banner (searchOrActiveTrending), which stays visible as long as it's
 // active.
 function ActiveFilterChips({ search, setSearch, category, setCategory, country, setCountry, remote, setRemote, minLevel, setMinLevel }) {
+  const { t } = useLanguage();
   const chips = [];
   if (search.trim()) chips.push({ key: "search", label: `"${search.trim()}"`, clear: () => setSearch("") });
   if (category) chips.push({ key: "category", label: category, clear: () => setCategory("") });
   if (country) chips.push({ key: "country", label: countryName(country), clear: () => setCountry("") });
-  if (remote) chips.push({ key: "remote", label: REMOTE_OPTIONS.find((o) => o.id === remote)?.label, clear: () => setRemote("") });
-  if (minLevel) chips.push({ key: "minLevel", label: `Level ${minLevel}+`, clear: () => setMinLevel("") });
+  if (remote) chips.push({ key: "remote", label: remoteOptions(t).find((o) => o.id === remote)?.label, clear: () => setRemote("") });
+  if (minLevel) chips.push({ key: "minLevel", label: t("jobsBoard.levelPlus", { n: minLevel }), clear: () => setMinLevel("") });
 
   if (!chips.length) return null;
   return (
@@ -385,7 +401,7 @@ function ActiveFilterChips({ search, setSearch, category, setCategory, country, 
           onClick={() => { setSearch(""); setCategory(""); setCountry(""); setRemote(""); setMinLevel(""); }}
           className="border-none bg-transparent p-0 text-[11.5px] font-bold text-muted-foreground [-webkit-tap-highlight-color:transparent]"
         >
-          Clear all
+          {t("jobsBoard.clearAll")}
         </button>
       )}
     </div>
@@ -398,6 +414,7 @@ function ActiveFilterChips({ search, setSearch, category, setCategory, country, 
 // stays honest about the gap between "the labor market is growing here"
 // and "here's what's actually postable in this jobs board today."
 function TrendingChip({ field, active, onClick }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   return (
     <div className="relative shrink-0">
@@ -420,7 +437,7 @@ function TrendingChip({ field, active, onClick }) {
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-            aria-label="Source"
+            aria-label={t("jobsBoard.source")}
             className="shrink-0 border-none bg-transparent p-0 text-muted-foreground/60"
           >
             <Info className="size-3" />
@@ -431,9 +448,9 @@ function TrendingChip({ field, active, onClick }) {
             <TrendingUp className="size-3" /> {field.growth} <span className="font-normal text-muted-foreground">{field.window}</span>
           </span>
         ) : (
-          <span className="text-[11px] font-semibold text-muted-foreground">High demand · {field.window}</span>
+          <span className="text-[11px] font-semibold text-muted-foreground">{t("jobsBoard.highDemand", { window: field.window })}</span>
         )}
-        <span className="text-[10.5px] text-muted-foreground/70">{field.live_count} open now</span>
+        <span className="text-[10.5px] text-muted-foreground/70">{t("jobsBoard.openNow", { n: field.live_count })}</span>
       </div>
       {open && (
         <div className="absolute top-full left-0 z-20 mt-1.5 w-60 rounded-xl border border-border bg-card p-3 text-[11px] leading-relaxed text-muted-foreground shadow-lg">
@@ -453,10 +470,11 @@ function TrendingChip({ field, active, onClick }) {
 // options. One button now; the dot is still the "something's set" signal,
 // matching every other notification-dot in this app (NavRail's bell, etc).
 function CollapsedControls({ onExpand, filtersActive }) {
+  const { t } = useLanguage();
   return (
     <div className="mb-2.5 flex items-center gap-2">
       <button
-        type="button" onClick={onExpand} aria-label="Search and filters"
+        type="button" onClick={onExpand} aria-label={t("jobsBoard.searchAndFilters")}
         className="relative flex size-10 items-center justify-center rounded-full border border-border bg-card text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
       >
         <Search className="size-4" />
@@ -475,6 +493,7 @@ function CollapsedControls({ onExpand, filtersActive }) {
 // decorative; manual scroll and tapping a chip both still work either
 // way).
 function TrendingRow({ fields, activeId, onPick }) {
+  const { t } = useLanguage();
   const trackRef = useRef(null);
   const directionRef = useRef(1);
   const pausedRef = useRef(false);
@@ -530,7 +549,7 @@ function TrendingRow({ fields, activeId, onPick }) {
     <div className="mb-4">
       <div className="mb-2 flex items-center gap-1.5">
         <Flame className="size-3.5 text-primary" />
-        <span className="font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">Hottest right now</span>
+        <span className="font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{t("jobsBoard.hottestRightNow")}</span>
       </div>
       {/* relative + an absolute fade on the right edge — horizontal-only
           scroll (no vertical drift, no wrapping) that reads as an
@@ -554,6 +573,7 @@ function TrendingRow({ fields, activeId, onPick }) {
 }
 
 export default function JobsBoard({ onClose, onNavigate }) {
+  const { t } = useLanguage();
   const { user } = useAuth();
   const { isDesktop } = useViewport();
   const { theme, toggleTheme } = useTheme();
@@ -641,8 +661,8 @@ export default function JobsBoard({ onClose, onNavigate }) {
   // instead of eight requests, one per letter.
   const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(t);
+    const timeoutId = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timeoutId);
   }, [search]);
   const [category, setCategory] = useState("");
   const [country, setCountry] = useState("");
@@ -759,8 +779,8 @@ export default function JobsBoard({ onClose, onNavigate }) {
     }
   };
 
-  const categoryOptions = [{ id: "", label: "All categories" }, ...Object.entries(meta?.live_category_totals || {}).map(([c, n]) => ({ id: c, label: `${c} (${n})` }))];
-  const countryOptions = [{ id: "", label: "All countries" }, ...Object.entries(meta?.live_country_totals || {}).map(([c, n]) => ({ id: c, label: `${countryName(c)} (${n})` }))];
+  const categoryOptions = [{ id: "", label: t("jobsBoard.allCategories") }, ...Object.entries(meta?.live_category_totals || {}).map(([c, n]) => ({ id: c, label: `${c} (${n})` }))];
+  const countryOptions = [{ id: "", label: t("jobsBoard.allCountries") }, ...Object.entries(meta?.live_country_totals || {}).map(([c, n]) => ({ id: c, label: `${countryName(c)} (${n})` }))];
 
   const go = (id, opts) => {
     tapFeedback();
@@ -776,8 +796,8 @@ export default function JobsBoard({ onClose, onNavigate }) {
       <div className="flex size-11 items-center justify-center rounded-full border border-border bg-card">
         <Inbox className="size-[18px] text-muted-foreground" />
       </div>
-      <p className="m-0 text-[13.5px] font-bold text-foreground">No jobs match those filters</p>
-      <p className="m-0 text-[12.5px] text-muted-foreground">Try clearing one or two of them.</p>
+      <p className="m-0 text-[13.5px] font-bold text-foreground">{t("jobsBoard.noJobsMatch")}</p>
+      <p className="m-0 text-[12.5px] text-muted-foreground">{t("jobsBoard.tryClearing")}</p>
     </div>
   ) : (
     <>
@@ -796,7 +816,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
       </div>
       {jobs.length < total && (
         <div className="mt-4 flex justify-center">
-          <Btn small variant="ghost" onClick={loadMore} loading={loadingMore}>Load more</Btn>
+          <Btn small variant="ghost" onClick={loadMore} loading={loadingMore}>{t("jobsBoard.loadMore")}</Btn>
         </div>
       )}
     </>
@@ -809,7 +829,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
       className="mb-2.5 flex w-full items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-2.5 text-left [-webkit-tap-highlight-color:transparent]"
     >
       <span className="text-[12.5px] font-bold text-primary-text">
-        Showing: {trending.find((f) => f.id === activeTrending)?.label}
+        {t("jobsBoard.showing", { label: trending.find((f) => f.id === activeTrending)?.label })}
       </span>
       <X className="size-3.5 shrink-0 text-primary-text" />
     </button>
@@ -821,7 +841,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
         onChange={(e) => setSearch(e.target.value)}
         onFocus={() => setSearchFocused(true)}
         onBlur={() => setSearchFocused(false)}
-        placeholder="Search title or company"
+        placeholder={t("jobsBoard.searchPlaceholder")}
         className="w-full rounded-xl border border-border bg-card py-2.5 pr-3 pl-9 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none"
       />
     </div>
@@ -832,7 +852,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
       {Object.entries(meta.source_health).filter(([s]) => s !== "coverage_retry").map(([source, stats]) => (
         <div key={source} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
           <span className="text-[12.5px] font-bold text-foreground">{SOURCE_LABELS[source] || source}</span>
-          <span className="text-[11.5px] text-muted-foreground">{stats.verified} verified{stats.error ? " · error" : ""}</span>
+          <span className="text-[11.5px] text-muted-foreground">{t("jobsBoard.verifiedCount", { n: stats.verified })}{stats.error ? ` · ${t("common.error")}` : ""}</span>
         </div>
       ))}
     </div>
@@ -844,14 +864,14 @@ export default function JobsBoard({ onClose, onNavigate }) {
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="absolute inset-0 z-50 flex bg-background font-sans text-foreground"
       >
-        <NavRail active="jobsboard" user={user} onNavigate={go} onNotifClick={() => go("home")} />
+        <NavRail active="jobsboard" user={user} onNavigate={go} onNotifClick={() => setNotifOpen(true)} />
 
         <main className="relative min-w-0 flex-1 overflow-y-auto" onScroll={handleScroll}>
           <div className="mx-auto w-full max-w-4xl px-8 py-8">
             <div className="mb-5">
-              <p className="m-0 text-[22px] font-bold text-foreground">Jobs board</p>
+              <p className="m-0 text-[22px] font-bold text-foreground">{t("jobsBoard.jobsBoard")}</p>
               {meta?.last_run_at && (
-                <p className="m-0 mt-1 text-[12.5px] text-muted-foreground">Updated {timeAgo(meta.last_run_at)} · {total} verified listings</p>
+                <p className="m-0 mt-1 text-[12.5px] text-muted-foreground">{t("jobsBoard.updated", { time: timeAgo(meta.last_run_at, t), total })}</p>
               )}
             </div>
 
@@ -883,7 +903,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
 
         <aside className="flex w-72 shrink-0 flex-col gap-6 overflow-y-auto border-l border-border bg-card p-5">
           <div>
-            <p className="m-0 mb-2.5 font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">Filters</p>
+            <p className="m-0 mb-2.5 font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{t("jobsBoard.filters")}</p>
             <FiltersPanel
               category={category} setCategory={setCategory}
               country={country} setCountry={setCountry}
@@ -895,7 +915,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
           </div>
           {sourceHealthList && (
             <div>
-              <p className="m-0 mb-2.5 font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">Source health</p>
+              <p className="m-0 mb-2.5 font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{t("jobsBoard.sourceHealth")}</p>
               {sourceHealthList}
             </div>
           )}
@@ -908,6 +928,8 @@ export default function JobsBoard({ onClose, onNavigate }) {
             onClose={() => setSelectedJob(null)}
           />
         )}
+
+        <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={openNotification} />
       </motion.div>
     );
   }
@@ -919,8 +941,8 @@ export default function JobsBoard({ onClose, onNavigate }) {
       <div className="flex size-11 items-center justify-center rounded-full bg-muted">
         <Inbox className="size-[18px] text-muted-foreground" />
       </div>
-      <p className="m-0 text-[13.5px] font-bold text-foreground">No jobs match those filters</p>
-      <p className="m-0 text-[12.5px] text-muted-foreground">Try clearing one or two of them.</p>
+      <p className="m-0 text-[13.5px] font-bold text-foreground">{t("jobsBoard.noJobsMatch")}</p>
+      <p className="m-0 text-[12.5px] text-muted-foreground">{t("jobsBoard.tryClearing")}</p>
     </div>
   ) : (
     <>
@@ -929,7 +951,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
       </div>
       {jobs.length < total && (
         <div className="mt-4 flex justify-center">
-          <Btn small variant="ghost" onClick={loadMore} loading={loadingMore}>Load more</Btn>
+          <Btn small variant="ghost" onClick={loadMore} loading={loadingMore}>{t("jobsBoard.loadMore")}</Btn>
         </div>
       )}
     </>
@@ -946,19 +968,19 @@ export default function JobsBoard({ onClose, onNavigate }) {
         style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
       >
         <button
-          onClick={() => go("personal-profile")} aria-label="Personal profile"
+          onClick={() => go("personal-profile")} aria-label={t("common.personalProfile")}
           className="flex min-w-0 shrink items-center gap-2.5 border-none bg-transparent p-0 text-left [-webkit-tap-highlight-color:transparent]"
         >
           <span className="shrink-0 rounded-full ring-1 ring-border"><Avatar user={user} size={34} /></span>
           <span className="truncate text-sm font-medium tracking-tight text-muted-foreground">
-            {greeting()}{user ? `, ${firstNameOf(user.name) || user.email.split("@")[0]}` : ""}
+            {greeting(t)}{user ? `, ${firstNameOf(user.name) || user.email.split("@")[0]}` : ""}
           </span>
         </button>
         {/* Same order as Dashboard.js's header (Bell, Theme) — Search has
             no equivalent there at all, so it's appended last instead of
             disrupting the one order shared between the two screens. */}
         <div className="flex shrink-0 items-center gap-3">
-          <button onClick={() => setNotifOpen(true)} aria-label="Notifications" className="relative flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]">
+          <button onClick={() => setNotifOpen(true)} aria-label={t("common.notifications")} className="relative flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]">
             <Bell className="size-[18px]" strokeWidth={1.75} />
             {unread.count > 0 && (
               <span className="absolute top-0 right-0 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
@@ -968,12 +990,12 @@ export default function JobsBoard({ onClose, onNavigate }) {
           </button>
           <button
             onClick={toggleTheme}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={theme === "dark" ? t("common.lightMode") : t("common.darkMode")}
             className="flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]"
           >
             {theme === "dark" ? <Sun className="size-[18px]" strokeWidth={1.75} /> : <Moon className="size-[18px]" strokeWidth={1.75} />}
           </button>
-          <button onClick={() => setMobileSearchOpen((v) => !v)} aria-label="Search and filters" aria-expanded={mobileSearchOpen} className="relative flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]">
+          <button onClick={() => setMobileSearchOpen((v) => !v)} aria-label={t("jobsBoard.searchAndFilters")} aria-expanded={mobileSearchOpen} className="relative flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]">
             <Search className="size-[18px]" strokeWidth={1.75} />
             {filtersActive && <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary" />}
           </button>
@@ -1014,7 +1036,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
       </AnimatePresence>
 
       <div className="px-5">
-        <h1 className="m-0 text-3xl leading-tight font-extrabold tracking-tight text-foreground">Let&apos;s get you hired.</h1>
+        <h1 className="m-0 text-3xl leading-tight font-extrabold tracking-tight text-foreground">{t("dashboard.headline")}</h1>
         <div className="mt-3 h-px bg-border" />
       </div>
 
@@ -1043,13 +1065,13 @@ export default function JobsBoard({ onClose, onNavigate }) {
         <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
 
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-[11px] font-bold tracking-[0.12em] text-foreground/70 uppercase">Job match</span>
+          <span className="text-[11px] font-bold tracking-[0.12em] text-foreground/70 uppercase">{t("jobsBoard.jobMatch")}</span>
           {(category || activeTrending || search) && (
             <button
               onClick={() => { setCategory(""); setSearch(""); setActiveTrending(null); }}
               className="border-none bg-transparent p-0 text-[12px] font-bold text-foreground [-webkit-tap-highlight-color:transparent]"
             >
-              See all
+              {t("common.seeAll")}
             </button>
           )}
         </div>
@@ -1058,7 +1080,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
       </div>
 
       <MobileFloatingNav
-        items={MOBILE_NAV_ITEMS}
+        items={mobileNavItems(t)}
         active="jobsboard"
         onChange={(id) => go(id)}
         onCreate={() => go("resume", { quickBuild: true })}
@@ -1068,8 +1090,8 @@ export default function JobsBoard({ onClose, onNavigate }) {
         <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={() => setHealthOpen(false)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-t-2xl border border-border bg-card p-4 sm:rounded-2xl">
             <div className="mb-3 flex items-center justify-between">
-              <p className="m-0 text-[14px] font-bold text-foreground">Source health: latest run</p>
-              <button onClick={() => setHealthOpen(false)} aria-label="Close"><X className="size-4 text-muted-foreground" /></button>
+              <p className="m-0 text-[14px] font-bold text-foreground">{t("jobsBoard.sourceHealthLatestRun")}</p>
+              <button onClick={() => setHealthOpen(false)} aria-label={t("common.close")}><X className="size-4 text-muted-foreground" /></button>
             </div>
             {sourceHealthList}
           </div>

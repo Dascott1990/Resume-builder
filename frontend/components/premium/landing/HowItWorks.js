@@ -1,11 +1,12 @@
 "use client";
 import { UserRound, ClipboardPaste, Download } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD, SectionGlow } from "./shared";
+import { useLanguage } from "@/lib/i18n";
 
-const STEPS = [
-  { Icon: UserRound, step: "01", title: "Tell us who you are" },
-  { Icon: ClipboardPaste, step: "02", title: "Paste the job posting" },
-  { Icon: Download, step: "03", title: "Download and apply" },
+const steps = (t) => [
+  { Icon: UserRound, step: "01", title: t("landing.step1") },
+  { Icon: ClipboardPaste, step: "02", title: t("landing.step2") },
+  { Icon: Download, step: "03", title: t("landing.step3") },
 ];
 
 // No overflow-hidden on this section's own className below — same fix as
@@ -15,15 +16,17 @@ const STEPS = [
 // the section above (same color/gradient, nothing changed about it) is
 // what removes the line.
 export function HowItWorks() {
+  const { t } = useLanguage();
+  const STEPS = steps(t);
   return (
     <section id="how-it-works" className="relative flex min-h-[100svh] flex-col justify-center py-24 sm:py-28" style={{ scrollMarginTop: "72px" }}>
       <SectionGlow color="emerald" side="right" />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal>
-            <span className={EYEBROW}>The resume builder</span>
+            <span className={EYEBROW}>{t("landing.howItWorksEyebrow")}</span>
             <h2 className="m-0 text-[clamp(1.6rem,4vw,2.4rem)] leading-tight font-bold text-foreground">
-              Three steps. Under two minutes.
+              {t("landing.howItWorksTitle")}
             </h2>
           </Reveal>
 
@@ -36,7 +39,7 @@ export function HowItWorks() {
                 <div>
                   {/* text-primary-text at full opacity, not text-primary/70
                       — real text needs 4.5:1 against the light background. */}
-                  <span className="block font-mono text-[10.5px] font-bold tracking-[0.18em] text-primary-text">STEP {s.step}</span>
+                  <span className="block font-mono text-[10.5px] font-bold tracking-[0.18em] text-primary-text">{t("landing.step", { n: s.step })}</span>
                   <h3 className="m-0 mt-0.5 text-[15px] font-bold text-foreground">{s.title}</h3>
                 </div>
               </div>

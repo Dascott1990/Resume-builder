@@ -47,6 +47,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar } from "./shared/Avatar";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
+import { useLanguage } from "@/lib/i18n";
 import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
 import { tapFeedback } from "@/lib/haptics";
 import { apiRequest } from "./shared/api";
@@ -59,7 +60,7 @@ import { WelcomeNamePrompt } from "./shared/WelcomeNamePrompt";
 import { QUICK_ACTION_ART } from "./shared/quickActionArt";
 import { DASHBOARD_ART } from "./shared/dashboardArt";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LAYOUTS } from "./shared/resumeLayouts/registry";
+import { layouts } from "./shared/resumeLayouts/registry";
 import { getPreferredTemplate, setPreferredTemplate } from "@/lib/templatePreference";
 import Logo from "./Logo";
 import { FONTS, ACCENTS } from "./guest/constants";
@@ -86,46 +87,53 @@ function ArtTile({ art, size = 32, iconSize }) {
 // rest of this screen's cards use) — MobileFloatingNav fills them solid
 // on the active tab and leaves everything else a resting grey outline,
 // per the approved monochrome mobile reference.
-const MOBILE_NAV_ITEMS = [
-  { id: "home", Icon: Home, label: "Home" },
-  { id: "jobsboard", Icon: Briefcase, label: "Jobs" },
-  { id: "jobtracker", Icon: ClipboardList, label: "Applications" },
-  { id: "profile", Icon: CircleUser, label: "Profile" },
+// Function, not a plain array — needs the current language but lives
+// outside any component (see JobsBoard.js's identical mobileNavItems).
+const mobileNavItems = (t) => [
+  { id: "home", Icon: Home, label: t("navItem.home") },
+  { id: "jobsboard", Icon: Briefcase, label: t("navItem.jobs") },
+  { id: "jobtracker", Icon: ClipboardList, label: t("navItem.applications") },
+  { id: "profile", Icon: CircleUser, label: t("navItem.profile") },
 ];
 
 const RECOMMENDED_CACHE_KEY = "noqeev_cached_recommended_jobs";
 
+// labelKey, not a hardcoded English label — resolved via t() at each
+// render site, since this plain object lives outside any component and
+// can't call the useLanguage() hook itself.
 const STATUS_META = {
-  applied: { label: "Applied", className: "text-muted-foreground" },
-  interview: { label: "Interview", className: "text-primary" },
-  offer: { label: "Offer", className: "text-success" },
-  rejected: { label: "Rejected", className: "text-destructive" },
+  applied: { labelKey: "status.applied", className: "text-muted-foreground" },
+  interview: { labelKey: "status.interview", className: "text-primary" },
+  offer: { labelKey: "status.offer", className: "text-success" },
+  rejected: { labelKey: "status.rejected", className: "text-destructive" },
 };
 const STATUS_ORDER = ["applied", "interview", "offer", "rejected"];
 
-function timeAgo(iso) {
+// `t` passed in, not read via useLanguage() — these are plain functions
+// outside any component body, which can't call a hook themselves.
+function timeAgo(iso, t) {
   if (!iso) return "";
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (days < 1) return "today";
-  if (days === 1) return "yesterday";
-  return `${days}d ago`;
+  if (days < 1) return t("common.today");
+  if (days === 1) return t("common.yesterday");
+  return t("common.daysAgo", { n: days });
 }
 
-function daysSinceApplied(dateStr) {
+function daysSinceApplied(dateStr, t) {
   if (!dateStr) return null;
   const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
   if (Number.isNaN(days)) return null;
-  if (days <= 0) return "today";
-  if (days === 1) return "1 day ago";
-  return `${days} days ago`;
+  if (days <= 0) return t("common.today");
+  if (days === 1) return t("common.daysAgo", { n: 1 });
+  return t("common.daysAgo", { n: days });
 }
 
-function greeting() {
+function greeting(t) {
   const h = new Date().getHours();
-  if (h < 5) return "Still up?";
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
+  if (h < 5) return t("dashboard.greeting.lateNight");
+  if (h < 12) return t("dashboard.greeting.morning");
+  if (h < 18) return t("dashboard.greeting.afternoon");
+  return t("dashboard.greeting.evening");
 }
 
 // The one unified "Your job search" card — Applied/Responses/Interviews/
@@ -144,6 +152,7 @@ function greeting() {
 // drops every placeholder-initial circle in favor of real vector icons,
 // desktop included.
 function RecommendedJobRow({ job }) {
+  const { t } = useLanguage();
   return (
     <div className="flex items-center gap-3">
       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -152,11 +161,11 @@ function RecommendedJobRow({ job }) {
       <div className="min-w-0 flex-1">
         <p className="m-0 truncate text-[12.5px] font-bold tracking-tight text-foreground">{job.title}</p>
         <p className="m-0 truncate text-[11px] font-medium text-muted-foreground/70">
-          {job.company_name}{job.remote ? " · Remote" : ""}
+          {job.company_name}{job.remote ? ` · ${t("common.remote")}` : ""}
         </p>
       </div>
       <a
-        href={job.url} target="_blank" rel="noreferrer" aria-label={`Apply to ${job.title}`}
+        href={job.url} target="_blank" rel="noreferrer" aria-label={t("dashboard.applyTo", { title: job.title })}
         className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-foreground [-webkit-tap-highlight-color:transparent]"
       >
         <ArrowUpRight className="size-3.5" strokeWidth={1.75} />
@@ -169,14 +178,15 @@ function RecommendedJobRow({ job }) {
 // half-width grid cell beside Templates, see DashboardContent), so this
 // shows real listings 4-wide instead of cropping to 2.
 function RecommendedCard({ jobs, loading, onSeeAll }) {
+  const { t } = useLanguage();
   return (
     <div className="mb-7">
-      <SectionHeader onViewAll={onSeeAll} viewAllLabel="See all">Recommended</SectionHeader>
+      <SectionHeader onViewAll={onSeeAll} viewAllLabel={t("common.seeAll")}>{t("dashboard.recommended")}</SectionHeader>
       <div className="flex flex-col divide-y divide-border">
         {loading ? (
           <><Skeleton className="my-2.5 h-9 w-full" /><Skeleton className="my-2.5 h-9 w-full" /></>
         ) : jobs.length === 0 ? (
-          <p className="m-0 py-2 text-[12px] text-muted-foreground">Nothing fresh right now. Check back soon.</p>
+          <p className="m-0 py-2 text-[12px] text-muted-foreground">{t("dashboard.recommendedEmpty")}</p>
         ) : (
           jobs.slice(0, 4).map((j) => (
             <div key={j.id} className="py-2.5">
@@ -346,6 +356,8 @@ function DocThumb({ layoutId, active, size = "md" }) {
 // template always sits confidently in the middle of the frame, never
 // off to one side.
 function TemplatesCarousel({ onSeeAll, onPick, selected }) {
+  const { t } = useLanguage();
+  const LAYOUTS = layouts(t);
   // 50vw, not 50% — this track bleeds past its own parent's padded column
   // via -mx-5 below, so percentages here would resolve against that
   // narrower containing block (the padded column), not the actual screen
@@ -372,7 +384,7 @@ function TemplatesCarousel({ onSeeAll, onPick, selected }) {
   return (
     <div className="mb-8">
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-[11px] font-bold tracking-[0.12em] text-foreground/70 uppercase">Templates</span>
+        <span className="text-[11px] font-bold tracking-[0.12em] text-foreground/70 uppercase">{t("dashboard.templates")}</span>
         {onSeeAll && (
           <button onClick={onSeeAll} className="flex items-center border-none bg-transparent p-0 text-muted-foreground/60 [-webkit-tap-highlight-color:transparent]">
             <ChevronRight className="size-4" />
@@ -403,9 +415,11 @@ function TemplatesCarousel({ onSeeAll, onPick, selected }) {
 // actually sits centered within its own grid cell instead of being
 // squeezed against the next one.
 function TemplatesGridDesktop({ onSeeAll, onPick, selected }) {
+  const { t } = useLanguage();
+  const LAYOUTS = layouts(t);
   return (
     <div className="mb-8">
-      <SectionHeader onViewAll={onSeeAll} viewAllLabel="See all">Templates</SectionHeader>
+      <SectionHeader onViewAll={onSeeAll} viewAllLabel={t("common.seeAll")}>{t("dashboard.templates")}</SectionHeader>
       <div className="grid grid-cols-3 content-center justify-items-center gap-8 py-2">
         {LAYOUTS.map((l) => (
           <button
@@ -427,6 +441,7 @@ function TemplatesGridDesktop({ onSeeAll, onPick, selected }) {
 // strict monochrome treatment. Same real fields (job.title/company_name/
 // remote/url) as RecommendedJobRow, just restyled.
 function RecommendedJobRowMobile({ job }) {
+  const { t } = useLanguage();
   return (
     <div className="flex items-center gap-3 py-2.5">
       <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-muted">
@@ -435,11 +450,11 @@ function RecommendedJobRowMobile({ job }) {
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <p className="m-0 truncate text-sm font-bold tracking-tight text-foreground">{job.title}</p>
         <p className="m-0 truncate text-xs font-medium text-muted-foreground/70">
-          {job.company_name}{job.remote ? " · Remote" : ""}
+          {job.company_name}{job.remote ? ` · ${t("common.remote")}` : ""}
         </p>
       </div>
       <a
-        href={job.url} target="_blank" rel="noreferrer" aria-label={`Apply to ${job.title}`}
+        href={job.url} target="_blank" rel="noreferrer" aria-label={t("dashboard.applyTo", { title: job.title })}
         className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground [-webkit-tap-highlight-color:transparent]"
       >
         <ArrowUpRight className="size-4" strokeWidth={1.75} />
@@ -452,14 +467,15 @@ function RecommendedJobRowMobile({ job }) {
 // treatment as the stats strip above it (no outer card), real jobs,
 // stacked with hairline dividers instead of each row owning its own card.
 function RecommendedListMobile({ jobs, loading }) {
+  const { t } = useLanguage();
   return (
     <div className="mb-7">
-      <span className="mb-1 block text-[11px] font-bold tracking-[0.12em] text-foreground/70 uppercase">Recommended</span>
+      <span className="mb-1 block text-[11px] font-bold tracking-[0.12em] text-foreground/70 uppercase">{t("dashboard.recommended")}</span>
       <div className="flex flex-col divide-y divide-border">
         {loading ? (
           <><Skeleton className="my-2.5 h-12 w-full" /><Skeleton className="my-2.5 h-12 w-full" /></>
         ) : jobs.length === 0 ? (
-          <p className="m-0 py-2.5 text-[12px] text-muted-foreground">Nothing fresh right now. Check back soon.</p>
+          <p className="m-0 py-2.5 text-[12px] text-muted-foreground">{t("dashboard.recommendedEmpty")}</p>
         ) : (
           jobs.slice(0, 3).map((j) => <RecommendedJobRowMobile key={j.id} job={j} />)
         )}
@@ -474,9 +490,10 @@ function RecommendedListMobile({ jobs, loading }) {
 // is now "here's the state of the thing you already made," not the
 // biggest element on the screen.
 function ResumeStatusCard({ latestResume, onOpen }) {
+  const { t } = useLanguage();
   return (
     <div className="mb-6">
-      <SectionHeader>Your resume</SectionHeader>
+      <SectionHeader>{t("dashboard.yourResume")}</SectionHeader>
       <button
         type="button" onClick={onOpen}
         className="glass-surface flex w-full items-center gap-3 rounded-2xl p-4 text-left [-webkit-tap-highlight-color:transparent]"
@@ -486,13 +503,13 @@ function ResumeStatusCard({ latestResume, onOpen }) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="m-0 truncate text-[13.5px] font-bold text-foreground">
-            {latestResume ? (latestResume.name || "Resume ready") : "First Resume"}
+            {latestResume ? (latestResume.name || t("dashboard.resumeReady")) : t("dashboard.firstResume")}
           </p>
           <p className="m-0 truncate text-[11.5px] text-muted-foreground">
-            {latestResume ? `Last updated ${timeAgo(latestResume.generated_at)}` : "Tailored, ATS-ready in minutes"}
+            {latestResume ? t("dashboard.lastUpdated", { time: timeAgo(latestResume.generated_at, t) }) : t("dashboard.resumeSubtitle")}
           </p>
         </div>
-        <span className="shrink-0 text-[12.5px] font-bold text-primary">{latestResume ? "View / Edit" : "Start"}</span>
+        <span className="shrink-0 text-[12.5px] font-bold text-primary">{latestResume ? t("dashboard.viewEdit") : t("dashboard.start")}</span>
       </button>
     </div>
   );
@@ -522,6 +539,7 @@ function ToolChip({ art, label, onClick }) {
 // to sit inline on the page, just reached through one tap instead of
 // always taking up scroll space.
 function CreateSheet({ open, onClose, latestResume, go }) {
+  const { t } = useLanguage();
   const act = (id, opts) => { onClose(); go(id, opts); };
   return (
     <AnimatePresence>
@@ -540,8 +558,8 @@ function CreateSheet({ open, onClose, latestResume, go }) {
           >
             <div className="mx-auto mb-4 h-1 w-10 shrink-0 rounded-full bg-border" />
             <div className="mb-4 flex items-center justify-between">
-              <span className="text-[16px] font-bold text-foreground">Create</span>
-              <button onClick={onClose} aria-label="Close" className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground [-webkit-tap-highlight-color:transparent]">
+              <span className="text-[16px] font-bold text-foreground">{t("dashboard.create")}</span>
+              <button onClick={onClose} aria-label={t("common.close")} className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground [-webkit-tap-highlight-color:transparent]">
                 <X className="size-4" />
               </button>
             </div>
@@ -552,12 +570,12 @@ function CreateSheet({ open, onClose, latestResume, go }) {
             />
 
             <div className="mt-5">
-              <SectionHeader>Tools</SectionHeader>
+              <SectionHeader>{t("dashboard.tools")}</SectionHeader>
               <div className="grid grid-cols-2 gap-2">
-                <ToolChip art={QUICK_BUILD_ART} label="Quick Build" onClick={() => act("resume", { quickBuild: true })} />
-                <ToolChip art={QUICK_ACTION_ART.apply} label="Auto Apply" onClick={() => act("apply")} />
-                <ToolChip art={QUICK_ACTION_ART.scan} label="CV Scan" onClick={() => act("scan")} />
-                <ToolChip art={QUICK_ACTION_ART.tracker} label="Tracker" onClick={() => act("jobtracker")} />
+                <ToolChip art={QUICK_BUILD_ART} label={t("dashboard.toolQuickBuild")} onClick={() => act("resume", { quickBuild: true })} />
+                <ToolChip art={QUICK_ACTION_ART.apply} label={t("dashboard.toolAutoApply")} onClick={() => act("apply")} />
+                <ToolChip art={QUICK_ACTION_ART.scan} label={t("dashboard.toolCvScan")} onClick={() => act("scan")} />
+                <ToolChip art={QUICK_ACTION_ART.tracker} label={t("dashboard.toolTracker")} onClick={() => act("jobtracker")} />
               </div>
             </div>
           </motion.div>
@@ -571,6 +589,7 @@ function CreateSheet({ open, onClose, latestResume, go }) {
 // live here, fixed beside the scrollable middle column, so they're always
 // on screen instead of waiting at the bottom of a long scroll.
 function DesktopRightRail({ savedResumes, go }) {
+  const { t } = useLanguage();
   const latestResume = savedResumes[0];
   return (
     <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-border bg-card p-5">
@@ -579,16 +598,16 @@ function DesktopRightRail({ savedResumes, go }) {
         onOpen={() => go("resume", latestResume ? { resumeId: latestResume.id } : undefined)}
       />
       <div>
-        <SectionHeader>Tools</SectionHeader>
+        <SectionHeader>{t("dashboard.tools")}</SectionHeader>
         {/* No "Resume" chip here — the "Your resume" card right above this
             already is that entry point (Start / View · Edit). A second
             button doing the identical thing read as clutter, not a
             shortcut — see the Dashboard cleanup note in DashboardContent. */}
         <div className="grid grid-cols-1 gap-2">
-          <ToolChip art={QUICK_BUILD_ART} label="Quick Build" onClick={() => go("resume", { quickBuild: true })} />
-          <ToolChip art={QUICK_ACTION_ART.apply} label="Auto Apply" onClick={() => go("apply")} />
-          <ToolChip art={QUICK_ACTION_ART.scan} label="CV Scan" onClick={() => go("scan")} />
-          <ToolChip art={QUICK_ACTION_ART.tracker} label="Tracker" onClick={() => go("jobtracker")} />
+          <ToolChip art={QUICK_BUILD_ART} label={t("dashboard.toolQuickBuild")} onClick={() => go("resume", { quickBuild: true })} />
+          <ToolChip art={QUICK_ACTION_ART.apply} label={t("dashboard.toolAutoApply")} onClick={() => go("apply")} />
+          <ToolChip art={QUICK_ACTION_ART.scan} label={t("dashboard.toolCvScan")} onClick={() => go("scan")} />
+          <ToolChip art={QUICK_ACTION_ART.tracker} label={t("dashboard.toolTracker")} onClick={() => go("jobtracker")} />
         </div>
       </div>
     </aside>
@@ -596,6 +615,7 @@ function DesktopRightRail({ savedResumes, go }) {
 }
 
 function AddNoteDialog({ app, open, onClose, onSaved }) {
+  const { t } = useLanguage();
   const [notes, setNotes] = useState(app?.notes || "");
   const [saving, setSaving] = useState(false);
 
@@ -612,7 +632,7 @@ function AddNoteDialog({ app, open, onClose, onSaved }) {
       onSaved(updated);
       onClose();
     } catch (e) {
-      toast.error(e.message || "Couldn't save that note.");
+      toast.error(e.message || t("dashboard.noteError"));
     } finally {
       setSaving(false);
     }
@@ -623,11 +643,11 @@ function AddNoteDialog({ app, open, onClose, onSaved }) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Note for {app.role} at {app.company}</DialogTitle></DialogHeader>
-        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="What's worth remembering about this one?" autoFocus />
+        <DialogHeader><DialogTitle>{t("dashboard.noteFor", { role: app.role, company: app.company })}</DialogTitle></DialogHeader>
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder={t("dashboard.notePlaceholder")} autoFocus />
         <DialogFooter>
-          <Btn small variant="ghost" onClick={onClose}>Cancel</Btn>
-          <Btn small variant="gold" onClick={save} loading={saving}>Save note</Btn>
+          <Btn small variant="ghost" onClick={onClose}>{t("common.cancel")}</Btn>
+          <Btn small variant="gold" onClick={save} loading={saving}>{t("dashboard.saveNote")}</Btn>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -640,6 +660,7 @@ function AddNoteDialog({ app, open, onClose, onSaved }) {
 // demand, cached per-kind so re-opening one already fetched this render
 // doesn't re-call the AI for text that hasn't changed.
 function RejectionHelp({ appId }) {
+  const { t } = useLanguage();
   const [answers, setAnswers] = useState({}); // kind -> text
   const [loadingKind, setLoadingKind] = useState(null);
   const [openKind, setOpenKind] = useState(null);
@@ -657,7 +678,7 @@ function RejectionHelp({ appId }) {
       });
       setAnswers((a) => ({ ...a, [kind]: data.text }));
     } catch (e) {
-      setAnswers((a) => ({ ...a, [kind]: e.message || "Couldn't load that right now." }));
+      setAnswers((a) => ({ ...a, [kind]: e.message || t("dashboard.insightError") }));
     } finally {
       setLoadingKind(null);
     }
@@ -672,7 +693,7 @@ function RejectionHelp({ appId }) {
             openKind === "why" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"
           }`}
         >
-          What happened?
+          {t("dashboard.whatHappened")}
         </button>
         <button
           onClick={() => ask("reapply")}
@@ -680,7 +701,7 @@ function RejectionHelp({ appId }) {
             openKind === "reapply" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"
           }`}
         >
-          Worth reapplying?
+          {t("dashboard.worthReapplying")}
         </button>
       </div>
       {openKind && (
@@ -688,7 +709,7 @@ function RejectionHelp({ appId }) {
           {loadingKind === openKind ? (
             <>
               <Loader2 className="mt-0.5 size-3.5 shrink-0 animate-spin text-muted-foreground" />
-              <span className="text-muted-foreground">Thinking…</span>
+              <span className="text-muted-foreground">{t("dashboard.thinking")}</span>
             </>
           ) : (
             answers[openKind]
@@ -699,13 +720,14 @@ function RejectionHelp({ appId }) {
   );
 }
 
-function SectionHeader({ children, onViewAll, viewAllLabel = "View all" }) {
+function SectionHeader({ children, onViewAll, viewAllLabel }) {
+  const { t } = useLanguage();
   return (
     <div className="mb-2.5 flex items-center justify-between">
       <span className="font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{children}</span>
       {onViewAll && (
         <button onClick={onViewAll} className="flex items-center gap-0.5 border-none bg-transparent p-0 text-[12px] font-bold text-primary">
-          {viewAllLabel} <ChevronRight className="size-3" />
+          {viewAllLabel ?? t("common.viewAll")} <ChevronRight className="size-3" />
         </button>
       )}
     </div>
@@ -715,11 +737,12 @@ function SectionHeader({ children, onViewAll, viewAllLabel = "View all" }) {
 // The avatar leads the greeting, same order Logo.js's own lockup uses —
 // icon first, then the text that names it.
 function GreetingAvatar({ user, onClick }) {
+  const { t } = useLanguage();
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label="Personal profile"
+      aria-label={t("common.personalProfile")}
       className="shrink-0 border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
     >
       <Avatar user={user} size={36} />
@@ -735,6 +758,7 @@ function DashboardContent({
   user, statsLoading, savedResumes, applications, recommendedJobs, recommendedLoading,
   go, onDeleteResume, onDeleteApplication, onUpdateApplicationStatus, onAddNote, isDesktop, onOpenPersonalProfile,
 }) {
+  const { t } = useLanguage();
   const recentResumes = savedResumes.slice(0, 3);
   const recentApps = applications.slice(0, 3);
   const followupCount = applications.filter((a) => a.needs_followup).length;
@@ -754,9 +778,9 @@ function DashboardContent({
       {user && <GreetingAvatar user={user} onClick={onOpenPersonalProfile} />}
       <div className="min-w-0">
         <p className="m-0 truncate text-[13px] font-semibold text-muted-foreground">
-          {greeting()}{user ? `, ${firstNameOf(user.name) || user.email.split("@")[0]}` : ""}
+          {greeting(t)}{user ? `, ${firstNameOf(user.name) || user.email.split("@")[0]}` : ""}
         </p>
-        <h1 className="m-0 text-[26px] font-bold text-foreground">Let's get you hired.</h1>
+        <h1 className="m-0 text-[26px] font-bold text-foreground">{t("dashboard.headline")}</h1>
       </div>
     </div>
   );
@@ -768,9 +792,9 @@ function DashboardContent({
   const mobileGreetingRow = (
     <div className="min-w-0">
       <p className="m-0 truncate text-[13px] font-semibold text-muted-foreground">
-        {greeting()}{user ? `, ${firstNameOf(user.name) || user.email.split("@")[0]}` : ""}
+        {greeting(t)}{user ? `, ${firstNameOf(user.name) || user.email.split("@")[0]}` : ""}
       </p>
-      <h1 className="m-0 mt-0.5 text-3xl font-extrabold tracking-tight text-foreground">Let's get you hired.</h1>
+      <h1 className="m-0 mt-0.5 text-3xl font-extrabold tracking-tight text-foreground">{t("dashboard.headline")}</h1>
     </div>
   );
 
@@ -814,7 +838,7 @@ function DashboardContent({
         >
           <Clock className="size-4 shrink-0 text-primary" />
           <span className="flex-1 text-[13px] font-semibold text-foreground">
-            {followupCount} application{followupCount === 1 ? "" : "s"} could use a follow-up
+            {followupCount === 1 ? t("dashboard.followupOne") : t("dashboard.followupOther", { n: followupCount })}
           </span>
           <ChevronRight className="size-4 shrink-0 text-muted-foreground/50" />
         </motion.button>
@@ -848,7 +872,7 @@ function DashboardContent({
 
       {recentResumes.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.25 }} className="mb-6">
-          <SectionHeader onViewAll={() => go("resume", { viewAllResumes: true })}>Recent resumes</SectionHeader>
+          <SectionHeader onViewAll={() => go("resume", { viewAllResumes: true })}>{t("dashboard.recentResumes")}</SectionHeader>
           <div className="grid gap-2">
               {recentResumes.map((r) => (
                 <div key={r.id} className="glass-surface flex items-center gap-2 rounded-xl p-3">
@@ -856,22 +880,22 @@ function DashboardContent({
                     className="flex min-w-0 flex-1 items-center gap-3 border-none bg-transparent p-0 text-left [-webkit-tap-highlight-color:transparent]">
                     <ArtTile art={DASHBOARD_ART.resume} size={36} iconSize={19} />
                     <div className="min-w-0 flex-1">
-                      <p className="m-0 truncate text-[13px] font-bold text-foreground">{r.name || "Untitled"}</p>
+                      <p className="m-0 truncate text-[13px] font-bold text-foreground">{r.name || t("dashboard.untitled")}</p>
                       <p className="m-0 truncate text-[11.5px] text-muted-foreground">
-                        {r.role ? `${r.role} · ` : ""}Saved {timeAgo(r.generated_at)}
+                        {r.role ? `${r.role} · ` : ""}{t("dashboard.saved", { time: timeAgo(r.generated_at, t) })}
                       </p>
                     </div>
                   </button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button aria-label="More options" onClick={(e) => e.stopPropagation()}
+                      <button aria-label={t("common.moreOptions")} onClick={(e) => e.stopPropagation()}
                         className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted hover:text-foreground">
                         <MoreVertical className="size-4" />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>
                       <DropdownMenuItem className="text-destructive data-highlighted:text-destructive" onSelect={() => setTimeout(() => setConfirmDeleteResumeId(r.id), 0)}>
-                        <Trash2 className="size-3.5" /> Delete
+                        <Trash2 className="size-3.5" /> {t("common.delete")}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -884,11 +908,11 @@ function DashboardContent({
 
       {recentApps.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.3 }} className="mb-6">
-          <SectionHeader onViewAll={() => go("jobtracker")}>Recent applications</SectionHeader>
+          <SectionHeader onViewAll={() => go("jobtracker")}>{t("dashboard.recentApplications")}</SectionHeader>
           <div className="grid gap-2">
               {recentApps.map((a) => {
                 const meta = STATUS_META[a.status] || STATUS_META.applied;
-                const since = daysSinceApplied(a.date_applied);
+                const since = daysSinceApplied(a.date_applied, t);
                 return (
                   <div key={a.id} className="glass-surface rounded-xl p-3">
                     <div className="flex items-center gap-2">
@@ -896,16 +920,16 @@ function DashboardContent({
                         className="min-w-0 flex-1 border-none bg-transparent p-0 text-left [-webkit-tap-highlight-color:transparent]">
                         <div className="flex items-center gap-2">
                           <p className="m-0 min-w-0 flex-1 truncate text-[13px] font-bold text-foreground">{a.role}</p>
-                          <span className={`shrink-0 text-[11.5px] font-bold ${meta.className}`}>{meta.label}</span>
+                          <span className={`shrink-0 text-[11.5px] font-bold ${meta.className}`}>{t(meta.labelKey)}</span>
                         </div>
                         <p className="m-0 truncate text-[11.5px] text-muted-foreground">
-                          {a.company}{since ? ` · Applied ${since}` : ""}
+                          {a.company}{since ? ` · ${t("dashboard.appliedOn", { time: since })}` : ""}
                         </p>
                         {a.notes && <p className="m-0 mt-0.5 truncate text-[11px] text-muted-foreground/75">{a.notes}</p>}
                       </button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button aria-label="More options" onClick={(e) => e.stopPropagation()}
+                          <button aria-label={t("common.moreOptions")} onClick={(e) => e.stopPropagation()}
                             className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted hover:text-foreground">
                             <MoreVertical className="size-4" />
                           </button>
@@ -913,14 +937,14 @@ function DashboardContent({
                         <DropdownMenuContent>
                           {STATUS_ORDER.filter((s) => s !== a.status).map((s) => (
                             <DropdownMenuItem key={s} onSelect={() => onUpdateApplicationStatus(a.id, s)}>
-                              Mark as {STATUS_META[s].label}
+                              {t("dashboard.markAs", { status: t(STATUS_META[s].labelKey) })}
                             </DropdownMenuItem>
                           ))}
                           <DropdownMenuItem onSelect={() => setTimeout(() => onAddNote(a), 0)}>
-                            <StickyNote className="size-3.5" /> {a.notes ? "Edit note" : "Add note"}
+                            <StickyNote className="size-3.5" /> {a.notes ? t("dashboard.editNote") : t("dashboard.addNote")}
                           </DropdownMenuItem>
                           <DropdownMenuItem className="text-destructive data-highlighted:text-destructive" onSelect={() => setTimeout(() => setConfirmDeleteApplicationId(a.id), 0)}>
-                            <Trash2 className="size-3.5" /> Delete
+                            <Trash2 className="size-3.5" /> {t("common.delete")}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -936,16 +960,16 @@ function DashboardContent({
       <AlertDialog open={!!confirmDeleteResumeId} onOpenChange={(o) => !o && setConfirmDeleteResumeId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this resume?</AlertDialogTitle>
-            <AlertDialogDescription>This can't be undone.</AlertDialogDescription>
+            <AlertDialogTitle>{t("dashboard.deleteResumeTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("dashboard.cannotUndo")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => { onDeleteResume(confirmDeleteResumeId); setConfirmDeleteResumeId(null); }}
             >
-              Delete
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -954,16 +978,16 @@ function DashboardContent({
       <AlertDialog open={!!confirmDeleteApplicationId} onOpenChange={(o) => !o && setConfirmDeleteApplicationId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this application?</AlertDialogTitle>
-            <AlertDialogDescription>This can't be undone.</AlertDialogDescription>
+            <AlertDialogTitle>{t("dashboard.deleteApplicationTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("dashboard.cannotUndo")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => { onDeleteApplication(confirmDeleteApplicationId); setConfirmDeleteApplicationId(null); }}
             >
-              Delete
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -974,6 +998,7 @@ function DashboardContent({
 }
 
 export default function Dashboard({ onNavigate, onSignOut }) {
+  const { t } = useLanguage();
   const { user, loading: authLoading, logout, updateProfile } = useAuth();
   const { isDesktop } = useViewport();
   const { theme, toggleTheme } = useTheme();
@@ -1067,7 +1092,7 @@ export default function Dashboard({ onNavigate, onSignOut }) {
       // signal, and a later reload would silently bring it back,
       // reading as "my save was lost").
       setSavedResumes(prev);
-      toast.error("Couldn't delete that resume.");
+      toast.error(t("dashboard.deleteResumeError"));
     }
   };
   const deleteApplication = async (id) => {
@@ -1077,7 +1102,7 @@ export default function Dashboard({ onNavigate, onSignOut }) {
       await apiRequest(`/api/v1/applications/${id}`, { method: "DELETE" });
     } catch (e) {
       setApplications(prev);
-      toast.error(e.message || "Couldn't delete that application.");
+      toast.error(e.message || t("dashboard.deleteApplicationError"));
     }
   };
   const updateApplicationStatus = async (id, status) => {
@@ -1090,7 +1115,7 @@ export default function Dashboard({ onNavigate, onSignOut }) {
       setApplications((list) => list.map((a) => (a.id === id ? { ...a, ...updated } : a)));
     } catch (e) {
       setApplications(prev);
-      toast.error(e.message || "Couldn't update that application.");
+      toast.error(e.message || t("dashboard.updateApplicationError"));
     }
   };
   const onNoteSaved = (updated) => {
@@ -1143,7 +1168,7 @@ export default function Dashboard({ onNavigate, onSignOut }) {
       >
         <Logo size={22} />
         <div className="flex items-center gap-3">
-          <button onClick={() => setNotifOpen(true)} aria-label="Notifications" className="relative flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]">
+          <button onClick={() => setNotifOpen(true)} aria-label={t("common.notifications")} className="relative flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]">
             <Bell className="size-[18px]" strokeWidth={1.75} />
             {needsAttention && (
               unread.count > 0 ? (
@@ -1157,14 +1182,14 @@ export default function Dashboard({ onNavigate, onSignOut }) {
           </button>
           <button
             onClick={toggleTheme}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={theme === "dark" ? t("common.lightMode") : t("common.darkMode")}
             className="flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]"
           >
             {theme === "dark" ? <Sun className="size-[18px]" strokeWidth={1.75} /> : <Moon className="size-[18px]" strokeWidth={1.75} />}
           </button>
           <button
             onClick={() => go("personal-profile")}
-            aria-label="Personal profile"
+            aria-label={t("common.personalProfile")}
             className="rounded-full ring-1 ring-border [-webkit-tap-highlight-color:transparent]"
           >
             <Avatar user={user} size={34} />
@@ -1177,7 +1202,7 @@ export default function Dashboard({ onNavigate, onSignOut }) {
       </div>
 
       <MobileFloatingNav
-        items={MOBILE_NAV_ITEMS}
+        items={mobileNavItems(t)}
         active="home"
         onChange={(id) => go(id)}
         onCreate={() => setCreateOpen(true)}

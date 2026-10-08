@@ -13,8 +13,9 @@
 import { useState } from "react";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { TemplatePreview } from "../../../shared/TemplatePreview";
-import { LAYOUTS } from "../../../shared/resumeLayouts/registry";
+import { layouts } from "../../../shared/resumeLayouts/registry";
 import { AiRewriteBar } from "./AiRewriteBar";
+import { useLanguage } from "@/lib/i18n";
 
 function Row({ children }) {
   return <div className="flex flex-col gap-2 px-3 pb-3">{children}</div>;
@@ -68,33 +69,33 @@ function TextSection({ section, si, onEdit, jobDesc, active, setActive }) {
   );
 }
 
-function BulletsSection({ section, si, onEdit }) {
+function BulletsSection({ section, si, onEdit, t }) {
   return (
     <Row>
       {(section.items || []).map((item, ii) => (
         <div key={ii} className="flex items-center gap-1.5">
-          {miniInput(item, (v) => onEdit("bullet", si, ii, v), "Bullet point")}
-          <RemoveBtn label="Remove" onClick={() => onEdit("remove-bullet", si, ii)} />
+          {miniInput(item, (v) => onEdit("bullet", si, ii, v), t("workspace.bulletPoint"))}
+          <RemoveBtn label={t("personalProfile.remove")} onClick={() => onEdit("remove-bullet", si, ii)} />
         </div>
       ))}
-      <AddRow onClick={() => onEdit("add-bullet", si)}>Add</AddRow>
+      <AddRow onClick={() => onEdit("add-bullet", si)}>{t("workspace.add")}</AddRow>
     </Row>
   );
 }
 
-function JobsSection({ section, si, onEdit, jobDesc, active, setActive }) {
+function JobsSection({ section, si, onEdit, jobDesc, active, setActive, t }) {
   return (
     <Row>
       {(section.jobs || []).map((job, ji) => (
         <div key={ji} className="flex flex-col gap-1.5 rounded-[9px] border border-border p-2.5">
           <div className="flex items-center gap-1.5">
-            {miniInput(job.role, (v) => onEdit("job-role", si, ji, v), "Role")}
-            <RemoveBtn label="Remove position" onClick={() => onEdit("remove-job", si, ji)} />
+            {miniInput(job.role, (v) => onEdit("job-role", si, ji, v), t("applyAi.mostRecentRole"))}
+            <RemoveBtn label={t("workspace.removePosition")} onClick={() => onEdit("remove-job", si, ji)} />
           </div>
-          {miniInput(job.company, (v) => onEdit("job-company", si, ji, v), "Company")}
+          {miniInput(job.company, (v) => onEdit("job-company", si, ji, v), t("jobTracker.company"))}
           <div className="flex gap-1.5">
-            {miniInput(job.location, (v) => onEdit("job-location", si, ji, v), "Location")}
-            {miniInput(job.period, (v) => onEdit("job-period", si, ji, v), "2023 to Present")}
+            {miniInput(job.location, (v) => onEdit("job-location", si, ji, v), t("applyAi.location"))}
+            {miniInput(job.period, (v) => onEdit("job-period", si, ji, v), t("workspace.periodWorkPlaceholder"))}
           </div>
           <div className="mt-1 flex flex-col gap-1.5">
             {(job.bullets || []).map((b, bi) => {
@@ -102,8 +103,8 @@ function JobsSection({ section, si, onEdit, jobDesc, active, setActive }) {
               return (
                 <div key={bi} className="flex flex-col gap-1">
                   <div className="flex items-center gap-1.5">
-                    {miniInput(b, (v) => onEdit("job-bullet", si, ji, bi, v), "Bullet point")}
-                    <RemoveBtn label="Remove bullet" onClick={() => onEdit("remove-job-bullet", si, ji, bi)} />
+                    {miniInput(b, (v) => onEdit("job-bullet", si, ji, bi, v), t("workspace.bulletPoint"))}
+                    <RemoveBtn label={t("workspace.removeBullet")} onClick={() => onEdit("remove-job-bullet", si, ji, bi)} />
                   </div>
                   <div onFocus={() => setActive(key)} tabIndex={-1}>
                     {active === key && (
@@ -117,37 +118,37 @@ function JobsSection({ section, si, onEdit, jobDesc, active, setActive }) {
                 </div>
               );
             })}
-            <AddRow onClick={() => onEdit("add-job-bullet", si, ji)}>Add bullet</AddRow>
+            <AddRow onClick={() => onEdit("add-job-bullet", si, ji)}>{t("workspace.addBullet")}</AddRow>
           </div>
         </div>
       ))}
-      <AddRow onClick={() => onEdit("add-job", si)}>Add position</AddRow>
+      <AddRow onClick={() => onEdit("add-job", si)}>{t("workspace.addPosition")}</AddRow>
     </Row>
   );
 }
 
-function EducationSection({ section, si, onEdit }) {
+function EducationSection({ section, si, onEdit, t }) {
   return (
     <Row>
       {(section.degrees || []).map((deg, di) => (
         <div key={di} className="flex flex-col gap-1.5 rounded-[9px] border border-border p-2.5">
           <div className="flex items-center gap-1.5">
-            {miniInput(deg.degree, (v) => onEdit("deg-degree", si, di, v), "Degree")}
-            <RemoveBtn label="Remove" onClick={() => onEdit("remove-degree", si, di)} />
+            {miniInput(deg.degree, (v) => onEdit("deg-degree", si, di, v), t("applyAi.degree"))}
+            <RemoveBtn label={t("personalProfile.remove")} onClick={() => onEdit("remove-degree", si, di)} />
           </div>
-          {miniInput(deg.school, (v) => onEdit("deg-school", si, di, v), "School")}
+          {miniInput(deg.school, (v) => onEdit("deg-school", si, di, v), t("applyAi.school"))}
           <div className="flex gap-1.5">
-            {miniInput(deg.location, (v) => onEdit("deg-location", si, di, v), "Location")}
-            {miniInput(deg.period, (v) => onEdit("deg-period", si, di, v), "2019 to 2023")}
+            {miniInput(deg.location, (v) => onEdit("deg-location", si, di, v), t("applyAi.location"))}
+            {miniInput(deg.period, (v) => onEdit("deg-period", si, di, v), t("workspace.periodEduPlaceholder"))}
           </div>
         </div>
       ))}
-      <AddRow onClick={() => onEdit("add-degree", si)}>Add education</AddRow>
+      <AddRow onClick={() => onEdit("add-degree", si)}>{t("workspace.addEducation")}</AddRow>
     </Row>
   );
 }
 
-function SectionAccordion({ section, si, open, onToggle, onEdit, jobDesc, active, setActive }) {
+function SectionAccordion({ section, si, open, onToggle, onEdit, jobDesc, active, setActive, t }) {
   return (
     <div className="overflow-hidden rounded-[10px] border border-border">
       <button
@@ -160,9 +161,9 @@ function SectionAccordion({ section, si, open, onToggle, onEdit, jobDesc, active
       </button>
       {open && (
         section.type === "text" ? <TextSection section={section} si={si} onEdit={onEdit} jobDesc={jobDesc} active={active} setActive={setActive} />
-        : section.type === "bullets" ? <BulletsSection section={section} si={si} onEdit={onEdit} />
-        : section.type === "jobs" ? <JobsSection section={section} si={si} onEdit={onEdit} jobDesc={jobDesc} active={active} setActive={setActive} />
-        : section.type === "education" ? <EducationSection section={section} si={si} onEdit={onEdit} />
+        : section.type === "bullets" ? <BulletsSection section={section} si={si} onEdit={onEdit} t={t} />
+        : section.type === "jobs" ? <JobsSection section={section} si={si} onEdit={onEdit} jobDesc={jobDesc} active={active} setActive={setActive} t={t} />
+        : section.type === "education" ? <EducationSection section={section} si={si} onEdit={onEdit} t={t} />
         : null
       )}
     </div>
@@ -170,6 +171,8 @@ function SectionAccordion({ section, si, open, onToggle, onEdit, jobDesc, active
 }
 
 export function BuilderSidebar({ resume, onEdit, jobDesc, docStyle, setDocStyle, onBuildAnother }) {
+  const { t } = useLanguage();
+  const LAYOUTS = layouts(t);
   const [view, setView] = useState("build");
   const [openIndex, setOpenIndex] = useState(0);
   const [active, setActive] = useState(null);
@@ -179,7 +182,7 @@ export function BuilderSidebar({ resume, onEdit, jobDesc, docStyle, setDocStyle,
   return (
     <div className="flex h-full flex-col">
       <div className="flex gap-0.5 p-2.5">
-        {[["build", "Build"], ["templates", "Templates"]].map(([id, label]) => (
+        {[["build", t("guestMode.build")], ["templates", t("templates.heading")]].map(([id, label]) => (
           <button
             key={id}
             onClick={() => setView(id)}
@@ -201,7 +204,7 @@ export function BuilderSidebar({ resume, onEdit, jobDesc, docStyle, setDocStyle,
               open={openIndex === si}
               onToggle={() => setOpenIndex(openIndex === si ? -1 : si)}
               onEdit={onEdit} jobDesc={jobDesc}
-              active={active} setActive={setActive}
+              active={active} setActive={setActive} t={t}
             />
           ))}
           {onBuildAnother && (
@@ -210,7 +213,7 @@ export function BuilderSidebar({ resume, onEdit, jobDesc, docStyle, setDocStyle,
               onClick={onBuildAnother}
               className="mt-1 h-8 shrink-0 rounded-[7px] text-[11.5px] font-bold text-muted-foreground hover:text-foreground [-webkit-tap-highlight-color:transparent]"
             >
-              Build another
+              {t("workspace.buildAnother")}
             </button>
           )}
         </div>

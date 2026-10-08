@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Zap, Mail, Check } from "lucide-react";
 import { Field, Btn } from "../primitives";
+import { useLanguage } from "@/lib/i18n";
 
 // ── Quick Build's own compact step 1 ─────────────────────────────────────
 // Only shown when quickMode is on (Dashboard's Quick Build chip AND a
@@ -15,6 +16,7 @@ import { Field, Btn } from "../primitives";
 // the pasted posting anyway (see resume.py's TITLE/LOCATION extraction
 // rules) — asking again here would just be friction with no payoff.
 export function QuickBuildIntro({ info, set, accountEmail, isPhone, onNext }) {
+  const { t } = useLanguage();
   const [emailChoice, setEmailChoice] = useState(() => (
     !info.email || info.email === accountEmail ? "account" : "custom"
   ));
@@ -32,15 +34,15 @@ export function QuickBuildIntro({ info, set, accountEmail, isPhone, onNext }) {
       <div className="mb-4 flex items-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-2.5">
         <Zap className="size-4 shrink-0 text-primary" />
         <p className="m-0 text-[12.5px] font-semibold text-foreground">
-          Reuses your saved resume info.
+          {t("quickBuild.reusesSavedInfo")}
         </p>
       </div>
 
-      <Field label="FULL NAME" required value={info.name} onChange={set("name")} placeholder="Jane Smith" />
-      <Field label="PHONE" required value={info.phone} onChange={set("phone")} placeholder="(416) 555-0100" />
+      <Field label={t("infoStep.fullName")} required value={info.name} onChange={set("name")} placeholder="Jane Smith" />
+      <Field label={t("infoStep.phone")} required value={info.phone} onChange={set("phone")} placeholder="(416) 555-0100" />
 
       <div className="mb-3.5">
-        <label className="mb-1.5 block text-[13.5px] font-bold tracking-wide text-foreground">EMAIL</label>
+        <label className="mb-1.5 block text-[13.5px] font-bold tracking-wide text-foreground">{t("auth.email")}</label>
         <div className={`grid gap-2 ${isPhone ? "grid-cols-1" : "grid-cols-2"}`}>
           <button
             type="button"
@@ -52,8 +54,8 @@ export function QuickBuildIntro({ info, set, accountEmail, isPhone, onNext }) {
           >
             <Mail className="size-4 shrink-0 text-muted-foreground" />
             <span className="min-w-0 flex-1">
-              <span className="block text-[12.5px] font-bold text-foreground">Account email</span>
-              <span className="block truncate text-[11px] text-muted-foreground">{accountEmail || "None"}</span>
+              <span className="block text-[12.5px] font-bold text-foreground">{t("quickBuild.accountEmail")}</span>
+              <span className="block truncate text-[11px] text-muted-foreground">{accountEmail || t("jobTracker.none")}</span>
             </span>
             {emailChoice === "account" && <Check className="size-3.5 shrink-0 text-primary" />}
           </button>
@@ -65,7 +67,7 @@ export function QuickBuildIntro({ info, set, accountEmail, isPhone, onNext }) {
             }`}
           >
             <Mail className="size-4 shrink-0 text-muted-foreground" />
-            <span className="block text-[12.5px] font-bold text-foreground">New email</span>
+            <span className="block text-[12.5px] font-bold text-foreground">{t("quickBuild.newEmail")}</span>
             {emailChoice === "custom" && <Check className="ml-auto size-3.5 shrink-0 text-primary" />}
           </button>
         </div>
@@ -77,7 +79,7 @@ export function QuickBuildIntro({ info, set, accountEmail, isPhone, onNext }) {
       </div>
 
       <Btn icon="ChevronRight" onClick={onNext} disabled={!ready}>
-        Next
+        {t("common.next")}
       </Btn>
     </>
   );

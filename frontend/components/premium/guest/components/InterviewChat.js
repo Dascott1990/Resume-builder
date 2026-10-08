@@ -10,8 +10,10 @@ import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Loader2, Send, MessageCircle } from "lucide-react";
 import { apiRequest } from "../../shared/api";
+import { useLanguage } from "@/lib/i18n";
 
 export function InterviewChat({ open, onClose, jobDescription, interviewTips }) {
+  const { t } = useLanguage();
   const [messages, setMessages] = useState([]); // [{role, content}]
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -35,7 +37,7 @@ export function InterviewChat({ open, onClose, jobDescription, interviewTips }) 
       });
       setMessages([...nextMessages, { role: "assistant", content: data.message }]);
     } catch (e) {
-      setError(e.message || "Could not reach the interviewer. Try again.");
+      setError(e.message || t("interviewChat.couldNotReach"));
       if (rollback) {
         setMessages(rollback.messages);
         setInput(rollback.input);
@@ -82,10 +84,10 @@ export function InterviewChat({ open, onClose, jobDescription, interviewTips }) 
       <DialogContent showCloseButton className="flex h-[min(88dvh,640px)] w-full max-w-[480px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[480px]">
         <div className="shrink-0 border-b border-border px-[22px] pt-[22px] pb-3.5">
           <p className="m-0 mb-1 flex items-center gap-2 font-serif text-xl italic text-foreground">
-            <MessageCircle className="size-[17px] text-primary" /> Practice interview
+            <MessageCircle className="size-[17px] text-primary" /> {t("interviewChat.practiceInterview")}
           </p>
           <p className="m-0 text-[12.5px] text-muted-foreground">
-            A quick back-and-forth, grounded in this job posting. Answer like you would for real.
+            {t("interviewChat.quickBackAndForth")}
           </p>
         </div>
 
@@ -127,7 +129,7 @@ export function InterviewChat({ open, onClose, jobDescription, interviewTips }) 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={sending ? undefined : "Type your answer…"}
+            placeholder={sending ? undefined : t("interviewChat.typeYourAnswer")}
             rows={1}
             disabled={sending}
             className="min-h-[42px] flex-1 resize-none rounded-xl border border-input bg-transparent px-3 py-2.5 text-[13.5px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring"
@@ -135,7 +137,7 @@ export function InterviewChat({ open, onClose, jobDescription, interviewTips }) 
           <button
             onClick={send}
             disabled={sending || !input.trim()}
-            aria-label="Send"
+            aria-label={t("interviewChat.send")}
             className="flex size-[42px] shrink-0 items-center justify-center rounded-xl border-none bg-primary text-primary-foreground disabled:opacity-40 [-webkit-tap-highlight-color:transparent]"
           >
             <Send className="size-4" />

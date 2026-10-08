@@ -17,6 +17,7 @@ import { Avatar } from "./Avatar";
 import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
 import { ThemeToggle } from "./ThemeToggle";
 import Logo from "../Logo";
+import { useLanguage } from "@/lib/i18n";
 import {
   AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
   AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
@@ -35,22 +36,26 @@ import {
 // redesigned the mobile dashboard applies here too now (same icon set
 // Dashboard.js's own MobileFloatingNav uses), so desktop and mobile share
 // one visual language instead of two.
-export const NAV_ITEMS = [
-  { id: "home", Icon: Home, label: "Home" },
-  { id: "jobsboard", Icon: Briefcase, label: "Jobs" },
-  { id: "jobtracker", Icon: ClipboardList, label: "Applications" },
-  { id: "profile", Icon: CircleUser, label: "Profile" },
+// Function, not a plain array — needs the current language but is
+// defined outside any component (same pattern as JobsBoard.js's own
+// mobileNavItems/remoteOptions/levelOptions).
+const navItems = (t) => [
+  { id: "home", Icon: Home, label: t("navItem.home") },
+  { id: "jobsboard", Icon: Briefcase, label: t("navItem.jobs") },
+  { id: "jobtracker", Icon: ClipboardList, label: t("navItem.applications") },
+  { id: "profile", Icon: CircleUser, label: t("navItem.profile") },
 ];
 
 export function NavRail({ active, user, onNavigate, onNotifClick, onSignOut }) {
+  const { t } = useLanguage();
   const unread = useUnreadNotifications();
   const needsAttention = unread.count > 0;
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-card">
       <div className="p-5" style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}><Logo size={22} /></div>
-      <nav className="flex flex-col gap-1 px-3" aria-label="Dashboard">
-        {NAV_ITEMS.map((item) => {
+      <nav className="flex flex-col gap-1 px-3" aria-label={t("navRail.navLabel")}>
+        {navItems(t).map((item) => {
           const isActive = item.id === active;
           return (
             <button
@@ -83,8 +88,8 @@ export function NavRail({ active, user, onNavigate, onNotifClick, onSignOut }) {
             onClick={() => onNavigate("profile")}
             className="w-full rounded-xl border border-primary/25 bg-primary/10 p-3 text-left [-webkit-tap-highlight-color:transparent]"
           >
-            <p className="m-0 text-[12.5px] font-bold text-primary">Sign in</p>
-            <p className="m-0 mt-0.5 text-[11px] leading-snug text-muted-foreground">Sync across devices</p>
+            <p className="m-0 text-[12.5px] font-bold text-primary">{t("navRail.signIn")}</p>
+            <p className="m-0 mt-0.5 text-[11px] leading-snug text-muted-foreground">{t("navRail.syncAcrossDevices")}</p>
           </button>
         )}
       </div>
@@ -92,7 +97,7 @@ export function NavRail({ active, user, onNavigate, onNotifClick, onSignOut }) {
       <div className="flex items-center justify-between border-t border-border p-3">
         <button
           onClick={onNotifClick}
-          aria-label="Notifications"
+          aria-label={t("common.notifications")}
           className="relative flex size-10 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
         >
           <Bell className="size-[17px]" strokeWidth={1.75} />
@@ -111,7 +116,7 @@ export function NavRail({ active, user, onNavigate, onNotifClick, onSignOut }) {
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <button
-                aria-label="Sign out"
+                aria-label={t("navRail.signOut")}
                 className="flex size-10 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
               >
                 <LogOut className="size-[15px]" />
@@ -119,12 +124,12 @@ export function NavRail({ active, user, onNavigate, onNotifClick, onSignOut }) {
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Sign out?</AlertDialogTitle>
-                <AlertDialogDescription>You'll need to sign back in to see your resumes and applications again.</AlertDialogDescription>
+                <AlertDialogTitle>{t("navRail.signOutQuestion")}</AlertDialogTitle>
+                <AlertDialogDescription>{t("navRail.signOutDescription")}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={onSignOut}>Sign out</AlertDialogAction>
+                <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                <AlertDialogAction onClick={onSignOut}>{t("navRail.signOut")}</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

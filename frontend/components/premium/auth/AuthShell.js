@@ -16,8 +16,10 @@
 import { useEffect } from "react";
 import { X } from "lucide-react";
 import Logo from "../Logo";
+import { useLanguage } from "@/lib/i18n";
 
 export function AuthShell({ onClose, children }) {
+  const { t } = useLanguage();
   // Only Login/Signup/ForgotPassword pass onClose — they're the real
   // dismissible overlay case (rendered absolute/inset-0 over existing
   // page content, see Login.js). verify-email/reset-password mount this
@@ -52,7 +54,7 @@ export function AuthShell({ onClose, children }) {
         <Logo size={24} />
         {onClose && (
           <button
-            onClick={onClose} aria-label="Close"
+            onClick={onClose} aria-label={t("common.close")}
             className="flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground [-webkit-tap-highlight-color:transparent]"
           >
             <X className="size-4" />
