@@ -307,6 +307,15 @@ export default function Home() {
     if (!mounted || getToken() || view === "brand-workspace") return;
     if (RESTORABLE_VIEWS.has(view)) {
       setView(hasAccountOnDevice() ? "login" : "launcher");
+      // Whatever landed `view` on an auth-gated screen with no token
+      // (stray setView call, a token that expired mid-session) almost
+      // certainly also left `returnView` pointing at an auth-gated
+      // screen — every X/back button reads returnView, so without this
+      // the very next close-button click would try to go right back to
+      // that same invalid screen and get bounced here again, looking
+      // exactly like a dead button. "launcher" is never auth-gated, so
+      // this is the one value that's always safe to land X on.
+      setReturnView("launcher");
     }
   }, [mounted, view]);
 
@@ -383,6 +392,18 @@ export default function Home() {
           // in Dashboard.js instead of a button in the header.
           onSignOut={() => {
             try { localStorage.removeItem(VIEW_KEY); } catch { /* best-effort */ }
+            // Bypasses go() on purpose (signing out isn't "navigating to
+            // login", it's leaving the authenticated app), but that means
+            // returnView is left pointing at whatever authenticated screen
+            // was open (e.g. "dashboard") — clicking the Login screen's own
+            // X then calls setView(returnView), which the auth-guard effect
+            // below immediately bounces right back to "login" since there's
+            // no token anymore. From the user's perspective the X looked
+            // completely dead (confirmed live: sign out, click X, still on
+            // the exact same sign-in screen). Resetting returnView to
+            // "launcher" here — the one destination that's never auth-gated
+            // — means X actually goes somewhere instead of looping forever.
+            setReturnView("launcher");
             setView("login");
           }}
           onNavigate={(id, opts) => {

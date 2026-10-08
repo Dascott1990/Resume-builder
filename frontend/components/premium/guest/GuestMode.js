@@ -664,7 +664,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
         paddingBottom: mobileNavClearance ?? (isPhone ? 24 : 48),
       }}>
       <p className="m-0 mb-2.5 px-3 text-center font-mono text-[9px] tracking-[0.08em] text-[#666] select-none">
-        {loadingResumeId ? "Loading…" : (generating || optimizing) ? "Building your resume…" : `${Math.round(scale * 100)}% · ${resume ? "Tap any text to edit" : "Generate to see your resume"}`}
+        {loadingResumeId ? t("guestMode.loadingEllipsis") : (generating || optimizing) ? t("guestMode.buildingYourResume") : `${Math.round(scale * 100)}% · ${resume ? t("guestMode.tapAnyTextToEdit") : t("guestMode.generateToSeeResume")}`}
       </p>
       {loadingResumeId || generating || optimizing ? (
         <div style={{ width: scaledW, height: scaledH }} className="relative shrink-0">
@@ -739,7 +739,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
             <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2.5">
               <Zap className="size-[13px] shrink-0 text-primary" />
               <span className="flex-1 text-xs font-semibold text-foreground">
-                Build one resume first — Quick Build after that.
+                {t("guestMode.buildOneResumeFirst")}
               </span>
             </div>
           )}
@@ -766,11 +766,11 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
           {step < 3 && (
             <div className="p-4 pt-0 pb-[18px]">
               <div className="mb-5 mt-4 flex items-center justify-between">
-                <span className="text-xl font-bold text-foreground">{step === 1 ? "Your Info" : "Job Posting"}</span>
-                <span className="text-[13px] font-semibold text-muted-foreground">Step {step} of 2</span>
+                <span className="text-xl font-bold text-foreground">{step === 1 ? t("guestMode.yourInfo") : t("guestMode.jobPosting")}</span>
+                <span className="text-[13px] font-semibold text-muted-foreground">{t("guestMode.stepXOfY", { current: step, total: 2 })}</span>
               </div>
               <div className="mb-5 flex gap-1.5">
-                {["Your Info", "Job Posting"].map((s, i) => (
+                {[t("guestMode.yourInfo"), t("guestMode.jobPosting")].map((s, i) => (
                   <div key={s} className={`h-[5px] flex-1 rounded-sm ${i < step ? "bg-primary" : "bg-border"}`} />
                 ))}
               </div>

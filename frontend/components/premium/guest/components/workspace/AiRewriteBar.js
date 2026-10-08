@@ -10,15 +10,17 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { apiRequest } from "../../../shared/api";
+import { useLanguage } from "@/lib/i18n";
 
-const MODES = [
-  { id: "rewrite", label: "Rewrite" },
-  { id: "match_jd", label: "Match job description" },
-  { id: "clarity", label: "Improve clarity" },
-  { id: "tone", label: "Change tone" },
+const MODES = (t) => [
+  { id: "rewrite", label: t("aiRewrite.rewrite") },
+  { id: "match_jd", label: t("aiRewrite.matchJobDescription") },
+  { id: "clarity", label: t("aiRewrite.improveClarity") },
+  { id: "tone", label: t("aiRewrite.changeTone") },
 ];
 
 export function AiRewriteBar({ text, onResult, jobDescription }) {
+  const { t } = useLanguage();
   const [loadingMode, setLoadingMode] = useState(null);
 
   const run = async (mode) => {
@@ -41,7 +43,7 @@ export function AiRewriteBar({ text, onResult, jobDescription }) {
 
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-x-0.5 gap-y-1 rounded-full border border-border bg-card p-1">
-      {MODES.map((m) => (
+      {MODES(t).map((m) => (
         <button
           key={m.id}
           type="button"

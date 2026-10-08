@@ -10,8 +10,10 @@
 import { Lock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/lib/i18n";
 
 export function DownloadCapModal({ open, onClose, onRequireAuth }) {
+  const { t } = useLanguage();
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-sm">
@@ -19,22 +21,21 @@ export function DownloadCapModal({ open, onClose, onRequireAuth }) {
           <div className="mb-1 flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary">
             <Lock className="size-5" />
           </div>
-          <DialogTitle>You&apos;ve used your 3 free downloads</DialogTitle>
+          <DialogTitle>{t("downloadCap.title")}</DialogTitle>
           <DialogDescription>
-            Sign up to keep going — and we&apos;ll save what you&apos;ve already
-            typed as your profile, so you never have to enter it again.
+            {t("downloadCap.description")}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2">
           <Button onClick={() => onRequireAuth("signup")} className="w-full">
-            Create free account
+            {t("downloadCap.createFreeAccount")}
           </Button>
           <button
             type="button"
             onClick={() => onRequireAuth("login")}
             className="w-full cursor-pointer border-none bg-transparent p-0 py-1 text-center text-[13px] font-semibold text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
           >
-            Already have an account? Log in
+            {t("downloadCap.alreadyHaveAccount")}
           </button>
         </div>
       </DialogContent>

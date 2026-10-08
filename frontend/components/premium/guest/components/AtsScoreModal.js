@@ -19,16 +19,17 @@ import { Loader2, Gauge, CheckCircle2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "../../shared/api";
 import { Btn } from "./primitives";
+import { useLanguage } from "@/lib/i18n";
 
 // medium/"Worth fixing" used --primary here before the theme system went
 // neutral — that read as a real "pay attention" severity signal, which a
 // neutral primary can no longer carry, so it's --warning now: a real,
 // fixed semantic color, not a stand-in for the app's old brand accent.
-const SEVERITY_META = {
-  high: { label: "Fix this", className: "border-destructive/30 bg-destructive/10 text-destructive" },
-  medium: { label: "Worth fixing", className: "border-warning/30 bg-warning/10 text-warning" },
-  low: { label: "Minor", className: "border-border bg-muted text-muted-foreground" },
-};
+const SEVERITY_META = (t) => ({
+  high: { label: t("atsScore.fixThis"), className: "border-destructive/30 bg-destructive/10 text-destructive" },
+  medium: { label: t("atsScore.worthFixing"), className: "border-warning/30 bg-warning/10 text-warning" },
+  low: { label: t("atsScore.minor"), className: "border-border bg-muted text-muted-foreground" },
+});
 
 function scoreColor(score) {
   if (score >= 80) return "var(--success)";
@@ -37,6 +38,7 @@ function scoreColor(score) {
 }
 
 export function AtsScoreModal({ open, onClose, resume, jobDescription, onApply }) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
@@ -60,7 +62,7 @@ export function AtsScoreModal({ open, onClose, resume, jobDescription, onApply }
       body: JSON.stringify({ resume, job_description: jobDescription || "" }),
     })
       .then(setResult)
-      .catch((e) => setError(e.message || "Could not check this resume. Try again."))
+      .catch((e) => setError(e.message || t("atsScore.couldNotCheck")))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -74,7 +76,7 @@ export function AtsScoreModal({ open, onClose, resume, jobDescription, onApply }
       body: JSON.stringify({ resume, job_description: jobDescription || "" }),
     })
       .then((data) => { setFixResult(data); setApplied(false); })
-      .catch((e) => setFixError(e.message || "Could not fix this resume. Try again."))
+      .catch((e) => setFixError(e.message || t("atsScore.couldNotFix")))
       .finally(() => setFixing(false));
   };
 
@@ -82,7 +84,7 @@ export function AtsScoreModal({ open, onClose, resume, jobDescription, onApply }
     if (!fixResult || !onApply) return;
     onApply(fixResult.resume);
     setApplied(true);
-    toast.success("Resume updated");
+    toast.success(t("atsScore.resumeUpdated"));
   };
 
   // fixResult supersedes the original check once it exists — it's a fresher
@@ -97,13 +99,13 @@ export function AtsScoreModal({ open, onClose, resume, jobDescription, onApply }
       <DialogContent showCloseButton className="flex max-h-[85dvh] w-full max-w-[440px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[440px]">
         <div className="min-h-0 overflow-y-auto overscroll-contain p-[22px] [-webkit-overflow-scrolling:touch]">
           <p className="m-0 mb-4 flex items-center gap-2 font-serif text-xl italic text-foreground">
-            <Gauge className="size-[17px] text-primary" /> ATS score
+            <Gauge className="size-[17px] text-primary" /> {t("atsScore.title")}
           </p>
 
           {loading && (
             <div className="flex flex-col items-center gap-2.5 py-10">
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
-              <p className="m-0 text-[12.5px] text-muted-foreground">Checking how this resume actually parses…</p>
+              <p className="m-0 text-[12.5px] text-muted-foreground">{t("atsScore.checking")}</p>
             </div>
           )}
 
@@ -135,7 +137,8 @@ export function AtsScoreModal({ open, onClose, resume, jobDescription, onApply }
               {(shown.issues?.length || 0) > 0 && (
                 <div className="mb-4 flex flex-col gap-2">
                   {shown.issues.map((issue, i) => {
-                    const meta = SEVERITY_META[issue.severity] || SEVERITY_META.low;
+                    const severityMeta = SEVERITY_META(t);
+                    const meta = severityMeta[issue.severity] || severityMeta.low;
                     return (
                       <div key={i} className="rounded-xl border border-border bg-card p-3">
                         <span className={`mb-1.5 inline-block rounded-full border px-2 py-0.5 text-[10px] font-bold ${meta.className}`}>
@@ -151,7 +154,7 @@ export function AtsScoreModal({ open, onClose, resume, jobDescription, onApply }
               {fixResult && (fixResult.unresolved?.length || 0) > 0 && (
                 <div className="mb-4">
                   <p className="m-0 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                    Can't fix from what's here — worth doing for real
+                    {t("atsScore.cantFixWorthDoing")}
                   </p>
                   <div className="flex flex-col gap-1.5">
                     {fixResult.unresolved.map((note, i) => (
@@ -171,18 +174,18 @@ export function AtsScoreModal({ open, onClose, resume, jobDescription, onApply }
 
               {applied ? (
                 <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[var(--success)]">
-                  <CheckCircle2 className="size-4" /> Applied to your resume
+                  <CheckCircle2 className="size-4" /> {t("atsScore.appliedToResume")}
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {canFix && (
                     <Btn small variant="gold" icon={fixing ? undefined : "Sparkles"} loading={fixing} onClick={handleFix} disabled={fixing}>
-                      {fixing ? "Rewriting…" : fixResult ? "Fix remaining issues" : "Fix these issues"}
+                      {fixing ? t("atsScore.rewriting") : fixResult ? t("atsScore.fixRemainingIssues") : t("atsScore.fixTheseIssues")}
                     </Btn>
                   )}
                   {showApplyButton && (
                     <Btn small variant={canFix ? "ghost" : "gold"} icon={canFix ? undefined : "Check"} onClick={handleApply}>
-                      Apply to resume
+                      {t("atsScore.applyToResume")}
                     </Btn>
                   )}
                 </div>

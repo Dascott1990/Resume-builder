@@ -17,6 +17,7 @@
  */
 import React from "react";
 import { ResumeDocument } from "../../shared/ResumeDocument";
+import { useLanguage } from "@/lib/i18n";
 
 const A4_WIDTH_PX = 794;
 const A4_HEIGHT_PX = 1123;
@@ -24,12 +25,13 @@ const A4_HEIGHT_PX = 1123;
 export const LivePreview = React.forwardRef(function LivePreview(
   { resume, docStyle, onEdit, scale = 1 }, ref
 ) {
+  const { t } = useLanguage();
   return (
     <ResumeDocument
       ref={ref} resume={resume} style={docStyle} onEdit={onEdit} scale={scale}
       pageWidth={A4_WIDTH_PX} pageHeight={A4_HEIGHT_PX}
       paddingXMm={18} paddingYMm={20}
-      emptyState="Your generated resume will appear here"
+      emptyState={t("guestMode.resumeWillAppearHere")}
     />
   );
 });

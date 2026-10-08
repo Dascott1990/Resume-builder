@@ -1,23 +1,24 @@
 "use client";
 import { Mail, Globe, AlertCircle, ExternalLink } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { useLanguage } from "@/lib/i18n";
 
 // ── Apply banner ─────────────────────────────────────────────────────────────
 // Bold, unmissable, one clear instruction — the "how do I actually apply" answer,
 // grounded in what the AI found in the job description (never invented).
 export function ApplyBanner({ application }) {
+  const { t } = useLanguage();
   const method = application?.method || "unclear";
   const value  = application?.value || null;
-  const text   = application?.instructions
-    || "This posting doesn't list a direct email or link — apply through the site or platform where you found it.";
+  const text   = application?.instructions || t("applyBanner.noDirectMethod");
 
   const cfg = {
-    email:   { Icon: Mail,  label: "Apply by email",   cta: value ? `Email ${value}` : null,
+    email:   { Icon: Mail,  label: t("applyBanner.applyByEmail"),   cta: value ? t("applyBanner.emailValue", { value }) : null,
                href: value ? `mailto:${value}` : null },
-    website: { Icon: Globe, label: "Apply on their site", cta: value ? "Open application page" : null,
+    website: { Icon: Globe, label: t("applyBanner.applyOnTheirSite"), cta: value ? t("applyBanner.openApplicationPage") : null,
                href: value || null },
-    unclear: { Icon: AlertCircle, label: "How to apply", cta: null, href: null },
-  }[method] || { Icon: AlertCircle, label: "How to apply", cta: null, href: null };
+    unclear: { Icon: AlertCircle, label: t("applyBanner.howToApply"), cta: null, href: null },
+  }[method] || { Icon: AlertCircle, label: t("applyBanner.howToApply"), cta: null, href: null };
 
   return (
     <Alert className="border-primary/40 bg-primary/[0.08] py-3">
