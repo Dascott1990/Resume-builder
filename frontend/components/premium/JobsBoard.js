@@ -978,9 +978,11 @@ export default function JobsBoard({ onClose, onNavigate }) {
         </button>
         {/* Same order as Dashboard.js's header (Bell, Theme) — Search has
             no equivalent there at all, so it's appended last instead of
-            disrupting the one order shared between the two screens. */}
-        <div className="flex shrink-0 items-center gap-3">
-          <button onClick={() => setNotifOpen(true)} aria-label={t("common.notifications")} className="relative flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]">
+            disrupting the one order shared between the two screens. One
+            shared pill instead of three separately-bordered circles, same
+            grouped-container language as NavRail.js/Dashboard.js. */}
+        <div className="flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-card p-1">
+          <button onClick={() => setNotifOpen(true)} aria-label={t("common.notifications")} className="relative flex size-9 items-center justify-center rounded-full text-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted">
             <Bell className="size-[18px]" strokeWidth={1.75} />
             {unread.count > 0 && (
               <span className="absolute top-0 right-0 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
@@ -991,11 +993,11 @@ export default function JobsBoard({ onClose, onNavigate }) {
           <button
             onClick={toggleTheme}
             aria-label={theme === "dark" ? t("common.lightMode") : t("common.darkMode")}
-            className="flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]"
+            className="flex size-9 items-center justify-center rounded-full text-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted"
           >
             {theme === "dark" ? <Sun className="size-[18px]" strokeWidth={1.75} /> : <Moon className="size-[18px]" strokeWidth={1.75} />}
           </button>
-          <button onClick={() => setMobileSearchOpen((v) => !v)} aria-label={t("jobsBoard.searchAndFilters")} aria-expanded={mobileSearchOpen} className="relative flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]">
+          <button onClick={() => setMobileSearchOpen((v) => !v)} aria-label={t("jobsBoard.searchAndFilters")} aria-expanded={mobileSearchOpen} className="relative flex size-9 items-center justify-center rounded-full text-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted">
             <Search className="size-[18px]" strokeWidth={1.75} />
             {filtersActive && <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary" />}
           </button>
