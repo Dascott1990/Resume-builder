@@ -61,7 +61,7 @@ import { QUICK_ACTION_ART } from "./shared/quickActionArt";
 import { DASHBOARD_ART } from "./shared/dashboardArt";
 import { Skeleton } from "@/components/ui/skeleton";
 import { layouts } from "./shared/resumeLayouts/registry";
-import { getPreferredTemplate, setPreferredTemplate } from "@/lib/templatePreference";
+import { getPreferredTemplate } from "@/lib/templatePreference";
 import Logo from "./Logo";
 import { DocThumb } from "./shared/ResumeTemplateThumb";
 import { firstNameOf } from "./shared/artisanDisplay";
@@ -208,7 +208,7 @@ function RecommendedCard({ jobs, loading, onSeeAll }) {
 // templatePreference write) and scrolls it to center, so the active
 // template always sits confidently in the middle of the frame, never
 // off to one side.
-function TemplatesCarousel({ onSeeAll, onPick, selected, user }) {
+function TemplatesCarousel({ onSeeAll, selected, user }) {
   const { t } = useLanguage();
   const LAYOUTS = layouts(t);
   // 50vw, not 50% — this track bleeds past its own parent's padded column
@@ -219,20 +219,15 @@ function TemplatesCarousel({ onSeeAll, onPick, selected, user }) {
   const edgePad = "calc(50vw - 74px)";
   const trackRef = useRef(null);
 
-  // Center the already-selected card the instant this mounts — without
-  // this, a fresh page load starts the native scroll position at 0 (the
-  // track's own left edge), so the real default template sat visually
-  // left-of-center until someone touched the carousel. "auto", not
-  // "smooth": a jump on first paint should be invisible, not animated.
+  // Center the preferred card the instant this mounts — without this, a
+  // fresh page load starts the native scroll position at 0 (the track's
+  // own left edge), so the real default template sat visually left-of-
+  // center until someone touched the carousel. "auto", not "smooth": a
+  // jump on first paint should be invisible, not animated.
   useEffect(() => {
-    const el = trackRef.current?.querySelector('[aria-pressed="true"]');
+    const el = trackRef.current?.querySelector('[data-active="true"]');
     el?.scrollIntoView({ behavior: "auto", inline: "center", block: "nearest" });
   }, []);
-
-  const pick = (id, el) => {
-    onPick(id);
-    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-  };
 
   return (
     <div className="mb-8">
@@ -244,19 +239,22 @@ function TemplatesCarousel({ onSeeAll, onPick, selected, user }) {
           </button>
         )}
       </div>
+      {/* Preview-only — these cards are a swipeable showcase, not the
+          real template picker (that's the full Templates gallery, one tap
+          away via the chevron above). Tapping used to double as "select"
+          here, which meant an imprecise swipe could register as a tap and
+          silently change the preferred template — not a real edit, but it
+          read as one, and showed up as a recurring complaint. Plain divs
+          now: no click target, nothing for a swipe to accidentally hit. */}
       <div
         ref={trackRef}
         className="-mx-5 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-1 [scrollbar-width:none]"
         style={{ paddingLeft: edgePad, paddingRight: edgePad }}
       >
         {LAYOUTS.map((l) => (
-          <button
-            key={l.id} type="button" onClick={(e) => pick(l.id, e.currentTarget)}
-            aria-label={l.label} aria-pressed={selected === l.id}
-            className="shrink-0 snap-center border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
-          >
+          <div key={l.id} data-active={selected === l.id} className="shrink-0 snap-center">
             <DocThumb layoutId={l.id} active={selected === l.id} name={user?.name} />
-          </button>
+          </div>
         ))}
       </div>
     </div>
@@ -267,21 +265,18 @@ function TemplatesCarousel({ onSeeAll, onPick, selected, user }) {
 // column with Recommended anymore, see DashboardContent) so each card
 // actually sits centered within its own grid cell instead of being
 // squeezed against the next one.
-function TemplatesGridDesktop({ onSeeAll, onPick, selected, user }) {
+function TemplatesGridDesktop({ onSeeAll, selected, user }) {
   const { t } = useLanguage();
   const LAYOUTS = layouts(t);
   return (
     <div className="mb-8">
       <SectionHeader onViewAll={onSeeAll} viewAllLabel={t("common.seeAll")}>{t("dashboard.templates")}</SectionHeader>
+      {/* Preview-only, same as the mobile carousel — not the real picker. */}
       <div className="grid grid-cols-3 content-center justify-items-center gap-8 py-2">
         {LAYOUTS.map((l) => (
-          <button
-            key={l.id} type="button" onClick={() => onPick(l.id)}
-            aria-label={l.label} aria-pressed={selected === l.id}
-            className="border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
-          >
+          <div key={l.id}>
             <DocThumb layoutId={l.id} active={selected === l.id} size="lg" name={user?.name} />
-          </button>
+          </div>
         ))}
       </div>
     </div>
@@ -623,8 +618,11 @@ function DashboardContent({
   const [confirmDeleteResumeId, setConfirmDeleteResumeId] = useState(null);
   const [confirmDeleteApplicationId, setConfirmDeleteApplicationId] = useState(null);
 
-  const [selectedTemplate, setSelectedTemplate] = useState(() => getPreferredTemplate() || "classic");
-  const pickTemplate = (id) => { setPreferredTemplate(id); setSelectedTemplate(id); };
+  // Read-only now — these preview cards no longer let you set the
+  // preferred template by tapping (see TemplatesCarousel/GridDesktop),
+  // just show which one already is. Real selection lives in the full
+  // Templates gallery (go("templates")).
+  const [selectedTemplate] = useState(() => getPreferredTemplate() || "classic");
 
   const greetingRow = (
     <div className="flex items-center gap-3">
@@ -717,9 +715,9 @@ function DashboardContent({
           each one centered in its own container. */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }}>
         {isDesktop ? (
-          <TemplatesGridDesktop onSeeAll={() => go("templates")} onPick={pickTemplate} selected={selectedTemplate} user={user} />
+          <TemplatesGridDesktop onSeeAll={() => go("templates")} selected={selectedTemplate} user={user} />
         ) : (
-          <TemplatesCarousel onSeeAll={() => go("templates")} onPick={pickTemplate} selected={selectedTemplate} user={user} />
+          <TemplatesCarousel onSeeAll={() => go("templates")} selected={selectedTemplate} user={user} />
         )}
         {isDesktop ? (
           <RecommendedCard jobs={recommendedJobs} loading={recommendedLoading} onSeeAll={() => go("jobsboard")} />
