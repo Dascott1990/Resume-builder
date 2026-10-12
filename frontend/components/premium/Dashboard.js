@@ -675,9 +675,14 @@ function DashboardContent({
       ) : (
         <motion.div
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-          className="sticky top-0 z-20 mb-6 bg-background pt-1 pb-4"
+          // -mx-5/sm:-mx-8 cancels this column's own side padding so the
+          // sticky bar's background reaches the real screen edges like a
+          // navbar should — the padding comes back on the inner wrapper
+          // below so the greeting text still lines up with the rest of
+          // the page's content column.
+          className="sticky top-0 z-20 -mx-5 mb-6 bg-background pt-1 pb-4 sm:-mx-8"
         >
-          {mobileGreetingRow}
+          <div className="px-5 sm:px-8">{mobileGreetingRow}</div>
           <div className="mt-4 h-px bg-border" />
         </motion.div>
       )}
@@ -728,7 +733,7 @@ function DashboardContent({
           <SectionHeader onViewAll={() => go("resume", { viewAllResumes: true })}>{t("dashboard.recentResumes")}</SectionHeader>
           <div className="grid gap-2">
               {recentResumes.map((r) => (
-                <div key={r.id} className="glass-surface flex items-center gap-2 rounded-xl p-3">
+                <div key={r.id} className="glass-surface flex min-w-0 items-center gap-2 rounded-xl p-3">
                   <button onClick={() => go("resume", { resumeId: r.id })}
                     className="flex min-w-0 flex-1 items-center gap-3 border-none bg-transparent p-0 text-left [-webkit-tap-highlight-color:transparent]">
                     <ArtTile art={DASHBOARD_ART.resume} size={36} iconSize={19} />
@@ -767,11 +772,11 @@ function DashboardContent({
                 const meta = STATUS_META[a.status] || STATUS_META.applied;
                 const since = daysSinceApplied(a.date_applied, t);
                 return (
-                  <div key={a.id} className="glass-surface rounded-xl p-3">
-                    <div className="flex items-center gap-2">
+                  <div key={a.id} className="glass-surface min-w-0 rounded-xl p-3">
+                    <div className="flex min-w-0 items-center gap-2">
                       <button onClick={() => go("jobtracker")}
                         className="min-w-0 flex-1 border-none bg-transparent p-0 text-left [-webkit-tap-highlight-color:transparent]">
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
                           <p className="m-0 min-w-0 flex-1 truncate text-[13px] font-bold text-foreground">{a.role}</p>
                           <span className={`shrink-0 text-[11.5px] font-bold ${meta.className}`}>{t(meta.labelKey)}</span>
                         </div>
