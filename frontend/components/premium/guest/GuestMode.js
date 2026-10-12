@@ -854,6 +854,8 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
           style={{ paddingBottom: mobileNavClearance }}>
           <SettingsTab
             saved={saved}
+            docStyle={docStyle}
+            setDocStyle={setDocStyle}
             onResetStyle={() => setDocStyle(DEFAULT_STYLE)}
             onClearAll={async () => { await Promise.all(saved.map(r => apiDelete(r.id))); setSaved([]); }}
           />
@@ -932,29 +934,44 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
           {/* Phone only — tablet/desktop already have Style as a permanent
               tab in DesktopTabNav next to the always-visible split preview,
               so a second entry point here would be redundant for them. */}
+          {/* Label visibility keyed to `showSplit` (the same JS-computed
+              640px boundary that decides phone vs. tablet/desktop layout
+              for this whole screen), not a separate CSS `max-[380px]`
+              breakpoint — those two boundaries disagreeing was a real,
+              confirmed-live bug: on any phone between 381px and 639px
+              (which is most real phones — iPhone 11/12/13/14 standard,
+              most Android flagships), `showSplit` is still false (phone
+              layout, this narrow icon-row header) while `max-[380px]`
+              had already stopped hiding the text labels, so "Build"
+              rendered at full label width and the left `min-w-0 flex-1`
+              container (X + logo) got squeezed to zero width by the
+              `shrink-0` button row — not just crowded, but the X button
+              became completely invisible, clipped by its own parent's
+              `overflow-hidden` at 0px, with the Build button sitting
+              visually on top of where it used to be. */}
           {!showSplit && step === 3 && genResult && (
             <Btn small icon="Pencil" onClick={() => { setTab("new"); setMobileView("preview"); setBuildSheetOpen(true); }}
-              className="max-[380px]:gap-0 max-[380px]:px-2.5"
+              className="gap-0 px-2.5"
               disabled={!resume} variant="ghost">
-              <span className="max-[380px]:hidden">{t("guestMode.build")}</span>
+              <span className="sr-only">{t("guestMode.build")}</span>
             </Btn>
           )}
           {!showSplit && (
             <Btn small icon="Palette" onClick={() => { setTab("style"); setMobileView("preview"); setStyleSheetOpen(true); }}
-              className="max-[380px]:gap-0 max-[380px]:px-2.5"
+              className="gap-0 px-2.5"
               disabled={!resume} variant="ghost">
-              <span className="max-[380px]:hidden">{t("guestMode.style")}</span>
+              <span className="sr-only">{t("guestMode.style")}</span>
             </Btn>
           )}
           <Btn small icon="FileDown" loading={downloading === "docx"}
-            className="max-[380px]:gap-0 max-[380px]:px-2.5"
+            className={showSplit ? "" : "gap-0 px-2.5"}
             onClick={handleDocx} disabled={!resume || !!downloading} variant="gold">
-            <span className="max-[380px]:hidden">Word</span>
+            <span className={showSplit ? "" : "sr-only"}>Word</span>
           </Btn>
           <Btn small icon="FileDown" loading={downloading === "pdf"}
-            className="max-[380px]:gap-0 max-[380px]:px-2.5"
+            className={showSplit ? "" : "gap-0 px-2.5"}
             onClick={handlePdf} disabled={!resume || !!downloading} variant="ghost">
-            <span className="max-[380px]:hidden">PDF</span>
+            <span className={showSplit ? "" : "sr-only"}>PDF</span>
           </Btn>
         </div>
       </header>

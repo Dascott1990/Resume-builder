@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { X, RefreshCw, ClipboardList, FileText, Clock } from "lucide-react";
+import { X, RefreshCw, ClipboardList, FileText, Clock, ExternalLink } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import { apiListSaved } from "./guest/api";
 import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/lib/i18n";
 
 const statuses = (t) => [
+  { id: "saved", label: t("status.saved"), className: "border-border text-muted-foreground" },
   { id: "applied", label: t("status.applied"), className: "border-border text-muted-foreground" },
   { id: "interview", label: t("status.interview"), className: "border-primary/30 bg-primary/10 text-primary" },
   { id: "offer", label: t("status.offer"), className: "border-success/30 bg-success/10 text-success" },
@@ -31,7 +32,10 @@ const statuses = (t) => [
 ];
 const statusMeta = (id, STATUSES) => STATUSES.find((s) => s.id === id) || STATUSES[0];
 
-const EMPTY_FORM = { company: "", role: "", status: "applied", date_applied: "", notes: "", resume_id: "" };
+const EMPTY_FORM = {
+  company: "", role: "", status: "applied", date_applied: "", notes: "", resume_id: "",
+  contact_name: "", contact_email: "", contact_phone: "", interview_date: "",
+};
 // Same class of bug as the resume editors — a 6-field form (including
 // free-text notes) with no persistence at all was silently wiped on a
 // refresh (see formDraft.js).
@@ -101,6 +105,8 @@ export default function JobTracker({ onClose }) {
     setForm({
       company: a.company, role: a.role, status: a.status,
       date_applied: a.date_applied || "", notes: a.notes || "", resume_id: a.resume_id || "",
+      contact_name: a.contact_name || "", contact_email: a.contact_email || "",
+      contact_phone: a.contact_phone || "", interview_date: a.interview_date || "",
     });
     setFormOpen(true);
   };
@@ -217,6 +223,18 @@ export default function JobTracker({ onClose }) {
                 <Field label={t("jobTracker.dateApplied")}>
                   <Input type="date" value={form.date_applied} onChange={(e) => setForm({ ...form, date_applied: e.target.value })} className="h-11" />
                 </Field>
+                <Field label={t("jobTracker.interviewDate")}>
+                  <Input type="date" value={form.interview_date} onChange={(e) => setForm({ ...form, interview_date: e.target.value })} className="h-11" />
+                </Field>
+                <Field label={t("jobTracker.contactName")}>
+                  <Input value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })} placeholder="Jordan Lee" className="h-11" />
+                </Field>
+                <Field label={t("jobTracker.contactEmail")}>
+                  <Input type="email" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} placeholder="jordan@acme.com" className="h-11" />
+                </Field>
+                <Field label={t("jobTracker.contactPhone")}>
+                  <Input type="tel" value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} placeholder="(555) 555-0100" className="h-11" />
+                </Field>
               </div>
               {/* Full-width, not a third item in the 2-col grid above — a
                   fifth field there would sit alone in the left column with
@@ -285,6 +303,11 @@ export default function JobTracker({ onClose }) {
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <Badge variant="outline" className={`rounded-full ${meta.className}`}>{meta.label}</Badge>
+                    {a.interview_date && (
+                      <span className="flex items-center gap-1 text-[10.5px] font-bold text-primary">
+                        <Clock className="size-3" /> {t("jobTracker.interviewDate")}: {a.interview_date}
+                      </span>
+                    )}
                     {a.needs_followup && (
                       <span className="flex items-center gap-1 text-[10.5px] font-bold text-primary">
                         <Clock className="size-3" /> {t("jobTracker.followUp")}
@@ -292,9 +315,20 @@ export default function JobTracker({ onClose }) {
                     )}
                   </div>
                 </div>
-                {(a.date_applied || a.notes || resumeUsed) && (
+                {(a.date_applied || a.notes || resumeUsed || a.contact_name || a.contact_email || a.contact_phone || a.source_url) && (
                   <div className="mt-2 border-t border-border pt-2">
                     {a.date_applied && <p className="m-0 font-mono text-[10.5px] text-muted-foreground/70">{t("jobTracker.appliedOn", { date: a.date_applied })}</p>}
+                    {a.source_url && (
+                      <a href={a.source_url} target="_blank" rel="noopener noreferrer"
+                        className="m-0 mt-1 flex items-center gap-1 text-[11.5px] text-primary hover:underline">
+                        <ExternalLink className="size-3 shrink-0" /> <span className="min-w-0 truncate">{t("jobTracker.viewPosting")}</span>
+                      </a>
+                    )}
+                    {(a.contact_name || a.contact_email || a.contact_phone) && (
+                      <p className="m-0 mt-1 text-[11.5px] text-muted-foreground">
+                        {[a.contact_name, a.contact_email, a.contact_phone].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
                     {resumeUsed && (
                       <p className="m-0 mt-1 flex items-center gap-1 text-[11.5px] text-muted-foreground">
                         <FileText className="size-3 shrink-0" /> <span className="min-w-0 truncate">{resumeUsed}</span>

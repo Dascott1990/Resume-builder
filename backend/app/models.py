@@ -75,6 +75,13 @@ class User(db.Model):
     # existing admin flipping this on someone else from inside the admin
     # panel itself (PATCH /api/v1/admin/users/<id>).
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    # Display-only for now — there is no billing system anywhere in this
+    # backend (no Stripe subscription/webhook code exists). Every account
+    # is "free" and every feature is unlocked; this column exists so the
+    # pricing page has something real to read instead of a hardcoded
+    # string, and so a real paid tier can be introduced later without a
+    # schema change.
+    plan = db.Column(db.String(20), default="free", nullable=False)
     # Rolling history of where this account has actually signed in from —
     # NULL/empty means "no login recorded yet" (a brand-new account, or one
     # that predates this column), which login() in api/auth.py treats as
@@ -93,6 +100,7 @@ class User(db.Model):
             "has_avatar_photo": self.avatar_photo_data is not None,
             "avatar_photo_version": self.avatar_photo_version or 0,
             "email_verified": bool(self.email_verified), "is_admin": bool(self.is_admin),
+            "plan": self.plan or "free",
         }
 
 
@@ -245,9 +253,20 @@ class JobApplication(db.Model):
     user_id = db.Column(db.String(32), db.ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
     company = db.Column(db.String(150), nullable=False)
     role = db.Column(db.String(150), nullable=False)
-    status = db.Column(db.String(20), nullable=False, default="applied")  # applied | interview | offer | rejected
+    status = db.Column(db.String(20), nullable=False, default="applied")  # saved | applied | interview | offer | rejected
     date_applied = db.Column(db.String(20))  # ISO date string (YYYY-MM-DD) — free text from the user, not a real deadline system
     notes = db.Column(db.String(1000))
+    # Recruiter/contact tracking — all optional, free text. Closes the
+    # "who do I know at this company" gap against Teal-style trackers.
+    contact_name = db.Column(db.String(150))
+    contact_email = db.Column(db.String(255))
+    contact_phone = db.Column(db.String(50))
+    # ISO date string (YYYY-MM-DD), same free-text convention as date_applied.
+    interview_date = db.Column(db.String(20))
+    # Set when this row was created by the browser extension's "save this
+    # job" capture (api/extension.py) — the original posting URL, so
+    # "where did I even see this" survives past the tab closing.
+    source_url = db.Column(db.String(500))
     # Optional — which saved resume was actually sent for this application.
     # No ondelete constraint on purpose: a resume can be deleted from
     # "Saved" without needing to touch every application that once pointed
@@ -261,9 +280,43 @@ class JobApplication(db.Model):
         return {
             "id": self.id, "company": self.company, "role": self.role,
             "status": self.status, "date_applied": self.date_applied, "notes": self.notes,
+            "contact_name": self.contact_name, "contact_email": self.contact_email,
+            "contact_phone": self.contact_phone, "interview_date": self.interview_date,
+            "source_url": self.source_url,
             "resume_id": self.resume_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class PersonalAccessToken(db.Model):
+    """A long-lived, individually revocable credential for the browser
+    extension (api/extension.py) — deliberately NOT the same 30-day
+    session JWT every other authenticated request uses. Scoped narrowly
+    in code (utils/auth.resolve_personal_access_token is only ever called
+    from the extension capture endpoint, not from get_scope itself) so a
+    leaked extension token can only ever save job postings, never touch
+    account settings, billing, or anything else a real session can.
+    Stored hashed — same reasoning as User.verification_token/reset_token,
+    a DB leak shouldn't hand over a usable bearer credential.
+    """
+    __tablename__ = "personal_access_tokens"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    user_id = db.Column(db.String(32), db.ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    token_hash = db.Column(db.String(64), unique=True, index=True, nullable=False)
+    label = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    last_used_at = db.Column(db.DateTime, nullable=True)
+    # NULL = active. Set (not deleted) on revoke so "when was this revoked"
+    # survives for the account's own audit trail.
+    revoked_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "label": self.label,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
+            "revoked": self.revoked_at is not None,
         }
 
 

@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime, timezone
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -146,6 +147,21 @@ def create_app():
             "methods": ["GET", "POST", "OPTIONS"],
             "allow_headers": ["Content-Type"],
             "supports_credentials": False
+        },
+        # The browser extension's capture endpoint — unlike the bookmarklet
+        # above, this one carries a real bearer credential (a personal
+        # access token), so it's scoped to chrome-extension:// origins
+        # specifically rather than left wide open. A regex, not one fixed
+        # origin string: an unpacked (dev) extension's id is random per
+        # load and a published one's id isn't known until after it's
+        # actually published, so there's no single string to hardcode here
+        # — any chrome-extension:// origin is accepted, same trust model
+        # as "any job board page" above, just narrower than "*".
+        r"/api/v1/extension/*": {
+            "origins": re.compile(r"^chrome-extension://.*$"),
+            "methods": ["POST", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": False
         }
     })
 
@@ -205,6 +221,12 @@ def create_app():
 
     from app.api.meta import meta_bp
     app.register_blueprint(meta_bp, url_prefix="/api/v1/meta")
+
+    from app.api.tokens import tokens_bp
+    app.register_blueprint(tokens_bp, url_prefix="/api/v1/tokens")
+
+    from app.api.extension import extension_bp
+    app.register_blueprint(extension_bp, url_prefix="/api/v1/extension")
 
     # Pinged by the frontend's keep-alive (see frontend/app/KeepAlive.js) to
     # stop Render's free-tier instance from spinning down after 15 minutes
@@ -394,6 +416,14 @@ def _sync_missing_columns(app):
                 with db.engine.begin() as conn:
                     conn.execute(text('UPDATE "users" SET "is_admin" = FALSE WHERE "is_admin" IS NULL'))
                 print("🔧 Backfilled existing users.is_admin = FALSE")
+
+            # Every existing account predates any concept of a plan — they're
+            # all on the one free tier that exists today, same reasoning as
+            # is_admin above.
+            if table.name == "users" and column.name == "plan":
+                with db.engine.begin() as conn:
+                    conn.execute(text("UPDATE \"users\" SET \"plan\" = 'free' WHERE \"plan\" IS NULL"))
+                print("🔧 Backfilled existing users.plan = 'free'")
 
 
 def _relax_push_subscription_user_id(app):

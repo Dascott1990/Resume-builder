@@ -10,37 +10,55 @@
  */
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, TriangleAlert } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
 import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
 import { NavRail } from "./shared/NavRail";
 import { NotificationsDialog } from "./shared/NotificationsDialog";
-import { TemplatePreview } from "./shared/TemplatePreview";
+import { DocThumb } from "./shared/ResumeTemplateThumb";
 import { layouts } from "./shared/resumeLayouts/registry";
 import { getPreferredTemplate, setPreferredTemplate } from "@/lib/templatePreference";
 import { clearDraft } from "./guest/useGuestDraft";
 import { useLanguage } from "@/lib/i18n";
 
-function TemplateCard({ layout, selected, onSelect }) {
+// Sharp, image-first collection item — no description or ATS paragraph
+// under each one anymore (reported as cluttered/"buggy"-looking). The
+// thumbnail carries the whole card now: a small corner badge for ATS
+// status (icon + native title tooltip, not inline body copy) and the
+// existing selected-checkmark overlay are the only things on top of it.
+// Name stays as a single small caption, not a paragraph.
+function TemplateCard({ layout, selected, onSelect, name }) {
+  const { t } = useLanguage();
+  const atsTitle = layout.atsSafe ? t("templates.atsSafe") : layout.atsNote;
   return (
     <button
       type="button"
       onClick={onSelect}
       aria-label={layout.label}
       aria-pressed={selected}
-      className={`flex flex-col items-center gap-3 rounded-2xl border p-5 text-center [-webkit-tap-highlight-color:transparent] ${
-        selected ? "border-primary/40 bg-primary/5" : "border-border bg-card"
-      }`}
+      className="flex flex-col items-center gap-2 border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
     >
-      <TemplatePreview layoutId={layout.id} width={120} height={156} />
-      <div>
-        <p className="m-0 flex items-center justify-center gap-1.5 text-[13.5px] font-bold text-foreground">
-          {layout.label}
-          {selected && <Check className="size-3.5 text-primary" />}
-        </p>
-        <p className="m-0 mt-0.5 text-[11.5px] text-muted-foreground">{layout.description}</p>
+      <div className={`relative rounded-xl p-1 transition-colors ${selected ? "bg-primary/10 ring-2 ring-primary/50" : "ring-1 ring-border"}`}>
+        {/* active=true always, not tied to `selected` — this is a flat
+            comparison grid, not a carousel with one focused card, so every
+            template should read as a full-confidence preview. */}
+        <DocThumb layoutId={layout.id} active size="lg" name={name} />
+        {selected && (
+          <span className="absolute top-2 right-2 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+            <Check className="size-3" strokeWidth={3} />
+          </span>
+        )}
+        <span
+          title={atsTitle}
+          className={`absolute bottom-2 left-2 flex size-5 items-center justify-center rounded-full shadow ${
+            layout.atsSafe ? "bg-success text-white" : "bg-warning text-white"
+          }`}
+        >
+          {layout.atsSafe ? <Check className="size-3" strokeWidth={3} /> : <TriangleAlert className="size-3" strokeWidth={2.5} />}
+        </span>
       </div>
+      <span className="text-[12.5px] font-bold text-foreground">{layout.label}</span>
     </button>
   );
 }
@@ -85,7 +103,7 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
   const grid = (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {LAYOUTS.map((l) => (
-        <TemplateCard key={l.id} layout={l} selected={selected === l.id} onSelect={() => pick(l.id)} />
+        <TemplateCard key={l.id} layout={l} selected={selected === l.id} onSelect={() => pick(l.id)} name={user?.name} />
       ))}
     </div>
   );

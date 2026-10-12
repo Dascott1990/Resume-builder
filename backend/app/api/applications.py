@@ -19,7 +19,7 @@ from app.utils.ai_client import ai_complete
 
 applications_bp = Blueprint("applications", __name__)
 
-VALID_STATUSES = {"applied", "interview", "offer", "rejected"}
+VALID_STATUSES = {"saved", "applied", "interview", "offer", "rejected"}
 # How long an application sits at "applied" with no update before we
 # suggest following up. Not configurable per-user on purpose — a fixed,
 # predictable rule is easier to trust than a setting nobody will find.
@@ -91,6 +91,10 @@ def create_application():
         company=company, role=role, status=status,
         date_applied=(body.get("date_applied") or "").strip() or None,
         notes=(body.get("notes") or "").strip() or None,
+        contact_name=(body.get("contact_name") or "").strip() or None,
+        contact_email=(body.get("contact_email") or "").strip() or None,
+        contact_phone=(body.get("contact_phone") or "").strip() or None,
+        interview_date=(body.get("interview_date") or "").strip() or None,
         resume_id=_clean_resume_id(body.get("resume_id"), user_id, guest_id),
         user_id=user_id, guest_id=None if user_id else guest_id,
     )
@@ -126,6 +130,14 @@ def update_application(app_id):
         app_row.date_applied = (body["date_applied"] or "").strip() or None
     if "notes" in body:
         app_row.notes = (body["notes"] or "").strip() or None
+    if "contact_name" in body:
+        app_row.contact_name = (body["contact_name"] or "").strip() or None
+    if "contact_email" in body:
+        app_row.contact_email = (body["contact_email"] or "").strip() or None
+    if "contact_phone" in body:
+        app_row.contact_phone = (body["contact_phone"] or "").strip() or None
+    if "interview_date" in body:
+        app_row.interview_date = (body["interview_date"] or "").strip() or None
     if "resume_id" in body:
         app_row.resume_id = _clean_resume_id(body["resume_id"], user_id, guest_id)
 

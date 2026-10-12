@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Noqeev Job Saver</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    width: 340px; margin: 0; padding: 16px;
+    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #14151a; background: #fffdf8;
+  }
+  h1 { font-size: 14px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  h1 img { width: 20px; height: 20px; border-radius: 5px; }
+  label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #6b6b6b; margin: 10px 0 4px; }
+  input, textarea {
+    width: 100%; font: inherit; padding: 8px 9px; border: 1px solid #ddd8cc; border-radius: 7px;
+    background: #fff; color: #14151a; outline: none;
+  }
+  input:focus, textarea:focus { border-color: #14151a; }
+  textarea { resize: vertical; min-height: 70px; }
+  button {
+    width: 100%; margin-top: 14px; padding: 10px; border: none; border-radius: 8px;
+    background: #14151a; color: #f6c453; font-weight: 700; font-size: 13px; cursor: pointer;
+  }
+  button:disabled { opacity: 0.55; cursor: default; }
+  button.secondary { background: transparent; color: #14151a; border: 1px solid #ddd8cc; margin-top: 8px; }
+  #status { margin-top: 10px; font-size: 12px; }
+  #status.error { color: #b3261e; }
+  #status.success { color: #146c43; }
+  #setup { display: none; }
+  #setup p { font-size: 12px; color: #4a4a4a; }
+  a { color: #8a6d00; }
+</style>
+</head>
+<body>
+  <h1><img src="icons/icon48.png" alt="" /> Save this job</h1>
+
+  <div id="main">
+    <label for="company">Company</label>
+    <input id="company" placeholder="Acme Corp" />
+
+    <label for="role">Role</label>
+    <input id="role" placeholder="Software Engineer" />
+
+    <label for="jd">Job description (optional)</label>
+    <textarea id="jd" placeholder="Pulled from the page automatically — edit as needed"></textarea>
+
+    <button id="save">Save to Job Tracker</button>
+    <button id="openSettings" class="secondary">Connect account</button>
+    <div id="status"></div>
+  </div>
+
+  <div id="setup">
+    <p>Connect your Noqeev account once: open <strong>Profile → Browser extension → Create a token</strong> on noqeev.com, then paste it below.</p>
+    <label for="token">Personal access token</label>
+    <input id="token" placeholder="npat_..." />
+    <button id="saveToken">Connect</button>
+    <button id="backToMain" class="secondary">Back</button>
+    <div id="setupStatus"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

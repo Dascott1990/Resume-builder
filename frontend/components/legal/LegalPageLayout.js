@@ -2,6 +2,7 @@ import Link from "next/link";
 import Logo from "@/components/premium/Logo";
 
 const LEGAL_LINKS = [
+  { href: "/pricing", label: "Pricing" },
   { href: "/privacy", label: "Privacy Policy" },
   { href: "/terms", label: "Terms & Conditions" },
   { href: "/cookies", label: "Cookie Policy" },
@@ -16,7 +17,7 @@ const LEGAL_LINKS = [
 // exists so a reader can tell whether anything actually changed).
 export const LEGAL_LAST_UPDATED = "September 22, 2026";
 
-export function LegalPageLayout({ title, children, activeHref }) {
+export function LegalPageLayout({ title, children, activeHref, eyebrow = "Legal", hideLastUpdated = false }) {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border">
@@ -31,9 +32,9 @@ export function LegalPageLayout({ title, children, activeHref }) {
       </header>
 
       <main className="mx-auto w-full max-w-3xl px-6 py-12">
-        <p className="m-0 font-mono text-[11px] font-bold tracking-[0.18em] text-primary-text uppercase">Legal</p>
+        <p className="m-0 font-mono text-[11px] font-bold tracking-[0.18em] text-primary-text uppercase">{eyebrow}</p>
         <h1 className="m-0 mt-2 text-[clamp(1.6rem,4vw,2.1rem)] font-bold text-foreground">{title}</h1>
-        <p className="m-0 mt-2 text-[13px] text-muted-foreground">Last updated {LEGAL_LAST_UPDATED}</p>
+        {!hideLastUpdated && <p className="m-0 mt-2 text-[13px] text-muted-foreground">Last updated {LEGAL_LAST_UPDATED}</p>}
 
         {/* max-w-[68ch] keeps line length readable regardless of the
             column's own max-w-3xl — a legal document is read top to

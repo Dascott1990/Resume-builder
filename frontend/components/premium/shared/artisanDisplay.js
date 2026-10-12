@@ -35,3 +35,19 @@ export function initialsOf(name) {
 export function firstNameOf(name) {
   return (name || "").trim().split(/\s+/)[0] || "";
 }
+
+// "RASHEED" should greet back as "Rasheed," not shout it back at them —
+// but a name that's ALREADY mixed-case ("McDonald," "DeAndre," "O'Brien")
+// is left completely alone, since forcing title-case on those would
+// actually break them ("Mcdonald"). Only correcting the unambiguous case
+// (no lowercase letters anywhere, so there's nothing real to lose) is
+// what makes this safe to apply automatically rather than needing the
+// person to notice and manually retype their own name. Caller (useAuth.js)
+// applies this once, wherever a user object enters state, so every
+// display site downstream (greeting, avatar initials, Profile hero, nav)
+// is already correct — not a helper each of those has to remember to call.
+export function properCaseName(name) {
+  const trimmed = (name || "").trim();
+  if (!trimmed || /[a-z]/.test(trimmed)) return trimmed;
+  return trimmed.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
+}

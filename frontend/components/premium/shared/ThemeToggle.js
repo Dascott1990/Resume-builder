@@ -9,7 +9,7 @@ import { useTheme } from "@/lib/useTheme";
 // flip (light/dark) on purpose — there's no room for a 3-way control here,
 // and picking "System" is a deliberate choice that belongs in Settings'
 // own ThemeModePicker below, not a quick header tap.
-export function ThemeToggle({ compact = false, className = "" }) {
+export function ThemeToggle({ compact = false, bare = false, className = "" }) {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === "dark";
 
@@ -18,7 +18,16 @@ export function ThemeToggle({ compact = false, className = "" }) {
       <button
         onClick={toggleTheme}
         aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-        className={`flex size-9 items-center justify-center rounded-full border border-border bg-muted text-foreground [-webkit-tap-highlight-color:transparent] ${className}`}
+        // `bare` drops this button's own border/fill — for when it sits
+        // inside a shared pill container (NavRail.js, Dashboard.js's
+        // mobile header) that already supplies the one outer border, so
+        // the icon row reads as one grouped control instead of three
+        // separately-bordered circles scattered with gaps between them.
+        className={`flex size-9 items-center justify-center rounded-full [-webkit-tap-highlight-color:transparent] ${
+          bare
+            ? "border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+            : "border border-border bg-muted text-foreground"
+        } ${className}`}
       >
         {isDark ? <Sun className="size-[15px]" /> : <Moon className="size-[15px]" />}
       </button>

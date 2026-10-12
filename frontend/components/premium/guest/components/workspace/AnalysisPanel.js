@@ -19,12 +19,14 @@
  */
 import { ACCENTS } from "../../constants";
 import { SkillAlignmentCard } from "./SkillAlignmentCard";
+import { KeywordGapCard } from "./KeywordGapCard";
 import { useLanguage } from "@/lib/i18n";
 
 export function AnalysisPanel({ resume, jobDescription, onApplyAts, docStyle, setDocStyle }) {
   const { t } = useLanguage();
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-3.5">
+      <KeywordGapCard resume={resume} />
       <SkillAlignmentCard resume={resume} jobDescription={jobDescription} onApply={onApplyAts} />
 
       <div>

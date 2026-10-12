@@ -8,9 +8,11 @@ Authorization: Bearer <jwt> header (if the visitor signed in) or an
 X-Guest-Id header (the anonymous default) and scopes by whichever is
 present — preferring the authenticated user_id when both somehow show up.
 """
+import hashlib
 import hmac
 import os
 import re
+import secrets
 import jwt
 from datetime import datetime, timedelta, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -46,6 +48,53 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     return check_password_hash(password_hash, password)
+
+
+# Personal access tokens (the browser extension's credential) — a
+# recognizable prefix like Stripe/GitHub's own "sk_"/"ghp_" tokens so a
+# leaked one is obviously identifiable as a Noqeev credential, and so
+# resolve_personal_access_token can cheaply reject anything that isn't
+# shaped like one without a DB round-trip.
+PAT_PREFIX = "npat_"
+
+
+def new_personal_access_token() -> str:
+    return PAT_PREFIX + secrets.token_urlsafe(32)
+
+
+def hash_personal_access_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def resolve_personal_access_token(request):
+    """The browser extension's identity check — deliberately separate
+    from get_scope(), which almost every route in this app trusts with
+    full account access. A personal access token only ever proves "this
+    request may act as this user for job-capture purposes" (see
+    api/extension.py, the only caller of this function) — it can't reach
+    account settings, password changes, billing, or anything else
+    get_scope() gates elsewhere. Returns the user_id, or None for a
+    missing/malformed/unknown/revoked token. Updates last_used_at on
+    every successful resolve so Profile's token list can show real
+    recency, not just "created."
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    raw = auth_header[len("Bearer "):].strip()
+    if not raw.startswith(PAT_PREFIX):
+        return None
+
+    from app import db
+    from app.models import PersonalAccessToken
+
+    token_hash = hash_personal_access_token(raw)
+    row = PersonalAccessToken.query.filter_by(token_hash=token_hash).first()
+    if not row or row.revoked_at is not None:
+        return None
+    row.last_used_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return row.user_id
 
 
 def issue_token(subject_id: str, role: str = "user") -> str:

@@ -15,6 +15,7 @@ import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { TemplatePreview } from "../../../shared/TemplatePreview";
 import { layouts } from "../../../shared/resumeLayouts/registry";
 import { AiRewriteBar } from "./AiRewriteBar";
+import { BulletScoreBadge } from "./BulletScoreBadge";
 import { useLanguage } from "@/lib/i18n";
 
 function Row({ children }) {
@@ -106,6 +107,7 @@ function JobsSection({ section, si, onEdit, jobDesc, active, setActive, t }) {
                     {miniInput(b, (v) => onEdit("job-bullet", si, ji, bi, v), t("workspace.bulletPoint"))}
                     <RemoveBtn label={t("workspace.removeBullet")} onClick={() => onEdit("remove-job-bullet", si, ji, bi)} />
                   </div>
+                  <BulletScoreBadge text={b} />
                   <div onFocus={() => setActive(key)} tabIndex={-1}>
                     {active === key && (
                       <AiRewriteBar

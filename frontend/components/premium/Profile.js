@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import {
   X, User, LogOut, ChevronRight, Loader2, Trash2, HelpCircle,
   Gift, ShieldCheck, FileText, ScanLine, ClipboardList, Sparkles, Lock,
-  Building2, Palette, ClipboardList as JobsIcon,
+  Building2, Palette, ClipboardList as JobsIcon, Plug,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import { useBrightness } from "@/lib/useBrightness";
 import { useAuth } from "@/lib/useAuth";
 import { apiListSaved } from "./guest/api";
 import ChangePasswordForm from "./shared/ChangePasswordForm";
+import BrowserExtensionPanel from "./shared/BrowserExtensionPanel";
 import {
   AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
   AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
@@ -79,11 +80,26 @@ function BrightnessSlider() {
   );
 }
 
-export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, go }) {
+export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, onSignOut, go }) {
   const { t } = useLanguage();
   const { user, loading: authLoading, changePassword, logout, deleteAccount } = useAuth();
+
+  // Same shape as Dashboard.js's own signOut(): logout() alone only clears
+  // the token/user, it never navigates — call it directly here (as this
+  // screen used to) and the view stays on "profile" with no token, which
+  // Profile then correctly renders as its own logged-out "Not signed in"
+  // card instead of actually leaving the authenticated app. Confirmed live:
+  // sign out from here, land on a dead-end "Sign in" card on this same
+  // screen, not the real login/landing screen. onSignOut (passed down from
+  // app/page.js, same callback Dashboard's NavRail uses) is what actually
+  // navigates away.
+  const signOut = () => {
+    logout();
+    onSignOut?.();
+  };
   const [securityOpen, setSecurityOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [extensionOpen, setExtensionOpen] = useState(false);
   const [confirmDeleteAccountOpen, setConfirmDeleteAccountOpen] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [savedResumesCount, setSavedResumesCount] = useState(0);
@@ -98,6 +114,9 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
     try {
       await deleteAccount();
       toast.success(t("profile.accountDeleted"));
+      // Same dead-end as the plain sign-out above — deleteAccount() alone
+      // only clears the token, it never navigates away.
+      onSignOut?.();
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -214,6 +233,14 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
                     </div>
                   )}
                   <div className="border-t border-border">
+                    <Row icon={Plug} label={t("extension.title")} onClick={() => setExtensionOpen((v) => !v)} expanded={extensionOpen} />
+                  </div>
+                  {extensionOpen && (
+                    <div className="border-t border-border p-3.5">
+                      <BrowserExtensionPanel />
+                    </div>
+                  )}
+                  <div className="border-t border-border">
                     <a href="mailto:support@noqeev.com" className="flex w-full items-center gap-3 p-3.5 text-left text-foreground">
                       <div className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted">
                         <HelpCircle className="size-3.5 text-muted-foreground" />
@@ -242,7 +269,7 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, g
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-                      <AlertDialogAction onClick={logout}>{t("navRail.signOut")}</AlertDialogAction>
+                      <AlertDialogAction onClick={signOut}>{t("navRail.signOut")}</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>

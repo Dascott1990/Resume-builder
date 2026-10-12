@@ -12,9 +12,18 @@ import { useCallback, useEffect, useState } from "react";
 import { apiRequest, onUnauthorized } from "@/components/premium/shared/api";
 import { getToken, setToken } from "./authToken";
 import { rotateGuestId } from "./guestId";
+import { properCaseName } from "@/components/premium/shared/artisanDisplay";
 
 export function useAuth() {
-  const [user, setUser] = useState(null);
+  const [user, setUserRaw] = useState(null);
+  // Every place a user object enters state goes through here — "RASHEED"
+  // becomes "Rasheed" once, here, so every display site downstream
+  // (greeting, avatar initials, Profile hero, nav) is already correct
+  // instead of each one needing to remember to normalize it itself. Only
+  // touches the in-memory object; the stored value only actually changes
+  // if the person later saves their profile (see PersonalProfile.js,
+  // which now starts from this already-corrected name).
+  const setUser = useCallback((u) => setUserRaw(u ? { ...u, name: properCaseName(u.name) } : u), []);
   const [loading, setLoading] = useState(true);
 
   const refreshUser = useCallback(async () => {

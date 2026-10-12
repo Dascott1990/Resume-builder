@@ -94,46 +94,53 @@ export function NavRail({ active, user, onNavigate, onNotifClick, onSignOut }) {
         )}
       </div>
 
-      <div className="flex items-center justify-between border-t border-border p-3">
-        <button
-          onClick={onNotifClick}
-          aria-label={t("common.notifications")}
-          className="relative flex size-10 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
-        >
-          <Bell className="size-[17px]" strokeWidth={1.75} />
-          {needsAttention && (
-            unread.count > 0 ? (
-              <span className="absolute top-1 right-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
-                {unread.count > 9 ? "9+" : unread.count}
-              </span>
-            ) : (
-              <span className="absolute top-1 right-1 size-2.5 rounded-full bg-destructive" />
-            )
+      {/* One shared pill, not three separately-bordered circles scattered
+          across the row — the same grouped-container language as the day-
+          range picker in brand/SeoStatus.js (one rounded-full border, p-1,
+          borderless children inside). Centered rather than justify-between,
+          since there's now exactly one element to place in this row. */}
+      <div className="flex items-center justify-center border-t border-border p-3">
+        <div className="flex items-center gap-0.5 rounded-full border border-border bg-card p-1">
+          <button
+            onClick={onNotifClick}
+            aria-label={t("common.notifications")}
+            className="relative flex size-9 items-center justify-center rounded-full text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted hover:text-foreground"
+          >
+            <Bell className="size-[17px]" strokeWidth={1.75} />
+            {needsAttention && (
+              unread.count > 0 ? (
+                <span className="absolute top-1 right-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
+                  {unread.count > 9 ? "9+" : unread.count}
+                </span>
+              ) : (
+                <span className="absolute top-1 right-1 size-2.5 rounded-full bg-destructive" />
+              )
+            )}
+          </button>
+          <ThemeToggle compact bare />
+          {onSignOut && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button
+                  aria-label={t("navRail.signOut")}
+                  className="flex size-9 items-center justify-center rounded-full text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted hover:text-foreground"
+                >
+                  <LogOut className="size-[15px]" />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{t("navRail.signOutQuestion")}</AlertDialogTitle>
+                  <AlertDialogDescription>{t("navRail.signOutDescription")}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                  <AlertDialogAction onClick={onSignOut}>{t("navRail.signOut")}</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
-        </button>
-        <ThemeToggle compact />
-        {onSignOut && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button
-                aria-label={t("navRail.signOut")}
-                className="flex size-10 items-center justify-center rounded-xl border border-border bg-transparent text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground"
-              >
-                <LogOut className="size-[15px]" />
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{t("navRail.signOutQuestion")}</AlertDialogTitle>
-                <AlertDialogDescription>{t("navRail.signOutDescription")}</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-                <AlertDialogAction onClick={onSignOut}>{t("navRail.signOut")}</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
+        </div>
       </div>
     </aside>
   );

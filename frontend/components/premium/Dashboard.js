@@ -63,7 +63,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { layouts } from "./shared/resumeLayouts/registry";
 import { getPreferredTemplate, setPreferredTemplate } from "@/lib/templatePreference";
 import Logo from "./Logo";
-import { FONTS, ACCENTS } from "./guest/constants";
+import { DocThumb } from "./shared/ResumeTemplateThumb";
 import { firstNameOf } from "./shared/artisanDisplay";
 
 // One neutral system-accent tile behind every illustrated icon on this
@@ -199,153 +199,6 @@ function RecommendedCard({ jobs, loading, onSeeAll }) {
   );
 }
 
-// ── Template micro-previews — one real, structurally distinct miniature
-// per LAYOUTS entry, not one generic shape reused three times. Each
-// mirrors how that layout actually builds a resume (see
-// shared/resumeLayouts/blockBuilders.js): classic's centered header +
-// full-width section rules, sidebar's real two-column split with its own
-// Real sample copy + the app's ACTUAL font-family/accent tokens (see
-// guest/constants.js) rendered at thumbnail scale — replaces an earlier
-// version that drew these as abstract gray bars (a "Line"/"SectionLabel"
-// pair of plain <div> rectangles standing in for text). Confirmed live
-// as a real complaint, not a style nitpick: at a glance these read as
-// loading-skeleton placeholders, not a preview of an actual resume —
-// the exact opposite of what a template PICKER needs to communicate
-// ("this is what yours will look like"). Real (if small) glyphs have
-// natural, irregular shapes a uniform bar can never fake, which is what
-// actually sells "this is real text" even when it's too small to read
-// word-for-word — the same reason Google Docs/Canva's own template
-// galleries render real sample text instead of bars.
-const THUMB_FONT = FONTS.find((f) => f.id === "times")?.css || FONTS[0].css;
-const THUMB_ACCENT = ACCENTS.find((a) => a.id === "navy")?.hex || "#1F3864";
-const THUMB_INK = "#1A1A1A";
-
-function ThumbSectionLabel({ children }) {
-  return (
-    <div
-      className="w-full border-b"
-      style={{ fontFamily: THUMB_FONT, fontSize: 5.5, fontWeight: 700, letterSpacing: "0.04em", color: THUMB_ACCENT, borderColor: THUMB_ACCENT, paddingBottom: 1 }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function ClassicThumb() {
-  return (
-    <div className="flex h-full w-full flex-col items-center px-3 pt-3.5" style={{ fontFamily: THUMB_FONT, color: THUMB_INK }}>
-      <div style={{ fontSize: 8, fontWeight: 700, lineHeight: 1.2 }}>Jordan Casey</div>
-      <div style={{ fontSize: 4.5, color: THUMB_ACCENT, marginTop: 1 }}>Senior Product Designer</div>
-      <div className="mt-2 h-px w-full bg-border" />
-      <div className="mt-2.5 flex w-full flex-col gap-[3px]">
-        <ThumbSectionLabel>EXPERIENCE</ThumbSectionLabel>
-        <div style={{ fontSize: 4.5, fontWeight: 700, marginTop: 1 }}>Product Designer — Acme Co.</div>
-        <div style={{ fontSize: 4, lineHeight: 1.35, color: "#444" }}>
-          Led redesign of the core checkout flow, lifting conversion 18%.
-          Mentored three junior designers across two product teams.
-        </div>
-      </div>
-      <div className="mt-2 flex w-full flex-col gap-[3px]">
-        <ThumbSectionLabel>EDUCATION</ThumbSectionLabel>
-        <div style={{ fontSize: 4.5, marginTop: 1 }}>B.A. Design — State University</div>
-      </div>
-    </div>
-  );
-}
-
-function SidebarThumb() {
-  return (
-    <div className="flex h-full w-full" style={{ fontFamily: THUMB_FONT, color: THUMB_INK }}>
-      <div className="flex w-[36%] shrink-0 flex-col gap-[5px] px-2 pt-3.5" style={{ backgroundColor: THUMB_ACCENT, color: "#fff" }}>
-        <div className="size-6 shrink-0 self-center rounded-full bg-white/20" />
-        <div style={{ fontSize: 5, fontWeight: 700, textAlign: "center", lineHeight: 1.2, marginTop: 2 }}>Jordan Casey</div>
-        <div style={{ fontSize: 4, fontWeight: 700, letterSpacing: "0.05em", opacity: 0.85, marginTop: 3 }}>CONTACT</div>
-        <div style={{ fontSize: 3.5, opacity: 0.85, lineHeight: 1.5 }}>jordan@email.com<br />(555) 019-2834</div>
-        <div style={{ fontSize: 4, fontWeight: 700, letterSpacing: "0.05em", opacity: 0.85, marginTop: 3 }}>SKILLS</div>
-        <div style={{ fontSize: 3.5, opacity: 0.85, lineHeight: 1.5 }}>Figma · Prototyping<br />Design Systems</div>
-      </div>
-      <div className="flex flex-1 flex-col gap-[4px] px-2.5 pt-3.5">
-        <div style={{ fontSize: 6.5, fontWeight: 700, lineHeight: 1.2 }}>Senior Product Designer</div>
-        <div className="mt-1.5 flex flex-col gap-[3px]">
-          <ThumbSectionLabel>EXPERIENCE</ThumbSectionLabel>
-          <div style={{ fontSize: 4.5, fontWeight: 700, marginTop: 1 }}>Acme Co. <span style={{ fontWeight: 400, color: "#666" }}>· 2021–Present</span></div>
-          <div style={{ fontSize: 4, lineHeight: 1.35, color: "#444" }}>
-            Owns end-to-end design for the checkout and billing surfaces.
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MinimalThumb() {
-  return (
-    <div className="flex h-full w-full flex-col items-center px-4 pt-5 text-center" style={{ fontFamily: THUMB_FONT, color: THUMB_INK }}>
-      <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.03em" }}>JORDAN CASEY</div>
-      <div style={{ fontSize: 4, color: "#777", marginTop: 1 }}>Senior Product Designer</div>
-      <div className="mt-4 flex w-full flex-col items-center gap-[7px]">
-        <div style={{ fontSize: 4.5, fontWeight: 600 }}>Experience</div>
-        <div style={{ fontSize: 4, lineHeight: 1.4, color: "#555" }}>
-          Product Designer, Acme Co.<br />Led the checkout redesign that lifted conversion 18%.
-        </div>
-        <div style={{ fontSize: 4.5, fontWeight: 600, marginTop: 2 }}>Education</div>
-        <div style={{ fontSize: 4, color: "#555" }}>B.A. Design, State University</div>
-      </div>
-    </div>
-  );
-}
-
-const THUMB_BODY = { classic: ClassicThumb, sidebar: SidebarThumb, minimal: MinimalThumb };
-
-// The mobile/desktop shared physical-document thumbnail. Depth (the active
-// card's scale + shadow) is driven by the SAME real `selected` state
-// TemplatesCard already saves via templatePreference.js — picking a
-// layout here IS what moves it forward, not a separate decorative scroll
-// position. Sized to an actual Letter-page ratio (~0.77) so each one
-// reads as a real document, not an icon.
-function DocThumb({ layoutId, active, size = "md" }) {
-  const Body = THUMB_BODY[layoutId] || ClassicThumb;
-  const dims = size === "lg"
-    ? { w: active ? 172 : 148, h: active ? 224 : 192 }
-    : { w: active ? 148 : 122, h: active ? 192 : 158 };
-  return (
-    <div
-      className="flex shrink-0 flex-col overflow-hidden rounded-xl transition-all duration-300 ease-out"
-      style={{
-        width: dims.w,
-        height: dims.h,
-        // Fixed white, not bg-background — this represents an actual
-        // printed page (same as ResumePageSheet.js's real document,
-        // always `background: "white"` regardless of app theme), not
-        // reactive app chrome. Confirmed live as a real bug, not just a
-        // missing shadow: the sample text inside is a fixed dark ink
-        // color (THUMB_INK), so against dark mode's OWN bg-background
-        // this used to render dark text on a near-black background —
-        // illegible, not just low-contrast.
-        background: "white",
-        // CSS variable, not a hardcoded rgba — redefined under .dark in
-        // globals.css. A fixed black shadow this faint reads fine against
-        // a near-white light-mode page but was effectively invisible
-        // against dark mode's own near-black background, leaving the
-        // active card with NO visible cue at all once its border below
-        // was also removed — confirmed live as the real "everything
-        // disappears in dark mode" complaint, not just this one card,
-        // but this one had zero redundant cues once the shadow failed.
-        boxShadow: active ? "var(--doc-thumb-shadow)" : "none",
-        opacity: active ? 1 : 0.5,
-        // Always a real border now, active or not — the shadow alone
-        // was the only thing marking the active card's edge, which is
-        // exactly the single point of failure the comment above
-        // describes. A plain theme-aware border is never themeable away
-        // to invisible the way a hardcoded shadow color can be.
-        border: "1px solid var(--border)",
-      }}
-    >
-      <Body />
-    </div>
-  );
-}
-
 // Horizontal scroll-snap carousel — snap-x snap-mandatory with snap-center
 // on every card, plus symmetric edge padding equal to half the active
 // card's own width so the FIRST and LAST cards can still reach true dead
@@ -355,7 +208,7 @@ function DocThumb({ layoutId, active, size = "md" }) {
 // templatePreference write) and scrolls it to center, so the active
 // template always sits confidently in the middle of the frame, never
 // off to one side.
-function TemplatesCarousel({ onSeeAll, onPick, selected }) {
+function TemplatesCarousel({ onSeeAll, onPick, selected, user }) {
   const { t } = useLanguage();
   const LAYOUTS = layouts(t);
   // 50vw, not 50% — this track bleeds past its own parent's padded column
@@ -402,7 +255,7 @@ function TemplatesCarousel({ onSeeAll, onPick, selected }) {
             aria-label={l.label} aria-pressed={selected === l.id}
             className="shrink-0 snap-center border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
           >
-            <DocThumb layoutId={l.id} active={selected === l.id} />
+            <DocThumb layoutId={l.id} active={selected === l.id} name={user?.name} />
           </button>
         ))}
       </div>
@@ -414,7 +267,7 @@ function TemplatesCarousel({ onSeeAll, onPick, selected }) {
 // column with Recommended anymore, see DashboardContent) so each card
 // actually sits centered within its own grid cell instead of being
 // squeezed against the next one.
-function TemplatesGridDesktop({ onSeeAll, onPick, selected }) {
+function TemplatesGridDesktop({ onSeeAll, onPick, selected, user }) {
   const { t } = useLanguage();
   const LAYOUTS = layouts(t);
   return (
@@ -427,7 +280,7 @@ function TemplatesGridDesktop({ onSeeAll, onPick, selected }) {
             aria-label={l.label} aria-pressed={selected === l.id}
             className="border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
           >
-            <DocThumb layoutId={l.id} active={selected === l.id} size="lg" />
+            <DocThumb layoutId={l.id} active={selected === l.id} size="lg" name={user?.name} />
           </button>
         ))}
       </div>
@@ -859,9 +712,9 @@ function DashboardContent({
           each one centered in its own container. */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }}>
         {isDesktop ? (
-          <TemplatesGridDesktop onSeeAll={() => go("templates")} onPick={pickTemplate} selected={selectedTemplate} />
+          <TemplatesGridDesktop onSeeAll={() => go("templates")} onPick={pickTemplate} selected={selectedTemplate} user={user} />
         ) : (
-          <TemplatesCarousel onSeeAll={() => go("templates")} onPick={pickTemplate} selected={selectedTemplate} />
+          <TemplatesCarousel onSeeAll={() => go("templates")} onPick={pickTemplate} selected={selectedTemplate} user={user} />
         )}
         {isDesktop ? (
           <RecommendedCard jobs={recommendedJobs} loading={recommendedLoading} onSeeAll={() => go("jobsboard")} />
@@ -1167,8 +1020,11 @@ export default function Dashboard({ onNavigate, onSignOut }) {
         style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
       >
         <Logo size={22} />
-        <div className="flex items-center gap-3">
-          <button onClick={() => setNotifOpen(true)} aria-label={t("common.notifications")} className="relative flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]">
+        {/* One shared pill instead of three separately-bordered circles —
+            same grouped-container language as NavRail.js's desktop
+            counterpart and brand/SeoStatus.js's day-range picker. */}
+        <div className="flex items-center gap-0.5 rounded-full border border-border bg-card p-1">
+          <button onClick={() => setNotifOpen(true)} aria-label={t("common.notifications")} className="relative flex size-9 items-center justify-center rounded-full text-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted">
             <Bell className="size-[18px]" strokeWidth={1.75} />
             {needsAttention && (
               unread.count > 0 ? (
@@ -1183,16 +1039,16 @@ export default function Dashboard({ onNavigate, onSignOut }) {
           <button
             onClick={toggleTheme}
             aria-label={theme === "dark" ? t("common.lightMode") : t("common.darkMode")}
-            className="flex size-9 items-center justify-center rounded-full border border-border text-foreground [-webkit-tap-highlight-color:transparent]"
+            className="flex size-9 items-center justify-center rounded-full text-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted"
           >
             {theme === "dark" ? <Sun className="size-[18px]" strokeWidth={1.75} /> : <Moon className="size-[18px]" strokeWidth={1.75} />}
           </button>
           <button
             onClick={() => go("personal-profile")}
             aria-label={t("common.personalProfile")}
-            className="rounded-full ring-1 ring-border [-webkit-tap-highlight-color:transparent]"
+            className="flex size-9 items-center justify-center rounded-full [-webkit-tap-highlight-color:transparent]"
           >
-            <Avatar user={user} size={34} />
+            <Avatar user={user} size={28} />
           </button>
         </div>
       </header>
