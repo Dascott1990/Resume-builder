@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 import ErrorBoundary from "../components/premium/ErrorBoundary";
 import LandingPage from "../components/premium/landing/LandingPage";
@@ -74,6 +74,33 @@ function ScreenLoading() {
         />
       </div>
     </div>
+  );
+}
+
+// A quick crossfade between screens — the one thing every single in-app
+// navigation shares, so it's the highest-leverage place for this: without
+// it, every view change below (dashboard -> profile, sign in -> sign up,
+// X-ing out of anything) was a hard instant swap, the single biggest
+// reason the app read as choppy rather than like a native app. Kept
+// deliberately short (160ms) and opacity-only — this wraps full-screen
+// content, so a slide/scale here risks fighting each screen's own
+// internal motion (Profile.js's own fade-in, GuestMode's own step
+// transitions) rather than just framing it. `viewKey` doubles as both the
+// AnimatePresence identity (so it knows OLD screen vs NEW screen, not
+// "the same screen, re-rendered") and folds in errorResetKey so a crash's
+// "Try Again" still remounts a fresh instance exactly like it did before.
+const SCREEN_TRANSITION = { duration: 0.16, ease: "easeOut" };
+function ScreenTransition({ viewKey, children }) {
+  return (
+    <motion.div
+      key={viewKey}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={SCREEN_TRANSITION}
+    >
+      {children}
+    </motion.div>
   );
 }
 
@@ -367,16 +394,42 @@ export default function Home() {
     go("resume");
   };
 
+  // Sign out is the only way out of the authenticated app now (see
+  // NavRail's and Profile's own sign-out actions — both call this, not
+  // useAuth's logout() directly, same shape as a deleted account below).
+  // This clears VIEW_KEY the same way the old "close" button used to.
+  const handleSignOut = () => {
+    try { localStorage.removeItem(VIEW_KEY); } catch { /* best-effort */ }
+    // Bypasses go() on purpose (signing out isn't "navigating to login",
+    // it's leaving the authenticated app), but that means returnView is
+    // left pointing at whatever authenticated screen was open (e.g.
+    // "dashboard") — clicking the Login screen's own X then calls
+    // setView(returnView), which the auth-guard effect below immediately
+    // bounces right back to "login" since there's no token anymore. From
+    // the user's perspective the X looked completely dead (confirmed
+    // live: sign out, click X, still on the exact same sign-in screen).
+    // Resetting returnView to "launcher" here — the one destination
+    // that's never auth-gated — means X actually goes somewhere instead
+    // of looping forever.
+    setReturnView("launcher");
+    setView("login");
+  };
+
+  let content;
+
   if (view === "launcher") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView}>
-        <LandingPage onOpenSignup={() => openAuth("signup")} />
-      </ErrorBoundary>
+    content = (
+      <ScreenTransition viewKey={`launcher:${errorResetKey}`}>
+        <ErrorBoundary key={errorResetKey} onReset={retryView}>
+          <LandingPage onOpenSignup={() => openAuth("signup")} />
+        </ErrorBoundary>
+      </ScreenTransition>
     );
   }
 
   if (view === "dashboard") {
-    return (
+    content = (
+      <ScreenTransition viewKey={`dashboard:${errorResetKey}`}>
       <ErrorBoundary
         key={errorResetKey}
         onReset={retryView}
@@ -386,26 +439,7 @@ export default function Home() {
         }}
       >
         <Dashboard
-          // Sign out is the only way out of the authenticated app now — see
-          // NavRail's sign-out icon — so this clears VIEW_KEY the same way
-          // the old "close" button used to, just via signOut() -> onSignOut
-          // in Dashboard.js instead of a button in the header.
-          onSignOut={() => {
-            try { localStorage.removeItem(VIEW_KEY); } catch { /* best-effort */ }
-            // Bypasses go() on purpose (signing out isn't "navigating to
-            // login", it's leaving the authenticated app), but that means
-            // returnView is left pointing at whatever authenticated screen
-            // was open (e.g. "dashboard") — clicking the Login screen's own
-            // X then calls setView(returnView), which the auth-guard effect
-            // below immediately bounces right back to "login" since there's
-            // no token anymore. From the user's perspective the X looked
-            // completely dead (confirmed live: sign out, click X, still on
-            // the exact same sign-in screen). Resetting returnView to
-            // "launcher" here — the one destination that's never auth-gated
-            // — means X actually goes somewhere instead of looping forever.
-            setReturnView("launcher");
-            setView("login");
-          }}
+          onSignOut={handleSignOut}
           onNavigate={(id, opts) => {
             if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
             else if (id === "scan") go("cvscan");
@@ -413,159 +447,205 @@ export default function Home() {
             else if (id === "news") go("news");
             else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); go("apply"); }
             else if (id === "profile") go("profile");
-            else if (id === "personal-profile") go("personal-profile");
+            // Deliberately setView, not go(): personal-profile's own onClose
+            // below is hardcoded to "profile", never returnView, so it isn't
+            // part of the returnView contract at all. Routing entry through
+            // go() anyway would still overwrite returnView as a side effect
+            // (go() always does that for any id) — if you opened this from
+            // the Profile screen itself, that leaves returnView === "profile"
+            // the moment you're back on "profile", so Profile's own X then
+            // calls setView(returnView) with the value "profile" is ALREADY,
+            // a true no-op (same value in, no re-render) — the X looks
+            // completely dead until a refresh resets returnView back to its
+            // default. Confirmed live. Bypassing go() here leaves returnView
+            // exactly as it was (e.g. "dashboard"), so Profile's X keeps
+            // working no matter how you got to personal-profile.
+            else if (id === "personal-profile") setView("personal-profile");
             else if (id === "jobsboard") go("jobsboard");
             else if (id === "templates") go("templates");
           }}
         />
       </ErrorBoundary>
+      </ScreenTransition>
     );
   }
 
   if (view === "login") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
-        <Login
-          onClose={() => setView(returnView)}
-          onSuccess={() => setView("dashboard")}
-          onSwitchToSignup={() => openAuth("signup")}
-        />
-      </ErrorBoundary>
+    content = (
+      <ScreenTransition viewKey={`login:${errorResetKey}`}>
+        <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
+          <Login
+            onClose={() => setView(returnView)}
+            onSuccess={() => setView("dashboard")}
+            onSwitchToSignup={() => openAuth("signup")}
+          />
+        </ErrorBoundary>
+      </ScreenTransition>
     );
   }
 
   if (view === "signup") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
-        <Signup
-          onClose={() => setView(returnView)}
-          onSuccess={() => setView("dashboard")}
-          onSwitchToLogin={() => openAuth("login")}
-        />
-      </ErrorBoundary>
+    content = (
+      <ScreenTransition viewKey={`signup:${errorResetKey}`}>
+        <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
+          <Signup
+            onClose={() => setView(returnView)}
+            onSuccess={() => setView("dashboard")}
+            onSwitchToLogin={() => openAuth("login")}
+          />
+        </ErrorBoundary>
+      </ScreenTransition>
     );
   }
 
   if (view === "cvscan") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
-        <CVScan
-          onClose={() => setView(returnView)}
-          onImported={(data) => {
-            setPendingImport(data);
-            setPendingJobDesc(null);
-            setSessionId((id) => id + 1);
-            go("resume");
-          }}
-        />
-      </ErrorBoundary>
+    content = (
+      <ScreenTransition viewKey={`cvscan:${errorResetKey}`}>
+        <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
+          <CVScan
+            onClose={() => setView(returnView)}
+            onImported={(data) => {
+              setPendingImport(data);
+              setPendingJobDesc(null);
+              setSessionId((id) => id + 1);
+              go("resume");
+            }}
+          />
+        </ErrorBoundary>
+      </ScreenTransition>
     );
   }
 
   if (view === "jobtracker") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
-        <JobTracker onClose={() => setView(returnView)} />
-      </ErrorBoundary>
+    content = (
+      <ScreenTransition viewKey={`jobtracker:${errorResetKey}`}>
+        <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
+          <JobTracker onClose={() => setView(returnView)} />
+        </ErrorBoundary>
+      </ScreenTransition>
     );
   }
 
   if (view === "news") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
-        <News onClose={() => setView(returnView)} />
-      </ErrorBoundary>
+    content = (
+      <ScreenTransition viewKey={`news:${errorResetKey}`}>
+        <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
+          <News onClose={() => setView(returnView)} />
+        </ErrorBoundary>
+      </ScreenTransition>
     );
   }
 
   if (view === "apply") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
-        <ApplyWithAI onClose={() => setView(returnView)} pendingRunId={pendingApplyRunId} />
-      </ErrorBoundary>
+    content = (
+      <ScreenTransition viewKey={`apply:${errorResetKey}`}>
+        <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
+          <ApplyWithAI onClose={() => setView(returnView)} pendingRunId={pendingApplyRunId} />
+        </ErrorBoundary>
+      </ScreenTransition>
     );
   }
 
   if (view === "profile") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
-        <Profile
-          onClose={() => setView(returnView)}
-          onOpenLogin={() => openAuth("login")}
-          onOpenPersonalProfile={() => go("personal-profile")}
-          go={(id, opts) => {
-            if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
-            else if (id === "scan") go("cvscan");
-            else if (id === "jobtracker") go("jobtracker");
-            else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); go("apply"); }
-            else if (id === "jobsboard") go("jobsboard");
-          }}
-        />
-      </ErrorBoundary>
+    content = (
+      <ScreenTransition viewKey={`profile:${errorResetKey}`}>
+        <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
+          <Profile
+            onClose={() => setView(returnView)}
+            onOpenLogin={() => openAuth("login")}
+            onSignOut={handleSignOut}
+            // setView, not go() — see the matching comment on the dashboard's
+            // onNavigate id==="personal-profile" branch above for why.
+            onOpenPersonalProfile={() => setView("personal-profile")}
+            go={(id, opts) => {
+              if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
+              else if (id === "scan") go("cvscan");
+              else if (id === "jobtracker") go("jobtracker");
+              else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); go("apply"); }
+              else if (id === "jobsboard") go("jobsboard");
+            }}
+          />
+        </ErrorBoundary>
+      </ScreenTransition>
     );
   }
 
   if (view === "personal-profile") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("profile")}>
-        <PersonalProfile onClose={() => setView("profile")} />
-      </ErrorBoundary>
+    content = (
+      <ScreenTransition viewKey={`personal-profile:${errorResetKey}`}>
+        <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("profile")}>
+          <PersonalProfile onClose={() => setView("profile")} />
+        </ErrorBoundary>
+      </ScreenTransition>
     );
   }
 
   if (view === "jobsboard") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
-        <JobsBoard
-          onClose={() => setView(returnView)}
-          onNavigate={(id, opts) => {
-            if (id === "home") go("dashboard");
-            else if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
-            else if (id === "scan") go("cvscan");
-            else if (id === "jobtracker") go("jobtracker");
-            else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); go("apply"); }
-            else if (id === "profile") go("profile");
-            else if (id === "personal-profile") go("personal-profile");
-          }}
-        />
-      </ErrorBoundary>
+    content = (
+      <ScreenTransition viewKey={`jobsboard:${errorResetKey}`}>
+        <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
+          <JobsBoard
+            onClose={() => setView(returnView)}
+            onNavigate={(id, opts) => {
+              if (id === "home") go("dashboard");
+              else if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
+              else if (id === "scan") go("cvscan");
+              else if (id === "jobtracker") go("jobtracker");
+              else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); go("apply"); }
+              else if (id === "profile") go("profile");
+              // setView, not go() — see the dashboard onNavigate branch above.
+              else if (id === "personal-profile") setView("personal-profile");
+            }}
+          />
+        </ErrorBoundary>
+      </ScreenTransition>
     );
   }
 
   if (view === "templates") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
-        <TemplatesGallery
-          onClose={() => setView(returnView)}
-          onNavigate={(id) => {
-            if (id === "home") go("dashboard");
-            else if (id === "resume") openResume();
-            else if (id === "apply") go("apply");
-            else if (id === "jobtracker") go("jobtracker");
-            else if (id === "profile") go("profile");
-          }}
-        />
-      </ErrorBoundary>
+    content = (
+      <ScreenTransition viewKey={`templates:${errorResetKey}`}>
+        <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
+          <TemplatesGallery
+            onClose={() => setView(returnView)}
+            onNavigate={(id) => {
+              if (id === "home") go("dashboard");
+              else if (id === "resume") openResume();
+              else if (id === "apply") go("apply");
+              else if (id === "jobtracker") go("jobtracker");
+              else if (id === "profile") go("profile");
+            }}
+          />
+        </ErrorBoundary>
+      </ScreenTransition>
     );
   }
 
   if (view === "brand-workspace") {
-    return (
-      <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
-        <BrandWorkspaceView token={workspaceToken} onClose={() => setView("dashboard")} />
-      </ErrorBoundary>
+    content = (
+      <ScreenTransition viewKey={`brand-workspace:${errorResetKey}`}>
+        <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView("dashboard")}>
+          <BrandWorkspaceView token={workspaceToken} onClose={() => setView("dashboard")} />
+        </ErrorBoundary>
+      </ScreenTransition>
     );
   }
 
-  return (
-    <ErrorBoundary
-      // "Try Again": remount a clean Resume tree (clears whatever state caused
-      // the crash) but stays open — the user doesn't lose their place in the app.
-      onReset={() => setSessionId((id) => id + 1)}
-      // "Close": back to wherever this was opened from, not always Home.
-      onClose={() => setView(returnView)}
-    >
-      <Resume key={sessionId} onClose={() => setView(returnView)} onRequireAuth={openAuth} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} pendingLoadResumeId={pendingLoadResumeId} pendingViewAllResumes={pendingViewAllResumes} pendingQuickBuild={pendingQuickBuild} />
-    </ErrorBoundary>
-  );
+  if (!content) {
+    content = (
+      <ScreenTransition viewKey={`resume:${sessionId}:${errorResetKey}`}>
+        <ErrorBoundary
+          // "Try Again": remount a clean Resume tree (clears whatever state caused
+          // the crash) but stays open — the user doesn't lose their place in the app.
+          onReset={() => setSessionId((id) => id + 1)}
+          // "Close": back to wherever this was opened from, not always Home.
+          onClose={() => setView(returnView)}
+        >
+          <Resume key={sessionId} onClose={() => setView(returnView)} onRequireAuth={openAuth} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} pendingLoadResumeId={pendingLoadResumeId} pendingViewAllResumes={pendingViewAllResumes} pendingQuickBuild={pendingQuickBuild} />
+        </ErrorBoundary>
+      </ScreenTransition>
+    );
+  }
+
+  return <AnimatePresence mode="wait" initial={false}>{content}</AnimatePresence>;
 }
