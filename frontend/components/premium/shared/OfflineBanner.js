@@ -16,8 +16,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
+import { useLanguage } from "@/lib/i18n";
 
 export default function OfflineBanner() {
+  const { t } = useLanguage();
   const online = useOnlineStatus();
   // Only true once we've actually seen an offline moment — skips the
   // "Back online" toast on first mount for someone who was never offline.
@@ -44,7 +46,7 @@ export default function OfflineBanner() {
       // A stable id, not a fresh toast per call, as defense in depth —
       // if this still somehow fires more than once, sonner replaces the
       // existing toast instead of stacking a new one on top of it.
-      toast.success("Back online", { id: "connectivity" });
+      toast.success(t("offlineBanner.backOnline"), { id: "connectivity" });
     }, 1500);
     return () => clearTimeout(timer);
   }, [online]);
@@ -62,7 +64,7 @@ export default function OfflineBanner() {
           style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)", paddingBottom: "8px" }}
         >
           <WifiOff className="size-3.5 shrink-0 text-destructive" strokeWidth={2} />
-          You&apos;re offline — changes will save once you&apos;re back
+          {t("offlineBanner.offlineMessage")}
         </motion.div>
       )}
     </AnimatePresence>

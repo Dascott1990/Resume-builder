@@ -31,6 +31,7 @@ import { getBrandKey, setBrandKey } from "@/lib/brandKey";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
 import { downloadBlob } from "./assetKit";
+import { useLanguage } from "@/lib/i18n";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL;
 
@@ -48,7 +49,7 @@ async function downloadTaskIcs(taskId, title) {
       ...(brandKey ? { "X-Brand-Key": brandKey } : {}),
     },
   });
-  if (!res.ok) throw new Error("Couldn't get that calendar file.");
+  if (!res.ok) throw new Error("ics_fetch_failed");
   downloadBlob(await res.blob(), `${(title || "task").slice(0, 40).replace(/[^\w\- ]/g, "")}.ics`);
 }
 
@@ -76,27 +77,28 @@ function bucketTasks(tasks) {
   return buckets;
 }
 
-function dueLabel(iso) {
+function dueLabel(iso, t, lang) {
   const days = Math.round((dateOnly(new Date(iso)) - dateOnly(new Date())) / 86400000);
-  if (days === 0) return "Today";
-  if (days === 1) return "Tomorrow";
-  if (days === -1) return "Yesterday";
-  if (days < 0) return `${-days}d overdue`;
-  if (days < 7) return `In ${days}d`;
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  if (days === 0) return t("brandShell.dueToday");
+  if (days === 1) return t("brandShell.dueTomorrow");
+  if (days === -1) return t("brandShell.dueYesterday");
+  if (days < 0) return t("brandShell.daysOverdue", { n: -days });
+  if (days < 7) return t("brandShell.dueInDays", { n: days });
+  return new Date(iso).toLocaleDateString(lang, { month: "short", day: "numeric" });
 }
 
-function timeAgo(iso) {
+function timeAgo(iso, t) {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (days < 1) return "today";
-  if (days === 1) return "yesterday";
-  return `${days}d ago`;
+  if (days < 1) return t("common.today");
+  if (days === 1) return t("common.yesterday");
+  return t("common.daysAgo", { n: days });
 }
 
 function TaskRow({ task, overdue, onToggle, onSnooze, onDelete }) {
+  const { t, lang } = useLanguage();
   return (
     <div className="group flex items-start gap-2 rounded-lg p-2 hover:bg-muted">
-      <button type="button" onClick={() => onToggle(task, true)} aria-label="Mark done"
+      <button type="button" onClick={() => onToggle(task, true)} aria-label={t("brandShell.markDone")}
         className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-border text-transparent hover:border-primary hover:text-primary">
         <Check className="size-3" />
       </button>
@@ -104,26 +106,26 @@ function TaskRow({ task, overdue, onToggle, onSnooze, onDelete }) {
         <p className="m-0 truncate text-[12.5px] text-foreground">{task.title}</p>
         {task.due_at && (
           <span className={`text-[10.5px] font-semibold ${overdue ? "text-destructive" : "text-muted-foreground/70"}`}>
-            {dueLabel(task.due_at)}
+            {dueLabel(task.due_at, t, lang)}
           </span>
         )}
       </div>
       <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100">
         {task.due_at && (
           <>
-            <button type="button" onClick={() => onSnooze(task)} title="Snooze 1 day" className="flex size-6 items-center justify-center rounded text-muted-foreground hover:text-foreground">
+            <button type="button" onClick={() => onSnooze(task)} title={t("brandShell.snooze1Day")} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:text-foreground">
               <Clock className="size-3" />
             </button>
             <button
-              type="button" title="Add to calendar"
-              onClick={() => downloadTaskIcs(task.id, task.title).catch((e) => toast.error(e.message))}
+              type="button" title={t("brandShell.addToCalendar")}
+              onClick={() => downloadTaskIcs(task.id, task.title).catch(() => toast.error(t("brandShell.couldntGetCalendarFile")))}
               className="flex size-6 items-center justify-center rounded text-muted-foreground hover:text-foreground"
             >
               <CalendarPlus className="size-3" />
             </button>
           </>
         )}
-        <button type="button" onClick={() => onDelete(task)} title="Delete" className="flex size-6 items-center justify-center rounded text-muted-foreground hover:text-destructive">
+        <button type="button" onClick={() => onDelete(task)} title={t("common.delete")} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:text-destructive">
           <X className="size-3" />
         </button>
       </div>
@@ -142,6 +144,7 @@ function TaskSection({ label, tasks, overdue, ...handlers }) {
 }
 
 function QuickAddTask({ onAdded, onAuthError }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [dueAt, setDueAt] = useState("");
@@ -160,7 +163,7 @@ function QuickAddTask({ onAdded, onAuthError }) {
       setTitle(""); setDueAt(""); setRecurring(""); setOpen(false);
       onAdded();
     } catch (e) {
-      if (!onAuthError?.(e)) toast.error(e.message || "Try again.");
+      if (!onAuthError?.(e)) toast.error(e.message || t("brandShell.tryAgain"));
     } finally {
       setSaving(false);
     }
@@ -169,30 +172,31 @@ function QuickAddTask({ onAdded, onAuthError }) {
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center gap-2 rounded-lg p-2 text-left text-[12.5px] font-semibold text-primary hover:bg-muted">
-        <Plus className="size-3.5" /> Add a task
+        <Plus className="size-3.5" /> {t("brandShell.addATask")}
       </button>
     );
   }
   return (
     <div className="grid gap-1.5 rounded-lg border border-border p-2">
-      <Input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus placeholder="What needs doing"
+      <Input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus placeholder={t("brandShell.whatNeedsDoing")}
         className="h-8 rounded-[6px] text-[12.5px]" onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
       <div className="flex gap-1.5">
         <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)}
           className="h-8 flex-1 rounded-[6px] border border-border bg-transparent px-2 text-[11.5px] text-foreground" />
         <select value={recurring} onChange={(e) => setRecurring(e.target.value)}
           className="h-8 rounded-[6px] border border-border bg-transparent px-1.5 text-[11.5px] text-foreground">
-          <option value="">Once</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
+          <option value="">{t("brandShell.once")}</option>
+          <option value="weekly">{t("brandShell.weekly")}</option>
+          <option value="monthly">{t("brandShell.monthly")}</option>
         </select>
       </div>
-      <Btn small variant="gold" onClick={add} disabled={saving || !title.trim()} loading={saving}>Add</Btn>
+      <Btn small variant="gold" onClick={add} disabled={saving || !title.trim()} loading={saving}>{t("brandShell.add")}</Btn>
     </div>
   );
 }
 
 function PushToggle() {
+  const { t } = useLanguage();
   const [state, setState] = useState("checking"); // checking | unsupported | off | on | busy
 
   useEffect(() => {
@@ -208,7 +212,7 @@ function PushToggle() {
     setState("busy");
     try {
       const permission = await Notification.requestPermission();
-      if (permission !== "granted") { toast.error("Notifications blocked."); setState("off"); return; }
+      if (permission !== "granted") { toast.error(t("brandShell.notificationsBlocked")); setState("off"); return; }
       const { key } = await apiRequest("/api/v1/brand/push/vapid-public-key");
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(key) });
@@ -219,9 +223,9 @@ function PushToggle() {
         body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
       });
       setState("on");
-      toast.success("Notifications on.");
+      toast.success(t("brandShell.notificationsOn"));
     } catch (e) {
-      toast.error(e.message || "Couldn't enable notifications.");
+      toast.error(e.message || t("brandShell.couldntEnableNotifications"));
       setState("off");
     }
   };
@@ -241,7 +245,7 @@ function PushToggle() {
       }
       setState("off");
     } catch (e) {
-      toast.error(e.message || "Try again.");
+      toast.error(e.message || t("brandShell.tryAgain"));
       setState("on");
     }
   };
@@ -250,19 +254,20 @@ function PushToggle() {
   if (state === "on") {
     return (
       <button type="button" onClick={disable} className="flex w-full items-center gap-2 rounded-lg p-2 text-left text-[12.5px] font-semibold text-primary hover:bg-muted">
-        <BellRing className="size-3.5" /> Notifications on
+        <BellRing className="size-3.5" /> {t("brandShell.notificationsOn")}
       </button>
     );
   }
   return (
     <button type="button" onClick={enable} disabled={state === "busy" || state === "checking"}
       className="flex w-full items-center gap-2 rounded-lg p-2 text-left text-[12.5px] font-semibold text-muted-foreground hover:bg-muted disabled:opacity-50">
-      <BellOff className="size-3.5" /> {state === "busy" ? "…" : "Enable notifications"}
+      <BellOff className="size-3.5" /> {state === "busy" ? "…" : t("brandShell.enableNotifications")}
     </button>
   );
 }
 
 function NewsComposer({ onPosted, onAuthError }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [sending, setSending] = useState(false);
@@ -278,9 +283,9 @@ function NewsComposer({ onPosted, onAuthError }) {
       });
       setTitle(""); setOpen(false);
       onPosted();
-      toast.success("Posted.");
+      toast.success(t("brandShell.posted"));
     } catch (e) {
-      if (!onAuthError?.(e)) toast.error(e.message || "Try again.");
+      if (!onAuthError?.(e)) toast.error(e.message || t("brandShell.tryAgain"));
     } finally {
       setSending(false);
     }
@@ -289,15 +294,15 @@ function NewsComposer({ onPosted, onAuthError }) {
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center gap-2 rounded-lg p-2 text-left text-[12.5px] font-semibold text-muted-foreground hover:bg-muted">
-        <Send className="size-3.5" /> Post an update
+        <Send className="size-3.5" /> {t("brandShell.postAnUpdate")}
       </button>
     );
   }
   return (
     <div className="flex gap-1.5 p-1">
-      <Input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus placeholder="What's new"
+      <Input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus placeholder={t("news.whatsNew")}
         className="h-8 rounded-[6px] text-[12.5px]" onKeyDown={(e) => { if (e.key === "Enter") post(); }} />
-      <Btn small variant="gold" onClick={post} disabled={sending} loading={sending}>Send</Btn>
+      <Btn small variant="gold" onClick={post} disabled={sending} loading={sending}>{t("interviewChat.send")}</Btn>
     </div>
   );
 }
@@ -308,6 +313,7 @@ function NewsComposer({ onPosted, onAuthError }) {
 // secret until now: this is the one place it gets entered and stashed
 // locally so every apiRequest call can attach it (see shared/api.js).
 function BrandKeyGate({ onUnlocked }) {
+  const { t } = useLanguage();
   const [value, setValue] = useState("");
   const [checking, setChecking] = useState(false);
 
@@ -317,11 +323,11 @@ function BrandKeyGate({ onUnlocked }) {
     setBrandKey(value.trim());
     try {
       await apiRequest("/api/v1/brand/tasks"); // confirms the key is actually right before trusting it
-      toast.success("Unlocked.");
+      toast.success(t("brandShell.unlocked"));
       onUnlocked();
     } catch (e) {
       setBrandKey(null);
-      toast.error(e.status === 401 ? "That key isn't right." : (e.message || "Try again."));
+      toast.error(e.status === 401 ? t("brandShell.keyNotRight") : (e.message || t("brandShell.tryAgain")));
     } finally {
       setChecking(false);
     }
@@ -329,21 +335,22 @@ function BrandKeyGate({ onUnlocked }) {
 
   return (
     <div className="space-y-2 rounded-lg border border-dashed border-border p-2.5">
-      <p className="m-0 text-[12px] font-semibold text-foreground">Unlock tasks &amp; news</p>
-      <p className="m-0 text-[11px] text-muted-foreground">This browser hasn't been given the brand key yet.</p>
+      <p className="m-0 text-[12px] font-semibold text-foreground">{t("brandShell.unlockTasksAndNews")}</p>
+      <p className="m-0 text-[11px] text-muted-foreground">{t("brandShell.browserNoBrandKey")}</p>
       <div className="flex gap-1.5">
         <Input
           type="password" value={value} onChange={(e) => setValue(e.target.value)} autoFocus autoComplete="off"
-          placeholder="Brand key" className="h-8 rounded-[6px] text-[12.5px]"
+          placeholder={t("brandShell.brandKeyPlaceholder")} className="h-8 rounded-[6px] text-[12.5px]"
           onKeyDown={(e) => { if (e.key === "Enter") unlock(); }}
         />
-        <Btn small variant="gold" onClick={unlock} disabled={checking} loading={checking}>Unlock</Btn>
+        <Btn small variant="gold" onClick={unlock} disabled={checking} loading={checking}>{t("brandShell.unlock")}</Btn>
       </div>
     </div>
   );
 }
 
 export function NotificationBell() {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [tasks, setTasks] = useState({ open: [], done: [] });
   const [news, setNews] = useState([]);
@@ -379,7 +386,7 @@ export function NotificationBell() {
       });
       loadTasks();
     } catch (e) {
-      if (!onAuthError(e)) toast.error(e.message || "Try again.");
+      if (!onAuthError(e)) toast.error(e.message || t("brandShell.tryAgain"));
       loadTasks();
     }
   };
@@ -389,13 +396,13 @@ export function NotificationBell() {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ snooze_days: 1 }),
       });
       loadTasks();
-    } catch (e) { if (!onAuthError(e)) toast.error(e.message || "Try again."); }
+    } catch (e) { if (!onAuthError(e)) toast.error(e.message || t("brandShell.tryAgain")); }
   };
   const deleteTask = async (task) => {
-    setTasks((t) => ({ ...t, open: t.open.filter((x) => x.id !== task.id) }));
+    setTasks((prev) => ({ ...prev, open: prev.open.filter((x) => x.id !== task.id) }));
     try {
       await apiRequest(`/api/v1/brand/tasks/${task.id}`, { method: "DELETE" });
-    } catch (e) { if (!onAuthError(e)) toast.error(e.message || "Try again."); loadTasks(); }
+    } catch (e) { if (!onAuthError(e)) toast.error(e.message || t("brandShell.tryAgain")); loadTasks(); }
   };
 
   const buckets = bucketTasks(tasks.open);
@@ -406,7 +413,7 @@ export function NotificationBell() {
   return (
     <div className="relative">
       <button
-        type="button" onClick={() => setOpen((v) => !v)} aria-label="Notifications"
+        type="button" onClick={() => setOpen((v) => !v)} aria-label={t("common.notifications")}
         className="relative flex size-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground"
       >
         <Bell className="size-4" />
@@ -429,29 +436,29 @@ export function NotificationBell() {
             ) : (
               <>
                 <QuickAddTask onAdded={loadTasks} onAuthError={onAuthError} />
-                <TaskSection label="Overdue" tasks={buckets.overdue} overdue {...taskHandlers} />
-                <TaskSection label="Today" tasks={buckets.today} {...taskHandlers} />
-                <TaskSection label="Upcoming" tasks={buckets.upcoming} {...taskHandlers} />
-                <TaskSection label="No date" tasks={buckets.noDate} {...taskHandlers} />
+                <TaskSection label={t("brandShell.overdue")} tasks={buckets.overdue} overdue {...taskHandlers} />
+                <TaskSection label={t("brandShell.dueToday")} tasks={buckets.today} {...taskHandlers} />
+                <TaskSection label={t("brandShell.upcoming")} tasks={buckets.upcoming} {...taskHandlers} />
+                <TaskSection label={t("brandShell.noDate")} tasks={buckets.noDate} {...taskHandlers} />
                 {tasks.open.length === 0 && (
-                  <p className="m-0 px-2 pb-1 text-[12.5px] text-muted-foreground">No open tasks</p>
+                  <p className="m-0 px-2 pb-1 text-[12.5px] text-muted-foreground">{t("brandShell.noOpenTasks")}</p>
                 )}
               </>
             )}
 
             <div className="mt-1 border-t border-border pt-1">
-              <p className="m-0 px-2 pt-1 pb-0.5 font-mono text-[9.5px] font-bold tracking-[0.1em] text-muted-foreground/50 uppercase">News</p>
+              <p className="m-0 px-2 pt-1 pb-0.5 font-mono text-[9.5px] font-bold tracking-[0.1em] text-muted-foreground/50 uppercase">{t("news.title")}</p>
               {news.slice(0, 3).map((n) => (
                 <div key={n.id} className="rounded-lg p-2 text-[12.5px] text-foreground">
                   <p className={`m-0 font-semibold ${n.resolved ? "text-muted-foreground line-through" : ""}`}>{n.title}</p>
-                  <p className="m-0 mt-0.5 text-[10.5px] text-muted-foreground/70">{timeAgo(n.created_at)}</p>
+                  <p className="m-0 mt-0.5 text-[10.5px] text-muted-foreground/70">{timeAgo(n.created_at, t)}</p>
                 </div>
               ))}
               {/* World feed (tech/physics/history) only lives on the full
                   page — real, auto-fetched content deserves more room than
                   a dropdown, not a cramped preview of it here. */}
               <Link href="/brand/news" className="flex items-center gap-1 rounded-lg p-2 text-[12px] font-semibold text-primary no-underline hover:bg-muted">
-                See all <ArrowRight className="size-3" />
+                {t("common.seeAll")} <ArrowRight className="size-3" />
               </Link>
             </div>
 

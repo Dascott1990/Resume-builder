@@ -19,10 +19,12 @@ import { Input } from "@/components/ui/input";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { apiRequest } from "@/components/premium/shared/api";
 import { blobToDataUrl } from "./assetKit";
+import { useLanguage } from "@/lib/i18n";
 
 export const LAST_EMAIL_KEY = "noqeev_brand_last_email";
 
 export function EmailAssetButton({ getBlob, filename, label }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState(() => {
     try { return localStorage.getItem(LAST_EMAIL_KEY) || ""; } catch { return ""; }
@@ -31,7 +33,7 @@ export function EmailAssetButton({ getBlob, filename, label }) {
 
   const send = async () => {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
-      toast.error("Invalid email.");
+      toast.error(t("brandAssets.invalidEmail"));
       return;
     }
     setSending(true);
@@ -44,15 +46,15 @@ export function EmailAssetButton({ getBlob, filename, label }) {
         body: JSON.stringify({
           to_email: email.trim(),
           filename,
-          note: label ? `Your ${label} post is attached — ready to ship.` : undefined,
+          note: label ? t("brandAssets.postAttachedNote", { label }) : undefined,
           image_data_url: dataUrl,
         }),
       });
       try { localStorage.setItem(LAST_EMAIL_KEY, email.trim()); } catch { /* best-effort */ }
-      toast.success(`Sent to ${email.trim()}`);
+      toast.success(t("brandAssets.sentTo", { email: email.trim() }));
       setOpen(false);
     } catch (e) {
-      toast.error(e.message || "Send failed.");
+      toast.error(e.message || t("brandAssets.sendFailed"));
     } finally {
       setSending(false);
     }
@@ -60,22 +62,22 @@ export function EmailAssetButton({ getBlob, filename, label }) {
 
   return (
     <>
-      <Btn small variant="ghost" onClick={() => setOpen(true)} aria-label="Email this">
+      <Btn small variant="ghost" onClick={() => setOpen(true)} aria-label={t("brandAssets.emailThis")}>
         <Mail className="size-4" />
       </Btn>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent showCloseButton className="w-full max-w-[380px] gap-0 p-0 sm:max-w-[380px]">
           <div className="p-5">
             <p className="m-0 mb-3 flex items-center gap-2 text-[14px] font-bold text-foreground">
-              <Mail className="size-4 text-primary" /> Email
+              <Mail className="size-4 text-primary" /> {t("signupNudge.email")}
             </p>
             <Input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com" className="h-11 rounded-[10px]" autoFocus
+              placeholder={t("auth.emailPlaceholder")} className="h-11 rounded-[10px]" autoFocus
               onKeyDown={(e) => { if (e.key === "Enter") send(); }}
             />
             <Btn variant="gold" className="mt-3 w-full" onClick={send} disabled={sending} loading={sending}>
-              {sending ? <Loader2 className="size-4 animate-spin" /> : "Send"}
+              {sending ? <Loader2 className="size-4 animate-spin" /> : t("interviewChat.send")}
             </Btn>
           </div>
         </DialogContent>

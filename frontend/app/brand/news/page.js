@@ -26,23 +26,25 @@ import { apiRequest } from "@/components/premium/shared/api";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useLanguage } from "@/lib/i18n";
 
 const CATEGORY_META = {
-  world: { label: "World", Icon: Globe },
-  tech: { label: "Technology", Icon: Cpu },
-  physics: { label: "Physics", Icon: Atom },
-  history: { label: "History", Icon: Landmark },
+  world: { labelKey: "news.categoryWorld", Icon: Globe },
+  tech: { labelKey: "news.categoryTechnology", Icon: Cpu },
+  physics: { labelKey: "news.categoryPhysics", Icon: Atom },
+  history: { labelKey: "news.categoryHistory", Icon: Landmark },
 };
 
-function timeAgo(iso) {
+function timeAgo(iso, t) {
   if (!iso) return "";
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (days < 1) return "today";
-  if (days === 1) return "yesterday";
-  return `${days}d ago`;
+  if (days < 1) return t("common.today");
+  if (days === 1) return t("common.yesterday");
+  return t("common.daysAgo", { n: days });
 }
 
 function UpdateRow({ item, onSaved, onDeleted }) {
+  const { t } = useLanguage();
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(item.title);
   const [body, setBody] = useState(item.body || "");
@@ -61,7 +63,7 @@ function UpdateRow({ item, onSaved, onDeleted }) {
       onSaved(updated);
       setEditing(false);
     } catch (e) {
-      toast.error(e.message || "Try again.");
+      toast.error(e.message || t("brandShell.tryAgain"));
     } finally {
       setSaving(false);
     }
@@ -76,7 +78,7 @@ function UpdateRow({ item, onSaved, onDeleted }) {
       });
       onSaved(updated);
     } catch (e) {
-      toast.error(e.message || "Try again.");
+      toast.error(e.message || t("brandShell.tryAgain"));
     }
   };
 
@@ -85,19 +87,19 @@ function UpdateRow({ item, onSaved, onDeleted }) {
       await apiRequest(`/api/v1/brand/news/${item.id}`, { method: "DELETE" });
       onDeleted(item.id);
     } catch (e) {
-      toast.error(e.message || "Try again.");
+      toast.error(e.message || t("brandShell.tryAgain"));
     }
   };
 
   if (editing) {
     return (
       <div className="grid gap-2 rounded-xl border border-primary/30 bg-primary/[0.03] p-3.5">
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-9 rounded-[8px] text-[13px]" placeholder="Title" />
-        <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={2} className="rounded-[8px] text-[13px]" placeholder="Details (optional)" />
-        <Input value={link} onChange={(e) => setLink(e.target.value)} className="h-9 rounded-[8px] text-[13px]" placeholder="Link (optional)" />
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-9 rounded-[8px] text-[13px]" placeholder={t("brandShell.titlePlaceholder")} />
+        <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={2} className="rounded-[8px] text-[13px]" placeholder={t("brandShell.detailsOptional")} />
+        <Input value={link} onChange={(e) => setLink(e.target.value)} className="h-9 rounded-[8px] text-[13px]" placeholder={t("brandShell.linkOptional")} />
         <div className="flex gap-1.5">
-          <Btn small variant="gold" onClick={save} disabled={saving} loading={saving}>Save</Btn>
-          <Btn small variant="ghost" onClick={() => setEditing(false)}>Cancel</Btn>
+          <Btn small variant="gold" onClick={save} disabled={saving} loading={saving}>{t("common.save")}</Btn>
+          <Btn small variant="ghost" onClick={() => setEditing(false)}>{t("common.cancel")}</Btn>
         </div>
       </div>
     );
@@ -109,19 +111,19 @@ function UpdateRow({ item, onSaved, onDeleted }) {
         <p className={`m-0 text-[13.5px] font-bold ${item.resolved ? "text-muted-foreground line-through" : "text-foreground"}`}>{item.title}</p>
         {item.body && <p className="m-0 mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{item.body}</p>}
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <span className="text-[10.5px] text-muted-foreground/60">{timeAgo(item.created_at)}</span>
-          {item.link && <a href={item.link} target="_blank" rel="noreferrer" className="text-[10.5px] font-semibold text-primary">Open link</a>}
+          <span className="text-[10.5px] text-muted-foreground/60">{timeAgo(item.created_at, t)}</span>
+          {item.link && <a href={item.link} target="_blank" rel="noreferrer" className="text-[10.5px] font-semibold text-primary">{t("brandShell.openLink")}</a>}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        <button type="button" onClick={toggleResolved} title={item.resolved ? "Reopen" : "Mark done"}
+        <button type="button" onClick={toggleResolved} title={item.resolved ? t("brandShell.reopen") : t("brandShell.markDone")}
           className={`flex size-7 items-center justify-center rounded-lg ${item.resolved ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
           <Check className="size-3.5" />
         </button>
-        <button type="button" onClick={() => setEditing(true)} title="Edit" className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={() => setEditing(true)} title={t("common.edit")} className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground">
           <Pencil className="size-3.5" />
         </button>
-        <button type="button" onClick={remove} title="Delete" className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive">
+        <button type="button" onClick={remove} title={t("common.delete")} className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive">
           <Trash2 className="size-3.5" />
         </button>
       </div>
@@ -130,12 +132,13 @@ function UpdateRow({ item, onSaved, onDeleted }) {
 }
 
 function WorldFeedRow({ item, onDeleted }) {
+  const { t } = useLanguage();
   const remove = async () => {
     try {
       await apiRequest(`/api/v1/brand/world-feed/${item.id}`, { method: "DELETE" });
       onDeleted(item.id);
     } catch (e) {
-      toast.error(e.message || "Try again.");
+      toast.error(e.message || t("brandShell.tryAgain"));
     }
   };
   return (
@@ -145,9 +148,9 @@ function WorldFeedRow({ item, onDeleted }) {
           {item.title}
         </a>
         {item.summary && <p className="m-0 mt-1 text-[12px] leading-relaxed text-muted-foreground">{item.summary}</p>}
-        <span className="mt-1 block text-[10.5px] text-muted-foreground/60">{timeAgo(item.published_at || item.fetched_at)}</span>
+        <span className="mt-1 block text-[10.5px] text-muted-foreground/60">{timeAgo(item.published_at || item.fetched_at, t)}</span>
       </div>
-      <button type="button" onClick={remove} title="Dismiss"
+      <button type="button" onClick={remove} title={t("guestMode.dismiss")}
         className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100">
         <X className="size-3.5" />
       </button>
@@ -156,6 +159,7 @@ function WorldFeedRow({ item, onDeleted }) {
 }
 
 export default function BrandNewsPage() {
+  const { t } = useLanguage();
   const [updates, setUpdates] = useState([]);
   const [feed, setFeed] = useState([]);
   const [category, setCategory] = useState("all");
@@ -175,13 +179,13 @@ export default function BrandNewsPage() {
     <div className="min-h-[100dvh] w-full bg-background font-sans text-foreground">
       <div className="mx-auto w-full max-w-2xl px-6 py-10 sm:px-10 sm:py-14">
         <Link href="/brand" className="mb-6 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-muted-foreground no-underline hover:text-foreground">
-          <ArrowLeft className="size-3.5" /> Brand kit
+          <ArrowLeft className="size-3.5" /> {t("brandShell.brandKit")}
         </Link>
 
         <div className="mb-8">
-          <p className="m-0 mb-4 font-mono text-[10.5px] font-bold tracking-[0.14em] text-muted-foreground/60 uppercase">Updates</p>
+          <p className="m-0 mb-4 font-mono text-[10.5px] font-bold tracking-[0.14em] text-muted-foreground/60 uppercase">{t("brandShell.updates")}</p>
           {updates.length === 0 ? (
-            <p className="m-0 text-[13px] text-muted-foreground">No updates yet.</p>
+            <p className="m-0 text-[13px] text-muted-foreground">{t("brandShell.noUpdatesYet")}</p>
           ) : (
             <div className="grid gap-2">
               {updates.map((u) => (
@@ -198,23 +202,23 @@ export default function BrandNewsPage() {
         <div>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <p className="m-0 flex items-center gap-1.5 font-mono text-[10.5px] font-bold tracking-[0.14em] text-muted-foreground/60 uppercase">
-              <Newspaper className="size-3.5" /> World feed
+              <Newspaper className="size-3.5" /> {t("brandShell.worldFeed")}
             </p>
             <div className="flex flex-wrap gap-1.5">
               <button type="button" onClick={() => setCategory("all")} aria-pressed={category === "all"}
                 className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${category === "all" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-                All
+                {t("jobsBoard.all")}
               </button>
               {Object.entries(CATEGORY_META).map(([id, m]) => (
                 <button key={id} type="button" onClick={() => setCategory(id)} aria-pressed={category === id}
                   className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${category === id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-                  <m.Icon className="size-3" /> {m.label}
+                  <m.Icon className="size-3" /> {t(m.labelKey)}
                 </button>
               ))}
             </div>
           </div>
           {shownFeed.length === 0 ? (
-            <p className="m-0 text-[13px] text-muted-foreground">Nothing here yet — refreshes automatically every few minutes.</p>
+            <p className="m-0 text-[13px] text-muted-foreground">{t("brandShell.nothingHereRefreshes")}</p>
           ) : (
             <div className="grid gap-2">
               {shownFeed.map((item) => (

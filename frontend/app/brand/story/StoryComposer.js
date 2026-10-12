@@ -36,6 +36,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useLanguage } from "@/lib/i18n";
 import { Plus, Undo2, Redo2, Pencil, Volume2, VolumeX, Copy, Captions, FilePlus2, ListVideo, Trash2, FileVideo, CheckCircle2, AlertTriangle, Play, Pause, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -65,20 +66,8 @@ const MAX_NARRATION_CHARS = 400; // mirrors backend/app/api/story.py's cap
 let hasShownStoryDraftToast = false;
 const MIN_NARRATION_RATE = 80; // mirrors backend/app/api/story.py's MIN/MAX_NARRATION_RATE
 const MAX_NARRATION_RATE = 320;
-// What a voice preview reads when the clip doesn't have any narration
-// script typed in yet — previewing how a voice sounds shouldn't require
-// writing the real script first.
-const VOICE_PREVIEW_SAMPLE_TEXT = "This is a quick preview of this voice.";
-
-const VOICE_OPTIONS = [
-  { id: "neutral", label: "Neutral" },
-  { id: "woman", label: "Woman" },
-  { id: "man", label: "Man" },
-];
-const FIT_OPTIONS = [
-  { id: "extend", label: "Extend clip", hint: "Clip holds longer if the voice-over runs past it — speech is never cut off." },
-  { id: "cut", label: "Cut to length", hint: "Voice-over stops at the clip's own length, even mid-sentence." },
-];
+const VOICE_OPTIONS = ["neutral", "woman", "man"];
+const FIT_OPTIONS = ["extend", "cut"];
 
 // A friendly default name for a brand-new story — not required to be
 // unique, the switcher also shows when it was last touched and how many
@@ -116,14 +105,14 @@ async function hydrateClips(savedClips) {
   }));
 }
 
-function relativeTime(ts) {
+function relativeTime(ts, t) {
   if (!ts) return "";
   const diffMin = Math.round((Date.now() - ts) / 60000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 1) return t("brandStory.justNow");
+  if (diffMin < 60) return t("brandStory.minutesAgo", { n: diffMin });
   const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  return `${Math.round(diffHr / 24)}d ago`;
+  if (diffHr < 24) return t("brandStory.hoursAgo", { n: diffHr });
+  return t("common.daysAgo", { n: Math.round(diffHr / 24) });
 }
 
 // Same 0-100 scale as the resume side's ATS score — a warning, never a
@@ -131,7 +120,6 @@ function relativeTime(ts) {
 // post" does. The verdict/score/issues themselves are computed server-
 // side (backend/app/utils/video_quality.py) against the ACTUAL rendered
 // file, not what the editor was told to do.
-const SEVERITY_LABEL = { critical: "Critical", moderate: "Moderate", minor: "Minor" };
 const SEVERITY_STYLE = {
   critical: "border-destructive/30 bg-destructive/[0.05] text-destructive",
   moderate: "border-warning/30 bg-warning/[0.06] text-warning",
@@ -160,27 +148,29 @@ function clipIndexAtTime(clips, t) {
 }
 
 function QualityReportPanel({ report, onSeekTo }) {
+  const { t } = useLanguage();
   if (!report) return null;
   const { score, verdict, issues } = report;
   const ready = verdict === "ready";
+  const severityLabel = (s) => t(`brandStory.severity.${s}`) || s;
   return (
     <div className="grid gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Quality check</span>
+        <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandStory.qualityCheck")}</span>
         <div className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-bold ${ready ? "border-success/30 bg-success/[0.08] text-success" : "border-warning/30 bg-warning/[0.08] text-warning"}`}>
           {ready ? <CheckCircle2 className="size-3.5" /> : <AlertTriangle className="size-3.5" />}
-          {score}/100 — {ready ? "Ready to post" : "Needs review"}
+          {score}/100 — {ready ? t("brandStory.readyToPost") : t("brandStory.needsReview")}
         </div>
       </div>
       {issues.length === 0 ? (
-        <p className="m-0 text-[11.5px] text-muted-foreground">Nothing to flag — captions, sync, cuts, and audio all check out.</p>
+        <p className="m-0 text-[11.5px] text-muted-foreground">{t("brandStory.nothingToFlag")}</p>
       ) : (
         <div className="grid gap-1.5">
           {issues.map((issue, i) => (
             <button key={i} type="button" onClick={() => onSeekTo(issue.timestamp)}
               className={`flex items-start gap-2.5 rounded-lg border p-2.5 text-left ${SEVERITY_STYLE[issue.severity] || SEVERITY_STYLE.minor}`}>
               <span className="mt-0.5 shrink-0 rounded-full border border-current/30 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase">
-                {SEVERITY_LABEL[issue.severity] || issue.severity}
+                {severityLabel(issue.severity)}
               </span>
               <span className="min-w-0 flex-1 text-[11.5px] leading-snug text-foreground">{issue.message}</span>
               <span className="shrink-0 font-mono text-[10.5px] font-bold">{formatTimestamp(issue.timestamp)}</span>
@@ -193,6 +183,7 @@ function QualityReportPanel({ report, onSeekTo }) {
 }
 
 function VoiceOverField({ clip, onPatch, onApplyToAll }) {
+  const { t } = useLanguage();
   const captionText = clip.captionLayers?.[0]?.text || "";
   const voice = clip.narrationVoice || "neutral";
   const rate = clip.narrationRate || 165;
@@ -245,7 +236,7 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
     setPreview({ voiceId, status: "loading" });
     try {
       const entry = await getNarrationPreview({
-        text: (clip.narrationText || "").trim() || VOICE_PREVIEW_SAMPLE_TEXT,
+        text: (clip.narrationText || "").trim() || t("brandStory.voicePreviewSampleText"),
         voice: voiceId, rate, pitch,
       });
       if (!entry) throw new Error("no preview entry");
@@ -253,7 +244,7 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
       await audio.play();
       setPreview({ voiceId, status: "playing" });
     } catch {
-      toast.error("Couldn't preview that voice right now.");
+      toast.error(t("brandStory.couldntPreviewVoice"));
       setPreview({ voiceId: null, status: null });
     }
   };
@@ -262,18 +253,18 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
     <div className="grid gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">
-          <Volume2 className="size-3.5" /> Voice-over
+          <Volume2 className="size-3.5" /> {t("brandStory.voiceOver")}
         </span>
         <div className="flex items-center gap-3">
           {captionText && (
             <button type="button" onClick={() => onPatch({ narrationText: captionText })} className="text-[11px] font-semibold text-primary">
-              Use caption text
+              {t("brandStory.useCaptionText")}
             </button>
           )}
           {/* Silences without losing the typed script or any other
               setting here — flip it back on and everything (voice,
               speed, tone, volume) is exactly as it was. */}
-          <button type="button" onClick={() => onPatch({ narrationMuted: !muted })} aria-pressed={muted} title={muted ? "Unmute" : "Mute"}
+          <button type="button" onClick={() => onPatch({ narrationMuted: !muted })} aria-pressed={muted} title={muted ? t("brandStory.unmute") : t("brandStory.mute")}
             className={`flex size-8 items-center justify-center rounded-full ${muted ? "bg-destructive/10 text-destructive" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
             {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
           </button>
@@ -282,7 +273,7 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
       <Textarea
         value={clip.narrationText || ""}
         onChange={(e) => onPatch({ narrationText: e.target.value.slice(0, MAX_NARRATION_CHARS) })}
-        rows={2} placeholder="What should be read aloud for this clip — leave blank for silence"
+        rows={2} placeholder={t("brandStory.narrationPlaceholder")}
         className="resize-none rounded-[10px] text-[13px]"
       />
       <p className="m-0 -mt-2 text-right text-[10.5px] text-muted-foreground/60">
@@ -299,14 +290,14 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
           <button type="button" onClick={() => onPatch({ keepOriginalAudio: clip.keepOriginalAudio === false })}
             aria-pressed={clip.keepOriginalAudio !== false}
             className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-[11.5px] font-bold ${clip.keepOriginalAudio !== false ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-            Keep this clip's original sound
-            <span className="font-mono text-[10px] font-normal">{clip.keepOriginalAudio !== false ? "On" : "Off"}</span>
+            {t("brandStory.keepOriginalSound")}
+            <span className="font-mono text-[10px] font-normal">{clip.keepOriginalAudio !== false ? t("brandStory.on") : t("brandStory.off")}</span>
           </button>
           {/* Same 0-200% range and gain as the voice-over's own Volume
               slider — dimmed the same way while the toggle above is Off. */}
           <div className={clip.keepOriginalAudio === false ? "pointer-events-none opacity-40" : ""}>
             <label className="mb-1.5 block text-[11px] font-bold text-foreground">
-              Original sound volume <span className="font-mono text-[9.5px] font-normal text-muted-foreground">{Math.round((clip.originalAudioVolume ?? 1) * 100)}%</span>
+              {t("brandStory.originalSoundVolume")} <span className="font-mono text-[9.5px] font-normal text-muted-foreground">{Math.round((clip.originalAudioVolume ?? 1) * 100)}%</span>
             </label>
             <input type="range" min="0" max="2" step="0.05" value={clip.originalAudioVolume ?? 1}
               onChange={(e) => onPatch({ originalAudioVolume: Number(e.target.value) })} className="w-full accent-primary" />
@@ -319,24 +310,25 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
           instead of leaving every control looking live when it isn't. */}
       <div className={`grid gap-3 ${muted ? "pointer-events-none opacity-40" : ""}`}>
         <div>
-          <p className="m-0 mb-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Voice</p>
+          <p className="m-0 mb-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandStory.voice")}</p>
           {/* Two separate hit targets per option, not one button — tapping
               the label SELECTS the voice for this clip (unchanged
               behavior); the small play icon PREVIEWS it without touching
               the selection, so trying out Woman or Man doesn't commit to
               either until you actually tap its label. */}
           <div className="flex flex-wrap gap-1.5">
-            {VOICE_OPTIONS.map((v) => {
-              const selected = voice === v.id;
-              const isThis = preview.voiceId === v.id;
+            {VOICE_OPTIONS.map((id) => {
+              const selected = voice === id;
+              const isThis = preview.voiceId === id;
+              const voiceLabel = t(`brandStory.voiceOption.${id}`);
               return (
-                <div key={v.id}
+                <div key={id}
                   className={`flex items-center gap-0.5 rounded-full border py-1 pr-1 pl-3 ${selected ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-                  <button type="button" onClick={() => onPatch({ narrationVoice: v.id })} aria-pressed={selected} className="text-[11.5px] font-bold">
-                    {v.label}
+                  <button type="button" onClick={() => onPatch({ narrationVoice: id })} aria-pressed={selected} className="text-[11.5px] font-bold">
+                    {voiceLabel}
                   </button>
-                  <button type="button" onClick={() => previewVoice(v.id)}
-                    title={isThis && preview.status === "playing" ? `Stop previewing ${v.label.toLowerCase()}` : `Preview the ${v.label.toLowerCase()} voice`}
+                  <button type="button" onClick={() => previewVoice(id)}
+                    title={isThis && preview.status === "playing" ? t("brandStory.stopPreviewingVoice", { voice: voiceLabel.toLowerCase() }) : t("brandStory.previewVoice", { voice: voiceLabel.toLowerCase() })}
                     className="flex size-6 shrink-0 items-center justify-center rounded-full hover:bg-white/10">
                     {isThis && preview.status === "loading" ? (
                       <Loader2 className="size-3.5 animate-spin" />
@@ -355,14 +347,14 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
         <div className="grid grid-cols-3 gap-2.5">
           <div>
             <label className="mb-1.5 block text-[11px] font-bold text-foreground">
-              Speed <span className="block font-mono text-[9.5px] font-normal text-muted-foreground">{rate <= 130 ? "Slow" : rate >= 210 ? "Fast" : "Normal"}</span>
+              {t("brandStory.speed")} <span className="block font-mono text-[9.5px] font-normal text-muted-foreground">{rate <= 130 ? t("brandStory.slow") : rate >= 210 ? t("brandStory.fast") : t("brandStory.normal")}</span>
             </label>
             <input type="range" min={MIN_NARRATION_RATE} max={MAX_NARRATION_RATE} step="5" value={rate}
               onChange={(e) => onPatch({ narrationRate: Number(e.target.value) })} className="w-full accent-primary" />
           </div>
           <div>
             <label className="mb-1.5 block text-[11px] font-bold text-foreground">
-              Tone <span className="block font-mono text-[9.5px] font-normal text-muted-foreground">{pitch <= 33 ? "Low" : pitch >= 66 ? "High" : "Mid"}</span>
+              {t("brandStory.tone")} <span className="block font-mono text-[9.5px] font-normal text-muted-foreground">{pitch <= 33 ? t("brandStory.low") : pitch >= 66 ? t("brandStory.high") : t("brandStory.mid")}</span>
             </label>
             <input type="range" min="0" max="99" step="1" value={pitch}
               onChange={(e) => onPatch({ narrationPitch: Number(e.target.value) })} className="w-full accent-primary" />
@@ -374,7 +366,7 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
                 "Volume" read as duplicates of each other at a glance
                 instead of the two genuinely different things they are. */}
             <label className="mb-1.5 block text-[11px] font-bold text-foreground">
-              Voice volume <span className="block font-mono text-[9.5px] font-normal text-muted-foreground">{Math.round(volume * 100)}%</span>
+              {t("brandStory.voiceVolume")} <span className="block font-mono text-[9.5px] font-normal text-muted-foreground">{Math.round(volume * 100)}%</span>
             </label>
             <input type="range" min="0" max="2" step="0.05" value={volume}
               onChange={(e) => onPatch({ narrationVolume: Number(e.target.value) })} className="w-full accent-primary" />
@@ -382,12 +374,12 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
         </div>
 
         <div>
-          <p className="m-0 mb-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">If it runs long</p>
+          <p className="m-0 mb-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandStory.ifItRunsLong")}</p>
           <div className="flex flex-wrap gap-1.5">
-            {FIT_OPTIONS.map((f) => (
-              <button key={f.id} type="button" onClick={() => onPatch({ narrationFit: f.id })} aria-pressed={fit === f.id} title={f.hint}
-                className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${fit === f.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-                {f.label}
+            {FIT_OPTIONS.map((id) => (
+              <button key={id} type="button" onClick={() => onPatch({ narrationFit: id })} aria-pressed={fit === id} title={t(`brandStory.fitHint.${id}`)}
+                className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${fit === id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
+                {t(`brandStory.fitLabel.${id}`)}
               </button>
             ))}
           </div>
@@ -401,7 +393,7 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
       {onApplyToAll && (
         <button type="button" onClick={onApplyToAll}
           className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-[11.5px] font-bold text-muted-foreground hover:border-primary/30 hover:text-primary">
-          <Copy className="size-3.5" /> Apply voice, speed, tone & volume to all clips
+          <Copy className="size-3.5" /> {t("brandStory.applyVoiceSettingsToAll")}
         </button>
       )}
     </div>
@@ -415,26 +407,27 @@ function VoiceOverField({ clip, onPatch, onApplyToAll }) {
 // call (Groq's hosted Whisper — see backend/app/api/story.py), and
 // silently firing one per upload isn't something to spend without asking.
 function TranscribeButton({ clip, onTranscribed }) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const run = async () => {
     setLoading(true);
     try {
       const result = await transcribeClip(clip.file);
       if (!result.text) {
-        toast.error("Couldn't make out any speech in this clip.");
+        toast.error(t("brandStory.noSpeechDetected"));
         return;
       }
       onTranscribed(result);
-      toast.success("Caption filled in from the clip's own audio.");
-    } catch (e) {
-      toast.error(e.message || "Transcription failed.");
+      toast.success(t("brandStory.captionFilledFromAudio"));
+    } catch {
+      toast.error(t("brandStory.transcriptionFailed"));
     } finally {
       setLoading(false);
     }
   };
   return (
     <Btn small variant="ghost" onClick={run} disabled={loading} loading={loading}>
-      <Captions className="size-3.5" /> Transcribe this clip's speech
+      <Captions className="size-3.5" /> {t("brandStory.transcribeThisClip")}
     </Btn>
   );
 }
@@ -449,6 +442,7 @@ function TranscribeButton({ clip, onTranscribed }) {
 // glance — with several similar-looking clips, "Clip 3 of 6" alone isn't
 // always enough to be sure.
 function EditClipNav({ clips, selectedIndex, onSelect }) {
+  const { t } = useLanguage();
   const index = selectedIndex ?? 0;
   const clip = clips[index];
   const canvasRef = useRef(null);
@@ -458,14 +452,14 @@ function EditClipNav({ clips, selectedIndex, onSelect }) {
   const navBtnClass = "flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground";
   return (
     <div className="mb-3 flex items-center gap-2 rounded-xl border border-border bg-card p-2">
-      <button type="button" onClick={() => onSelect(Math.max(0, index - 1))} disabled={index <= 0} title="Previous clip" className={navBtnClass}>
+      <button type="button" onClick={() => onSelect(Math.max(0, index - 1))} disabled={index <= 0} title={t("brandStory.previousClip")} className={navBtnClass}>
         <ChevronLeft className="size-4" />
       </button>
       <canvas ref={canvasRef} className="size-9 shrink-0 rounded-md bg-muted object-cover" />
       <span className="min-w-0 flex-1 text-center text-[12px] font-bold text-foreground">
-        Clip {index + 1} <span className="font-normal text-muted-foreground">of {clips.length}</span>
+        {t("brandStory.clipNumber", { n: index + 1 })} <span className="font-normal text-muted-foreground">{t("brandStory.ofTotalClips", { n: clips.length })}</span>
       </span>
-      <button type="button" onClick={() => onSelect(Math.min(clips.length - 1, index + 1))} disabled={index >= clips.length - 1} title="Next clip" className={navBtnClass}>
+      <button type="button" onClick={() => onSelect(Math.min(clips.length - 1, index + 1))} disabled={index >= clips.length - 1} title={t("brandStory.nextClip")} className={navBtnClass}>
         <ChevronRight className="size-4" />
       </button>
     </div>
@@ -473,6 +467,7 @@ function EditClipNav({ clips, selectedIndex, onSelect }) {
 }
 
 export function StoryComposer({ accent = DEFAULT_ACCENT }) {
+  const { t } = useLanguage();
   const { isPhone } = useViewport();
   const [clips, setClipsRaw] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(null);
@@ -613,7 +608,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
         // toasts). hasShownStoryDraftToast is a plain module variable,
         // not React state, so it only resets on an actual page load.
         if (!hasShownStoryDraftToast) {
-          toast.success(`Picked up where you left off — ${restored.length} clip${restored.length === 1 ? "" : "s"} restored.`);
+          toast.success(t(restored.length === 1 ? "brandStory.restoredOne" : "brandStory.restoredOther", { n: restored.length }));
           hasShownStoryDraftToast = true;
         }
       } catch {
@@ -673,7 +668,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   const startNewStory = async () => {
     await persistCurrentStory();
     resetComposerState(newStoryId(), makeStoryName());
-    toast.success("Started a new story — your other one is saved.");
+    toast.success(t("brandStory.startedNewStory"));
   };
 
   const refreshStoriesList = async () => setStoriesList(await listStoryDrafts());
@@ -687,10 +682,11 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     if (id === storyId) { setStoriesOpen(false); return; }
     await persistCurrentStory();
     const draft = await loadStoryDraft(id);
+    const name = draft?.name || t("brandStory.untitledStory");
     const restored = draft?.clips?.length ? await hydrateClips(draft.clips) : [];
-    resetComposerState(id, draft?.name || "Untitled story", restored, draft?.platformId || "story", draft?.outputFormat || "mp4", draft?.transition || "cut");
+    resetComposerState(id, name, restored, draft?.platformId || "story", draft?.outputFormat || "mp4", draft?.transition || "cut");
     setStoriesOpen(false);
-    toast.success(`Switched to "${draft?.name || "Untitled story"}".`);
+    toast.success(t("brandStory.switchedToStory", { name }));
   };
 
   const deleteStory = async (id, e) => {
@@ -698,7 +694,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     await deleteStoryDraft(id);
     if (id === storyId) resetComposerState(newStoryId(), makeStoryName());
     await refreshStoriesList();
-    toast.success("Deleted.");
+    toast.success(t("brandStory.deleted"));
   };
 
   const handleAdd = (clip) => {
@@ -720,14 +716,14 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     try {
       for (const file of files) {
         if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
-          toast.error(`${file.name}: not an image or video.`);
+          toast.error(t("brandStory.notImageOrVideo", { name: file.name }));
           continue;
         }
         const loaded = await loadClipFromFile(file);
         handleAdd(makeClip(loaded));
       }
-    } catch (e) {
-      toast.error(e.message || "Couldn't read that file.");
+    } catch {
+      toast.error(t("brandStory.couldntReadFile"));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -757,7 +753,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
 
   const addCaption = () => {
     if (selectedIndex == null) return;
-    const layer = makeTextLayer({ text: "Your caption" });
+    const layer = makeTextLayer({ text: t("brandStory.yourCaption") });
     setClips((cs) => cs.map((c, i) => (i === selectedIndex ? { ...c, captionLayers: [layer] } : c)));
   };
   const updateCaption = (nextLayer) => {
@@ -778,7 +774,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
     setClips((cs) => cs.map((c, i) => (i === selectedIndex ? { ...c, captionLayers: [] } : c)));
   };
   const applyCaptionSuggestion = (data) => {
-    if (selectedIndex == null) { toast.error("Select a clip first."); return; }
+    if (selectedIndex == null) { toast.error(t("brandStory.selectClipFirst")); return; }
     const text = data.headline || data.subtext || data.eyebrow || "";
     if (!text) return;
     const layer = makeTextLayer({ text });
@@ -841,7 +837,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
       narrationPitch: src.narrationPitch, narrationFit: src.narrationFit,
       narrationVolume: src.narrationVolume,
     })));
-    toast.success(`Applied to all ${clips.length} clips.`);
+    toast.success(t("brandStory.appliedToAllClips", { n: clips.length }));
   };
 
   // Caption + Voice only — Export deliberately isn't a third tab here
@@ -862,8 +858,8 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   const controlsPanel = (
     <Tabs value={controlTab} onValueChange={setControlTab} className="gap-3">
       <TabsList className="w-full">
-        <TabsTrigger value="caption">Caption</TabsTrigger>
-        <TabsTrigger value="voice">Voice</TabsTrigger>
+        <TabsTrigger value="caption">{t("brandStory.captionTab")}</TabsTrigger>
+        <TabsTrigger value="voice">{t("brandStory.voice")}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="caption" className="grid gap-4">
@@ -876,12 +872,12 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
             <LayerPanel layer={selectedCaption} onChange={updateCaption} onDelete={removeCaption} accent={accent} showKaraoke />
           ) : (
             <Btn variant="ghost" onClick={addCaption}>
-              <Plus className="size-4" /> Add a caption to this clip
+              <Plus className="size-4" /> {t("brandStory.addCaptionToClip")}
             </Btn>
           )
         ) : (
           <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
-            Select a clip to caption it
+            {t("brandStory.selectClipToCaption")}
           </p>
         )}
       </TabsContent>
@@ -891,7 +887,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
           <VoiceOverField clip={selectedClip} onPatch={updateNarration} onApplyToAll={clips.length > 1 ? applyVoiceSettingsToAll : null} />
         ) : (
           <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
-            Select a clip to add a voice-over
+            {t("brandStory.selectClipToVoiceOver")}
           </p>
         )}
       </TabsContent>
@@ -921,13 +917,13 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   const preview = (
     <div ref={previewBlockRef} className="grid gap-2">
       <div className="flex items-center justify-between">
-        <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Preview</p>
+        <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandStory.preview")}</p>
         <div className="flex items-center gap-1">
-          <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
+          <button type="button" onClick={undo} disabled={!canUndo} title={t("brandStory.undo")}
             className="flex size-8 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
             <Undo2 className="size-4" />
           </button>
-          <button type="button" onClick={redo} disabled={!canRedo} title="Redo"
+          <button type="button" onClick={redo} disabled={!canRedo} title={t("brandStory.redo")}
             className="flex size-8 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
             <Redo2 className="size-4" />
           </button>
@@ -955,7 +951,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   // whatever's currently open.
   const storyHeader = (
     <div className="flex items-center justify-between gap-2">
-      <p className="m-0 min-w-0 truncate text-[13px] font-bold text-foreground">{storyName || "Story"}</p>
+      <p className="m-0 min-w-0 truncate text-[13px] font-bold text-foreground">{storyName || t("brandStory.story")}</p>
       <div className="flex shrink-0 items-center gap-1.5">
         {/* Add clip lives here now, not down by the clip list — easier to
             find/reach than scrolling past the preview to get to it.
@@ -967,7 +963,7 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
             you get back to a DIFFERENT story at all, vs. New which just
             starts a blank one), so New gives up its label instead. */}
         <button
-          type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} title="Add clip" aria-label="Add clip"
+          type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} title={t("brandStory.addClip")} aria-label={t("brandStory.addClip")}
           className="flex size-11 shrink-0 items-center justify-center rounded-[10px] text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground"
         >
           {uploading ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
@@ -977,10 +973,10 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
           onChange={(e) => handleFiles(e.target.files)}
         />
         <Btn small variant="ghost" onClick={openStoriesPanel}>
-          <ListVideo className="size-3.5" /> My Stories
+          <ListVideo className="size-3.5" /> {t("brandStory.myStories")}
         </Btn>
         <button
-          type="button" onClick={startNewStory} title="New story" aria-label="New story"
+          type="button" onClick={startNewStory} title={t("brandStory.newStory")} aria-label={t("brandStory.newStory")}
           className="flex size-11 shrink-0 items-center justify-center rounded-[10px] text-muted-foreground enabled:hover:bg-muted enabled:hover:text-foreground"
         >
           <FilePlus2 className="size-4" />
@@ -990,11 +986,11 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
   );
 
   const storiesPanel = (
-    <BottomSheet open={storiesOpen} onClose={() => setStoriesOpen(false)} title="My Stories">
+    <BottomSheet open={storiesOpen} onClose={() => setStoriesOpen(false)} title={t("brandStory.myStories")}>
       <div className="grid gap-2 p-4">
         {storiesList.length === 0 ? (
           <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
-            No other saved stories yet.
+            {t("brandStory.noOtherSavedStories")}
           </p>
         ) : (
           storiesList.map((s) => (
@@ -1011,13 +1007,13 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="m-0 truncate text-[13px] font-bold text-foreground">
-                  {s.name}{s.id === storyId ? " (current)" : ""}
+                  {s.name || t("brandStory.untitledStory")}{s.id === storyId ? ` ${t("brandStory.current")}` : ""}
                 </p>
                 <p className="m-0 text-[11px] text-muted-foreground">
-                  {s.clipCount} clip{s.clipCount === 1 ? "" : "s"} · {relativeTime(s.updatedAt)}
+                  {t(s.clipCount === 1 ? "brandStory.clipCountOne" : "brandStory.clipCountOther", { n: s.clipCount })} · {relativeTime(s.updatedAt, t)}
                 </p>
               </div>
-              <button type="button" onClick={(e) => deleteStory(s.id, e)} title="Delete"
+              <button type="button" onClick={(e) => deleteStory(s.id, e)} title={t("common.delete")}
                 className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive">
                 <Trash2 className="size-4" />
               </button>
@@ -1060,15 +1056,15 @@ export function StoryComposer({ accent = DEFAULT_ACCENT }) {
           <button
             type="button"
             onClick={openEditSheet}
-            aria-label="Edit content & style"
-            title="Edit content & style"
+            aria-label={t("brandStory.editContentStyle")}
+            title={t("brandStory.editContentStyle")}
             className="fixed right-4 z-40 flex size-14 items-center justify-center rounded-full border border-white/[0.14] bg-primary text-primary-foreground shadow-[0_14px_36px_rgba(0,0,0,0.45),0_1px_0_rgba(255,255,255,0.15)_inset] [-webkit-tap-highlight-color:transparent] active:scale-95"
             style={{ bottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}
           >
             <Pencil className="size-5" />
           </button>
         )}
-        <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit" maxHeightPx={sheetMaxHeight}>
+        <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={t("common.edit")} maxHeightPx={sheetMaxHeight}>
           <div className="p-4">
             <EditClipNav clips={clips} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />
             {controlsPanel}

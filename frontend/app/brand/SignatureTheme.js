@@ -21,8 +21,10 @@ import { apiRequest } from "@/components/premium/shared/api";
 import { ACCENT_COLORS } from "@/lib/accentColor";
 import { deriveAccent } from "./postTemplates";
 import { loadSignatureTheme, saveSignatureTheme } from "./assetKit";
+import { useLanguage } from "@/lib/i18n";
 
 export function SignatureTheme({ onLockIn }) {
+  const { t, lang } = useLanguage();
   const [stored, setStored] = useState(null);
   const [proposal, setProposal] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -39,7 +41,7 @@ export function SignatureTheme({ onLockIn }) {
   const generate = async () => {
     setLoading(true);
     try {
-      const monthName = new Date().toLocaleDateString(undefined, { month: "long" });
+      const monthName = new Date().toLocaleDateString(lang, { month: "long" });
       const data = await apiRequest("/api/v1/brand/suggest-theme", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -47,7 +49,7 @@ export function SignatureTheme({ onLockIn }) {
       });
       setProposal(data);
     } catch (e) {
-      toast.error(e.message || "Could not generate a theme right now.");
+      toast.error(e.message || t("brandAssets.couldntGenerateTheme"));
     } finally {
       setLoading(false);
     }
@@ -70,7 +72,7 @@ export function SignatureTheme({ onLockIn }) {
       <div className="mb-1 flex items-center gap-1.5">
         <Sparkles className="size-3.5 text-primary" />
         <p className="m-0 font-mono text-[10.5px] font-bold tracking-[0.14em] text-muted-foreground/60 uppercase">
-          Signature
+          {t("brandAssets.signature")}
         </p>
       </div>
 
@@ -81,22 +83,22 @@ export function SignatureTheme({ onLockIn }) {
             <p className="m-0 text-[14px] font-bold text-foreground">{active.themeName}</p>
             {stored && !proposal && (
               <p className="m-0 mt-2 flex items-center gap-1 text-[11px] font-bold text-primary">
-                <Check className="size-3" /> {new Date().toLocaleDateString(undefined, { month: "long" })}
+                <Check className="size-3" /> {new Date().toLocaleDateString(lang, { month: "long" })}
               </p>
             )}
           </div>
           <div className="flex shrink-0 flex-col gap-1.5">
             {proposal && (
-              <Btn small variant="gold" onClick={lockIn}>Lock in</Btn>
+              <Btn small variant="gold" onClick={lockIn}>{t("brandAssets.lockIn")}</Btn>
             )}
             <Btn small variant="ghost" onClick={generate} disabled={loading} loading={loading}>
-              <RotateCcw className="size-3.5" /> Redo
+              <RotateCcw className="size-3.5" /> {t("brandAssets.redo")}
             </Btn>
           </div>
         </div>
       ) : (
         <Btn variant="gold" onClick={generate} disabled={loading} loading={loading} className="sm:w-auto">
-          <Sparkles className="size-4" /> {loading ? "…" : "Generate"}
+          <Sparkles className="size-4" /> {loading ? "…" : t("brandAssets.generate")}
         </Btn>
       )}
     </div>

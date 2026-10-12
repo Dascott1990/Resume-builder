@@ -12,9 +12,17 @@ import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { apiRequest } from "@/components/premium/shared/api";
+import { useLanguage } from "@/lib/i18n";
 import { loadAiHistory, pushAiHistory } from "./assetKit";
 
 export const MOODS = ["Motivational", "Practical", "Celebratory", "Urgent", "Playful"];
+const MOOD_KEYS = {
+  Motivational: "brandPost.mood.motivational",
+  Practical: "brandPost.mood.practical",
+  Celebratory: "brandPost.mood.celebratory",
+  Urgent: "brandPost.mood.urgent",
+  Playful: "brandPost.mood.playful",
+};
 
 export function timeOfDay(hour) {
   if (hour < 5) return "late night";
@@ -25,6 +33,7 @@ export function timeOfDay(hour) {
 }
 
 export function AiSuggestPanel({ onSuggestion, lockedTemplate }) {
+  const { t } = useLanguage();
   const [mood, setMood] = useState("Motivational");
   const [loading, setLoading] = useState(false);
   const [context, setContext] = useState(null);
@@ -49,7 +58,7 @@ export function AiSuggestPanel({ onSuggestion, lockedTemplate }) {
       pushAiHistory(data.headline);
       onSuggestion(data);
     } catch (e) {
-      toast.error(e.message || "Try again.");
+      toast.error(e.message || t("brandPost.tryAgain"));
     } finally {
       setLoading(false);
     }
@@ -59,18 +68,18 @@ export function AiSuggestPanel({ onSuggestion, lockedTemplate }) {
     <div className="rounded-xl border border-primary/25 bg-primary/[0.04] p-4">
       <div className="mb-2.5 flex items-center gap-1.5">
         <Sparkles className="size-3.5 text-primary" />
-        <span className="font-mono text-[10.5px] font-bold tracking-[0.1em] text-primary uppercase">AI draft</span>
+        <span className="font-mono text-[10.5px] font-bold tracking-[0.1em] text-primary uppercase">{t("brandPost.aiDraft")}</span>
       </div>
       <div className="mb-3 flex flex-wrap gap-1.5">
         {MOODS.map((m) => (
           <button key={m} type="button" onClick={() => setMood(m)} aria-pressed={mood === m}
             className={`rounded-full border px-3 py-1 text-[11.5px] font-semibold ${mood === m ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-            {m}
+            {t(MOOD_KEYS[m])}
           </button>
         ))}
       </div>
       <Btn small variant="gold" onClick={suggest} disabled={loading || !context} loading={loading}>
-        {loading ? "…" : "Suggest"}
+        {loading ? "…" : t("brandPost.suggest")}
       </Btn>
     </div>
   );

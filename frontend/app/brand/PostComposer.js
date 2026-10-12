@@ -33,6 +33,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { BottomSheet } from "@/components/premium/shared/BottomSheet";
 import { useViewport } from "@/lib/useViewport";
 import { apiRequest } from "@/components/premium/shared/api";
+import { useLanguage } from "@/lib/i18n";
 import {
   loadMarkImage, ensureFontsReady, downloadBlob, shareOrDownloadBlobs, resizeImageToDataUrl,
   loadHandle, saveHandle, loadAiHistory, pushAiHistory,
@@ -69,21 +70,22 @@ const SHAPE_DEFAULTS = {
   stat: { eyebrow: "Noqeev · By the numbers", headline: "3 minutes", subtext: "The average time it takes to tailor a resume with Noqeev." },
 };
 
-const makePostName = () => `Post — ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+const makePostName = (t) => `${t("brandPost.postFallbackName")} — ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
 
-function relativeTime(ts) {
+function relativeTime(ts, t) {
   if (!ts) return "";
   const diffMin = Math.round((Date.now() - ts) / 60000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 1) return t("brandPost.justNow");
+  if (diffMin < 60) return t("brandPost.minAgo", { n: diffMin });
   const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  return `${Math.round(diffHr / 24)}d ago`;
+  if (diffHr < 24) return t("brandPost.hourAgo", { n: diffHr });
+  return t("brandPost.dayAgo", { n: Math.round(diffHr / 24) });
 }
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 export function PostComposer({ accent = DEFAULT_ACCENT }) {
+  const { t } = useLanguage();
   const { isPhone } = useViewport();
   const [sheetOpen, setSheetOpen] = useState(false);
   // How tall the Edit sheet is allowed to be, measured fresh every time it
@@ -243,7 +245,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     setPostId(id);
 
     const draft = loadPostDraft(id);
-    setPostName(draft?.name || makePostName());
+    setPostName(draft?.name || makePostName(t));
     if (draft?.layers?.length) {
       setLayersRaw(draft.layers);
       historyRef.current = [draft.layers];
@@ -263,7 +265,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
       // variable, not React state, so it only resets on an actual page
       // load, not a remount.
       if (!hasShownPostDraftToast) {
-        toast.success("Picked up your last post.");
+        toast.success(t("brandPost.pickedUpLastPost"));
         hasShownPostDraftToast = true;
       }
     }
@@ -312,8 +314,8 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
 
   const startNewPost = () => {
     persistCurrentPost();
-    resetComposerState(newPostId(), makePostName());
-    toast.success("Started a new post — your other one is saved.");
+    resetComposerState(newPostId(), makePostName(t));
+    toast.success(t("brandPost.startedNewPost"));
   };
 
   const refreshPostsList = () => setPostsList(listPostDrafts());
@@ -340,17 +342,18 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
     if (id === postId) { setPostsOpen(false); return; }
     persistCurrentPost();
     const draft = loadPostDraft(id);
-    resetComposerState(id, draft?.name || "Untitled post", draft?.layers, draft?.shapeId || "tip", draft?.platformId || "square", draft?.layersByShape);
+    const fallbackName = t("brandPost.untitledPost");
+    resetComposerState(id, draft?.name || fallbackName, draft?.layers, draft?.shapeId || "tip", draft?.platformId || "square", draft?.layersByShape);
     setPostsOpen(false);
-    toast.success(`Switched to "${draft?.name || "Untitled post"}".`);
+    toast.success(t("brandPost.switchedTo", { name: draft?.name || fallbackName }));
   };
 
   const deletePost = (id, e) => {
     e.stopPropagation();
     deletePostDraft(id);
-    if (id === postId) resetComposerState(newPostId(), makePostName());
+    if (id === postId) resetComposerState(newPostId(), makePostName(t));
     refreshPostsList();
-    toast.success("Deleted.");
+    toast.success(t("brandPost.deleted"));
   };
 
   const updateHandle = (v) => { setHandle(v); saveHandle(v); };
@@ -373,7 +376,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   };
 
   const addText = () => {
-    const layer = makeTextLayer({ text: "Your text" });
+    const layer = makeTextLayer({ text: t("brandPost.yourText") });
     setLayers((ls) => [...ls, layer]);
     setSelectedId(layer.id);
     setStickerPickerOpen(false);
@@ -403,7 +406,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
       setGifUrl("");
       setGifUrlOpen(false);
     } catch {
-      toast.error("Couldn't load that link.");
+      toast.error(t("brandPost.couldntLoadLink"));
     } finally {
       setGifLoading(false);
     }
@@ -429,8 +432,8 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
       setLayers((ls) => [...ls, layer]);
       setSelectedId(layer.id);
       setStickerPickerOpen(false);
-    } catch (e) {
-      toast.error(e.message || "Couldn't load that image.");
+    } catch {
+      toast.error(t("brandPost.couldntLoadImage"));
     } finally {
       setUploadLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -623,9 +626,9 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const copyCaption = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("Caption copied.");
+      toast.success(t("brandPost.captionCopied"));
     } catch {
-      toast.error("Couldn't copy — select and copy the text manually.");
+      toast.error(t("brandPost.couldntCopyManual"));
     }
   };
 
@@ -651,10 +654,10 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
         i += 1;
         if (i < selectedShapeIds.size) await new Promise((r) => setTimeout(r, 350));
       }
-      toast.success(selectedShapeIds.size === 1 ? "Downloaded." : `Downloaded ${selectedShapeIds.size} images.`);
+      toast.success(selectedShapeIds.size === 1 ? t("brandPost.downloaded") : t("brandPost.downloadedCount", { n: selectedShapeIds.size }));
       setDownloadPreviewOpen(false);
     } catch {
-      toast.error("Try again.");
+      toast.error(t("brandPost.tryAgain"));
     } finally {
       setDownloadingSelected(false);
     }
@@ -669,19 +672,19 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
         const blob = await (await fetch(shapePreviews[id])).blob();
         items.push({ blob, filename: shapeFilename(id) });
       }
-      const shareText = selectedShapeIds.size > 1 ? "My posts, made with Noqeev" : "My post, made with Noqeev";
+      const shareText = selectedShapeIds.size > 1 ? t("brandPost.shareTextMultiple") : t("brandPost.shareTextSingle");
       const result = await shareOrDownloadBlobs(items, shareText);
-      if (result === "downloaded") toast.success("Sharing wasn't available here — downloaded instead.");
-      else if (result === "shared") { toast.success("Shared."); setDownloadPreviewOpen(false); }
+      if (result === "downloaded") toast.success(t("brandPost.sharingUnavailable"));
+      else if (result === "shared") { toast.success(t("brandPost.shared")); setDownloadPreviewOpen(false); }
     } catch {
-      toast.error("Try again.");
+      toast.error(t("brandPost.tryAgain"));
     } finally {
       setSharingSelected(false);
     }
   };
 
   const sendSelectedEmail = async () => {
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailAddress.trim())) { toast.error("Invalid email."); return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailAddress.trim())) { toast.error(t("brandPost.invalidEmail")); return; }
     if (!selectedShapeIds.size) return;
     setSendingEmail(true);
     try {
@@ -692,11 +695,11 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
         body: JSON.stringify({ to_email: emailAddress.trim(), images }),
       });
       try { localStorage.setItem(LAST_EMAIL_KEY, emailAddress.trim()); } catch { /* best-effort */ }
-      toast.success(`Sent to ${emailAddress.trim()}`);
+      toast.success(t("brandPost.sentTo", { email: emailAddress.trim() }));
       setEmailDialogOpen(false);
       setDownloadPreviewOpen(false);
-    } catch (e) {
-      toast.error(e.message || "Send failed.");
+    } catch {
+      toast.error(t("brandPost.sendFailed"));
     } finally {
       setSendingEmail(false);
     }
@@ -716,11 +719,11 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   const canvasBlock = (
     <>
       <div className="flex w-full max-w-[560px] items-center justify-end gap-1">
-        <button type="button" onClick={undo} disabled={!canUndo} title="Undo"
+        <button type="button" onClick={undo} disabled={!canUndo} title={t("brandPost.undo")}
           className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
           <Undo2 className="size-4" />
         </button>
-        <button type="button" onClick={redo} disabled={!canRedo} title="Redo"
+        <button type="button" onClick={redo} disabled={!canRedo} title={t("brandPost.redo")}
           className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
           <Redo2 className="size-4" />
         </button>
@@ -764,10 +767,10 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
         )}
       </div>
       <div className="flex flex-wrap items-center justify-center gap-1.5">
-        {Object.entries(PLATFORMS).map(([id, r]) => (
-          <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={r.sub}
+        {Object.entries(PLATFORMS).map(([id]) => (
+          <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={t(`brandPost.platform.${id}.sub`)}
             className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${platformId === id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-            {r.label}
+            {t(`brandPost.platform.${id}.label`)}
           </button>
         ))}
       </div>
@@ -779,25 +782,25 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
       <AiSuggestPanel onSuggestion={applySuggestion} lockedTemplate={shapeId} />
 
       <div>
-        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Start from</p>
+        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandPost.startFrom")}</p>
         <div className="grid grid-cols-3 gap-1.5">
           {SHAPES.map((s) => (
             <button key={s.id} type="button" onClick={() => switchShape(s.id)} aria-pressed={shapeId === s.id}
               className={`rounded-lg border px-2 py-2 text-center ${shapeId === s.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-card text-foreground"}`}>
-              <span className="text-[12px] font-bold">{s.label}</span>
+              <span className="text-[12px] font-bold">{t(`brandPost.shape.${s.id}`)}</span>
             </button>
           ))}
         </div>
       </div>
 
       <div>
-        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Add</p>
+        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandPost.add")}</p>
         <div className="flex flex-wrap gap-1.5">
-          <Btn small variant="ghost" onClick={addText}><Type className="size-3.5" /> Text</Btn>
-          <Btn small variant="ghost" onClick={() => { setStickerPickerOpen((v) => !v); setGifUrlOpen(false); }}><Smile className="size-3.5" /> Emoji</Btn>
-          <Btn small variant="ghost" onClick={() => { setGifUrlOpen((v) => !v); setStickerPickerOpen(false); }}><ImagePlus className="size-3.5" /> GIF / Image</Btn>
+          <Btn small variant="ghost" onClick={addText}><Type className="size-3.5" /> {t("brandPost.text")}</Btn>
+          <Btn small variant="ghost" onClick={() => { setStickerPickerOpen((v) => !v); setGifUrlOpen(false); }}><Smile className="size-3.5" /> {t("brandPost.emoji")}</Btn>
+          <Btn small variant="ghost" onClick={() => { setGifUrlOpen((v) => !v); setStickerPickerOpen(false); }}><ImagePlus className="size-3.5" /> {t("brandPost.gifImage")}</Btn>
           <Btn small variant="ghost" onClick={() => fileInputRef.current?.click()} disabled={uploadLoading} loading={uploadLoading}>
-            <Upload className="size-3.5" /> Upload
+            <Upload className="size-3.5" /> {t("brandPost.upload")}
           </Btn>
           <input
             ref={fileInputRef} type="file" accept="image/*" className="hidden"
@@ -815,8 +818,8 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
         )}
         {gifUrlOpen && (
           <div className="mt-2 flex gap-1.5">
-            <Input value={gifUrl} onChange={(e) => setGifUrl(e.target.value)} placeholder="Image/GIF link" className="h-9 rounded-[8px] text-[12.5px]" onKeyDown={(e) => { if (e.key === "Enter") addGif(); }} />
-            <Btn small variant="gold" onClick={addGif} disabled={gifLoading} loading={gifLoading}>Add</Btn>
+            <Input value={gifUrl} onChange={(e) => setGifUrl(e.target.value)} placeholder={t("brandPost.imageGifLinkPlaceholder")} className="h-9 rounded-[8px] text-[12.5px]" onKeyDown={(e) => { if (e.key === "Enter") addGif(); }} />
+            <Btn small variant="gold" onClick={addGif} disabled={gifLoading} loading={gifLoading}>{t("brandPost.add")}</Btn>
           </div>
         )}
       </div>
@@ -829,12 +832,12 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
         />
       ) : (
         <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
-          Tap to style
+          {t("brandPost.tapToStyle")}
         </p>
       )}
 
       <div>
-        <label className="mb-1.5 block text-[11.5px] font-bold tracking-wide text-foreground">Handle</label>
+        <label className="mb-1.5 block text-[11.5px] font-bold tracking-wide text-foreground">{t("brandPost.handle")}</label>
         <Input value={handle} onChange={(e) => updateHandle(e.target.value)} className="h-10 rounded-[10px] text-[13.5px]" />
       </div>
     </div>
@@ -847,20 +850,21 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
           ever acting on whichever single shape happened to be open
           while Download got the full pick-and-choose treatment. */}
       <Btn variant="gold" onClick={openDownloadPreview} disabled={!ready} className="flex-1">
-        <Download className="size-4" /> Export
+        <Download className="size-4" /> {t("brandPost.export")}
       </Btn>
 
       <Dialog open={downloadPreviewOpen} onOpenChange={setDownloadPreviewOpen}>
         <DialogContent showCloseButton className="w-full max-w-[440px] gap-0 p-0">
           <div className="max-h-[85vh] overflow-y-auto p-5">
-            <p className="m-0 mb-1 text-[14px] font-bold text-foreground">Choose which posts</p>
+            <p className="m-0 mb-1 text-[14px] font-bold text-foreground">{t("brandPost.chooseWhichPosts")}</p>
             <p className="m-0 mb-4 text-[12.5px] text-muted-foreground">
-              Three independent posts — pick any or all, then download, share, or email them.
+              {t("brandPost.threeIndependentPosts")}
             </p>
 
             <div className="grid grid-cols-3 gap-2.5">
               {SHAPES.map((s) => {
                 const selected = selectedShapeIds.has(s.id);
+                const shapeLabel = t(`brandPost.shape.${s.id}`);
                 return (
                   <button
                     key={s.id} type="button" onClick={() => toggleShapeSelected(s.id)} aria-pressed={selected}
@@ -868,12 +872,12 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
                   >
                     {shapePreviews?.[s.id] && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={shapePreviews[s.id]} alt={s.label} className="aspect-square w-full object-cover" />
+                      <img src={shapePreviews[s.id]} alt={shapeLabel} className="aspect-square w-full object-cover" />
                     )}
                     <div className={`absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full border ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background/80"}`}>
                       {selected && <Check className="size-3" strokeWidth={3} />}
                     </div>
-                    <p className="m-0 border-t border-border bg-card px-1.5 py-1 text-center text-[11px] font-bold text-foreground">{s.label}</p>
+                    <p className="m-0 border-t border-border bg-card px-1.5 py-1 text-center text-[11px] font-bold text-foreground">{shapeLabel}</p>
                   </button>
                 );
               })}
@@ -885,14 +889,14 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
                 disabled={!selectedShapeIds.size || downloadingSelected || sharingSelected} loading={downloadingSelected}
               >
                 <Download className="size-4" />
-                {downloadingSelected ? "…" : selectedShapeIds.size ? `Download (${selectedShapeIds.size})` : "Select at least one"}
+                {downloadingSelected ? "…" : selectedShapeIds.size ? t("brandPost.downloadCount", { n: selectedShapeIds.size }) : t("brandPost.selectAtLeastOne")}
               </Btn>
               {CAN_SHARE_FILES && (
-                <Btn small variant="ghost" onClick={handleShareSelected} disabled={!selectedShapeIds.size || downloadingSelected || sharingSelected} loading={sharingSelected} aria-label="Share selected posts">
+                <Btn small variant="ghost" onClick={handleShareSelected} disabled={!selectedShapeIds.size || downloadingSelected || sharingSelected} loading={sharingSelected} aria-label={t("brandPost.shareSelectedPosts")}>
                   <Share2 className="size-4" />
                 </Btn>
               )}
-              <Btn small variant="ghost" onClick={() => setEmailDialogOpen(true)} disabled={!selectedShapeIds.size || downloadingSelected || sharingSelected} aria-label="Email selected posts">
+              <Btn small variant="ghost" onClick={() => setEmailDialogOpen(true)} disabled={!selectedShapeIds.size || downloadingSelected || sharingSelected} aria-label={t("brandPost.emailSelectedPosts")}>
                 <Mail className="size-4" />
               </Btn>
             </div>
@@ -901,15 +905,15 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
               <DialogContent showCloseButton className="w-full max-w-[380px] gap-0 p-0 sm:max-w-[380px]">
                 <div className="p-5">
                   <p className="m-0 mb-3 flex items-center gap-2 text-[14px] font-bold text-foreground">
-                    <Mail className="size-4 text-primary" /> Email {selectedShapeIds.size > 1 ? `${selectedShapeIds.size} posts` : "this post"}
+                    <Mail className="size-4 text-primary" /> {selectedShapeIds.size > 1 ? t("brandPost.emailCountPosts", { n: selectedShapeIds.size }) : t("brandPost.emailThisPost")}
                   </p>
                   <Input
                     type="email" value={emailAddress} onChange={(e) => setEmailAddress(e.target.value)}
-                    placeholder="you@example.com" className="h-11 rounded-[10px]" autoFocus
+                    placeholder={t("auth.emailPlaceholder")} className="h-11 rounded-[10px]" autoFocus
                     onKeyDown={(e) => { if (e.key === "Enter") sendSelectedEmail(); }}
                   />
                   <Btn variant="gold" className="mt-3 w-full" onClick={sendSelectedEmail} disabled={sendingEmail} loading={sendingEmail}>
-                    {sendingEmail ? <Loader2 className="size-4 animate-spin" /> : "Send"}
+                    {sendingEmail ? <Loader2 className="size-4 animate-spin" /> : t("brandPost.send")}
                   </Btn>
                 </div>
               </DialogContent>
@@ -923,7 +927,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
                 three. */}
             <div className="mt-5 border-t border-border pt-4">
               <p className="m-0 mb-2.5 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em] text-muted-foreground/70 uppercase">
-                <Sparkles className="size-3.5 text-primary" /> Captions
+                <Sparkles className="size-3.5 text-primary" /> {t("brandPost.captions")}
               </p>
               {captionsLoading && (
                 <div className="grid gap-2">
@@ -932,22 +936,25 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
               )}
               {!captionsLoading && captions && Object.values(captions).some(Boolean) && (
                 <div className="grid gap-2">
-                  {SHAPES.filter((s) => captions[s.id]).map((s) => (
-                    <div key={s.id} className="rounded-lg border border-border bg-card p-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="m-0 text-[11px] font-bold text-primary">{s.label}</p>
-                        <button type="button" onClick={() => copyCaption(captions[s.id])} aria-label={`Copy ${s.label} caption`}
-                          className="shrink-0 text-muted-foreground hover:text-foreground">
-                          <Copy className="size-3.5" />
-                        </button>
+                  {SHAPES.filter((s) => captions[s.id]).map((s) => {
+                    const shapeLabel = t(`brandPost.shape.${s.id}`);
+                    return (
+                      <div key={s.id} className="rounded-lg border border-border bg-card p-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="m-0 text-[11px] font-bold text-primary">{shapeLabel}</p>
+                          <button type="button" onClick={() => copyCaption(captions[s.id])} aria-label={t("brandPost.copyCaptionAria", { label: shapeLabel })}
+                            className="shrink-0 text-muted-foreground hover:text-foreground">
+                            <Copy className="size-3.5" />
+                          </button>
+                        </div>
+                        <p className="m-0 mt-0.5 text-[12px] leading-snug text-foreground">{captions[s.id]}</p>
                       </div>
-                      <p className="m-0 mt-0.5 text-[12px] leading-snug text-foreground">{captions[s.id]}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
               {!captionsLoading && captions && !Object.values(captions).some(Boolean) && (
-                <p className="m-0 text-[12px] text-muted-foreground">Couldn't write captions right now — the download still works fine.</p>
+                <p className="m-0 text-[12px] text-muted-foreground">{t("brandPost.couldntWriteCaptions")}</p>
               )}
             </div>
 
@@ -956,7 +963,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
                 someone what to do with the file(s) they just downloaded. */}
             <div className="mt-5 border-t border-border pt-4">
               <p className="m-0 mb-2.5 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em] text-muted-foreground/70 uppercase">
-                <Sparkles className="size-3.5 text-primary" /> Suggested posting plan
+                <Sparkles className="size-3.5 text-primary" /> {t("brandPost.suggestedPostingPlan")}
               </p>
               {postingPlanLoading && (
                 <div className="grid gap-2">
@@ -975,10 +982,10 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
                 </div>
               )}
               {!postingPlanLoading && postingPlan?.length === 0 && (
-                <p className="m-0 text-[12px] text-muted-foreground">Couldn't get a suggestion right now — the download still works fine.</p>
+                <p className="m-0 text-[12px] text-muted-foreground">{t("brandPost.couldntGetSuggestion")}</p>
               )}
               <p className="m-0 mt-3 text-[11px] leading-snug text-muted-foreground/70">
-                Guidance only — nothing is scheduled or posted automatically.
+                {t("brandPost.guidanceOnly")}
               </p>
             </div>
           </div>
@@ -992,7 +999,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
   // first having to finish or lose whatever's currently open.
   const postHeader = (
     <div className="flex items-center justify-between gap-2">
-      <p className="m-0 min-w-0 truncate text-[13px] font-bold text-foreground">{postName || "Post"}</p>
+      <p className="m-0 min-w-0 truncate text-[13px] font-bold text-foreground">{postName || t("brandPost.postFallbackName")}</p>
       <div className="flex shrink-0 items-center gap-1.5">
         {/* On phone, Edit sits right here next to My Posts — the same
             "editing tools live at the top of the content, not floating
@@ -1004,28 +1011,28 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
             label was enough to fit all three again. */}
         {isPhone && (
           <button
-            type="button" onClick={openEditSheet} title="Edit content & style" aria-label="Edit content & style"
+            type="button" onClick={openEditSheet} title={t("brandPost.editContentStyle")} aria-label={t("brandPost.editContentStyle")}
             className="flex size-11 shrink-0 items-center justify-center rounded-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Pencil className="size-4" />
           </button>
         )}
         <Btn small variant="ghost" onClick={openPostsPanel}>
-          <Images className="size-3.5" /> My Posts
+          <Images className="size-3.5" /> {t("brandPost.myPosts")}
         </Btn>
         <Btn small variant="ghost" onClick={startNewPost}>
-          <FilePlus2 className="size-3.5" /> New
+          <FilePlus2 className="size-3.5" /> {t("brandPost.new")}
         </Btn>
       </div>
     </div>
   );
 
   const postsPanel = (
-    <BottomSheet open={postsOpen} onClose={() => setPostsOpen(false)} title="My Posts">
+    <BottomSheet open={postsOpen} onClose={() => setPostsOpen(false)} title={t("brandPost.myPosts")}>
       <div className="grid gap-2 p-4">
         {postsList.length === 0 ? (
           <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
-            No other saved posts yet.
+            {t("brandPost.noOtherSavedPosts")}
           </p>
         ) : (
           postsList.map((p) => (
@@ -1040,13 +1047,13 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="m-0 truncate text-[13px] font-bold text-foreground">
-                  {p.name}{p.id === postId ? " (current)" : ""}
+                  {p.name}{p.id === postId ? ` ${t("brandPost.currentSuffix")}` : ""}
                 </p>
                 <p className="m-0 text-[11px] text-muted-foreground">
-                  {p.layerCount} layer{p.layerCount === 1 ? "" : "s"} · {relativeTime(p.updatedAt)}
+                  {p.layerCount === 1 ? t("brandPost.layerCountOne", { n: p.layerCount }) : t("brandPost.layerCountOther", { n: p.layerCount })} · {relativeTime(p.updatedAt, t)}
                 </p>
               </div>
-              <button type="button" onClick={(e) => deletePost(p.id, e)} title="Delete"
+              <button type="button" onClick={(e) => deletePost(p.id, e)} title={t("common.delete")}
                 className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive">
                 <Trash2 className="size-4" />
               </button>
@@ -1069,7 +1076,7 @@ export function PostComposer({ accent = DEFAULT_ACCENT }) {
           {canvasBlock}
         </div>
         {downloadRow}
-        <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit" maxHeightPx={sheetMaxHeight}>
+        <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={t("common.edit")} maxHeightPx={sheetMaxHeight}>
           <div className="p-4">
             {editControls}
           </div>

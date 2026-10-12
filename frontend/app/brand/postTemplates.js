@@ -52,6 +52,10 @@ export const FONT_DEFAULT_WEIGHTS = {
   sans: 700, display: 800, geometric: 800, impact: 400, script: 700, serif: 500,
   anton: 400, oswald: 700, montserrat: 800, mono: 700, rounded: 700, marker: 400, playfair: 800,
 };
+// `label` here is the English fallback only — every render site looks this
+// id up as `t(\`brandPost.font.${id}\`)` instead of reading `.label`
+// directly, since this is a plain data module with no hook access of its
+// own (see lib/i18n.js for the per-language strings).
 export const FONT_OPTIONS = [
   { id: "sans", label: "Clean" },
   { id: "geometric", label: "Modern" },
@@ -157,6 +161,8 @@ export const INITIAL_LAYOUTS = {
     makeTextLayer({ text: subtext || "", role: "subtext", font: "sans", weight: 400, sizeFrac: 0.026, align: "center", color: "muted", x: 0.5, y: 0.72, maxWidthFrac: 0.72 }),
   ],
 };
+// Same "English fallback only, real strings live in t()" shape as
+// FONT_OPTIONS above — render sites use `t(\`brandPost.shape.${id}\`)`.
 export const SHAPES = [
   { id: "tip", label: "Tip", description: "Eyebrow, headline, supporting line." },
   { id: "quote", label: "Quote", description: "A short line in the brand's own voice." },
@@ -446,6 +452,8 @@ export function paintBrandStamp(ctx, markImg, x, y, size, handle) {
 
 // ── Real platform export sizes, grouped by the handful of DISTINCT
 // aspect ratios the whole social landscape actually reduces to. ──────────
+// Same "English fallback only" shape as FONT_OPTIONS/SHAPES above — render
+// sites use `t(\`brandPost.platform.${id}.label\`)` / `.sub\`)`.
 export const PLATFORMS = {
   square: { label: "Square", sub: "Instagram · Facebook · X · Reddit · LinkedIn", w: 1080, h: 1080 },
   portrait: { label: "Portrait", sub: "Instagram feed (4:5) · LinkedIn", w: 1080, h: 1350 },

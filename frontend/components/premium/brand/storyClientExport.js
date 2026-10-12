@@ -150,7 +150,7 @@ export async function recordGif(clips, platform, accent, { onProgress, maxWidth 
 
   return new Promise((resolve, reject) => {
     gif.on("finished", (blob) => resolve(blob));
-    gif.on("abort", () => reject(new Error("GIF export was aborted.")));
+    gif.on("abort", () => { const err = new Error("GIF export was aborted."); err.i18nKey = "brandStoryTool.gifExportAborted"; reject(err); });
     gif.render();
   });
 }

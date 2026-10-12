@@ -33,6 +33,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useLanguage } from "@/lib/i18n";
 import { Play, Pause, RotateCcw, SkipBack, SkipForward, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight, Volume2, VolumeX } from "lucide-react";
 import { renderPost } from "../postTemplates";
 import { ensureFontsReady } from "../assetKit";
@@ -107,6 +108,7 @@ function FilmstripThumb({ clip, widthPct }) {
  * over-unpredictable-video treatment a canvas overlay would have needed.
  */
 function FilmstripScrubber({ clips, effectiveLengths, time, duration, onScrub }) {
+  const { t } = useLanguage();
   const trackRef = useRef(null);
   const [dragging, setDragging] = useState(false);
 
@@ -140,7 +142,7 @@ function FilmstripScrubber({ clips, effectiveLengths, time, duration, onScrub })
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       role="slider"
-      aria-label="Seek"
+      aria-label={t("brandStory.seek")}
       aria-valuemin={0}
       aria-valuemax={duration || 0}
       aria-valuenow={time}
@@ -153,7 +155,7 @@ function FilmstripScrubber({ clips, effectiveLengths, time, duration, onScrub })
     >
       {empty ? (
         <div className="flex h-full items-center justify-center px-4">
-          <span className="text-center text-[11px] text-muted-foreground">Add images or short clips to start your sequence.</span>
+          <span className="text-center text-[11px] text-muted-foreground">{t("brandStory.addClipsToStart")}</span>
         </div>
       ) : (
         <>
@@ -187,6 +189,7 @@ function FilmstripScrubber({ clips, effectiveLengths, time, duration, onScrub })
 }
 
 export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptionLive, onCaptionCommit, compact, seekRequest }) {
+  const { t } = useLanguage();
   const canvasRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [globalTime, setGlobalTime] = useState(0);
@@ -401,7 +404,7 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
         // toast for every single clip while the backend's unreachable.
         if (narrationErrorShownRef.current) return;
         narrationErrorShownRef.current = true;
-        toast.error("Voice-over preview unavailable right now — playback continues without it.");
+        toast.error(t("brandStory.voiceOverPreviewUnavailable"));
       });
   };
 
@@ -777,31 +780,31 @@ export function PreviewPlayer({ clips, platform, accent, selectedIndex, onCaptio
             wrapping or feeling like a random cluster. */}
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center gap-0.5">
-            <button type="button" onClick={goToPreviousClip} disabled={!clips.length} title="Previous clip" className={secondaryBtnClass}>
+            <button type="button" onClick={goToPreviousClip} disabled={!clips.length} title={t("brandStory.previousClip")} className={secondaryBtnClass}>
               <ChevronsLeft className="size-4" />
             </button>
-            <button type="button" onClick={restart} disabled={!clips.length} title="Restart from the beginning" className={secondaryBtnClass}>
+            <button type="button" onClick={restart} disabled={!clips.length} title={t("brandStory.restartFromBeginning")} className={secondaryBtnClass}>
               <RotateCcw className="size-4" />
             </button>
           </div>
 
           <div className="flex items-center gap-2.5">
-            <button type="button" onClick={() => seekRelative(-SEEK_STEP_SEC)} disabled={!clips.length} title={`Back ${SEEK_STEP_SEC}s`} className={secondaryBtnClass}>
+            <button type="button" onClick={() => seekRelative(-SEEK_STEP_SEC)} disabled={!clips.length} title={t("brandStory.backNs", { n: SEEK_STEP_SEC })} className={secondaryBtnClass}>
               <SkipBack className="size-4" />
             </button>
             <button type="button" onClick={togglePlay} disabled={!clips.length} className={primaryBtnClass}>
               {playing ? <Pause className="size-5" /> : <Play className="size-5" />}
             </button>
-            <button type="button" onClick={() => seekRelative(SEEK_STEP_SEC)} disabled={!clips.length} title={`Forward ${SEEK_STEP_SEC}s`} className={secondaryBtnClass}>
+            <button type="button" onClick={() => seekRelative(SEEK_STEP_SEC)} disabled={!clips.length} title={t("brandStory.forwardNs", { n: SEEK_STEP_SEC })} className={secondaryBtnClass}>
               <SkipForward className="size-4" />
             </button>
           </div>
 
           <div className="flex items-center gap-0.5">
-            <button type="button" onClick={goToNextClip} disabled={!clips.length} title="Next clip" className={secondaryBtnClass}>
+            <button type="button" onClick={goToNextClip} disabled={!clips.length} title={t("brandStory.nextClip")} className={secondaryBtnClass}>
               <ChevronsRight className="size-4" />
             </button>
-            <button type="button" onClick={toggleMute} disabled={!clips.length} aria-pressed={muted} title={muted ? "Unmute" : "Mute"}
+            <button type="button" onClick={toggleMute} disabled={!clips.length} aria-pressed={muted} title={muted ? t("brandStory.unmute") : t("brandStory.mute")}
               className={`${secondaryBtnClass} ${muted ? "text-destructive" : ""}`}>
               {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
             </button>

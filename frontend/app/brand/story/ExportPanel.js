@@ -30,6 +30,7 @@
  */
 import { useState } from "react";
 import { toast } from "sonner";
+import { useLanguage } from "@/lib/i18n";
 import { Download, Mail, Share2, Loader2 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -157,11 +158,14 @@ function authHeaders() {
 // submits the upload and gets back a job_id almost immediately, well
 // before any encoding has even started. pollJobStatus below is what
 // actually waits for the render to finish.
-async function submitRender(formData) {
+async function submitRender(formData, t) {
   if (!BASE) {
     // Same check apiRequest (shared/api.js) does, and the same reason:
     // no silent localhost fallback, or every visitor's browser would try
-    // ITS OWN localhost:5002, where nothing is listening.
+    // ITS OWN localhost:5002, where nothing is listening. A deploy
+    // misconfiguration, not a real end-user-facing message — left
+    // untranslated on purpose, same as its sibling copies elsewhere
+    // (transcribe.js, narrationPreview.js).
     throw new Error("NEXT_PUBLIC_API_URL is not set — set it in Vercel → Project Settings → Environment Variables to the Render backend URL, then redeploy.");
   }
   let res;
@@ -175,12 +179,12 @@ async function submitRender(formData) {
     // likely cause rather than a slow render — that used to be able to
     // trigger this same catch block when rendering was synchronous, but
     // can't anymore.
-    const err = new Error("Couldn't reach the server to start the render — check your connection and try again.");
+    const err = new Error(t("brandStory.couldntReachServer"));
     err.code = "STORY_RENDER_NETWORK_ERROR";
     throw err;
   }
   if (!res.ok) {
-    let message = `Render failed (${res.status})`;
+    let message = t("brandStory.renderFailedStatus", { status: res.status });
     try { message = (await res.json()).error || message; } catch { /* non-JSON error body */ }
     throw new Error(message);
   }
@@ -209,7 +213,7 @@ const MAX_CONSECUTIVE_POLL_FAILURES = 4;
 // Polls GET .../render/<job_id>/status until it's done or errored.
 // Resolves with the final status payload ({ state: "done", ... }); throws
 // on state "error" or if POLL_TIMEOUT_MS is exceeded without either.
-async function pollJobStatus(jobId) {
+async function pollJobStatus(jobId, t) {
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   let consecutiveFailures = 0;
   while (Date.now() < deadline) {
@@ -219,29 +223,29 @@ async function pollJobStatus(jobId) {
     } catch (networkErr) {
       consecutiveFailures += 1;
       if (consecutiveFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
-        throw new Error("Lost the connection while checking render status — check your connection and try again.");
+        throw new Error(t("brandStory.lostConnectionPolling"));
       }
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       continue;
     }
     if (!res.ok) {
-      let message = `Couldn't check render status (${res.status})`;
+      let message = t("brandStory.couldntCheckRenderStatus", { status: res.status });
       try { message = (await res.json()).error || message; } catch { /* non-JSON error body */ }
       throw new Error(message);
     }
     consecutiveFailures = 0;
     const { data: status } = await res.json();
     if (status.state === "done") return status;
-    if (status.state === "error") throw new Error(status.error || "Render failed");
+    if (status.state === "error") throw new Error(status.error || t("brandStory.renderFailedGeneric"));
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
-  throw new Error("The render is taking longer than expected — try fewer or shorter clips, or without voice-over.");
+  throw new Error(t("brandStory.renderTakingLonger"));
 }
 
-async function downloadJobResult(jobId) {
+async function downloadJobResult(jobId, t) {
   const res = await fetch(`${BASE}/api/v1/brand/story/render/${jobId}/download`, { headers: authHeaders() });
   if (!res.ok) {
-    let message = `Download failed (${res.status})`;
+    let message = t("brandStory.downloadFailedStatus", { status: res.status });
     try { message = (await res.json()).error || message; } catch { /* non-JSON error body */ }
     throw new Error(message);
   }
@@ -249,6 +253,7 @@ async function downloadJobResult(jobId) {
 }
 
 export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, setOutputFormat, transition, setTransition, accent, onQualityReport }) {
+  const { t } = useLanguage();
   const [downloading, setDownloading] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [email, setEmail] = useState(() => {
@@ -261,59 +266,59 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
   const gifTooLong = totalDuration > MAX_GIF_DURATION_SEC;
 
   const handleDownload = async () => {
-    if (!clips.length) { toast.error("Add at least one clip first."); return; }
+    if (!clips.length) { toast.error(t("brandStory.addAtLeastOneClip")); return; }
     setDownloading(true);
     try {
       const formData = await buildFormData(clips, platformId, outputFormat, transition, accent);
-      const jobId = await submitRender(formData);
-      const status = await pollJobStatus(jobId);
-      const blob = await downloadJobResult(jobId);
+      const jobId = await submitRender(formData, t);
+      const status = await pollJobStatus(jobId, t);
+      const blob = await downloadJobResult(jobId, t);
       const ext = outputFormat === "gif" ? "gif" : "mp4";
       downloadBlob(blob, `noqeev-story-${platformId}.${ext}`);
       onQualityReport?.(status.quality_report || null);
-      toast.success("Downloaded.");
+      toast.success(t("brandStory.downloadedToast"));
     } catch (e) {
-      toast.error(e.message || "Try again.");
+      toast.error(e.message || t("brandStory.tryAgain"));
     } finally {
       setDownloading(false);
     }
   };
 
   const handleShare = async () => {
-    if (!clips.length) { toast.error("Add at least one clip first."); return; }
+    if (!clips.length) { toast.error(t("brandStory.addAtLeastOneClip")); return; }
     setSharing(true);
     try {
       const formData = await buildFormData(clips, platformId, outputFormat, transition, accent);
-      const jobId = await submitRender(formData);
-      const status = await pollJobStatus(jobId);
-      const blob = await downloadJobResult(jobId);
+      const jobId = await submitRender(formData, t);
+      const status = await pollJobStatus(jobId, t);
+      const blob = await downloadJobResult(jobId, t);
       const ext = outputFormat === "gif" ? "gif" : "mp4";
       const result = await shareOrDownloadBlob(blob, `noqeev-story-${platformId}.${ext}`, "My story, made with Noqeev");
       onQualityReport?.(status.quality_report || null);
-      if (result === "downloaded") toast.success("Sharing wasn't available here — downloaded instead.");
-      else if (result === "shared") toast.success("Shared.");
+      if (result === "downloaded") toast.success(t("brandStory.sharedFallbackDownloaded"));
+      else if (result === "shared") toast.success(t("brandStory.shared"));
       // "cancelled" — they backed out of the share sheet on purpose, no toast needed
     } catch (e) {
-      toast.error(e.message || "Try again.");
+      toast.error(e.message || t("brandStory.tryAgain"));
     } finally {
       setSharing(false);
     }
   };
 
   const handleEmail = async () => {
-    if (!EMAIL_RE.test(email.trim())) { toast.error("Invalid email."); return; }
+    if (!EMAIL_RE.test(email.trim())) { toast.error(t("brandStory.invalidEmail")); return; }
     setEmailing(true);
     try {
       const formData = await buildFormData(clips, platformId, outputFormat, transition, accent);
       formData.append("email_to", email.trim());
-      const jobId = await submitRender(formData);
-      const status = await pollJobStatus(jobId);
+      const jobId = await submitRender(formData, t);
+      const status = await pollJobStatus(jobId, t);
       try { localStorage.setItem(LAST_EMAIL_KEY, email.trim()); } catch { /* best-effort */ }
       onQualityReport?.(status.quality_report || null);
-      toast.success(`Sent to ${status.email_sent_to || email.trim()}`);
+      toast.success(t("brandStory.sentToEmail", { email: status.email_sent_to || email.trim() }));
       setEmailOpen(false);
     } catch (e) {
-      toast.error(e.message || "Send failed.");
+      toast.error(e.message || t("brandStory.sendFailed"));
     } finally {
       setEmailing(false);
     }
@@ -323,19 +328,19 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
     <div className="grid gap-3">
       <div className="grid gap-3 rounded-xl border border-border bg-card p-4">
         <div>
-          <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Platform</p>
+          <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandStory.platform")}</p>
           <div className="flex flex-wrap gap-1.5">
-            {Object.entries(PLATFORMS).map(([id, p]) => (
-              <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={p.sub}
+            {Object.entries(PLATFORMS).map(([id]) => (
+              <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={t(`brandPost.platform.${id}.sub`)}
                 className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${platformId === id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-                {p.label}
+                {t(`brandPost.platform.${id}.label`)}
               </button>
             ))}
           </div>
         </div>
 
         <div>
-          <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Format</p>
+          <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandStory.format")}</p>
           <div className="flex gap-1.5">
             <button type="button" onClick={() => setOutputFormat("mp4")} aria-pressed={outputFormat === "mp4"}
               className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${outputFormat === "mp4" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
@@ -343,7 +348,7 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
             </button>
             <button
               type="button" onClick={() => !gifTooLong && setOutputFormat("gif")} aria-pressed={outputFormat === "gif"}
-              disabled={gifTooLong} title={gifTooLong ? `GIF is limited to ${MAX_GIF_DURATION_SEC}s total` : undefined}
+              disabled={gifTooLong} title={gifTooLong ? t("brandStory.gifLimitedToNs", { n: MAX_GIF_DURATION_SEC }) : undefined}
               className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold disabled:opacity-40 ${outputFormat === "gif" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
               GIF
             </button>
@@ -351,17 +356,17 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
         </div>
 
         <div>
-          <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Transition</p>
+          <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandStory.transition")}</p>
           <div className="flex gap-1.5">
             <button type="button" onClick={() => setTransition("cut")} aria-pressed={transition === "cut"}
-              title="Hard cut between clips"
+              title={t("brandStory.hardCutHint")}
               className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${transition === "cut" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-              Cut
+              {t("brandStory.cut")}
             </button>
             <button type="button" onClick={() => setTransition("fade")} aria-pressed={transition === "fade"}
-              title="Crossfade between clips so the join is hard to spot"
+              title={t("brandStory.crossfadeHint")}
               className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${transition === "fade" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-              Smooth
+              {t("brandStory.smooth")}
             </button>
           </div>
         </div>
@@ -375,14 +380,14 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
           format pills. */}
       <div className="flex gap-2">
         <Btn variant="gold" onClick={handleDownload} disabled={downloading || emailing || sharing || !clips.length} loading={downloading} className="flex-1">
-          <Download className="size-4" /> {downloading ? "Rendering…" : "Download"}
+          <Download className="size-4" /> {downloading ? t("brandStory.rendering") : t("brandStory.download")}
         </Btn>
         {CAN_SHARE_FILES && (
-          <Btn small variant="ghost" onClick={handleShare} disabled={downloading || emailing || sharing || !clips.length} loading={sharing} aria-label="Share to another device">
+          <Btn small variant="ghost" onClick={handleShare} disabled={downloading || emailing || sharing || !clips.length} loading={sharing} aria-label={t("brandStory.shareToAnotherDevice")}>
             <Share2 className="size-4" />
           </Btn>
         )}
-        <Btn small variant="ghost" onClick={() => setEmailOpen(true)} disabled={downloading || emailing || sharing || !clips.length} aria-label="Email this">
+        <Btn small variant="ghost" onClick={() => setEmailOpen(true)} disabled={downloading || emailing || sharing || !clips.length} aria-label={t("brandStory.emailThis")}>
           <Mail className="size-4" />
         </Btn>
       </div>
@@ -391,15 +396,15 @@ export function ExportPanel({ clips, platformId, setPlatformId, outputFormat, se
         <DialogContent showCloseButton className="w-full max-w-[380px] gap-0 p-0 sm:max-w-[380px]">
           <div className="p-5">
             <p className="m-0 mb-3 flex items-center gap-2 text-[14px] font-bold text-foreground">
-              <Mail className="size-4 text-primary" /> Email
+              <Mail className="size-4 text-primary" /> {t("brandStory.email")}
             </p>
             <Input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com" className="h-11 rounded-[10px]" autoFocus
+              placeholder={t("auth.emailPlaceholder")} className="h-11 rounded-[10px]" autoFocus
               onKeyDown={(e) => { if (e.key === "Enter") handleEmail(); }}
             />
             <Btn variant="gold" className="mt-3 w-full" onClick={handleEmail} disabled={emailing} loading={emailing}>
-              {emailing ? <Loader2 className="size-4 animate-spin" /> : "Send"}
+              {emailing ? <Loader2 className="size-4 animate-spin" /> : t("brandStory.send")}
             </Btn>
           </div>
         </DialogContent>

@@ -16,6 +16,7 @@ import {
   loadMarkImage, ensureFontsReady, markOnlySvg, fillTrackedText, trackedTextWidth,
   canvasToPngBlob, downloadBlob, shareOrDownloadBlob, shareOrDownloadBlobs,
 } from "./assetKit";
+import { useLanguage } from "@/lib/i18n";
 
 async function buildIconPng() {
   const img = await loadMarkImage();
@@ -106,8 +107,9 @@ async function buildBannerPng(width, height, contentMaxWidth) {
 const BANNER_ASSETS = [
   {
     id: "youtube-banner",
-    label: "YouTube banner",
-    spec: "PNG · 2560×1440 · safe-area aware",
+    labelKey: "brandAssets.youtubeBanner",
+    shortNameKey: "brandAssets.platformNameYoutube",
+    specKey: "brandAssets.specYoutubeBanner",
     // Only the centered ~1546x423 "safe area" is guaranteed visible on
     // every device (desktop shows the full image; mobile/TV crop the
     // sides) — sized to comfortably fit inside that, not the full canvas.
@@ -116,21 +118,24 @@ const BANNER_ASSETS = [
   },
   {
     id: "x-header",
-    label: "X header",
+    labelKey: "brandAssets.xHeader",
+    shortNameKey: "brandAssets.platformNameX",
     spec: "PNG · 1500×500",
     build: () => buildBannerPng(1500, 500, 1500 * 0.84),
     filename: "noqeev-x-header.png",
   },
   {
     id: "linkedin-banner",
-    label: "LinkedIn banner",
+    labelKey: "brandAssets.linkedinBanner",
+    shortNameKey: "brandAssets.platformNameLinkedin",
     spec: "PNG · 1584×396",
     build: () => buildBannerPng(1584, 396, 1584 * 0.84),
     filename: "noqeev-linkedin-banner.png",
   },
   {
     id: "facebook-cover",
-    label: "Facebook cover",
+    labelKey: "brandAssets.facebookCover",
+    shortNameKey: "brandAssets.platformNameFacebook",
     spec: "PNG · 820×312",
     build: () => buildBannerPng(820, 312, 820 * 0.84),
     filename: "noqeev-facebook-cover.png",
@@ -140,16 +145,16 @@ const BANNER_ASSETS = [
 const ASSETS = [
   {
     id: "icon",
-    label: "App icon",
-    spec: "PNG · 1024×1024 · transparent",
+    labelKey: "brandAssets.appIcon",
+    specKey: "brandAssets.specIcon",
     build: buildIconPng,
     filename: "noqeev-icon.png",
     preview: "transparent",
   },
   {
     id: "avatar",
-    label: "Social avatar",
-    spec: "PNG · 1000×1000 · filled",
+    labelKey: "brandAssets.socialAvatar",
+    specKey: "brandAssets.specAvatar",
     build: buildAvatarPng,
     filename: "noqeev-avatar.png",
     preview: "filled",
@@ -157,16 +162,16 @@ const ASSETS = [
   },
   {
     id: "lockup",
-    label: "Full lockup",
-    spec: "PNG · 1600×500 · filled",
+    labelKey: "brandAssets.fullLockup",
+    specKey: "brandAssets.specLockup",
     build: buildLockupPng,
     filename: "noqeev-lockup.png",
     preview: "lockup",
   },
   {
     id: "vector",
-    label: "Vector mark",
-    spec: "SVG · transparent",
+    labelKey: "brandAssets.vectorMark",
+    specKey: "brandAssets.specVector",
     build: null,
     filename: "noqeev-mark.svg",
     preview: "transparent",
@@ -205,6 +210,7 @@ function PreviewSwatch({ kind }) {
 }
 
 function AssetRow({ asset }) {
+  const { t } = useLanguage();
   const [busy, setBusy] = useState(null); // "download" | "share" | null
 
   const getBlob = async () => {
@@ -218,7 +224,7 @@ function AssetRow({ asset }) {
       const blob = await getBlob();
       downloadBlob(blob, asset.filename);
     } catch {
-      toast.error("Try again.");
+      toast.error(t("brandShell.tryAgain"));
     } finally {
       setBusy(null);
     }
@@ -229,9 +235,9 @@ function AssetRow({ asset }) {
     try {
       const blob = await getBlob();
       const result = await shareOrDownloadBlob(blob, asset.filename, "Noqeev");
-      if (result === "downloaded") toast.info("Downloaded.");
+      if (result === "downloaded") toast.info(t("brandAssets.downloaded"));
     } catch {
-      toast.error("Try again.");
+      toast.error(t("brandShell.tryAgain"));
     } finally {
       setBusy(null);
     }
@@ -241,8 +247,8 @@ function AssetRow({ asset }) {
     <div className="glass-surface flex items-center gap-4 rounded-xl p-3.5">
       <PreviewSwatch kind={asset.preview} />
       <div className="min-w-0 flex-1">
-        <p className="m-0 text-[13.5px] font-bold text-foreground">{asset.label}</p>
-        <p className="m-0 font-mono text-[10.5px] text-muted-foreground/70">{asset.spec}</p>
+        <p className="m-0 text-[13.5px] font-bold text-foreground">{t(asset.labelKey)}</p>
+        <p className="m-0 font-mono text-[10.5px] text-muted-foreground/70">{asset.specKey ? t(asset.specKey) : asset.spec}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         {asset.shareable && (
@@ -264,6 +270,7 @@ function AssetRow({ asset }) {
 // selection, not a one-shot trigger, so posting to three platforms takes
 // one download pass instead of three separate clicks.
 function PlatformPicker() {
+  const { t } = useLanguage();
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [downloading, setDownloading] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -292,9 +299,9 @@ function PlatformPicker() {
         i += 1;
         if (i < selectedIds.size) await new Promise((r) => setTimeout(r, 350));
       }
-      toast.success(selectedIds.size === 1 ? "Downloaded." : `Downloaded ${selectedIds.size} banners.`);
+      toast.success(selectedIds.size === 1 ? t("brandAssets.downloaded") : t("brandAssets.downloadedNBanners", { n: selectedIds.size }));
     } catch {
-      toast.error("Try again.");
+      toast.error(t("brandShell.tryAgain"));
     } finally {
       setDownloading(false);
     }
@@ -311,9 +318,9 @@ function PlatformPicker() {
         items.push({ blob, filename: asset.filename });
       }
       const result = await shareOrDownloadBlobs(items, "Our brand banners");
-      if (result === "downloaded") toast.info("Sharing wasn't available here — downloaded instead.");
+      if (result === "downloaded") toast.info(t("brandAssets.sharingNotAvailable"));
     } catch {
-      toast.error("Try again.");
+      toast.error(t("brandShell.tryAgain"));
     } finally {
       setSharing(false);
     }
@@ -322,8 +329,8 @@ function PlatformPicker() {
   return (
     <div className="grid gap-2.5">
       <div>
-        <p className="m-0 text-[13.5px] font-bold text-foreground">Which platforms are you posting to?</p>
-        <p className="m-0 text-[11px] text-muted-foreground/70">Pick any or all, then download.</p>
+        <p className="m-0 text-[13.5px] font-bold text-foreground">{t("brandAssets.whichPlatforms")}</p>
+        <p className="m-0 text-[11px] text-muted-foreground/70">{t("brandAssets.pickAnyOrAll")}</p>
       </div>
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         {BANNER_ASSETS.map((a) => {
@@ -342,8 +349,8 @@ function PlatformPicker() {
                   <path d="M 22 68 L 22 16 L 74 16 L 74 68 L 88 86 L 97 8" fill="none" stroke={`url(#pv-${a.id})`} strokeWidth="14" strokeLinecap="butt" strokeLinejoin="round" />
                 </svg>
               </div>
-              <p className="m-0 text-[11.5px] font-bold text-foreground">{a.label.replace(" banner", "").replace(" header", "").replace(" cover", "")}</p>
-              <p className="m-0 font-mono text-[9px] text-muted-foreground/70">{a.spec.split(" · ")[1]}</p>
+              <p className="m-0 text-[11.5px] font-bold text-foreground">{t(a.shortNameKey)}</p>
+              <p className="m-0 font-mono text-[9px] text-muted-foreground/70">{(a.spec || t(a.specKey)).split(" · ")[1]}</p>
             </button>
           );
         })}
@@ -354,9 +361,9 @@ function PlatformPicker() {
           disabled={!selectedIds.size || downloading || sharing} loading={downloading}
         >
           <Download className="size-4" />
-          {downloading ? "…" : selectedIds.size ? `Download (${selectedIds.size})` : "Select at least one"}
+          {downloading ? "…" : selectedIds.size ? t("brandAssets.downloadCount", { n: selectedIds.size }) : t("brandAssets.selectAtLeastOne")}
         </Btn>
-        <Btn small variant="ghost" onClick={handleShareSelected} disabled={!selectedIds.size || downloading || sharing} loading={sharing} aria-label="Share selected banners">
+        <Btn small variant="ghost" onClick={handleShareSelected} disabled={!selectedIds.size || downloading || sharing} loading={sharing} aria-label={t("brandAssets.shareSelectedBanners")}>
           <Share2 className="size-4" />
         </Btn>
       </div>

@@ -26,6 +26,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { ChevronUp, ChevronDown, Clock, Trash2 } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 import { clipLengthSec } from "./clipModel";
 import { drawClipThumbnail } from "./clipThumbnail";
 
@@ -40,6 +41,7 @@ const OPEN_THRESHOLD = REVEAL_PX * 0.4; // drag past this and releasing snaps th
 const TAP_SLOP = 8; // px of movement that's still a tap/press, not the start of a swipe
 
 function ClipRow({ clip, index, selectedIndex, onSelect, onReorder, onRemove, onUpdateClip, clipsLength, isOpen, onOpenChange }) {
+  const { t } = useLanguage();
   const [dragX, setDragX] = useState(isOpen ? -REVEAL_PX : 0);
   const gestureRef = useRef(null); // { startClientX, startClientY, baseX, isSwipe } while a pointer is down
 
@@ -101,8 +103,8 @@ function ClipRow({ clip, index, selectedIndex, onSelect, onReorder, onRemove, on
       <button
         type="button"
         onClick={() => onRemove()}
-        title="Delete clip"
-        aria-label="Delete clip"
+        title={t("brandStory.deleteClip")}
+        aria-label={t("brandStory.deleteClip")}
         className="absolute inset-y-0 right-0 flex items-center justify-center overflow-hidden bg-destructive text-destructive-foreground"
         style={{ width: Math.max(0, -dragX) }}
       >
@@ -123,13 +125,13 @@ function ClipRow({ clip, index, selectedIndex, onSelect, onReorder, onRemove, on
       >
         <div className="flex shrink-0 flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
           <button
-            type="button" onClick={() => index > 0 && onReorder(index, index - 1)} disabled={index === 0} title="Move up"
+            type="button" onClick={() => index > 0 && onReorder(index, index - 1)} disabled={index === 0} title={t("brandStory.moveUp")}
             className="flex size-9 items-center justify-center rounded-md text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground"
           >
             <ChevronUp className="size-4" />
           </button>
           <button
-            type="button" onClick={() => index < clipsLength - 1 && onReorder(index, index + 1)} disabled={index === clipsLength - 1} title="Move down"
+            type="button" onClick={() => index < clipsLength - 1 && onReorder(index, index + 1)} disabled={index === clipsLength - 1} title={t("brandStory.moveDown")}
             className="flex size-9 items-center justify-center rounded-md text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground"
           >
             <ChevronDown className="size-4" />
@@ -138,7 +140,7 @@ function ClipRow({ clip, index, selectedIndex, onSelect, onReorder, onRemove, on
         <ClipThumb clip={clip} />
         <div className="min-w-0 flex-1">
           <p className="m-0 truncate text-[12.5px] font-bold text-foreground">
-            {index + 1}. {clip.kind === "video" ? "Video" : "Image"} · {clipLengthSec(clip).toFixed(1)}s
+            {index + 1}. {clip.kind === "video" ? t("brandStory.video") : t("brandStory.image")} · {clipLengthSec(clip).toFixed(1)}s
           </p>
           {clip.kind === "image" ? (
             <div className="mt-1 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -152,7 +154,7 @@ function ClipRow({ clip, index, selectedIndex, onSelect, onReorder, onRemove, on
           ) : (
             <div className="mt-1 grid grid-cols-2 gap-1.5" onClick={(e) => e.stopPropagation()}>
               <label className="text-[10px] text-muted-foreground">
-                In {clip.trimIn.toFixed(1)}s
+                {t("brandStory.inLabel", { n: clip.trimIn.toFixed(1) })}
                 <input
                   type="range" min="0" max={clip.naturalDurationSec} step="0.1" value={clip.trimIn}
                   onChange={(e) => onUpdateClip(index, { trimIn: Math.min(Number(e.target.value), clip.trimOut - 0.1) })}
@@ -160,7 +162,7 @@ function ClipRow({ clip, index, selectedIndex, onSelect, onReorder, onRemove, on
                 />
               </label>
               <label className="text-[10px] text-muted-foreground">
-                Out {clip.trimOut.toFixed(1)}s
+                {t("brandStory.outLabel", { n: clip.trimOut.toFixed(1) })}
                 <input
                   type="range" min="0" max={clip.naturalDurationSec} step="0.1" value={clip.trimOut}
                   onChange={(e) => onUpdateClip(index, { trimOut: Math.max(Number(e.target.value), clip.trimIn + 0.1) })}
@@ -176,6 +178,7 @@ function ClipRow({ clip, index, selectedIndex, onSelect, onReorder, onRemove, on
 }
 
 export function ClipTimeline({ clips, selectedIndex, onSelect, onRemove, onReorder, onUpdateClip, onAnyOpenChange }) {
+  const { t } = useLanguage();
   // Only one row's delete icon revealed at a time — swiping a second row
   // (or selecting/removing a clip) closes whichever one was already
   // open, same as every other swipe-to-delete list.
@@ -195,11 +198,11 @@ export function ClipTimeline({ clips, selectedIndex, onSelect, onRemove, onReord
           Edit button (StoryComposer.js): the thing you actually reach
           for belongs at the top, not buried in whatever section happens
           to need it internally. */}
-      <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Clips</p>
+      <p className="m-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandStory.clips")}</p>
 
       {clips.length === 0 ? (
         <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
-          Add images or short clips to start your sequence.
+          {t("brandStory.addClipsToStart")}
         </p>
       ) : (
         // Capped height + its own scroll — with MAX_CLIPS=20 possible

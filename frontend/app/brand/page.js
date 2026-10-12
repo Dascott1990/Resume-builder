@@ -54,6 +54,7 @@ import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
 import { DEFAULT_ACCENT } from "./postTemplates";
 import { loadBrandUiState, saveBrandUiState } from "./assetKit";
+import { useLanguage } from "@/lib/i18n";
 
 // GET /workspace/default now requires the brand key (see
 // backend/api/brand_workspace.py — it used to hand out full write access
@@ -62,6 +63,7 @@ import { loadBrandUiState, saveBrandUiState } from "./assetKit";
 // a small popover panel — this gates the whole workspace, not one feature
 // inside it, and there's no page content underneath worth showing yet.
 function WorkspaceKeyGate({ onUnlocked }) {
+  const { t } = useLanguage();
   const [value, setValue] = useState("");
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
@@ -76,7 +78,7 @@ function WorkspaceKeyGate({ onUnlocked }) {
       onUnlocked(ws.token);
     } catch (e) {
       setBrandKey(null);
-      setError(e.status === 401 ? "That key isn't right." : (e.message || "Try again."));
+      setError(e.status === 401 ? t("brandShell.keyNotRight") : (e.message || t("brandShell.tryAgain")));
     } finally {
       setChecking(false);
     }
@@ -84,17 +86,17 @@ function WorkspaceKeyGate({ onUnlocked }) {
 
   return (
     <div className="mx-auto mt-10 max-w-sm rounded-2xl border border-border bg-card p-6 text-center">
-      <p className="m-0 text-[15px] font-bold text-foreground">Enter the brand key</p>
+      <p className="m-0 text-[15px] font-bold text-foreground">{t("brandShell.enterBrandKey")}</p>
       <p className="m-0 mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
-        This workspace needs the shared internal key before it'll open.
+        {t("brandShell.workspaceNeedsKey")}
       </p>
       <div className="mt-4 flex flex-col gap-2">
         <Input
           type="password" value={value} onChange={(e) => setValue(e.target.value)} autoFocus autoComplete="off"
-          placeholder="Brand key" className="h-11 rounded-[10px] text-center text-[13.5px]"
+          placeholder={t("brandShell.brandKeyPlaceholder")} className="h-11 rounded-[10px] text-center text-[13.5px]"
           onKeyDown={(e) => { if (e.key === "Enter") unlock(); }}
         />
-        <Btn variant="gold" onClick={unlock} disabled={checking} loading={checking}>Unlock</Btn>
+        <Btn variant="gold" onClick={unlock} disabled={checking} loading={checking}>{t("brandShell.unlock")}</Btn>
       </div>
       {error && <p className="m-0 mt-2.5 text-[12px] font-semibold text-destructive">{error}</p>}
     </div>
@@ -205,19 +207,19 @@ const MORE_ZONES = [
 // hand-rolled useState+absolute-panel — that version had no collision
 // detection (could overflow off a narrow phone screen near the right
 // edge), no focus trap, no Escape-to-close. This gets all of that free.
-function MoreMenu({ zone, onSelect }) {
+function MoreMenu({ zone, zones, onSelect, t }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          type="button" aria-label="More"
+          type="button" aria-label={t("brandShell.more")}
           className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground [-webkit-tap-highlight-color:transparent]"
         >
           <MoreHorizontal className="size-[18px]" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-44">
-        {MORE_ZONES.map((z) => (
+        {zones.map((z) => (
           <DropdownMenuItem key={z.id} onSelect={() => onSelect(z.id)}>
             <z.Icon className="size-4 text-muted-foreground" />
             {z.label}
@@ -230,6 +232,7 @@ function MoreMenu({ zone, onSelect }) {
 }
 
 export default function BrandPage() {
+  const { t } = useLanguage();
   const [accent, setAccent] = useState(DEFAULT_ACCENT);
   const [zone, setZone] = useState("today");
   const [openSections, setOpenSections] = useState({ reference: ["mark"] });
@@ -268,6 +271,9 @@ export default function BrandPage() {
     saveBrandUiState({ zone, openSections });
   }, [zone, openSections, uiLoaded]);
 
+  const zonesLocalized = ZONES.map((z) => ({ ...z, label: t(`brandShell.zone${z.id.charAt(0).toUpperCase()}${z.id.slice(1)}`) }));
+  const moreZonesLocalized = MORE_ZONES.map((z) => ({ ...z, label: t(`brandShell.zone${z.id.charAt(0).toUpperCase()}${z.id.slice(1)}`) }));
+
   const isOpen = (id) => (openSections.reference || []).includes(id);
   const toggleSection = (id) => {
     setOpenSections((prev) => {
@@ -298,13 +304,13 @@ export default function BrandPage() {
               href="/"
               className="flex items-center gap-1.5 text-[12.5px] font-semibold text-muted-foreground no-underline hover:text-foreground"
             >
-              <ArrowLeft className="size-3.5" /> Back
+              <ArrowLeft className="size-3.5" /> {t("personalProfile.back")}
             </Link>
             <Logo size={26} />
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell />
-            <MoreMenu zone={zone} onSelect={setZone} />
+            <MoreMenu zone={zone} zones={moreZonesLocalized} onSelect={setZone} t={t} />
           </div>
         </div>
 
@@ -360,7 +366,7 @@ export default function BrandPage() {
             {/* ── Shipped mark ── */}
             <Section
               icon={Sparkles}
-              eyebrow="Shipped"
+              eyebrow={t("brandShell.shipped")}
               title="Ascending Q"
               open={isOpen("mark")}
               onOpenChange={() => toggleSection("mark")}
@@ -378,7 +384,7 @@ export default function BrandPage() {
 
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border pt-4">
                     <Swatch hex="#F6E6B3" />
-                    <Swatch hex="#f59e0b" label="primary" />
+                    <Swatch hex="#f59e0b" label={t("brandShell.primary")} />
                     <Swatch hex="#5C4419" />
                   </div>
                 </div>
@@ -388,7 +394,7 @@ export default function BrandPage() {
             {/* ── Wordmark / type ── */}
             <Section
               icon={Type}
-              eyebrow="Wordmark"
+              eyebrow={t("brandShell.wordmark")}
               open={isOpen("wordmark")}
               onOpenChange={() => toggleSection("wordmark")}
             >
@@ -406,7 +412,7 @@ export default function BrandPage() {
             {/* ── Explored, set aside ── */}
             <Section
               icon={Archive}
-              eyebrow="Rejected"
+              eyebrow={t("brandShell.rejected")}
               open={isOpen("explored")}
               onOpenChange={() => toggleSection("explored")}
             >
@@ -415,23 +421,23 @@ export default function BrandPage() {
                   <div className="mb-4 flex size-24 items-center justify-center rounded-xl border border-border bg-[#0a0a0a]">
                     <RisingLinesPreview />
                   </div>
-                  <h3 className="m-0 text-[15px] font-bold text-foreground">Rising Lines</h3>
-                  <p className="m-0 mt-1 text-[12px] text-muted-foreground">Too easy to copy</p>
+                  <h3 className="m-0 text-[15px] font-bold text-foreground">{t("brandShell.risingLines")}</h3>
+                  <p className="m-0 mt-1 text-[12px] text-muted-foreground">{t("brandShell.tooEasyToCopy")}</p>
                 </div>
 
                 <div className="rounded-2xl border border-border bg-background p-6">
                   <div className="mb-4 flex size-24 items-center justify-center rounded-xl border border-border bg-[#0a0a0a]">
                     <TurningPointPreview />
                   </div>
-                  <h3 className="m-0 text-[15px] font-bold text-foreground">Turning Point</h3>
-                  <p className="m-0 mt-1 text-[12px] text-muted-foreground">Too generic a shape</p>
+                  <h3 className="m-0 text-[15px] font-bold text-foreground">{t("brandShell.turningPoint")}</h3>
+                  <p className="m-0 mt-1 text-[12px] text-muted-foreground">{t("brandShell.tooGenericShape")}</p>
                 </div>
               </div>
             </Section>
           </div>
         )}
       </div>
-      <BottomNav items={ZONES} active={zone} onChange={setZone} />
+      <BottomNav items={zonesLocalized} active={zone} onChange={setZone} />
     </div>
   );
 }

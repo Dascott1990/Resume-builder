@@ -31,14 +31,17 @@ import {
 import { LayerPanel } from "@/app/brand/LayerPanel";
 import { AiSuggestPanel } from "@/app/brand/AiSuggestPanel";
 import { workspaceFetch } from "./workspaceApi";
+import { useLanguage } from "@/lib/i18n";
 
 const STICKER_EMOJI = ["✨", "🔥", "🎉", "💪", "🙌", "👀", "✅", "📈", "💼", "🎯", "☕", "⚡", "🚀", "💡", "🏆", "⏳"];
 
-const SHAPE_DEFAULTS = {
-  tip: { eyebrow: "Noqeev · Daily tip", headline: "Cut your resume to one page before you cut anything else.", subtext: "A recruiter spends seconds on page two. Say the important thing first." },
-  quote: { eyebrow: "", headline: "A gap on your resume isn't the end of the story.", subtext: "— Noqeev" },
-  stat: { eyebrow: "Noqeev · By the numbers", headline: "3 minutes", subtext: "The average time it takes to tailor a resume with Noqeev." },
-};
+function shapeDefaults(t) {
+  return {
+    tip: { eyebrow: t("brandComposerTool.shapeTipEyebrow"), headline: t("brandComposerTool.shapeTipHeadline"), subtext: t("brandComposerTool.shapeTipSubtext") },
+    quote: { eyebrow: "", headline: t("brandComposerTool.shapeQuoteHeadline"), subtext: t("brandComposerTool.shapeQuoteSubtext") },
+    stat: { eyebrow: t("brandComposerTool.shapeStatEyebrow"), headline: t("brandComposerTool.shapeStatHeadline"), subtext: t("brandComposerTool.shapeStatSubtext") },
+  };
+}
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
@@ -53,6 +56,8 @@ function saveDraft(token, data) {
 }
 
 export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
+  const { t } = useLanguage();
+  const SHAPE_DEFAULTS = shapeDefaults(t);
   const { isPhone } = useViewport();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [shapeId, setShapeId] = useState("tip");
@@ -157,7 +162,7 @@ export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
   };
 
   const addText = () => {
-    const layer = makeTextLayer({ text: "Your text" });
+    const layer = makeTextLayer({ text: t("brandComposerTool.yourText") });
     setLayers((ls) => [...ls, layer]);
     setSelectedId(layer.id);
     setStickerPickerOpen(false);
@@ -187,7 +192,7 @@ export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
       setGifUrl("");
       setGifUrlOpen(false);
     } catch {
-      toast.error("Couldn't load that link.");
+      toast.error(t("brandComposerTool.couldntLoadLink"));
     } finally {
       setGifLoading(false);
     }
@@ -200,7 +205,7 @@ export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
       const img = await new Promise((resolve, reject) => {
         const el = new Image();
         el.onload = () => resolve(el);
-        el.onerror = () => reject(new Error("Couldn't read that image."));
+        el.onerror = () => { const err = new Error("Couldn't read that image."); err.i18nKey = "brandComposerTool.couldntReadImage"; reject(err); };
         el.src = dataUrl;
       });
       stickerImagesRef.current = { ...stickerImagesRef.current, [dataUrl]: img };
@@ -209,7 +214,7 @@ export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
       setSelectedId(layer.id);
       setStickerPickerOpen(false);
     } catch (e) {
-      toast.error(e.message || "Couldn't load that image.");
+      toast.error(e.i18nKey ? t(e.i18nKey) : t("brandComposerTool.couldntLoadImage"));
     } finally {
       setUploadLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -303,7 +308,7 @@ export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
       formData.append("filename", exportFilename());
       workspaceFetch(token, "/api/v1/workspace/compose/export", { method: "POST", body: formData }).catch(() => {});
     } catch {
-      toast.error("Try again.");
+      toast.error(t("brandComposerTool.tryAgain"));
     } finally {
       setDownloading(false);
     }
@@ -315,11 +320,11 @@ export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
   const canvasBlock = (
     <>
       <div className="flex w-full max-w-[560px] items-center justify-end gap-1">
-        <button type="button" onClick={undo} disabled={!canUndo} title="Undo" aria-label="Undo"
+        <button type="button" onClick={undo} disabled={!canUndo} title={t("brandComposerTool.undo")} aria-label={t("brandComposerTool.undo")}
           className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
           <Undo2 className="size-4" />
         </button>
-        <button type="button" onClick={redo} disabled={!canRedo} title="Redo" aria-label="Redo"
+        <button type="button" onClick={redo} disabled={!canRedo} title={t("brandComposerTool.redo")} aria-label={t("brandComposerTool.redo")}
           className="flex size-11 items-center justify-center rounded-lg text-muted-foreground disabled:opacity-30 enabled:hover:bg-muted enabled:hover:text-foreground">
           <Redo2 className="size-4" />
         </button>
@@ -343,9 +348,9 @@ export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
       </div>
       <div className="flex flex-wrap items-center justify-center gap-1.5">
         {Object.entries(PLATFORMS).map(([id, r]) => (
-          <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={r.sub}
+          <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={t(`brandPost.platform.${id}.sub`)}
             className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${platformId === id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-            {r.label}
+            {t(`brandPost.platform.${id}.label`)}
           </button>
         ))}
       </div>
@@ -357,25 +362,25 @@ export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
       <AiSuggestPanel onSuggestion={applySuggestion} />
 
       <div>
-        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Start from</p>
+        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandComposerTool.startFrom")}</p>
         <div className="grid grid-cols-3 gap-1.5">
           {SHAPES.map((s) => (
             <button key={s.id} type="button" onClick={() => switchShape(s.id)} aria-pressed={shapeId === s.id}
               className={`rounded-lg border px-2 py-2 text-center ${shapeId === s.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-card text-foreground"}`}>
-              <span className="text-[12px] font-bold">{s.label}</span>
+              <span className="text-[12px] font-bold">{t(`brandPost.shape.${s.id}`)}</span>
             </button>
           ))}
         </div>
       </div>
 
       <div>
-        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Add</p>
+        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("workspace.add")}</p>
         <div className="flex flex-wrap gap-1.5">
-          <Btn small variant="ghost" onClick={addText}><Type className="size-3.5" /> Text</Btn>
-          <Btn small variant="ghost" onClick={() => { setStickerPickerOpen((v) => !v); setGifUrlOpen(false); }}><Smile className="size-3.5" /> Emoji</Btn>
-          <Btn small variant="ghost" onClick={() => { setGifUrlOpen((v) => !v); setStickerPickerOpen(false); }}><ImagePlus className="size-3.5" /> GIF / Image</Btn>
+          <Btn small variant="ghost" onClick={addText}><Type className="size-3.5" /> {t("brandComposerTool.text")}</Btn>
+          <Btn small variant="ghost" onClick={() => { setStickerPickerOpen((v) => !v); setGifUrlOpen(false); }}><Smile className="size-3.5" /> {t("brandComposerTool.emoji")}</Btn>
+          <Btn small variant="ghost" onClick={() => { setGifUrlOpen((v) => !v); setStickerPickerOpen(false); }}><ImagePlus className="size-3.5" /> {t("brandComposerTool.gifImage")}</Btn>
           <Btn small variant="ghost" onClick={() => fileInputRef.current?.click()} disabled={uploadLoading} loading={uploadLoading}>
-            <Upload className="size-3.5" /> Upload
+            <Upload className="size-3.5" /> {t("brandComposerTool.upload")}
           </Btn>
           <input
             ref={fileInputRef} type="file" accept="image/*" className="hidden"
@@ -391,8 +396,8 @@ export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
         )}
         {gifUrlOpen && (
           <div className="mt-2 flex gap-1.5">
-            <Input value={gifUrl} onChange={(e) => setGifUrl(e.target.value)} placeholder="Image/GIF link" className="h-9 rounded-[8px] text-[12.5px]" onKeyDown={(e) => { if (e.key === "Enter") addGif(); }} />
-            <Btn small variant="gold" onClick={addGif} disabled={gifLoading} loading={gifLoading}>Add</Btn>
+            <Input value={gifUrl} onChange={(e) => setGifUrl(e.target.value)} placeholder={t("brandComposerTool.imageGifLinkPlaceholder")} className="h-9 rounded-[8px] text-[12.5px]" onKeyDown={(e) => { if (e.key === "Enter") addGif(); }} />
+            <Btn small variant="gold" onClick={addGif} disabled={gifLoading} loading={gifLoading}>{t("workspace.add")}</Btn>
           </div>
         )}
       </div>
@@ -405,7 +410,7 @@ export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
         />
       ) : (
         <p className="m-0 rounded-xl border border-dashed border-border p-4 text-center text-[11.5px] text-muted-foreground">
-          Tap to style
+          {t("brandComposerTool.tapToStyle")}
         </p>
       )}
     </div>
@@ -413,7 +418,7 @@ export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
 
   const downloadRow = (
     <Btn variant="gold" onClick={handleDownload} disabled={!ready || downloading} loading={downloading} className="w-full">
-      <Download className="size-4" /> {downloading ? "Preparing…" : "Download"}
+      <Download className="size-4" /> {downloading ? t("brandComposerTool.preparing") : t("brandComposerTool.download")}
     </Btn>
   );
 
@@ -426,10 +431,10 @@ export function ComposerTool({ token, accent = DEFAULT_ACCENT }) {
         {downloadRow}
         {!sheetOpen && (
           <Btn variant="ghost" onClick={() => setSheetOpen(true)}>
-            <SlidersHorizontal className="size-4" /> Edit content & style
+            <SlidersHorizontal className="size-4" /> {t("brandComposerTool.editContentAndStyle")}
           </Btn>
         )}
-        <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit">
+        <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={t("common.edit")}>
           <div className="p-4">
             {editControls}
           </div>

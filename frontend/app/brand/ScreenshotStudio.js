@@ -32,16 +32,18 @@ import {
 } from "./assetKit";
 import { paintBrandStamp, PLATFORMS } from "./postTemplates";
 import { EmailAssetButton } from "./EmailAssetButton";
+import { useLanguage } from "@/lib/i18n";
 
 const FRAMES = {
-  none: { label: "None", description: "Full-bleed" },
-  card: { label: "Clean card", description: "Rounded + shadow" },
-  browser: { label: "Browser bar", description: "Traffic-light bar" },
+  none: { labelKey: "brandAssets.frameNone", descriptionKey: "brandAssets.frameFullBleed" },
+  card: { labelKey: "brandAssets.frameCleanCard", descriptionKey: "brandAssets.frameRoundedShadow" },
+  browser: { labelKey: "brandAssets.frameBrowserBar", descriptionKey: "brandAssets.frameTrafficLightBar" },
 };
 
 const BLUR_RADIUS_PX = 28; // strength of the blur itself, not the brush size
 
 export function ScreenshotStudio() {
+  const { t } = useLanguage();
   const [sourceImg, setSourceImg] = useState(null); // HTMLImageElement | null
   const [capturing, setCapturing] = useState(false);
   const [crop, setCrop] = useState(null); // {x,y,w,h} in source pixels
@@ -108,7 +110,7 @@ export function ScreenshotStudio() {
 
   const capture = async () => {
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      toast.error("Not supported here — try Upload.");
+      toast.error(t("brandAssets.captureNotSupported"));
       return;
     }
     setCapturing(true);
@@ -130,19 +132,19 @@ export function ScreenshotStudio() {
       const blob = await canvasToPngBlob(canvas);
       setSource(await loadImageFromBlob(blob));
     } catch (e) {
-      if (e?.name !== "NotAllowedError") toast.error("Capture failed.");
+      if (e?.name !== "NotAllowedError") toast.error(t("brandAssets.captureFailed"));
     } finally {
-      stream?.getTracks().forEach((t) => t.stop());
+      stream?.getTracks().forEach((tr) => tr.stop());
       setCapturing(false);
     }
   };
 
   const handleUpload = async (file) => {
-    if (!file || !file.type.startsWith("image/")) { toast.error("Not an image."); return; }
+    if (!file || !file.type.startsWith("image/")) { toast.error(t("brandAssets.notAnImage")); return; }
     try {
       setSource(await loadImageFromBlob(file));
     } catch {
-      toast.error("Couldn't read that file.");
+      toast.error(t("brandAssets.couldntReadFile"));
     }
   };
 
@@ -269,7 +271,7 @@ export function ScreenshotStudio() {
     maskEverPaintedRef.current = false;
     setHasBlur(false);
     redraw();
-    toast.success("Cleared.");
+    toast.success(t("brandAssets.cleared"));
   };
 
   // ── Final export: recomposite the (sharp+blur-masked) source, crop it,
@@ -354,7 +356,7 @@ export function ScreenshotStudio() {
     try {
       downloadBlob(await exportBlob(), exportFilename());
     } catch {
-      toast.error("Try again.");
+      toast.error(t("brandShell.tryAgain"));
     } finally {
       setDownloading(false);
     }
@@ -365,10 +367,10 @@ export function ScreenshotStudio() {
       <div className="grid gap-3 rounded-2xl border border-dashed border-border bg-card p-8 text-center">
         <div className="flex flex-wrap items-center justify-center gap-2">
           <Btn variant="gold" onClick={capture} disabled={capturing} loading={capturing}>
-            <Camera className="size-4" /> {capturing ? "Waiting for permission…" : "Capture screen"}
+            <Camera className="size-4" /> {capturing ? t("brandAssets.waitingForPermission") : t("brandAssets.captureScreen")}
           </Btn>
           <Btn variant="ghost" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="size-4" /> Upload image
+            <Upload className="size-4" /> {t("brandAssets.uploadImage")}
           </Btn>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleUpload(e.target.files?.[0])} />
         </div>
@@ -418,21 +420,21 @@ export function ScreenshotStudio() {
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={() => setTool("crop")} aria-pressed={tool === "crop"}
             className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[12px] font-bold ${tool === "crop" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-            <CropIcon className="size-3.5" /> Crop
+            <CropIcon className="size-3.5" /> {t("brandAssets.crop")}
           </button>
           <button type="button" onClick={() => setTool("blur")} aria-pressed={tool === "blur"}
             className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[12px] font-bold ${tool === "blur" ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-            <Paintbrush className="size-3.5" /> Blur
+            <Paintbrush className="size-3.5" /> {t("brandAssets.blur")}
           </button>
           {tool === "blur" && (
             <input type="range" min="14" max="90" value={brushSize} onChange={(e) => setBrushSize(Number(e.target.value))} className="w-24 accent-primary" />
           )}
           {hasBlur && (
-            <button type="button" onClick={clearBlur} title="Clear blur" className="flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground">
+            <button type="button" onClick={clearBlur} title={t("brandAssets.clearBlur")} className="flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground">
               <Eraser className="size-3.5" />
             </button>
           )}
-          <button type="button" onClick={reset} title="Start over" className="ml-1 flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground">
+          <button type="button" onClick={reset} title={t("brandAssets.startOver")} className="ml-1 flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground">
             <RotateCcw className="size-3.5" />
           </button>
         </div>
@@ -440,40 +442,40 @@ export function ScreenshotStudio() {
 
       <div className="grid gap-4">
         <div>
-          <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Frame</p>
+          <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandAssets.frame")}</p>
           <div className="grid gap-1.5">
             {Object.entries(FRAMES).map(([id, f]) => (
               <button key={id} type="button" onClick={() => setFrameId(id)} aria-pressed={frameId === id}
                 className={`rounded-lg border px-3 py-2 text-left ${frameId === id ? "border-primary/30 bg-primary/10" : "border-border bg-card"}`}>
-                <p className={`m-0 text-[12px] font-bold ${frameId === id ? "text-primary" : "text-foreground"}`}>{f.label}</p>
-                <p className="m-0 text-[10.5px] text-muted-foreground">{f.description}</p>
+                <p className={`m-0 text-[12px] font-bold ${frameId === id ? "text-primary" : "text-foreground"}`}>{t(f.labelKey)}</p>
+                <p className="m-0 text-[10.5px] text-muted-foreground">{t(f.descriptionKey)}</p>
               </button>
             ))}
           </div>
         </div>
 
         <div>
-          <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Platform</p>
+          <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandAssets.platform")}</p>
           <div className="flex flex-wrap gap-1.5">
-            {Object.entries(PLATFORMS).map(([id, r]) => (
-              <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={r.sub}
+            {Object.entries(PLATFORMS).map(([id]) => (
+              <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={t(`brandPost.platform.${id}.sub`)}
                 className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${platformId === id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-                {r.label}
+                {t(`brandPost.platform.${id}.label`)}
               </button>
             ))}
           </div>
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[11.5px] font-bold tracking-wide text-foreground">Handle</label>
+          <label className="mb-1.5 block text-[11.5px] font-bold tracking-wide text-foreground">{t("brandAssets.handle")}</label>
           <Input value={handle} onChange={(e) => updateHandle(e.target.value)} className="h-10 rounded-[10px] text-[13.5px]" />
         </div>
 
         <div className="flex gap-2">
           <Btn variant="gold" onClick={handleDownload} disabled={downloading} loading={downloading} className="flex-1">
-            <Download className="size-4" /> {downloading ? "Preparing…" : "Download"}
+            <Download className="size-4" /> {downloading ? t("brandAssets.preparing") : t("hero.download")}
           </Btn>
-          <EmailAssetButton getBlob={exportBlob} filename={exportFilename()} label="screenshot" />
+          <EmailAssetButton getBlob={exportBlob} filename={exportFilename()} label={t("brandAssets.screenshotNoun")} />
         </div>
       </div>
     </div>

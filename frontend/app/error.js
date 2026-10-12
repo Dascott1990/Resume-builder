@@ -28,7 +28,6 @@ export default function Error({ error, reset }) {
       fullScreen
       onRetry={reset}
       closeHref={variant === "crash" ? "/" : undefined}
-      closeLabel="Go Home"
     />
   );
 }

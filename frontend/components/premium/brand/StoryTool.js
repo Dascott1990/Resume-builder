@@ -29,7 +29,8 @@ import { releaseClip, clipLengthSec } from "@/app/brand/story/clipModel";
 import { makeTextLayer, DEFAULT_ACCENT, PLATFORMS } from "@/app/brand/postTemplates";
 import { downloadBlob } from "@/app/brand/assetKit";
 import { recordWebm, recordGif } from "./storyClientExport";
-import { workspaceFetch } from "./workspaceApi";
+import { workspaceFetch, workspaceErrorMessage } from "./workspaceApi";
+import { useLanguage } from "@/lib/i18n";
 
 function scoreColor(score) {
   if (score >= 85) return "text-success border-success/30 bg-success/10";
@@ -38,6 +39,7 @@ function scoreColor(score) {
 }
 
 export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
+  const { t } = useLanguage();
   const [clips, setClips] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [platformId, setPlatformId] = useState("story");
@@ -75,7 +77,7 @@ export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
     if (selectedIndex == null) return;
     updateClip(selectedIndex, { captionLayers: nextLayer ? [nextLayer] : [] });
   };
-  const addCaption = () => setCaption(makeTextLayer({ text: "Your caption", sizeFrac: 0.045, y: 0.82, highlight: true }));
+  const addCaption = () => setCaption(makeTextLayer({ text: t("brandStoryTool.yourCaption"), sizeFrac: 0.045, y: 0.82, highlight: true }));
   const applySuggestion = (data) => setCaption({ ...(caption || makeTextLayer({ sizeFrac: 0.045, y: 0.82, highlight: true })), text: data.headline || data.subtext || "" });
 
   const exportFilename = (ext) => `noqeev-story-${Date.now()}.${ext}`;
@@ -105,7 +107,7 @@ export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
   };
 
   const runExport = async (format) => {
-    if (!clips.length) { toast.error("Add at least one clip first."); return; }
+    if (!clips.length) { toast.error(t("brandStoryTool.addClipFirst")); return; }
     setExporting(format);
     setProgress(0);
     setQuality(null);
@@ -115,10 +117,10 @@ export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
         : await recordGif(clips, platform, accent, { onProgress: setProgress });
       downloadBlob(blob, exportFilename(format === "webm" ? "webm" : "gif"));
       persistExport(blob, format === "webm" ? "webm" : "gif");
-      toast.success(`${format === "webm" ? "Video" : "GIF"} ready.`);
+      toast.success(format === "webm" ? t("brandStoryTool.videoReady") : t("brandStoryTool.gifReady"));
       runQualityCheck(); // advisory, never blocks the download that already happened
     } catch (e) {
-      toast.error(e.message || "Export failed — try again.");
+      toast.error(workspaceErrorMessage(e, t) || t("brandStoryTool.exportFailed"));
     } finally {
       setExporting(null);
       setProgress(0);
@@ -132,9 +134,9 @@ export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
       <div className="flex min-w-0 w-full flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-center gap-1.5">
           {Object.entries(PLATFORMS).map(([id, r]) => (
-            <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={r.sub}
+            <button key={id} type="button" onClick={() => setPlatformId(id)} aria-pressed={platformId === id} title={t(`brandPost.platform.${id}.sub`)}
               className={`rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${platformId === id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-              {r.label}
+              {t(`brandPost.platform.${id}.label`)}
             </button>
           ))}
         </div>
@@ -144,19 +146,19 @@ export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
         />
         <div className="flex w-full gap-2">
           <Btn variant="gold" className="flex-1" onClick={() => runExport("webm")} disabled={!!exporting || !clips.length} loading={exporting === "webm"}>
-            <Film className="size-4" /> {exporting === "webm" ? `Rendering… ${progress.toFixed(1)}s` : "Export video (WebM)"}
+            <Film className="size-4" /> {exporting === "webm" ? t("brandStoryTool.renderingSeconds", { s: progress.toFixed(1) }) : t("brandStoryTool.exportVideoWebm")}
           </Btn>
           <Btn variant="ghost" className="flex-1" onClick={() => runExport("gif")} disabled={!!exporting || !clips.length} loading={exporting === "gif"}>
-            <ImageIcon className="size-4" /> {exporting === "gif" ? `Rendering… ${progress.toFixed(1)}s` : "Export GIF"}
+            <ImageIcon className="size-4" /> {exporting === "gif" ? t("brandStoryTool.renderingSeconds", { s: progress.toFixed(1) }) : t("brandStoryTool.exportGif")}
           </Btn>
         </div>
         <p className="m-0 text-center text-[11px] text-muted-foreground">
-          Rendered right here in your browser — short clips, straight cuts, no sound.
+          {t("brandStoryTool.renderedInBrowser")}
         </p>
 
         {checkingQuality && (
           <p className="m-0 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-            <Loader2 className="size-3 animate-spin" /> Checking pacing…
+            <Loader2 className="size-3 animate-spin" /> {t("brandStoryTool.checkingPacing")}
           </p>
         )}
 
@@ -197,7 +199,7 @@ export function StoryTool({ token, accent = DEFAULT_ACCENT }) {
               />
             ) : (
               <Btn variant="ghost" onClick={addCaption}>
-                <Sparkles className="size-3.5" /> Add caption
+                <Sparkles className="size-3.5" /> {t("brandStoryTool.addCaption")}
               </Btn>
             )}
           </>

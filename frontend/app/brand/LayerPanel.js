@@ -19,6 +19,7 @@ import {
   Trash2, SendToBack, BringToFront, Copy, AlignLeft, AlignCenter, AlignRight, Waves, Square, Captions,
 } from "lucide-react";
 import { FONT_OPTIONS, FONT_STACKS, FONT_DEFAULT_WEIGHTS } from "./postTemplates";
+import { useLanguage } from "@/lib/i18n";
 
 // Fixed, on-brand swatches rather than a free RGB picker — matches the
 // rest of the app's "one deliberate accent, no arbitrary colour boxes"
@@ -26,13 +27,14 @@ import { FONT_OPTIONS, FONT_STACKS, FONT_DEFAULT_WEIGHTS } from "./postTemplates
 // cover the two classic caption looks (light text on dark video, dark
 // text on light video); Ink/Muted/Accent are the existing theme tokens.
 const COLOR_OPTIONS = [
-  { id: "ink", swatch: "#f5f0e6", label: "Ink" },
-  { id: "white", swatch: "#ffffff", label: "White" },
-  { id: "black", swatch: "#0a0a0a", label: "Black" },
-  { id: "muted", swatch: "#a89b7e", label: "Muted" },
+  { id: "ink", swatch: "#f5f0e6", labelKey: "brandAssets.colorInk" },
+  { id: "white", swatch: "#ffffff", labelKey: "brandAssets.colorWhite" },
+  { id: "black", swatch: "#0a0a0a", labelKey: "brandAssets.colorBlack" },
+  { id: "muted", swatch: "#a89b7e", labelKey: "brandAssets.colorMuted" },
 ];
 
 function LayerHeaderRow({ label, onDuplicate, onFront, onBack, onDelete }) {
+  const { t } = useLanguage();
   const hasOrderControls = onDuplicate || onFront || onBack;
   return (
     <div className="mb-3 flex items-center justify-between">
@@ -45,26 +47,29 @@ function LayerHeaderRow({ label, onDuplicate, onFront, onBack, onDelete }) {
       <div className="flex items-center gap-2">
         {hasOrderControls && (
           <>
-            {onBack && <button type="button" onClick={onBack} title="Send to back" className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><SendToBack className="size-4" /></button>}
-            {onFront && <button type="button" onClick={onFront} title="Bring to front" className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><BringToFront className="size-4" /></button>}
-            {onDuplicate && <button type="button" onClick={onDuplicate} title="Duplicate" className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><Copy className="size-4" /></button>}
+            {onBack && <button type="button" onClick={onBack} title={t("brandAssets.sendToBack")} className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><SendToBack className="size-4" /></button>}
+            {onFront && <button type="button" onClick={onFront} title={t("brandAssets.bringToFront")} className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><BringToFront className="size-4" /></button>}
+            {onDuplicate && <button type="button" onClick={onDuplicate} title={t("brandAssets.duplicate")} className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><Copy className="size-4" /></button>}
           </>
         )}
-        <button type="button" onClick={onDelete} title="Delete" aria-label="Delete" className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button>
+        <button type="button" onClick={onDelete} title={t("common.delete")} aria-label={t("common.delete")} className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button>
       </div>
     </div>
   );
 }
 
 export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, onBack, accent, showKaraoke }) {
+  const { t } = useLanguage();
   if (!layer) return null;
   const set = (patch) => onChange({ ...layer, ...patch });
+  const fontLabel = (id) => t(`brandPost.font.${id}`);
+  const accentOption = accent ? [{ id: "accent", swatch: accent.primary, labelKey: "brandAssets.colorAccent" }] : [];
 
   if (layer.type === "sticker") {
     return (
       <div className="rounded-xl border border-border bg-card p-4">
-        <LayerHeaderRow label="Sticker" onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
-        <label className="mb-1.5 block text-[11.5px] font-bold text-foreground">Size</label>
+        <LayerHeaderRow label={t("brandAssets.layerSticker")} onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
+        <label className="mb-1.5 block text-[11.5px] font-bold text-foreground">{t("brandAssets.size")}</label>
         <input type="range" min="0.05" max="0.35" step="0.01" value={layer.sizeFrac} onChange={(e) => set({ sizeFrac: Number(e.target.value) })} className="w-full accent-primary" />
       </div>
     );
@@ -72,10 +77,10 @@ export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, on
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      <LayerHeaderRow label="Text" onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
+      <LayerHeaderRow label={t("brandAssets.layerText")} onDuplicate={onDuplicate} onFront={onFront} onBack={onBack} onDelete={onDelete} />
       <Textarea value={layer.text} onChange={(e) => set({ text: e.target.value })} rows={2} className="mb-3 resize-none rounded-[10px] text-[13px]" />
 
-      <label className="mb-1.5 block text-[11px] font-bold text-foreground">Font</label>
+      <label className="mb-1.5 block text-[11px] font-bold text-foreground">{t("brandAssets.font")}</label>
       {/* Each pill set in its own actual typeface, not a generic label —
           picking a font is exploring what it looks like, not reading a
           name off a list. */}
@@ -87,27 +92,27 @@ export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, on
             aria-pressed={layer.font === f.id}
             style={{ fontFamily: FONT_STACKS[f.id] }}
             className={`rounded-full border px-3 py-1.5 text-[13px] font-semibold ${layer.font === f.id ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-            {f.label}
+            {fontLabel(f.id)}
           </button>
         ))}
       </div>
 
       <div className="mb-3 grid grid-cols-2 gap-3">
         <div>
-          <label className="mb-1.5 block text-[11px] font-bold text-foreground">Size</label>
+          <label className="mb-1.5 block text-[11px] font-bold text-foreground">{t("brandAssets.size")}</label>
           <input type="range" min="0.015" max="0.2" step="0.005" value={layer.sizeFrac} onChange={(e) => set({ sizeFrac: Number(e.target.value) })} className="w-full accent-primary" />
         </div>
         <div>
-          <label className="mb-1.5 block text-[11px] font-bold text-foreground">Spacing</label>
+          <label className="mb-1.5 block text-[11px] font-bold text-foreground">{t("brandAssets.spacing")}</label>
           <input type="range" min="0" max="0.012" step="0.0005" value={layer.spacingFrac} onChange={(e) => set({ spacingFrac: Number(e.target.value) })} className="w-full accent-primary" />
         </div>
       </div>
 
-      <label className="mb-1.5 block text-[11px] font-bold text-foreground">Color</label>
+      <label className="mb-1.5 block text-[11px] font-bold text-foreground">{t("brandAssets.color")}</label>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        {[...COLOR_OPTIONS, ...(accent ? [{ id: "accent", swatch: accent.primary, label: "Accent" }] : [])].map((c) => (
+        {[...COLOR_OPTIONS, ...accentOption].map((c) => (
           <button key={c.id} type="button" onClick={() => set({ color: c.id, gradientFill: false })} aria-pressed={layer.color === c.id && !layer.gradientFill}
-            title={c.label}
+            title={t(c.labelKey)}
             className={`flex size-9 items-center justify-center rounded-full border-2 ${layer.color === c.id && !layer.gradientFill ? "border-primary" : "border-transparent"}`}>
             <span className="size-6 rounded-full border border-black/10" style={{ backgroundColor: c.swatch }} />
           </button>
@@ -116,11 +121,11 @@ export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, on
 
       {layer.highlight && (
         <div className="mb-3">
-          <label className="mb-1.5 block text-[11px] font-bold text-foreground">Highlight color</label>
+          <label className="mb-1.5 block text-[11px] font-bold text-foreground">{t("brandAssets.highlightColor")}</label>
           <div className="flex flex-wrap items-center gap-2">
-            {[...COLOR_OPTIONS, ...(accent ? [{ id: "accent", swatch: accent.primary, label: "Accent" }] : [])].map((c) => (
+            {[...COLOR_OPTIONS, ...accentOption].map((c) => (
               <button key={c.id} type="button" onClick={() => set({ highlightColor: c.id })} aria-pressed={(layer.highlightColor || "black") === c.id}
-                title={c.label}
+                title={t(c.labelKey)}
                 className={`flex size-9 items-center justify-center rounded-full border-2 ${(layer.highlightColor || "black") === c.id ? "border-primary" : "border-transparent"}`}>
                 <span className="size-6 rounded-full border border-black/10" style={{ backgroundColor: c.swatch }} />
               </button>
@@ -144,11 +149,11 @@ export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, on
               frame regardless of colour underneath. */}
           <button type="button" onClick={() => set({ highlight: !layer.highlight })} aria-pressed={layer.highlight}
             className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${layer.highlight ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-            <Square className="size-3.5" /> Highlight
+            <Square className="size-3.5" /> {t("brandAssets.highlight")}
           </button>
           <button type="button" onClick={() => set({ bounce: !layer.bounce })} aria-pressed={layer.bounce}
             className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${layer.bounce ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-            <Waves className="size-3.5" /> Bounce
+            <Waves className="size-3.5" /> {t("brandAssets.bounce")}
           </button>
           {/* Only where there's a clip duration to time words against —
               Create's layers have no time axis, so this only shows up
@@ -156,7 +161,7 @@ export function LayerPanel({ layer, onChange, onDelete, onDuplicate, onFront, on
           {showKaraoke && (
             <button type="button" onClick={() => set({ karaoke: !layer.karaoke })} aria-pressed={layer.karaoke}
               className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${layer.karaoke ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-              <Captions className="size-3.5" /> Karaoke
+              <Captions className="size-3.5" /> {t("brandAssets.karaoke")}
             </button>
           )}
         </div>

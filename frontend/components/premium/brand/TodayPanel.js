@@ -25,8 +25,9 @@
 import { useEffect, useState } from "react";
 import { CalendarClock, PenLine, AlertTriangle, Loader2 } from "lucide-react";
 import { workspaceFetch } from "./workspaceApi";
-import { PLATFORM_LABELS, CONTENT_TYPE_LABELS, fmtDateTime } from "./SchedulerTool";
+import { platformLabel, contentTypeLabels, fmtDateTime } from "./SchedulerTool";
 import { listPostDrafts } from "@/app/brand/assetKit";
+import { useLanguage } from "@/lib/i18n";
 
 function isToday(iso) {
   const d = new Date(iso);
@@ -38,13 +39,13 @@ function isOverdue(post) {
   return post.status === "scheduled" && new Date(post.scheduled_at) <= new Date();
 }
 
-function timeAgo(ms) {
+function timeAgo(ms, t) {
   const mins = Math.floor((Date.now() - ms) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return t("brandTodayPanel.justNow");
+  if (mins < 60) return t("brandTodayPanel.minutesAgo", { n: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  if (hrs < 24) return t("brandTodayPanel.hoursAgo", { n: hrs });
+  return t("brandTodayPanel.daysAgo", { n: Math.floor(hrs / 24) });
 }
 
 // Same glass-surface material Dashboard.js's own recent-activity rows use
@@ -55,7 +56,9 @@ function timeAgo(ms) {
 // still the same red-means-needs-action signal the rest of the app uses,
 // just not a flat solid fill underneath it anymore.
 function PostRow({ post, overdue }) {
-  const platforms = post.handles.map((h) => PLATFORM_LABELS[h.platform] || h.platform).join(", ");
+  const { t } = useLanguage();
+  const CONTENT_TYPE_LABELS = contentTypeLabels(t);
+  const platforms = post.handles.map((h) => platformLabel(h.platform, t) || h.platform).join(", ");
   return (
     <div className={`glass-surface flex items-start justify-between gap-3 rounded-xl px-3 py-2.5 ${overdue ? "glass-surface-danger" : ""}`}>
       <div className="min-w-0">
@@ -65,7 +68,7 @@ function PostRow({ post, overdue }) {
           {platforms ? ` · ${platforms}` : ""}
         </p>
       </div>
-      {overdue && <span className="shrink-0 rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-bold text-destructive">Due</span>}
+      {overdue && <span className="shrink-0 rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-bold text-destructive">{t("brandSchedulerTool.due")}</span>}
     </div>
   );
 }
@@ -95,6 +98,7 @@ function Section({ icon: Icon, color, label, empty, children }) {
 }
 
 export function TodayPanel({ token }) {
+  const { t } = useLanguage();
   const [posts, setPosts] = useState(null); // null = loading
   const [drafts, setDrafts] = useState([]);
 
@@ -118,9 +122,9 @@ export function TodayPanel({ token }) {
 
   return (
     <div className="glass-surface mb-6 grid gap-4 rounded-2xl p-4">
-      <p className="m-0 font-mono text-[10.5px] font-bold tracking-[0.14em] text-muted-foreground/70 uppercase">Today</p>
+      <p className="m-0 font-mono text-[10.5px] font-bold tracking-[0.14em] text-muted-foreground/70 uppercase">{t("brandTodayPanel.today")}</p>
 
-      <Section icon={CalendarClock} color="amber" label="Scheduled today" empty="Nothing scheduled for today.">
+      <Section icon={CalendarClock} color="amber" label={t("brandTodayPanel.scheduledToday")} empty={t("brandTodayPanel.nothingScheduledToday")}>
         {todayPosts.length > 0 && (
           <div className="grid gap-1.5">
             {todayPosts.map((p) => <PostRow key={p.id} post={p} overdue={isOverdue(p)} />)}
@@ -128,14 +132,14 @@ export function TodayPanel({ token }) {
         )}
       </Section>
 
-      <Section icon={PenLine} color="neutral" label="Working on now" empty="No drafts in progress on this browser.">
+      <Section icon={PenLine} color="neutral" label={t("brandTodayPanel.workingOnNow")} empty={t("brandTodayPanel.noDraftsInProgress")}>
         {drafts.length > 0 && (
           <div className="grid gap-1.5">
             {drafts.map((d) => (
               <div key={d.id} className="glass-surface flex items-center justify-between gap-3 rounded-xl px-3 py-2.5">
                 <p className="m-0 min-w-0 truncate text-[12.5px] font-bold text-foreground">{d.name}</p>
                 <p className="m-0 shrink-0 text-[11px] text-muted-foreground">
-                  {d.layerCount} layer{d.layerCount === 1 ? "" : "s"} · {timeAgo(d.updatedAt)}
+                  {d.layerCount === 1 ? t("brandTodayPanel.layerCountOne", { n: d.layerCount }) : t("brandTodayPanel.layerCountOther", { n: d.layerCount })} · {timeAgo(d.updatedAt, t)}
                 </p>
               </div>
             ))}
@@ -143,7 +147,7 @@ export function TodayPanel({ token }) {
         )}
       </Section>
 
-      <Section icon={AlertTriangle} color="destructive" label="Needs attention" empty="Nothing overdue.">
+      <Section icon={AlertTriangle} color="destructive" label={t("brandTodayPanel.needsAttention")} empty={t("brandTodayPanel.nothingOverdue")}>
         {overduePosts.length > 0 && (
           <div className="grid gap-1.5">
             {overduePosts.map((p) => <PostRow key={p.id} post={p} overdue />)}

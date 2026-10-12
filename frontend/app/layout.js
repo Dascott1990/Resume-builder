@@ -136,8 +136,10 @@ export default function RootLayout({ children }) {
             canvas-rendering code); flagged as a follow-up, not done here. */}
       </head>
       <body className="m-0 overscroll-none bg-background">
-        <LanguageProvider>{children}</LanguageProvider>
-        <OfflineBanner />
+        <LanguageProvider>
+          {children}
+          <OfflineBanner />
+        </LanguageProvider>
         <Toaster position="top-center" />
         <ServiceWorkerRegister />
         <KeepAlive />

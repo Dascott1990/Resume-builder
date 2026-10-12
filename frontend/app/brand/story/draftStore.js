@@ -84,7 +84,7 @@ export async function listStoryDrafts() {
     const all = (await tx("readonly", (store) => store.getAll())) || [];
     return all
       .filter((d) => d && d.id)
-      .map((d) => ({ id: d.id, name: d.name || "Untitled story", updatedAt: d.updatedAt || 0, clipCount: d.clips?.length || 0 }))
+      .map((d) => ({ id: d.id, name: d.name || null, updatedAt: d.updatedAt || 0, clipCount: d.clips?.length || 0 }))
       .sort((a, b) => b.updatedAt - a.updatedAt);
   } catch {
     return [];

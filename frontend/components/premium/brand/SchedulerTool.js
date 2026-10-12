@@ -19,16 +19,26 @@ import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { workspaceFetch } from "./workspaceApi";
+import { workspaceFetch, workspaceErrorMessage } from "./workspaceApi";
+import { useLanguage } from "@/lib/i18n";
 
 const PLATFORM_OPTIONS = ["instagram", "tiktok", "x", "facebook", "linkedin", "youtube", "pinterest", "other"];
 // Exported — TodayPanel.js reuses these exact labels/formatting rather
-// than keeping a second copy that could drift out of sync.
+// than keeping a second copy that could drift out of sync. Platform
+// names are proper nouns/trademarks — not translated in any language.
 export const PLATFORM_LABELS = {
   instagram: "Instagram", tiktok: "TikTok", x: "X", facebook: "Facebook",
   linkedin: "LinkedIn", youtube: "YouTube", pinterest: "Pinterest", other: "Other",
 };
-export const CONTENT_TYPE_LABELS = { post: "Post", story: "Story" };
+// "other" is the one entry above that isn't a proper noun — it needs
+// translating, so render it through this instead of PLATFORM_LABELS directly.
+export function platformLabel(id, t) {
+  return id === "other" ? t("brandSchedulerTool.otherPlatform") : PLATFORM_LABELS[id];
+}
+// Exported — TodayPanel.js reuses this rather than keeping a second copy.
+export function contentTypeLabels(t) {
+  return { post: t("brandSchedulerTool.post"), story: t("brandSchedulerTool.story") };
+}
 
 export function fmtDateTime(iso) {
   if (!iso) return "—";
@@ -52,24 +62,25 @@ function localInputToUtcIso(local) {
 }
 
 function HandleForm({ token, onAdded }) {
+  const { t } = useLanguage();
   const [platform, setPlatform] = useState("instagram");
   const [handleName, setHandleName] = useState("");
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
-    if (!handleName.trim()) { toast.error("Handle name is required."); return; }
+    if (!handleName.trim()) { toast.error(t("brandSchedulerTool.handleNameRequired")); return; }
     setSaving(true);
     try {
       const data = await workspaceFetch(token, "/api/v1/workspace/handles", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ platform, handle_name: handleName.trim(), label: label.trim() || undefined }),
       });
-      toast.success("Handle registered.");
+      toast.success(t("brandSchedulerTool.handleRegistered"));
       setHandleName(""); setLabel("");
       onAdded(data);
     } catch (e) {
-      toast.error(e.message);
+      toast.error(workspaceErrorMessage(e, t));
     } finally {
       setSaving(false);
     }
@@ -80,17 +91,19 @@ function HandleForm({ token, onAdded }) {
       <Select value={platform} onValueChange={setPlatform}>
         <SelectTrigger className="h-9 w-[130px] rounded-[8px] text-[12.5px]"><SelectValue /></SelectTrigger>
         <SelectContent>
-          {PLATFORM_OPTIONS.map((p) => <SelectItem key={p} value={p}>{PLATFORM_LABELS[p]}</SelectItem>)}
+          {PLATFORM_OPTIONS.map((p) => <SelectItem key={p} value={p}>{platformLabel(p, t)}</SelectItem>)}
         </SelectContent>
       </Select>
       <Input value={handleName} onChange={(e) => setHandleName(e.target.value)} placeholder="@handle" className="h-9 w-[130px] rounded-[8px] text-[12.5px]" />
-      <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (optional)" className="h-9 w-[150px] rounded-[8px] text-[12.5px]" />
-      <Btn small variant="gold" onClick={save} disabled={saving} loading={saving}><Plus className="size-3.5" /> Add</Btn>
+      <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("brandSchedulerTool.labelOptional")} className="h-9 w-[150px] rounded-[8px] text-[12.5px]" />
+      <Btn small variant="gold" onClick={save} disabled={saving} loading={saving}><Plus className="size-3.5" /> {t("workspace.add")}</Btn>
     </div>
   );
 }
 
 function NewPostForm({ token, handles, workspace, onCreated }) {
+  const { t } = useLanguage();
+  const CONTENT_TYPE_LABELS = contentTypeLabels(t);
   const [open, setOpen] = useState(false);
   const [contentType, setContentType] = useState("post");
   const [title, setTitle] = useState("");
@@ -114,16 +127,16 @@ function NewPostForm({ token, handles, workspace, onCreated }) {
       setScheduledLocal(toLocalInputValue(data.scheduled_at));
       setSuggestedReasoning(data.reasoning || "");
     } catch (e) {
-      toast.error(e.message);
+      toast.error(workspaceErrorMessage(e, t));
     } finally {
       setSuggesting(false);
     }
   };
 
   const create = async () => {
-    if (!title.trim()) { toast.error("Title is required."); return; }
-    if (!scheduledLocal) { toast.error("Pick a date/time, or use Suggest."); return; }
-    if (!handleIds.length) { toast.error("Pick at least one handle."); return; }
+    if (!title.trim()) { toast.error(t("brandSchedulerTool.titleRequired")); return; }
+    if (!scheduledLocal) { toast.error(t("brandSchedulerTool.pickDateOrSuggest")); return; }
+    if (!handleIds.length) { toast.error(t("brandSchedulerTool.pickAtLeastOneHandle")); return; }
     setSaving(true);
     try {
       await workspaceFetch(token, "/api/v1/workspace/scheduled-posts", {
@@ -134,11 +147,11 @@ function NewPostForm({ token, handles, workspace, onCreated }) {
           notify_email: notifyEmail.trim() || undefined,
         }),
       });
-      toast.success("Scheduled.");
+      toast.success(t("brandSchedulerTool.scheduled"));
       setTitle(""); setCaption(""); setScheduledLocal(""); setSuggestedReasoning(""); setHandleIds([]); setOpen(false);
       onCreated();
     } catch (e) {
-      toast.error(e.message);
+      toast.error(workspaceErrorMessage(e, t));
     } finally {
       setSaving(false);
     }
@@ -147,7 +160,7 @@ function NewPostForm({ token, handles, workspace, onCreated }) {
   if (!open) {
     return (
       <Btn variant="ghost" onClick={() => setOpen(true)} disabled={!handles.length}>
-        <Plus className="size-4" /> {handles.length ? "Schedule a post" : "Add a handle first"}
+        <Plus className="size-4" /> {handles.length ? t("brandSchedulerTool.scheduleAPost") : t("brandSchedulerTool.addAHandleFirst")}
       </Btn>
     );
   }
@@ -162,16 +175,16 @@ function NewPostForm({ token, handles, workspace, onCreated }) {
           </button>
         ))}
       </div>
-      <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="h-9 rounded-[8px] text-[12.5px]" />
-      <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Caption (optional)" rows={2} className="resize-none rounded-[8px] text-[12.5px]" />
+      <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("brandSchedulerTool.titlePlaceholder")} className="h-9 rounded-[8px] text-[12.5px]" />
+      <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder={t("brandSchedulerTool.captionOptional")} rows={2} className="resize-none rounded-[8px] text-[12.5px]" />
 
       <div>
-        <p className="m-0 mb-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Post to</p>
+        <p className="m-0 mb-1.5 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandSchedulerTool.postTo")}</p>
         <div className="flex flex-wrap gap-1.5">
           {handles.map((h) => (
             <button key={h.id} type="button" onClick={() => toggleHandle(h.id)} aria-pressed={handleIds.includes(h.id)}
               className={`rounded-full border px-3 py-1.5 text-[11.5px] font-semibold ${handleIds.includes(h.id) ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground"}`}>
-              {PLATFORM_LABELS[h.platform]} — {h.handle_name}
+              {platformLabel(h.platform, t)} — {h.handle_name}
             </button>
           ))}
         </div>
@@ -179,26 +192,28 @@ function NewPostForm({ token, handles, workspace, onCreated }) {
 
       <div className="flex flex-wrap items-end gap-2">
         <div>
-          <label className="mb-1 block text-[11px] font-bold text-foreground">When</label>
+          <label className="mb-1 block text-[11px] font-bold text-foreground">{t("brandSchedulerTool.when")}</label>
           <Input type="datetime-local" value={scheduledLocal} onChange={(e) => setScheduledLocal(e.target.value)} className="h-9 rounded-[8px] text-[12.5px]" />
         </div>
         <Btn small variant="ghost" onClick={suggestTime} disabled={suggesting} loading={suggesting}>
-          <Sparkles className="size-3.5" /> Suggest time
+          <Sparkles className="size-3.5" /> {t("brandSchedulerTool.suggestTime")}
         </Btn>
       </div>
       {suggestedReasoning && <p className="m-0 text-[11px] text-muted-foreground">{suggestedReasoning}</p>}
 
-      <Input value={notifyEmail} onChange={(e) => setNotifyEmail(e.target.value)} placeholder={`Reminder email (default: ${workspace?.notify_email || "none set"})`} className="h-9 rounded-[8px] text-[12.5px]" />
+      <Input value={notifyEmail} onChange={(e) => setNotifyEmail(e.target.value)} placeholder={t("brandSchedulerTool.reminderEmailDefault", { email: workspace?.notify_email || t("brandSchedulerTool.noneSet") })} className="h-9 rounded-[8px] text-[12.5px]" />
 
       <div className="flex gap-2">
-        <Btn variant="gold" className="flex-1" onClick={create} disabled={saving} loading={saving}>Schedule</Btn>
-        <Btn variant="ghost" onClick={() => setOpen(false)}>Cancel</Btn>
+        <Btn variant="gold" className="flex-1" onClick={create} disabled={saving} loading={saving}>{t("brandSchedulerTool.schedule")}</Btn>
+        <Btn variant="ghost" onClick={() => setOpen(false)}>{t("common.cancel")}</Btn>
       </div>
     </div>
   );
 }
 
 function PostRow({ post, token, onChanged }) {
+  const { t } = useLanguage();
+  const CONTENT_TYPE_LABELS = contentTypeLabels(t);
   const [busyHandle, setBusyHandle] = useState(null);
 
   const toggle = async (handleId, posted) => {
@@ -209,7 +224,7 @@ function PostRow({ post, token, onChanged }) {
       });
       onChanged();
     } catch (e) {
-      toast.error(e.message);
+      toast.error(workspaceErrorMessage(e, t));
     } finally {
       setBusyHandle(null);
     }
@@ -224,17 +239,17 @@ function PostRow({ post, token, onChanged }) {
           <p className="m-0 truncate text-[13px] font-bold text-foreground">{post.title}</p>
           <p className="m-0 text-[11px] text-muted-foreground">
             {CONTENT_TYPE_LABELS[post.content_type]} · {fmtDateTime(post.scheduled_at)}
-            {post.status === "completed" && " · Done"}
+            {post.status === "completed" && ` · ${t("brandSchedulerTool.done")}`}
           </p>
         </div>
-        {overdue && <span className="shrink-0 rounded-full bg-destructive/15 px-2 py-0.5 text-[10.5px] font-bold text-destructive">Due</span>}
+        {overdue && <span className="shrink-0 rounded-full bg-destructive/15 px-2 py-0.5 text-[10.5px] font-bold text-destructive">{t("brandSchedulerTool.due")}</span>}
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {post.handles.map((h) => (
           <button key={h.id} type="button" onClick={() => toggle(h.brand_handle_id, !h.posted)} disabled={busyHandle === h.brand_handle_id}
             className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${h.posted ? "border-success/30 bg-success/10 text-success" : "border-border bg-transparent text-muted-foreground"}`}>
             {busyHandle === h.brand_handle_id ? <Loader2 className="size-3 animate-spin" /> : h.posted ? <Check className="size-3" /> : null}
-            {PLATFORM_LABELS[h.platform] || h.platform} — {h.handle_name}
+            {platformLabel(h.platform, t) || h.platform} — {h.handle_name}
           </button>
         ))}
       </div>
@@ -243,6 +258,7 @@ function PostRow({ post, token, onChanged }) {
 }
 
 export function SchedulerTool({ token, workspace }) {
+  const { t } = useLanguage();
   const [handles, setHandles] = useState([]);
   const [posts, setPosts] = useState([]);
   const [dueCount, setDueCount] = useState(0);
@@ -259,7 +275,7 @@ export function SchedulerTool({ token, workspace }) {
       ]);
       setHandles(h); setPosts(p); setDueCount(dc.count); setNextUp(nu);
     } catch (e) {
-      toast.error(e.message);
+      toast.error(workspaceErrorMessage(e, t));
     } finally {
       setLoading(false);
     }
@@ -277,12 +293,12 @@ export function SchedulerTool({ token, workspace }) {
       await workspaceFetch(token, `/api/v1/workspace/handles/${id}`, { method: "DELETE" });
       reloadAll();
     } catch (e) {
-      toast.error(e.message);
+      toast.error(workspaceErrorMessage(e, t));
     }
   };
 
   if (loading) {
-    return <p className="m-0 flex items-center gap-1.5 text-[12.5px] text-muted-foreground"><Loader2 className="size-3.5 animate-spin" /> Loading…</p>;
+    return <p className="m-0 flex items-center gap-1.5 text-[12.5px] text-muted-foreground"><Loader2 className="size-3.5 animate-spin" /> {t("common.loading")}</p>;
   }
 
   return (
@@ -290,24 +306,24 @@ export function SchedulerTool({ token, workspace }) {
       <div className="flex items-center gap-2">
         {dueCount > 0 && (
           <span className="flex items-center gap-1 rounded-full bg-destructive/15 px-2.5 py-1 text-[11px] font-bold text-destructive">
-            <Clock className="size-3" /> {dueCount} due
+            <Clock className="size-3" /> {t("brandSchedulerTool.dueCount", { n: dueCount })}
           </span>
         )}
         {nextUp && (
           <span className="text-[11.5px] text-muted-foreground">
-            Next up: <span className="font-semibold text-foreground">{nextUp.title}</span> · {fmtDateTime(nextUp.scheduled_at)}
+            {t("brandSchedulerTool.nextUp")} <span className="font-semibold text-foreground">{nextUp.title}</span> · {fmtDateTime(nextUp.scheduled_at)}
           </span>
         )}
-        {!nextUp && dueCount === 0 && <span className="text-[11.5px] text-muted-foreground">Nothing scheduled.</span>}
+        {!nextUp && dueCount === 0 && <span className="text-[11.5px] text-muted-foreground">{t("brandSchedulerTool.nothingScheduled")}</span>}
       </div>
 
       <div>
-        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Handles</p>
+        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandSchedulerTool.handles")}</p>
         {handles.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1.5">
             {handles.map((h) => (
               <span key={h.id} className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11.5px]">
-                {PLATFORM_LABELS[h.platform]} — {h.handle_name}
+                {platformLabel(h.platform, t)} — {h.handle_name}
                 <button type="button" onClick={() => removeHandle(h.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="size-3" /></button>
               </span>
             ))}
@@ -317,7 +333,7 @@ export function SchedulerTool({ token, workspace }) {
       </div>
 
       <div>
-        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">Scheduled</p>
+        <p className="m-0 mb-2 font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">{t("brandSchedulerTool.scheduledHeading")}</p>
         <div className="grid gap-2">
           {posts.map((p) => <PostRow key={p.id} post={p} token={token} onChanged={reloadAll} />)}
         </div>

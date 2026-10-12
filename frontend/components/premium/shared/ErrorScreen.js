@@ -22,24 +22,28 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import Logo3D from "@/components/premium/Logo3D";
 import { usePrefersReducedMotion } from "@/lib/usePrefersReducedMotion";
+import { useLanguage } from "@/lib/i18n";
 
-const COPY = {
-  crash: {
-    title: "Something went wrong",
-    message: "Your work isn't lost. This screen just hit a snag. You can pick back up from here.",
-    retryLabel: "Try Again",
-  },
-  offline: {
-    title: "Can't reach Noqeev",
-    message: "Check your connection and try again. Nothing here was lost.",
-    retryLabel: "Try Again",
-  },
-  notfound: {
-    title: "This page doesn't exist",
-    message: "The link might be old, or the address might be off.",
-    retryLabel: "Go Home",
-  },
-};
+function getCopy(t, variant) {
+  const byVariant = {
+    crash: {
+      title: t("errorScreen.crashTitle"),
+      message: t("errorScreen.crashMessage"),
+      retryLabel: t("errorScreen.tryAgain"),
+    },
+    offline: {
+      title: t("errorScreen.offlineTitle"),
+      message: t("errorScreen.offlineMessage"),
+      retryLabel: t("errorScreen.tryAgain"),
+    },
+    notfound: {
+      title: t("errorScreen.notFoundTitle"),
+      message: t("errorScreen.notFoundMessage"),
+      retryLabel: t("errorScreen.goHome"),
+    },
+  };
+  return byVariant[variant] || byVariant.crash;
+}
 
 function WobblingMark({ size }) {
   const reducedMotion = usePrefersReducedMotion();
@@ -96,10 +100,11 @@ export default function ErrorScreen({
   closeLabel,
   fullScreen = false,
 }) {
+  const { t } = useLanguage();
   const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const copy = COPY[variant] || COPY.crash;
+  const copy = getCopy(t, variant);
   const resolvedTitle = title || copy.title;
   const resolvedMessage = message || copy.message;
   // Real message beats generic copy, same rule the old crash-only screen used —
@@ -149,7 +154,7 @@ export default function ErrorScreen({
         {crashDetail && (
           <Alert className="mb-2.5 text-left">
             <AlertTitle className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-              What happened
+              {t("errorScreen.whatHappened")}
             </AlertTitle>
             <AlertDescription className="break-words font-mono text-[13.5px] leading-relaxed text-foreground">
               {error?.name && error.name !== "Error" ? `${error.name}: ` : ""}{crashDetail}
@@ -161,17 +166,17 @@ export default function ErrorScreen({
           <Collapsible open={showDetails} onOpenChange={setShowDetails} className="mb-1 text-left">
             <CollapsibleTrigger asChild>
               <button className="flex items-center gap-1 py-1 text-[12.5px] font-semibold text-primary">
-                {showDetails ? "Hide" : "Show"} technical details
+                {showDetails ? t("errorScreen.hideTechnicalDetails") : t("errorScreen.showTechnicalDetails")}
                 {showDetails ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-1.5">
               <pre className="m-0 max-h-[180px] min-w-0 overflow-auto rounded-lg border border-border bg-muted/60 p-3 whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-muted-foreground">
-                {error?.detail || error?.stack || error?.message || "No further detail was provided."}
+                {error?.detail || error?.stack || error?.message || t("errorScreen.noFurtherDetail")}
                 {componentStack || ""}
               </pre>
               <Button variant="outline" size="sm" className="mt-2" onClick={handleCopy}>
-                {copied ? "Copied" : "Copy details"}
+                {copied ? t("packagePreview.copied") : t("errorScreen.copyDetails")}
               </Button>
             </CollapsibleContent>
           </Collapsible>
@@ -186,12 +191,12 @@ export default function ErrorScreen({
         )}
         {onClose && (
           <Button variant="outline" size="lg" className="h-11 px-5 text-[14.5px] font-semibold" onClick={onClose}>
-            {closeLabel || "Close"}
+            {closeLabel || t("common.close")}
           </Button>
         )}
         {closeHref && !onClose && (
           <Button variant="outline" size="lg" className="h-11 px-5 text-[14.5px] font-semibold" asChild>
-            <a href={closeHref}>{closeLabel || "Go Home"}</a>
+            <a href={closeHref}>{closeLabel || t("errorScreen.goHome")}</a>
           </Button>
         )}
       </div>
