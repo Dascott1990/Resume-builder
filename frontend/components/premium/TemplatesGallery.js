@@ -28,7 +28,7 @@ import { useLanguage } from "@/lib/i18n";
 // status (icon + native title tooltip, not inline body copy) and the
 // existing selected-checkmark overlay are the only things on top of it.
 // Name stays as a single small caption, not a paragraph.
-function TemplateCard({ layout, selected, onSelect, name }) {
+function TemplateCard({ layout, selected, onSelect, name, thumbWidth }) {
   const { t } = useLanguage();
   const atsTitle = layout.atsSafe ? t("templates.atsSafe") : layout.atsNote;
   return (
@@ -43,7 +43,7 @@ function TemplateCard({ layout, selected, onSelect, name }) {
         {/* active=true always, not tied to `selected` — this is a flat
             comparison grid, not a carousel with one focused card, so every
             template should read as a full-confidence preview. */}
-        <DocThumb layoutId={layout.id} active size="lg" name={name} />
+        <DocThumb layoutId={layout.id} active width={thumbWidth} name={name} />
         {selected && (
           <span className="absolute top-2 right-2 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
             <Check className="size-3" strokeWidth={3} />
@@ -67,10 +67,29 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
   const { t } = useLanguage();
   const LAYOUTS = layouts(t);
   const { user } = useAuth();
-  const { isDesktop } = useViewport();
+  const { isDesktop, width: viewportWidth } = useViewport();
   const unread = useUnreadNotifications();
   const [notifOpen, setNotifOpen] = useState(false);
   const [selected, setSelected] = useState(() => getPreferredTemplate() || "classic");
+
+  // The thumbnail renders through the real ResumeDocument at a fixed
+  // pixel size (not a responsive image CSS can just shrink), so it has
+  // to be computed from the ACTUAL grid-cell width or it silently
+  // overflows its own card — confirmed live: a hardcoded 172px thumbnail
+  // bled into the next card on every phone from 320–414px wide, since
+  // the 2-column grid's real cell width there is only 134–181px. Mirrors
+  // the exact container math below: px-8 (desktop, capped at max-w-4xl)
+  // or px-5 (mobile/tablet), gap-3 between cards, 2 columns under the
+  // grid's own sm: (640px) breakpoint and 3 at/above it, minus the 4px
+  // ring padding (p-1) each thumbnail sits inside.
+  const thumbWidth = viewportWidth > 0 ? (() => {
+    const containerPad = isDesktop ? 64 : 40;
+    const containerCap = isDesktop ? 896 : Infinity;
+    const columns = viewportWidth >= 640 ? 3 : 2;
+    const effectiveWidth = Math.min(viewportWidth, containerCap) - containerPad;
+    const cellWidth = (effectiveWidth - 12 * (columns - 1)) / columns;
+    return Math.max(90, Math.min(172, Math.floor(cellWidth - 8)));
+  })() : 148;
 
   const pick = (id) => {
     setSelected(id);
@@ -103,7 +122,7 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
   const grid = (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {LAYOUTS.map((l) => (
-        <TemplateCard key={l.id} layout={l} selected={selected === l.id} onSelect={() => pick(l.id)} name={user?.name} />
+        <TemplateCard key={l.id} layout={l} selected={selected === l.id} onSelect={() => pick(l.id)} name={user?.name} thumbWidth={thumbWidth} />
       ))}
     </div>
   );

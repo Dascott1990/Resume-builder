@@ -33,10 +33,20 @@ const FALLBACK_NAME = RESUMES.it.contact.name; // "John Doe" — the existing sa
 // Sized to an actual Letter-page ratio (~0.77) so each one reads as a real
 // document, not an icon. `active` drives the selected-card scale+shadow
 // treatment both callers already use for their own selection state.
-export function DocThumb({ layoutId, active, size = "md", name }) {
-  const dims = size === "lg"
-    ? { w: active ? 172 : 148 }
-    : { w: active ? 148 : 122 };
+// `width` (explicit pixels) lets a caller override the size="md"/"lg"
+// presets entirely — needed because ResumeDocument renders at a real,
+// fixed pixel size (it's not a responsive image, so CSS alone can't
+// shrink it to fit); TemplatesGallery.js computes the actual available
+// grid-cell width itself and passes it here. Confirmed live as a real
+// bug, not just tight spacing: the old fixed "lg" width (172px) was
+// wider than its own 2-column grid cell on every phone from 320–414px,
+// so the thumbnail bled into the neighboring card instead of resizing.
+export function DocThumb({ layoutId, active, size = "md", name, width }) {
+  const dims = width
+    ? { w: width }
+    : size === "lg"
+      ? { w: active ? 172 : 148 }
+      : { w: active ? 148 : 122 };
   const scale = dims.w / PAGE_WIDTH;
   const h = PAGE_HEIGHT * scale;
 

@@ -92,6 +92,15 @@ class User(db.Model):
     # Capped to the most recent 20 so this can't grow unbounded on an
     # account that's logged in from many places over years.
     known_logins = db.Column(db.JSON, nullable=True)
+    # Minted lazily on first request to the .ics subscription feed (see
+    # api/applications.py's calendar_feed) rather than at signup — most
+    # accounts never use calendar subscribe, so there's no reason to
+    # generate a token nobody asked for. A bare URL-embedded secret, not a
+    # session credential: GET-only, read-only (interview dates), and
+    # deliberately has no rotation/revoke UI for v1 — regenerating it is a
+    # support ask, same tradeoff this app already makes elsewhere for
+    # similarly low-stakes tokens.
+    calendar_feed_token = db.Column(db.String(64), unique=True, nullable=True, index=True)
 
     def to_dict(self):
         return {
@@ -275,6 +284,19 @@ class JobApplication(db.Model):
     resume_id = db.Column(db.String(32), db.ForeignKey("media.id"), index=True, nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    # Set ONLY in applications.py's update_application, and only when
+    # `status` actually changes value — deliberately NOT an `onupdate`
+    # column, because `updated_at` already bumps on every field edit
+    # (adding a note, fixing a typo in the company name) and a "stale for
+    # 14 days in the same status" check needs to know when the STATUS
+    # last moved, not when the row was last touched for any reason.
+    status_changed_at = db.Column(db.DateTime, nullable=True)
+    # [{id, label, done}] — per-stage task checklist (e.g. "Review job
+    # description", "Prepare thank-you note"). Seeded client-side the
+    # first time a card with no checklist yet is opened; stored here (not
+    # localStorage) because it's real per-application data meant to
+    # follow the account across devices, same as every other field here.
+    checklist = db.Column(db.JSON, nullable=True)
 
     def to_dict(self):
         return {
@@ -284,6 +306,8 @@ class JobApplication(db.Model):
             "contact_phone": self.contact_phone, "interview_date": self.interview_date,
             "source_url": self.source_url,
             "resume_id": self.resume_id,
+            "status_changed_at": self.status_changed_at.isoformat() if self.status_changed_at else None,
+            "checklist": self.checklist,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

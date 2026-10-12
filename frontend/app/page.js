@@ -520,7 +520,18 @@ export default function Home() {
     content = (
       <ScreenTransition viewKey={`jobtracker:${errorResetKey}`}>
         <ErrorBoundary key={errorResetKey} onReset={retryView} onClose={() => setView(returnView)}>
-          <JobTracker onClose={() => setView(returnView)} />
+          <JobTracker
+            onClose={() => setView(returnView)}
+            onNavigate={(id, opts) => {
+              if (id === "home") go("dashboard");
+              else if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
+              else if (id === "scan") go("cvscan");
+              else if (id === "jobsboard") go("jobsboard");
+              else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); go("apply"); }
+              else if (id === "profile") go("profile");
+              else if (id === "personal-profile") setView("personal-profile");
+            }}
+          />
         </ErrorBoundary>
       </ScreenTransition>
     );
