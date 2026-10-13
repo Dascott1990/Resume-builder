@@ -10,6 +10,7 @@ import Logo from "../components/premium/Logo";
 import { getToken, setToken, hasAccountOnDevice } from "@/lib/authToken";
 import { apiRequest, onUnauthorized } from "../components/premium/shared/api";
 import { VIEW_TO_PATH, PATH_TO_VIEW } from "@/lib/viewRoutes";
+import { trackEvent } from "@/lib/trackEvent";
 
 // Every screen here used to be a plain static import — meaning a
 // brand-new visitor's very first page load pulled down the full code for
@@ -229,7 +230,13 @@ export default function Home() {
     if (view !== "login" && view !== "signup") setReturnView(view);
     setView(nextView);
   };
-  const openAuth = (mode) => go(mode);
+  const openAuth = (mode) => {
+    // Every "Create Resume"/"Get Started" button on the landing page
+    // funnels through here regardless of which one was actually clicked —
+    // the one real choke point for "a visitor started signing up."
+    if (mode === "signup") trackEvent("signup_started");
+    go(mode);
+  };
 
   // This page is server-rendered at "/" — the server has no way to know
   // whether this browser has visited before, so it always renders the

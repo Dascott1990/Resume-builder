@@ -146,6 +146,31 @@ class SiteVisit(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
+# Allowlist enforced at the API layer (see api/meta.py's track_event) — kept
+# here too since it's the thing that actually defines what "a FunnelEvent"
+# can mean. Deliberately separate from SiteVisit rather than folding visits
+# in as a fourth event type: SiteVisit already has real, unbroken production
+# history since 2026-10-07, and nothing about this needed touching that.
+FUNNEL_EVENTS = {"signup_started", "signup_completed", "demo_tailor_used"}
+
+
+class FunnelEvent(db.Model):
+    """
+    Same minimal shape as SiteVisit, same reason: no user_id, no IP, nothing
+    that could reconstruct one visitor's actual journey — only "this kind
+    of thing happened, at this time," aggregated by day in the admin panel.
+    A real per-visitor funnel would need session/user linkage, which is
+    exactly the "collect your data" this product's own landing page copy
+    says it doesn't do — aggregate day-bucket counts (how many signups
+    started today vs completed today) answer the real question here
+    (where is the drop-off) without needing that trade-off at all.
+    """
+    __tablename__ = "funnel_events"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    event = db.Column(db.String(32), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
 class Job(db.Model):
     """
     One row per verified job listing — the Jobs Board's real inventory

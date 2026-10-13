@@ -1139,15 +1139,32 @@ function LoginGeoTab() {
 // ── Site visits — raw hit count on noqeev.com (see models.SiteVisit) ───────
 // Same shape as LoginGeoTab right above: a range picker, a big total, and
 // a plain list — here broken down by day instead of by country.
+// Columns shown in the funnel table below, in funnel order (not insertion/
+// alphabetical order) — landing_views first, then the three real
+// FUNNEL_EVENTS in the order a visitor actually passes through them.
+const FUNNEL_COLUMNS = [
+  { key: "landing_views", label: "Views" },
+  { key: "signup_started", label: "Signup started" },
+  { key: "signup_completed", label: "Signup completed" },
+  { key: "demo_tailor_used", label: "Demo used" },
+];
+
 function SiteVisitsTab() {
   const [range, setRange] = useState("7d");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [funnel, setFunnel] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
-    apiRequest(`/api/v1/admin/site-visits?range=${range}`)
-      .then(setData)
+    Promise.all([
+      apiRequest(`/api/v1/admin/site-visits?range=${range}`),
+      apiRequest(`/api/v1/admin/funnel?range=${range}`),
+    ])
+      .then(([visits, funnelData]) => {
+        setData(visits);
+        setFunnel(funnelData);
+      })
       .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false));
   }, [range]);
@@ -1191,6 +1208,41 @@ function SiteVisitsTab() {
                   <span className="font-mono text-[13px] font-bold text-muted-foreground">{d.count}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Funnel — where visitors actually drop off between a landing
+              view and a completed signup. Same plain-table convention as
+              everything else here, no chart library. */}
+          {funnel && (
+            <div>
+              <p className="m-0 mb-2 text-[12px] font-semibold text-muted-foreground">Funnel</p>
+              {funnel.by_day.length === 0 ? (
+                <p className="m-0 text-[13px] text-muted-foreground">No funnel events recorded in this range yet.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-border">
+                  <table className="w-full border-collapse text-[12.5px]">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/40">
+                        <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Date</th>
+                        {FUNNEL_COLUMNS.map((c) => (
+                          <th key={c.key} className="px-3 py-2 text-right font-semibold text-muted-foreground">{c.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {funnel.by_day.map((d) => (
+                        <tr key={d.date} className="border-b border-border last:border-0">
+                          <td className="px-3 py-2 font-mono font-bold text-foreground">{d.date}</td>
+                          {FUNNEL_COLUMNS.map((c) => (
+                            <td key={c.key} className="px-3 py-2 text-right font-mono font-bold text-muted-foreground">{d[c.key]}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>

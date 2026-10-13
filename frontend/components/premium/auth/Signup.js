@@ -9,6 +9,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/useAuth";
+import { trackEvent } from "@/lib/trackEvent";
 import { Field, Btn } from "../guest/components/primitives";
 import { TermsConsent } from "@/components/shared/TermsConsent";
 import { AuthShell } from "./AuthShell";
@@ -45,6 +46,7 @@ export default function Signup({ onClose, onSuccess, onSwitchToLogin }) {
       // Does NOT sign the user in — the account exists but stays
       // unverified until the emailed link is clicked (see useAuth.signup).
       await signup(email.trim(), password);
+      trackEvent("signup_completed");
       setSent(true);
     } catch (e) {
       setError(e.message);

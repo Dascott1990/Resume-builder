@@ -82,7 +82,7 @@ from app import db, limiter
 from app.models import (
     User, Media, JobApplication, JdCapture, CareerProfile,
     ApplicationRun, Vendor, VendorNewsItem, GoogleSearchConsoleCredential, SeoSnapshot,
-    SchedulerStatus, AdminBroadcast, LoginGeo, SiteVisit, JobsIngestRun, Incident,
+    SchedulerStatus, AdminBroadcast, LoginGeo, SiteVisit, FunnelEvent, FUNNEL_EVENTS, JobsIngestRun, Incident,
 )
 from app.middleware.error_handlers import APIError
 from app.utils.auth import require_admin, JWT_SECRET, JWT_ALGORITHM
@@ -963,6 +963,44 @@ def site_visit_stats():
         "range": range_key, "since": since.isoformat() + "Z",
         "total_visits": total or 0,
         "by_day": by_day,
+    }}), 200
+
+
+# ── Funnel — landing_views (reused read-only from SiteVisit, no model
+# change) alongside each FUNNEL_EVENTS type, bucketed by day. Same
+# range/since logic as site_visit_stats above, same plain-table shape —
+# this app's admin UI deliberately has no chart library anywhere in it.
+@admin_bp.route("/funnel", methods=["GET"])
+def funnel_stats():
+    require_admin(request)
+    range_key = request.args.get("range", "7d")
+    days = _SITE_VISIT_RANGES.get(range_key)
+    if days is None:
+        raise APIError("range must be today, 7d, or 30d", 400)
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    if range_key == "today":
+        since = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    visit_day = db.cast(SiteVisit.created_at, db.Date)
+    visit_rows = db.session.query(visit_day, db.func.count(SiteVisit.id)) \
+        .filter(SiteVisit.created_at >= since) \
+        .group_by(visit_day).all()
+
+    event_day = db.cast(FunnelEvent.created_at, db.Date)
+    event_rows = db.session.query(event_day, FunnelEvent.event, db.func.count(FunnelEvent.id)) \
+        .filter(FunnelEvent.created_at >= since) \
+        .group_by(event_day, FunnelEvent.event).all()
+
+    by_day = {}
+    for d, count in visit_rows:
+        by_day.setdefault(d, {"date": d.isoformat(), "landing_views": 0, **{e: 0 for e in FUNNEL_EVENTS}})["landing_views"] = count
+    for d, event, count in event_rows:
+        by_day.setdefault(d, {"date": d.isoformat(), "landing_views": 0, **{e: 0 for e in FUNNEL_EVENTS}})[event] = count
+
+    return jsonify({"success": True, "data": {
+        "range": range_key, "since": since.isoformat() + "Z",
+        "by_day": sorted(by_day.values(), key=lambda r: r["date"], reverse=True),
     }}), 200
 
 
