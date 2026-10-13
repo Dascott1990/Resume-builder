@@ -20,7 +20,7 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-export function Hero({ onOpenSignup, intensity }) {
+export function Hero({ onOpenSignup, lightsOverride }) {
   const heroRef = useRef(null);
   const { t } = useLanguage();
   const reducedMotion = usePrefersReducedMotion();
@@ -191,8 +191,8 @@ export function Hero({ onOpenSignup, intensity }) {
               aria-hidden="true"
               className="relative h-[150px] w-full sm:h-[240px] lg:h-[400px]"
             >
-              <div className="absolute inset-0" style={{ opacity: intensity, transition: "opacity 0.25s ease" }}>
-                <HeroScene />
+              <div className="absolute inset-0">
+                <HeroScene lightsOverride={lightsOverride} />
               </div>
             </div>
           </motion.div>

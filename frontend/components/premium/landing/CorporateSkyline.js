@@ -48,12 +48,21 @@ const TOWERS = [
 // mathematically exact — the visual target, not a geometry proof.
 const ROT = "rotateX(-14deg) rotateY(-30deg)";
 
-function getPeriod(date = new Date()) {
+// Exported — StreetLightSwitch/LandingPage need this same automatic
+// day/night read to give the switch a truthful starting position instead
+// of guessing, without duplicating the clock logic in a second place.
+export function getPeriod(date = new Date()) {
   const h = date.getHours();
   if (h >= 19 || h < 6) return "night";
   if (h < 12) return "morning";
   return "afternoon";
 }
+
+// The lit-window glow's own look (warm moonish amber) is always this,
+// independent of whichever palette the glass/facade colors are currently
+// using — so a manual "lights on" override during a daytime palette
+// still reads as real window light, not a tinted color swap.
+const NIGHT_GLOW = { color: "#FFC94D", shadow: "rgba(255,201,77,0.85)" };
 
 // One real palette per time of day — every color a tower actually uses
 // lives here, nothing hardcoded further down, so "what morning looks
@@ -66,8 +75,6 @@ const PALETTES = {
     roof: "#0a1a22", roofEdge: "rgba(255,201,77,0.35)",
     lobby: "#1a1f24", lobbyEdge: "rgba(255,201,77,0.5)",
     cornerA: "rgba(255,255,255,0.35)", cornerB: "rgba(255,255,255,0.05)",
-    glowColor: "#FFC94D", // moonish warm yellow, not a hard office amber
-    glowShadow: "rgba(255,201,77,0.85)",
     reflection: null,
   },
   morning: {
@@ -77,7 +84,6 @@ const PALETTES = {
     roof: "#e3c08f", roofEdge: "rgba(255,255,255,0.7)",
     lobby: "#c89b63", lobbyEdge: "rgba(255,255,255,0.55)",
     cornerA: "rgba(255,255,255,0.9)", cornerB: "rgba(255,255,255,0.3)",
-    glowColor: null,
     reflection: "linear-gradient(115deg, transparent 25%, rgba(255,214,160,0.65) 45%, rgba(255,196,130,0.22) 55%, transparent 75%)",
   },
   afternoon: {
@@ -89,7 +95,6 @@ const PALETTES = {
     roof: "#c7cdd1", roofEdge: "rgba(255,255,255,0.8)",
     lobby: "#4a5560", lobbyEdge: "rgba(255,255,255,0.55)",
     cornerA: "rgba(255,255,255,0.9)", cornerB: "rgba(255,255,255,0.3)",
-    glowColor: null,
     reflection: "linear-gradient(115deg, transparent 28%, rgba(255,255,255,0.6) 46%, rgba(255,255,255,0.2) 53%, transparent 72%)",
   },
 };
@@ -122,8 +127,8 @@ function WindowGrid({ w, h, palette, variant }) {
   );
 }
 
-function GlowWindows({ glow, w, h, palette }) {
-  if (!palette.glowColor) return null;
+function GlowWindows({ glow, w, h, lightsOn }) {
+  if (!lightsOn) return null;
   return (
     <>
       {glow.map(([top, left], i) => (
@@ -133,8 +138,9 @@ function GlowWindows({ glow, w, h, palette }) {
           style={{
             top: `${top * 100}%`, left: `${left * 100}%`,
             width: Math.max(w * 0.1, 3), height: Math.max(h * 0.022, 3),
-            background: palette.glowColor,
-            boxShadow: `0 0 5px 1.5px ${palette.glowShadow}, 0 0 1px ${palette.glowColor}`,
+            background: NIGHT_GLOW.color,
+            boxShadow: `0 0 5px 1.5px ${NIGHT_GLOW.shadow}, 0 0 1px ${NIGHT_GLOW.color}`,
+            transition: "opacity 0.3s ease",
           }}
         />
       ))}
@@ -145,7 +151,7 @@ function GlowWindows({ glow, w, h, palette }) {
 // One real 3D box — front curtain wall, side curtain wall, rooftop —
 // plus a smaller setback tier box stacked on top for a multi-tiered
 // rooftop, and a distinct lobby band at the base.
-function Tower({ w, d, h, tier, glow, palette, delay }) {
+function Tower({ w, d, h, tier, glow, palette, lightsOn, delay }) {
   const reducedMotion = usePrefersReducedMotion();
 
   const Box = ({ w, d, h, children, lobby }) => (
@@ -198,7 +204,7 @@ function Tower({ w, d, h, tier, glow, palette, delay }) {
       style={{ width: w + d * 0.6, height: h + tier.h + tier.d * 0.6 }}
     >
       <Box w={w} d={d} h={h} lobby>
-        <GlowWindows glow={glow} w={w} h={h} palette={palette} />
+        <GlowWindows glow={glow} w={w} h={h} lightsOn={lightsOn} />
       </Box>
       {/* Rooftop setback tier — a second, smaller box stacked on the main
           tower's roof, the "multi-tiered glass rooftop" real corporate
@@ -210,13 +216,18 @@ function Tower({ w, d, h, tier, glow, palette, delay }) {
   );
 }
 
-export function CorporateSkyline() {
+// `lightsOverride`: null (default) follows the automatic day/night read
+// below exactly as this always has — true/false is the street-light
+// switch's manual override, independent of what time of day the facade
+// colors themselves are showing.
+export function CorporateSkyline({ lightsOverride = null }) {
   // Fixed, neutral default until mount (server/client first-render
   // parity — see file comment); corrects to the visitor's real local
   // time immediately after.
   const [period, setPeriod] = useState("night");
   useEffect(() => { setPeriod(getPeriod()); }, []);
   const palette = PALETTES[period];
+  const lightsOn = lightsOverride == null ? period === "night" : lightsOverride;
 
   return (
     <div className="relative flex h-full w-full items-end justify-center overflow-hidden" style={{ perspective: 1400 }}>
@@ -234,7 +245,7 @@ export function CorporateSkyline() {
         }}
       >
         {TOWERS.map((t, i) => (
-          <Tower key={i} {...t} palette={palette} delay={i * 0.06} />
+          <Tower key={i} {...t} palette={palette} lightsOn={lightsOn} delay={i * 0.06} />
         ))}
       </div>
     </div>

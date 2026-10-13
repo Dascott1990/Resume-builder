@@ -9,7 +9,7 @@
  * so nothing here leaks into the Resume Studio shell.
  */
 import { useEffect } from "react";
-import { use3DIntensity } from "@/lib/use3DIntensity";
+import { useSkylineLights } from "@/lib/useSkylineLights";
 import { Navbar } from "./Navbar";
 import { Hero } from "./Hero";
 import { SeeItHappenSection } from "./SeeItHappenSection";
@@ -18,18 +18,18 @@ import { HowItWorks } from "./HowItWorks";
 import { FAQ } from "./FAQ";
 import { FinalCTA } from "./FinalCTA";
 import { Footer } from "./Footer";
-import { ThreeDIntensityControl } from "./ThreeDIntensityControl";
+import { StreetLightSwitch } from "./StreetLightSwitch";
 import { DotNetworkBackground } from "./DotNetworkBackground";
 
 export default function LandingPage({ onOpenSignup }) {
-  const { intensity, setIntensity } = use3DIntensity();
+  const { on: lightsOn, setOn: setLightsOn } = useSkylineLights();
 
   // Belt-and-suspenders for the globals.css `html:has(#noqeev-landing)`
   // rule above: that CSS selector is supposed to live-react the instant
   // this div lands in the DOM, but confirmed live, mobile/tablet only —
-  // Navbar.js and ThreeDIntensityControl.js (both `position: fixed`) can
-  // render in the wrong spot (the navbar effectively invisible, the 3D
-  // control missing) until a scroll or a refresh forces a reflow. Desktop
+  // Navbar.js and StreetLightSwitch.js (both `position: fixed`) can
+  // render in the wrong spot (the navbar effectively invisible, the
+  // switch missing) until a scroll or a refresh forces a reflow. Desktop
   // never showed this; it's a known class of mobile WebKit bug where a
   // `:has()`-driven style change doesn't reliably repaint position:fixed
   // descendants on its own. Setting the same height unlock here too,
@@ -59,7 +59,7 @@ export default function LandingPage({ onOpenSignup }) {
       <div className="relative z-10">
         <Navbar onOpenSignup={onOpenSignup} />
         <main>
-          <Hero onOpenSignup={onOpenSignup} intensity={intensity} />
+          <Hero onOpenSignup={onOpenSignup} lightsOverride={lightsOn} />
           <SeeItHappenSection />
           <WhyNoqeev />
           <HowItWorks />
@@ -67,7 +67,7 @@ export default function LandingPage({ onOpenSignup }) {
           <FinalCTA onOpenSignup={onOpenSignup} />
         </main>
         <Footer onOpenSignup={onOpenSignup} />
-        <ThreeDIntensityControl intensity={intensity} setIntensity={setIntensity} />
+        <StreetLightSwitch on={lightsOn} setOn={setLightsOn} />
       </div>
     </div>
   );

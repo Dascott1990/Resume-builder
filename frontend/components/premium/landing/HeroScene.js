@@ -7,10 +7,10 @@
 // app's light/dark theme toggle.
 import { CorporateSkyline } from "./CorporateSkyline";
 
-export function HeroScene({ className }) {
+export function HeroScene({ className, lightsOverride }) {
   return (
     <div className={`relative h-full w-full ${className || ""}`}>
-      <CorporateSkyline />
+      <CorporateSkyline lightsOverride={lightsOverride} />
     </div>
   );
 }
