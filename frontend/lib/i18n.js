@@ -66,6 +66,9 @@ const translations = {
     "hero.createResume": "Create Resume",
     "hero.download": "Download",
     "hero.installed": "Installed",
+    "hero.trustUnlimited": "Unlimited tailoring",
+    "hero.trustNoCard": "No credit card, ever",
+    "hero.trustNoWatermark": "Real .docx + PDF, no watermark",
     "finalCta.headline": "Set up your profile once. Get a tailored resume for every job after that.",
     "finalCta.createResume": "Create Resume",
 
@@ -1238,6 +1241,9 @@ const translations = {
     "hero.createResume": "Crear currículum",
     "hero.download": "Descargar",
     "hero.installed": "Instalada",
+    "hero.trustUnlimited": "Personalización ilimitada",
+    "hero.trustNoCard": "Sin tarjeta de crédito, nunca",
+    "hero.trustNoWatermark": "Archivos .docx y PDF reales, sin marca de agua",
     "finalCta.headline": "Configura tu perfil una vez. Obtén un currículum personalizado para cada empleo después.",
     "finalCta.createResume": "Crear currículum",
 
@@ -2406,6 +2412,9 @@ const translations = {
     "hero.createResume": "Créer un CV",
     "hero.download": "Télécharger",
     "hero.installed": "Installée",
+    "hero.trustUnlimited": "Personnalisation illimitée",
+    "hero.trustNoCard": "Aucune carte bancaire, jamais",
+    "hero.trustNoWatermark": "Vrais fichiers .docx et PDF, sans filigrane",
     "finalCta.headline": "Configurez votre profil une fois. Obtenez un CV sur mesure pour chaque emploi ensuite.",
     "finalCta.createResume": "Créer un CV",
 
@@ -3574,6 +3583,9 @@ const translations = {
     "hero.createResume": "Criar currículo",
     "hero.download": "Baixar",
     "hero.installed": "Instalado",
+    "hero.trustUnlimited": "Personalização ilimitada",
+    "hero.trustNoCard": "Sem cartão de crédito, nunca",
+    "hero.trustNoWatermark": "Arquivos .docx e PDF reais, sem marca d'água",
     "finalCta.headline": "Configure seu perfil uma vez. Obtenha um currículo personalizado para cada vaga depois.",
     "finalCta.createResume": "Criar currículo",
 

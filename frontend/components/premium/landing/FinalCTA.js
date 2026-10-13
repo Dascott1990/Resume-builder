@@ -26,6 +26,13 @@ export function FinalCTA({ onOpenSignup }) {
             <h2 className="m-0 text-[clamp(1.8rem,5vw,2.5rem)] leading-[1.1] font-bold text-foreground">
               {t("finalCta.headline")}
             </h2>
+            {/* Same real claim Hero's own trust row makes, reinforced right
+                at the final conversion moment — reuses the existing
+                freeAccountNote string (today only shown once, buried in
+                the Footer) instead of a new key. */}
+            <p className="m-0 -mt-3 text-[13px] font-semibold text-muted-foreground">
+              {t("landing.freeAccountNote")}
+            </p>
             <motion.button
               onClick={onOpenSignup}
               whileTap={{ scale: 0.96 }}

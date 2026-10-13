@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { ArrowRight, Check, ChevronDown, Download } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Download, Infinity as InfinityIcon, CreditCard, FileCheck2 } from "lucide-react";
 import { useInstallPrompt } from "@/lib/useInstallPrompt";
 import { InstallInstructionsModal } from "./InstallInstructionsModal";
 import { LocationPill } from "./shared";
@@ -163,6 +163,32 @@ export function Hero({ onOpenSignup, lightsOverride }) {
                   )}
                 </motion.button>
               )}
+            </motion.div>
+
+            {/* The actual competitive edge (unlimited AI tailoring, real
+                editable files, never a credit card) used to live only in
+                the Footer — the single least-visible spot on the whole
+                page. Surfaced here instead, right under the primary CTA,
+                since every named competitor (Rezi/Zety/Kickresume/Teal)
+                gates downloads, resume count, or AI credits behind a
+                paywall or usage cap — this is a real, specific claim, not
+                a vague one, so it earns a spot this early. */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.32, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 lg:justify-start"
+            >
+              {[
+                { Icon: InfinityIcon, label: t("hero.trustUnlimited") },
+                { Icon: CreditCard, label: t("hero.trustNoCard") },
+                { Icon: FileCheck2, label: t("hero.trustNoWatermark") },
+              ].map(({ Icon, label }) => (
+                <span key={label} className="flex items-center gap-1.5 text-[12px] font-semibold text-muted-foreground">
+                  <Icon className="size-3.5 text-primary" strokeWidth={2} />
+                  {label}
+                </span>
+              ))}
             </motion.div>
 
             <InstallInstructionsModal
