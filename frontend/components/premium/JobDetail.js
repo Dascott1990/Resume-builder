@@ -20,6 +20,9 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { ArrowLeft, Share2, Building2, ShieldCheck, ShieldQuestion, Check, Sparkles } from "lucide-react";
 import { SOURCE_LABELS, SOURCES_WITHOUT_DIRECT_LINK, timeAgo } from "./shared/jobsBoardShared";
+import { apiRequest } from "./shared/api";
+import { loadProfile, saveProfile } from "./guest/useGuestDraft";
+import { mapCareerProfileToInfo } from "@/lib/careerProfileToInfo";
 import { pickTemplateForJob } from "@/lib/jobTemplateMatch";
 import { setPreferredStyle } from "@/lib/templatePreference";
 import { useLanguage } from "@/lib/i18n";
@@ -173,6 +176,7 @@ export function JobDetail({ job, applied, onClose, onNavigate }) {
   const TAB_LABELS = { Description: t("jobDetail.tabDescription"), Company: t("jobDetail.tabCompany"), Review: t("jobDetail.tabReview") };
   const [tab, setTab] = useState("Description");
   const [expanded, setExpanded] = useState(false);
+  const [buildingResume, setBuildingResume] = useState(false);
   const { about: rawAbout, sections, metadata } = parseJobSections(stripTags(job.description_text));
   const about = autoParagraphs(rawAbout);
 
@@ -206,8 +210,36 @@ export function JobDetail({ job, applied, onClose, onNavigate }) {
   // onNavigate's existing jobDesc passthrough (the same one the "tailor
   // for this job" bookmarklet already uses, see app/page.js's openResume),
   // so this lands straight on the job-posting step with both the style
-  // and the text already filled in — no separate paste needed.
-  const buildResumeForJob = () => {
+  // and the text already filled in.
+  //
+  // Step 1 (name/title/location/background/past jobs/education/skills)
+  // used to still need typing out by hand the very first time, even
+  // though a real, already-confirmed CareerProfile (GET /api/v1/apply/
+  // profile — the same structured "verified memory" the Apply-with-AI
+  // agent trusts) often already exists for a signed-in account that's
+  // scanned a resume or run Apply-with-AI before. Only used as a
+  // bootstrap for a genuinely empty local profile, never to overwrite
+  // one someone already typed and saved themselves — and only the
+  // CONFIRMED one (profile.confirmed), never an unconfirmed AI proposal,
+  // same safeguard CareerProfile's own docstring requires everywhere else
+  // it's read. `background` has no real source on the CareerProfile (no
+  // narrative field exists there) and is deliberately left blank rather
+  // than invented — everything else is a direct field or a straight
+  // reformat of one (see lib/careerProfileToInfo.js).
+  const buildResumeForJob = async () => {
+    if (buildingResume) return;
+    setBuildingResume(true);
+    const existing = loadProfile();
+    const hasUsableExisting = !!(existing?.name && existing?.title && existing?.location);
+    if (!hasUsableExisting) {
+      try {
+        const profile = await apiRequest("/api/v1/apply/profile");
+        if (profile?.confirmed) {
+          const mapped = mapCareerProfileToInfo(profile);
+          if (mapped?.name && mapped?.location) saveProfile(mapped);
+        }
+      } catch { /* best-effort — falls back to the normal empty step 1 */ }
+    }
     setPreferredStyle(pickTemplateForJob(job));
     onNavigate?.("resume", { jobDesc: stripTags(job.description_text) });
   };
@@ -368,8 +400,8 @@ export function JobDetail({ job, applied, onClose, onNavigate }) {
       >
         {onNavigate && (
           <button
-            type="button" onClick={buildResumeForJob}
-            className="mx-auto mb-2.5 flex h-[44px] w-full max-w-xl items-center justify-center gap-1.5 rounded-2xl border border-border bg-background text-[13.5px] font-bold text-foreground [-webkit-tap-highlight-color:transparent]"
+            type="button" onClick={buildResumeForJob} disabled={buildingResume}
+            className="mx-auto mb-2.5 flex h-[44px] w-full max-w-xl items-center justify-center gap-1.5 rounded-2xl border border-border bg-background text-[13.5px] font-bold text-foreground [-webkit-tap-highlight-color:transparent] disabled:opacity-60"
           >
             <Sparkles className="size-4" strokeWidth={2} /> {t("jobDetail.buildResumeForJob")}
           </button>
