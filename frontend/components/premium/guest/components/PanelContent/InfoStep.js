@@ -1,5 +1,6 @@
 "use client";
 import { User, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Field, Btn } from "../primitives";
 import { useLanguage } from "@/lib/i18n";
 
@@ -11,20 +12,29 @@ export function InfoStep({
   const { t } = useLanguage();
   return (
     <>
-      {infoFromProfile && (
-        <div className="mb-3.5 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2.5">
-          <User className="size-[13px] text-primary" />
-          <span className="min-w-[160px] flex-1 text-xs text-muted-foreground">
-            {t("infoStep.filledFromProfile")}
-          </span>
-          <button onClick={useDifferentInfo} className="border-none bg-transparent p-0 text-[11.5px] font-bold whitespace-nowrap text-primary">
-            {t("infoStep.useDifferentInfo")}
-          </button>
-          <button onClick={dismissInfoFromProfile} aria-label={t("guestMode.dismiss")} className="border-none bg-transparent p-0.5 text-muted-foreground/60">
-            <X className="size-[13px]" />
-          </button>
-        </div>
-      )}
+      <AnimatePresence>
+        {infoFromProfile && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, height: "auto", marginBottom: 14 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            className="overflow-hidden">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2.5">
+              <User className="size-[13px] text-primary" />
+              <span className="min-w-[160px] flex-1 text-xs text-muted-foreground">
+                {t("infoStep.filledFromProfile")}
+              </span>
+              <button onClick={useDifferentInfo} className="border-none bg-transparent p-0 text-[11.5px] font-bold whitespace-nowrap text-primary">
+                {t("infoStep.useDifferentInfo")}
+              </button>
+              <button onClick={dismissInfoFromProfile} aria-label={t("guestMode.dismiss")} className="border-none bg-transparent p-0.5 text-muted-foreground/60">
+                <X className="size-[13px]" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* One real card around the whole form — same container language as
           auth/AuthShell.js's login card — instead of fields floating
           directly on the panel background. Scrolling a long form with no

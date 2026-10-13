@@ -13,7 +13,7 @@
  * Props: { onClose }
  */
 import { useState, useEffect, useRef, useCallback, useReducer } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { X, RefreshCw, ScanLine, Bookmark, Check, Zap, Pencil, Palette, FileDown, Loader2 } from "lucide-react";
 import Logo3D from "../Logo3D";
@@ -52,6 +52,21 @@ import { getToken } from "@/lib/authToken";
 import { getEffectiveStyle } from "@/lib/templatePreference";
 import { apiRequest } from "../shared/api";
 import { useLanguage } from "@/lib/i18n";
+
+// These one-line "here's what just happened" notices (draft restored,
+// resume imported, job description added, info filled from a saved
+// profile) only ever went away via their own small X button — confirmed
+// live, every one of them just sat there indefinitely otherwise, long
+// after there was anything left to read. A few seconds is enough for a
+// single short sentence; the X stays for anyone who wants it gone sooner.
+const NOTICE_AUTO_DISMISS_MS = 6000;
+function useAutoDismiss(visible, setVisible, delayMs = NOTICE_AUTO_DISMISS_MS) {
+  useEffect(() => {
+    if (!visible) return;
+    const id = setTimeout(() => setVisible(false), delayMs);
+    return () => clearTimeout(id);
+  }, [visible, setVisible, delayMs]);
+}
 
 export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, pendingViewAllResumes, pendingQuickBuild, onRequireAuth }) {
   const { t } = useLanguage();
@@ -303,6 +318,10 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
   const [importNoticeVisible, setImportNoticeVisible] = useState(() => !!pendingImport);
   // Same idea, for a job description handed off by the bookmarklet.
   const [jobDescNoticeVisible, setJobDescNoticeVisible] = useState(() => !!pendingJobDesc);
+  useAutoDismiss(infoFromProfile, setInfoFromProfile);
+  useAutoDismiss(draftRestored, setDraftRestored);
+  useAutoDismiss(importNoticeVisible, setImportNoticeVisible);
+  useAutoDismiss(jobDescNoticeVisible, setJobDescNoticeVisible);
   const [saved,      setSaved]      = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [loadingResumeId, setLoadingResumeId] = useState(null); // id currently being fetched, drives skeleton
@@ -693,44 +712,71 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
         <div onScroll={!showSplit ? handlePanelScroll : undefined}
           className="flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none]"
           style={{ paddingBottom: mobileNavClearance }}>
-          {draftRestored && (
-            <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2.5">
-              <RefreshCw className="size-[13px] text-primary" />
-              <span className="flex-1 text-xs text-muted-foreground">
-                {t("guestMode.draftRestored")}
-              </span>
-              <button onClick={() => setDraftRestored(false)} aria-label={t("guestMode.dismiss")}
-                className="border-none bg-transparent p-0.5 text-muted-foreground/60">
-                <X className="size-[13px]" />
-              </button>
-            </div>
-          )}
-          {importNoticeVisible && (
-            <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2.5">
-              <ScanLine className="size-[13px] text-primary" />
-              <span className="flex-1 text-xs text-foreground">
-                {t("guestMode.importedNotice")}
-              </span>
-              <button onClick={() => setImportNoticeVisible(false)} aria-label={t("guestMode.dismiss")}
-                className="border-none bg-transparent p-0.5 text-muted-foreground/60">
-                <X className="size-[13px]" />
-              </button>
-            </div>
-          )}
-          {jobDescNoticeVisible && (
-            <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2.5">
-              <Bookmark className="size-[13px] text-primary" />
-              <span className="flex-1 text-xs text-foreground">
-                {step === 1
-                  ? t("guestMode.jobDescNoticeStep1")
-                  : t("guestMode.jobDescNoticeReady")}
-              </span>
-              <button onClick={() => setJobDescNoticeVisible(false)} aria-label={t("guestMode.dismiss")}
-                className="border-none bg-transparent p-0.5 text-muted-foreground/60">
-                <X className="size-[13px]" />
-              </button>
-            </div>
-          )}
+          <AnimatePresence>
+            {draftRestored && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                animate={{ opacity: 1, height: "auto", marginTop: 12 }}
+                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+                className="mx-4 overflow-hidden">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2.5">
+                  <RefreshCw className="size-[13px] text-primary" />
+                  <span className="flex-1 text-xs text-muted-foreground">
+                    {t("guestMode.draftRestored")}
+                  </span>
+                  <button onClick={() => setDraftRestored(false)} aria-label={t("guestMode.dismiss")}
+                    className="border-none bg-transparent p-0.5 text-muted-foreground/60">
+                    <X className="size-[13px]" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <AnimatePresence>
+            {importNoticeVisible && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                animate={{ opacity: 1, height: "auto", marginTop: 12 }}
+                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+                className="mx-4 overflow-hidden">
+                <div className="flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2.5">
+                  <ScanLine className="size-[13px] text-primary" />
+                  <span className="flex-1 text-xs text-foreground">
+                    {t("guestMode.importedNotice")}
+                  </span>
+                  <button onClick={() => setImportNoticeVisible(false)} aria-label={t("guestMode.dismiss")}
+                    className="border-none bg-transparent p-0.5 text-muted-foreground/60">
+                    <X className="size-[13px]" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <AnimatePresence>
+            {jobDescNoticeVisible && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                animate={{ opacity: 1, height: "auto", marginTop: 12 }}
+                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+                className="mx-4 overflow-hidden">
+                <div className="flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2.5">
+                  <Bookmark className="size-[13px] text-primary" />
+                  <span className="flex-1 text-xs text-foreground">
+                    {step === 1
+                      ? t("guestMode.jobDescNoticeStep1")
+                      : t("guestMode.jobDescNoticeReady")}
+                  </span>
+                  <button onClick={() => setJobDescNoticeVisible(false)} aria-label={t("guestMode.dismiss")}
+                    className="border-none bg-transparent p-0.5 text-muted-foreground/60">
+                    <X className="size-[13px]" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Quick Build tapped with no saved profile yet — there's nothing
               to reuse, so this silently fell back to the full form above;
