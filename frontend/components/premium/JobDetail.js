@@ -124,6 +124,7 @@ function parseJobSections(text) {
   };
 
   for (const rawLine of lines) {
+    const hadColon = /:\s*$/.test(rawLine);
     const bareHeading = rawLine.replace(/:\s*$/, "").trim();
     const inlineMeta = rawLine.match(METADATA_INLINE_RE);
 
@@ -132,7 +133,15 @@ function parseJobSections(text) {
       metadata.push({ label: titleCase(inlineMeta[1]), value: inlineMeta[2].trim() });
       continue;
     }
-    if (METADATA_HEADING_RE.test(bareHeading)) {
+    // Metadata labels ("Education", "Pay", "Shift"...) are single common
+    // words that real bullet content collides with — confirmed live: a
+    // "Freelance Copywriter" listing's industry list has a bare
+    // "Education" line as one of many industries, not a field heading.
+    // A real metadata heading always has its own colon ("Education:");
+    // requiring one here is what tells the two apart. Content headings
+    // ("Responsibilities", "Qualifications") don't need this guard — they're
+    // distinctive multi-word phrases a stray bullet won't coincidentally match.
+    if (hadColon && METADATA_HEADING_RE.test(bareHeading)) {
       closeSection();
       closeMetaCollector();
       metaCollector = { label: bareHeading, lines: [] };
