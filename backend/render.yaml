@@ -97,8 +97,16 @@ services:
       # goes unset for some other reason.
       - key: FRONTEND_URL
         value: https://noqeev.com
+      # http://localhost:3000 deliberately isn't listed here — this is the
+      # PRODUCTION origin allowlist. Harmless either way (CORS only ever
+      # gates a real browser making the request from that exact origin, and
+      # no attacker controls localhost:3000 on a victim's machine), but it
+      # had no reason to be in the production list. Local dev still works
+      # without it: app/__init__.py's own _default_origins fallback already
+      # includes localhost:3000/3001 for whenever ALLOWED_ORIGINS isn't set
+      # at all, which is the normal case on a dev machine.
       - key: ALLOWED_ORIGINS
-        value: https://noqeev.com,https://www.noqeev.com,https://resume-builder-orpin-theta.vercel.app,https://resume-builder-c6l75mdzi-dascott1990s-projects.vercel.app,http://localhost:3000
+        value: https://noqeev.com,https://www.noqeev.com,https://resume-builder-orpin-theta.vercel.app,https://resume-builder-c6l75mdzi-dascott1990s-projects.vercel.app
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: PLAYWRIGHT_BROWSERS_PATH
