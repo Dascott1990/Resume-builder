@@ -113,10 +113,12 @@ def wrap_email_html(heading, body_html, cta_label=None, cta_link=None, footnote=
     pasted into auth.py, messages.py, requests.py, brand.py, story.py,
     schedule_reminders.py, and admin.py's broadcast tool, each one free
     to drift from the others. One real template now: the logo (see
-    email_logo.py — inline HTML/CSS, not a fetched image, so fixing it
-    there fixes every one of these senders at once), a gold accent bar,
-    and a consistent footer carrying the company's real mailing address
-    (CASL — Canada's anti-spam law; Noqeev is Ottawa-based).
+    email_logo.py — a real hosted <img>, not a data: URI; several major
+    email clients, Gmail foremost, strip inlined image data outright, so
+    fixing it there fixes every one of these senders at once), a black
+    accent bar, and a consistent footer carrying the company's real
+    mailing address (CASL — Canada's anti-spam law; Noqeev is Ottawa-
+    based).
 
     cta_label/cta_link are optional together — pass both for a real
     button, leave both out for a plain body-only email (a message
@@ -124,19 +126,31 @@ def wrap_email_html(heading, body_html, cta_label=None, cta_link=None, footnote=
     footnote is small print below the button/body — a link's expiry, a
     "didn't request this?" disclaimer, that kind of thing.
 
+    Every color here is the app's own real palette (frontend/app/
+    globals.css's --foreground/--background/--border tokens, hand-
+    converted to hex since email clients don't resolve CSS variables),
+    not a separate email-only color scheme — the black accent bar and
+    CTA button are the same black every real button in the product
+    ("Sign in", "Create Resume") already is, not an invented brand gold.
+
     Table-based layout, every style inline, no external stylesheet, no
     CSS gradient — deliberately: this has to render correctly in
     Outlook's Word-based engine, not just modern browsers, and Word
-    supports neither. The gold accent is a flat color for the same
-    reason (a gradient here would just silently not paint in Outlook,
-    leaving a blank bar instead of degrading gracefully)."""
+    supports neither. The accent bar is a flat color for the same reason
+    (a gradient here would just silently not paint in Outlook, leaving a
+    blank bar instead of degrading gracefully)."""
     cta_html = ""
     if cta_label and cta_link:
+        # Black button, cream text — the app's own real --primary/
+        # --primary-foreground pairing (see frontend/app/globals.css),
+        # not an off-brand gold. Every real button in the product ("Sign
+        # in", "Create Resume") is solid black with light text; the email
+        # CTA should read as the same button, not a different one.
         cta_html = f"""
         <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 0;">
           <tr>
-            <td style="background-color:#f59e0b;border-radius:10px;">
-              <a href="{cta_link}" style="display:inline-block;padding:13px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:14.5px;font-weight:700;color:#14151a;text-decoration:none;">{cta_label}</a>
+            <td style="background-color:#14151a;border-radius:10px;">
+              <a href="{cta_link}" style="display:inline-block;padding:13px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:14.5px;font-weight:700;color:#f4f1ea;text-decoration:none;">{cta_label}</a>
             </td>
           </tr>
         </table>
@@ -148,7 +162,7 @@ def wrap_email_html(heading, body_html, cta_label=None, cta_link=None, footnote=
       <tr>
         <td align="center">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:16px;border:1px solid #e8e3d8;">
-            <tr><td style="height:6px;line-height:6px;font-size:0;background-color:#f59e0b;border-radius:16px 16px 0 0;">&nbsp;</td></tr>
+            <tr><td style="height:6px;line-height:6px;font-size:0;background-color:#14151a;border-radius:16px 16px 0 0;">&nbsp;</td></tr>
             <tr>
               <td style="padding:36px 36px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
                 {email_logo_html()}
