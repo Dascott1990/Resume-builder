@@ -147,6 +147,15 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
     [combos, filterLayout, filterAccent, filterFont]
   );
 
+  // A returning visitor's own already-picked combination can land well
+  // past the first batch (combos are generated layout-then-accent-then-
+  // font, so e.g. "minimal" alone starts 72 entries in) — its checkmark
+  // is still real (state/localStorage are correct regardless), just not
+  // visible until "Load more" reaches it. Deliberately not force-expanded
+  // to cover it: the worst case (a preference near the very end) would
+  // mean rendering all 180 cards on mount for that visitor, exactly the
+  // jank this batching exists to avoid — a rare, purely cosmetic gap is
+  // the better trade than reintroducing that for everyone.
   const [shown, setShown] = useState(BATCH_SIZE);
   useEffect(() => { setShown(BATCH_SIZE); }, [filterLayout, filterAccent, filterFont]);
 
