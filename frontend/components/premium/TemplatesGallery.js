@@ -1,14 +1,22 @@
 "use client";
 /**
  * TemplatesGallery.js — Dashboard's Templates card "See all" destination.
- * Every real resume layout (shared/resumeLayouts/registry.js's LAYOUTS —
- * the same list GuestMode's own Style tab reads) in one scrollable grid.
- * Picking one just saves a preference (lib/templatePreference.js) that
- * the NEXT resume you start reads as its default layout — this screen
+ * Every real (layout, accent color, font) combination — 5 layouts × 6
+ * accents × 6 fonts, all already real and renderable (shared/
+ * resumeLayouts/registry.js, guest/constants.js's ACCENTS/FONTS) = 180,
+ * comfortably inside the 150-200 target for every region. Region (US/
+ * Canada, UK/Commonwealth, Continental Europe, default — lib/
+ * resumeRegions.js, the same honest grouping resume.py's own AI-tailoring
+ * prompts already use) only changes page size and the Resume/CV label
+ * shown, never which colors/fonts are offered — there's no real basis for
+ * "this color is popular in your country."
+ *
+ * Picking a card saves the full triple (lib/templatePreference.js) that
+ * the NEXT resume you start reads as its default style — this screen
  * never touches a resume directly, so it's safe to open from Home at any
  * time, built or not.
  */
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Check, TriangleAlert } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
@@ -18,7 +26,12 @@ import { NavRail } from "./shared/NavRail";
 import { NotificationsDialog } from "./shared/NotificationsDialog";
 import { DocThumb } from "./shared/ResumeTemplateThumb";
 import { layouts } from "./shared/resumeLayouts/registry";
-import { getPreferredTemplate, setPreferredTemplate } from "@/lib/templatePreference";
+import { ACCENTS, FONTS } from "./guest/constants";
+import { REGION_LIST, REGIONS, useDetectedRegion } from "@/lib/resumeRegions";
+import {
+  getPreferredStyle, setPreferredStyle, getPreferredTemplate,
+  getRegionOverride, setRegionOverride,
+} from "@/lib/templatePreference";
 import { loadDraft, clearDraft } from "./guest/useGuestDraft";
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader,
@@ -26,28 +39,22 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useLanguage } from "@/lib/i18n";
 
-// Sharp, image-first collection item — no description or ATS paragraph
-// under each one anymore (reported as cluttered/"buggy"-looking). The
-// thumbnail carries the whole card now: a small corner badge for ATS
-// status (icon + native title tooltip, not inline body copy) and the
-// existing selected-checkmark overlay are the only things on top of it.
-// Name stays as a single small caption, not a paragraph.
-function TemplateCard({ layout, selected, onSelect, name, thumbWidth }) {
+const BATCH_SIZE = 24;
+
+function TemplateCard({ combo, selected, onSelect, name, thumbWidth, pageSize }) {
   const { t } = useLanguage();
+  const { layout, accent, font } = combo;
   const atsTitle = layout.atsSafe ? t("templates.atsSafe") : layout.atsNote;
   return (
     <button
       type="button"
       onClick={onSelect}
-      aria-label={layout.label}
+      aria-label={`${layout.label} ${accent.label} ${font.label}`}
       aria-pressed={selected}
       className="flex flex-col items-center gap-2 border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
     >
       <div className={`relative rounded-xl p-1 transition-colors ${selected ? "bg-primary/10 ring-2 ring-primary/50" : "ring-1 ring-border"}`}>
-        {/* active=true always, not tied to `selected` — this is a flat
-            comparison grid, not a carousel with one focused card, so every
-            template should read as a full-confidence preview. */}
-        <DocThumb layoutId={layout.id} active width={thumbWidth} name={name} />
+        <DocThumb layoutId={layout.id} active width={thumbWidth} name={name} accent={accent.id} font={font.id} pageSize={pageSize} />
         {selected && (
           <span className="absolute top-2 right-2 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
             <Check className="size-3" strokeWidth={3} />
@@ -62,8 +69,38 @@ function TemplateCard({ layout, selected, onSelect, name, thumbWidth }) {
           {layout.atsSafe ? <Check className="size-3" strokeWidth={3} /> : <TriangleAlert className="size-3" strokeWidth={2.5} />}
         </span>
       </div>
-      <span className="text-[12.5px] font-bold text-foreground">{layout.label}</span>
+      <span className="text-center text-[11.5px] font-bold text-foreground">
+        {layout.label} · {accent.label} · {font.label}
+      </span>
     </button>
+  );
+}
+
+// Plain pill-row filter — "All" plus one chip per real option, same small
+// control repeated for layout/accent/font so narrowing 180 cards down
+// doesn't mean an endless scroll to find one specific combination.
+function FilterRow({ options, value, onChange, allLabel }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <button
+        type="button" onClick={() => onChange(null)}
+        className={`rounded-full border px-3 py-1 text-[11.5px] font-semibold [-webkit-tap-highlight-color:transparent] ${
+          value === null ? "border-primary bg-primary/10 text-primary-text" : "border-border text-muted-foreground"
+        }`}
+      >
+        {allLabel}
+      </button>
+      {options.map((o) => (
+        <button
+          key={o.id} type="button" onClick={() => onChange(o.id)}
+          className={`rounded-full border px-3 py-1 text-[11.5px] font-semibold [-webkit-tap-highlight-color:transparent] ${
+            value === o.id ? "border-primary bg-primary/10 text-primary-text" : "border-border text-muted-foreground"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -74,18 +111,53 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
   const { isDesktop, width: viewportWidth } = useViewport();
   const unread = useUnreadNotifications();
   const [notifOpen, setNotifOpen] = useState(false);
-  const [selected, setSelected] = useState(() => getPreferredTemplate() || "classic");
 
-  // The thumbnail renders through the real ResumeDocument at a fixed
-  // pixel size (not a responsive image CSS can just shrink), so it has
-  // to be computed from the ACTUAL grid-cell width or it silently
-  // overflows its own card — confirmed live: a hardcoded 172px thumbnail
-  // bled into the next card on every phone from 320–414px wide, since
-  // the 2-column grid's real cell width there is only 134–181px. Mirrors
-  // the exact container math below: px-8 (desktop, capped at max-w-4xl)
-  // or px-5 (mobile/tablet), gap-3 between cards, 2 columns under the
-  // grid's own sm: (640px) breakpoint and 3 at/above it, minus the 4px
-  // ring padding (p-1) each thumbnail sits inside.
+  // Region: a manual override (set once, this device only) always wins;
+  // otherwise whatever country_code actually detected, falling back to
+  // REGIONS.default until (or unless) detection ever resolves.
+  const detectedRegion = useDetectedRegion();
+  const [regionOverrideId, setRegionOverrideIdState] = useState(() => getRegionOverride());
+  const activeRegion = (regionOverrideId && REGIONS[regionOverrideId]) || detectedRegion || REGIONS.default;
+  const chooseRegion = (id) => {
+    setRegionOverrideIdState(id);
+    setRegionOverride(id);
+  };
+
+  const combos = useMemo(() => {
+    const list = [];
+    for (const l of LAYOUTS) {
+      for (const a of ACCENTS) {
+        for (const f of FONTS) {
+          list.push({ id: `${l.id}-${a.id}-${f.id}`, layout: l, accent: a, font: f });
+        }
+      }
+    }
+    return list;
+  }, [LAYOUTS]);
+
+  const [filterLayout, setFilterLayout] = useState(null);
+  const [filterAccent, setFilterAccent] = useState(null);
+  const [filterFont, setFilterFont] = useState(null);
+  const visibleCombos = useMemo(
+    () => combos.filter((c) =>
+      (!filterLayout || c.layout.id === filterLayout) &&
+      (!filterAccent || c.accent.id === filterAccent) &&
+      (!filterFont || c.font.id === filterFont)
+    ),
+    [combos, filterLayout, filterAccent, filterFont]
+  );
+
+  const [shown, setShown] = useState(BATCH_SIZE);
+  useEffect(() => { setShown(BATCH_SIZE); }, [filterLayout, filterAccent, filterFont]);
+
+  const initialSelectedId = (() => {
+    const rich = getPreferredStyle();
+    if (rich?.layout && rich?.accent && rich?.font) return `${rich.layout}-${rich.accent}-${rich.font}`;
+    const layoutOnly = getPreferredTemplate();
+    return layoutOnly ? `${layoutOnly}-navy-calibri` : "classic-navy-calibri";
+  })();
+  const [selected, setSelected] = useState(initialSelectedId);
+
   const thumbWidth = viewportWidth > 0 ? (() => {
     const containerPad = isDesktop ? 64 : 40;
     const containerCap = isDesktop ? 896 : Infinity;
@@ -95,24 +167,13 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
     return Math.max(90, Math.min(172, Math.floor(cellWidth - 8)));
   })() : 148;
 
-  const pick = (id) => {
-    setSelected(id);
-    setPreferredTemplate(id);
+  const pick = (combo) => {
+    setSelected(combo.id);
+    setPreferredStyle({ layout: combo.layout.id, accent: combo.accent.id, font: combo.font.id });
   };
 
-  // Picking a layout here is about starting the NEXT resume with it, per
-  // this screen's own docstring above — so Done clears any unfinished
-  // in-progress draft (not a saved resume, just unsubmitted form state)
-  // before handing off to "new", the same way a stale draft would
-  // otherwise silently override the layout someone just picked (GuestMode
-  // reads docStyle from that draft first — confirmed live, picking Minimal
-  // here and hitting Done without this landed back in an old Classic
-  // draft instead of starting fresh). That clear is silent and
-  // irreversible, though — if there's actually real unfinished work
-  // sitting in it (a pasted job description, a generated resume, a cover
-  // letter), confirm first instead of wiping it the instant Done is
-  // tapped. An empty/never-touched draft (or just leftover tab/step/
-  // docStyle navigation state) needs no prompt — nothing real to lose.
+  // Same draft-confirmation guard as before this screen expanded — see
+  // the original docstring's reasoning, unchanged by the gallery rework.
   const [confirmStartOpen, setConfirmStartOpen] = useState(false);
   const hasRealDraftContent = () => {
     const d = loadDraft();
@@ -138,23 +199,64 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
     </button>
   );
 
-  const grid = (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {LAYOUTS.map((l) => (
-        <TemplateCard key={l.id} layout={l} selected={selected === l.id} onSelect={() => pick(l.id)} name={user?.name} thumbWidth={thumbWidth} />
-      ))}
+  const regionRow = (
+    <div className="mb-4">
+      <p className="m-0 mb-1.5 text-[12.5px] font-semibold text-foreground">
+        {t("templates.showingFor", { region: activeRegion.label, docType: activeRegion.docLabel })}
+      </p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[11.5px] text-muted-foreground">{t("templates.notYourRegion")}</span>
+        {REGION_LIST.map((r) => (
+          <button
+            key={r.id} type="button" onClick={() => chooseRegion(r.id)}
+            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold [-webkit-tap-highlight-color:transparent] ${
+              activeRegion.id === r.id ? "border-primary bg-primary/10 text-primary-text" : "border-border text-muted-foreground"
+            }`}
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 
+  const filterRows = (
+    <div className="mb-5 flex flex-col gap-2.5">
+      <FilterRow options={LAYOUTS.map((l) => ({ id: l.id, label: l.label }))} value={filterLayout} onChange={setFilterLayout} allLabel={t("templates.filterAllLayouts")} />
+      <FilterRow options={ACCENTS.map((a) => ({ id: a.id, label: a.label }))} value={filterAccent} onChange={setFilterAccent} allLabel={t("templates.filterAllColors")} />
+      <FilterRow options={FONTS.map((f) => ({ id: f.id, label: f.label }))} value={filterFont} onChange={setFilterFont} allLabel={t("templates.filterAllFonts")} />
+    </div>
+  );
+
+  const grid = (
+    <>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {visibleCombos.slice(0, shown).map((c) => (
+          <TemplateCard
+            key={c.id} combo={c} selected={selected === c.id} onSelect={() => pick(c)}
+            name={user?.name} thumbWidth={thumbWidth} pageSize={activeRegion.pageSize}
+          />
+        ))}
+      </div>
+      {shown < visibleCombos.length && (
+        <div className="mt-5 flex justify-center">
+          <button
+            type="button" onClick={() => setShown((s) => s + BATCH_SIZE)}
+            className="rounded-xl border border-border bg-background px-5 py-2.5 text-[13px] font-semibold text-foreground [-webkit-tap-highlight-color:transparent]"
+          >
+            {t("templates.loadMore")}
+          </button>
+        </div>
+      )}
+    </>
+  );
+
   const intro = (
-    <p className="m-0 mb-5 text-[13px] leading-relaxed text-muted-foreground">
+    <p className="m-0 mb-4 text-[13px] leading-relaxed text-muted-foreground">
       {t("templates.pickLayoutIntro")}
     </p>
   );
 
-  // Shared between both breakpoint branches below — isDesktop forks into
-  // two separate return trees past this point, so this needs to be
-  // mounted in each one explicitly rather than once at the bottom.
   const confirmStartDialog = (
     <AlertDialog open={confirmStartOpen} onOpenChange={setConfirmStartOpen}>
       <AlertDialogContent>
@@ -178,6 +280,8 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
           <div className="mx-auto w-full max-w-4xl px-8 py-8 pb-24">
             <p className="m-0 mb-1 text-[22px] font-bold text-foreground">{t("templates.heading")}</p>
             {intro}
+            {regionRow}
+            {filterRows}
             {grid}
           </div>
           <div className="pointer-events-none sticky bottom-0 left-0 w-full bg-gradient-to-t from-background via-background to-transparent px-8 pt-8 pb-6">
@@ -204,6 +308,8 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
         {intro}
+        {regionRow}
+        {filterRows}
         {grid}
       </div>
       <div className="shrink-0 border-t border-border bg-background px-5 pt-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>

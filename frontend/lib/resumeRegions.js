@@ -1,3 +1,7 @@
+"use client";
+import { useState, useEffect } from "react";
+import { apiRequest } from "@/components/premium/shared/api";
+
 // lib/resumeRegions.js — the same honest, already-proven country grouping
 // backend/app/api/resume.py's own LOCATION_CONVENTIONS_RULE/
 // SCAN_LOCATION_CONVENTIONS_RULE use for AI-tailored resumes (US/Canada,
@@ -44,4 +48,23 @@ const COUNTRY_TO_REGION = {
 export function regionForCountryCode(code) {
   if (!code) return REGIONS.default;
   return REGIONS[COUNTRY_TO_REGION[code.toUpperCase()]] || REGIONS.default;
+}
+
+// A dedicated hook rather than reusing lib/useVisitorLocation.js: that
+// hook only ever sets state when data.city resolved, which silently drops
+// exactly the case that matters most here — CF-IPCountry resolving a real
+// country_code with no city alongside it (common; city needs the heavier
+// ip-api.com lookup, country doesn't). This gates on country_code itself.
+export function useDetectedRegion() {
+  const [region, setRegion] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    apiRequest("/api/v1/meta/location")
+      .then((data) => {
+        if (!cancelled && data?.country_code) setRegion(regionForCountryCode(data.country_code));
+      })
+      .catch(() => { /* best-effort — default region is a fine fallback */ });
+    return () => { cancelled = true; };
+  }, []);
+  return region; // null until resolved (or never) — callers fall back to REGIONS.default
 }
