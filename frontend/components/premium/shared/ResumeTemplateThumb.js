@@ -57,7 +57,7 @@ export function DocThumb({ layoutId, active, size = "md", name, width }) {
 
   return (
     <div
-      className="flex shrink-0 flex-col overflow-hidden rounded-xl transition-all duration-300 ease-out"
+      className="flex shrink-0 flex-col overflow-hidden transition-all duration-300 ease-out"
       style={{
         width: dims.w,
         height: h,
