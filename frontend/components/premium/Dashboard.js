@@ -210,7 +210,12 @@ function RecommendedCard({ jobs, loading, onSeeAll }) {
 // off to one side.
 function TemplatesCarousel({ onSeeAll, selected, user }) {
   const { t } = useLanguage();
-  const LAYOUTS = layouts(t);
+  // Dashboard stays a quick 3-card preview on purpose — the registry now
+  // has 5 (plus every accent/font combination once the full Templates
+  // gallery expands, see TemplatesGallery.js), but this carousel is a
+  // glance, not the real picker; "See all" (onSeeAll below) is where that
+  // full set actually lives.
+  const LAYOUTS = layouts(t).slice(0, 3);
   // 50vw, not 50% — this track bleeds past its own parent's padded column
   // via -mx-5 below, so percentages here would resolve against that
   // narrower containing block (the padded column), not the actual screen
@@ -313,7 +318,12 @@ function TemplatesCarousel({ onSeeAll, selected, user }) {
 // squeezed against the next one.
 function TemplatesGridDesktop({ onSeeAll, selected, user }) {
   const { t } = useLanguage();
-  const LAYOUTS = layouts(t);
+  // Dashboard stays a quick 3-card preview on purpose — the registry now
+  // has 5 (plus every accent/font combination once the full Templates
+  // gallery expands, see TemplatesGallery.js), but this carousel is a
+  // glance, not the real picker; "See all" (onSeeAll below) is where that
+  // full set actually lives.
+  const LAYOUTS = layouts(t).slice(0, 3);
   return (
     <div className="mb-8">
       <SectionHeader onViewAll={onSeeAll} viewAllLabel={t("common.seeAll")}>{t("dashboard.templates")}</SectionHeader>

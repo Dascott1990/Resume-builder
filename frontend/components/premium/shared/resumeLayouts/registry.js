@@ -31,12 +31,26 @@ export const LAYOUTS = [
     description: "Quiet typography, generous whitespace",
     atsSafe: true,
   },
+  {
+    id: "compact",
+    label: "Compact",
+    description: "Tight spacing, built to fit a long history on one page",
+    atsSafe: true,
+  },
+  {
+    id: "executive",
+    label: "Executive",
+    description: "Bolder section labels, generous spacing",
+    atsSafe: true,
+  },
 ];
 
 export const layouts = (t) => [
   { id: "classic", label: t("templates.classicLabel"), description: t("templates.classicDescription"), atsSafe: true },
   { id: "sidebar", label: t("templates.sidebarLabel"), description: t("templates.sidebarDescription"), atsSafe: false, atsNote: t("templates.atsSidebarNote") },
   { id: "minimal", label: t("templates.minimalLabel"), description: t("templates.minimalDescription"), atsSafe: true },
+  { id: "compact", label: t("templates.compactLabel"), description: t("templates.compactDescription"), atsSafe: true },
+  { id: "executive", label: t("templates.executiveLabel"), description: t("templates.executiveDescription"), atsSafe: true },
 ];
 
 export const DEFAULT_LAYOUT = "classic";

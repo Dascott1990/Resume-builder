@@ -345,6 +345,311 @@ export function buildMinimalBlocks({ resume, font, accent, fs, lh, onEdit }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// COMPACT — left-aligned, tight vertical rhythm, a short accent-colored
+// left rule on each section head instead of a full-width underline (saves
+// the vertical space a long work history actually needs). Built for
+// someone with a lot of real content to fit on one page, not a redesign
+// of Classic/Minimal for its own sake.
+// ═══════════════════════════════════════════════════════════════════════
+export function buildCompactBlocks({ resume, font, accent, fs, lh, onEdit }) {
+  const { contact, sections } = resume;
+  const blocks = [];
+  const ink = "#1A1A1A";
+  const muted = "#666";
+
+  const SectionHead = ({ label }) => (
+    <div style={{ marginTop: 9, marginBottom: 3, paddingLeft: 7, borderLeft: `3px solid ${accent}` }}>
+      <span style={{ fontFamily: font, fontSize: `${fs - 0.5}pt`, fontWeight: "bold", color: ink, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+        {label}
+      </span>
+    </div>
+  );
+
+  blocks.push({
+    id: "header",
+    node: (
+      <div style={{ textAlign: "left", marginBottom: 9, paddingBottom: 6, borderBottom: `1px solid ${accent}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap" }}>
+          <div style={{ fontSize: `${fs + 4}pt`, fontWeight: "bold", color: ink, marginRight: 10 }}>
+            <EditableSpan value={contact.name || ""} onChange={(v) => onEdit("contact", "name", v)} bold style={{ color: ink }} />
+          </div>
+          <div style={{ fontSize: `${fs - 1}pt`, color: muted }}>
+            <ContactLine contact={contact} onEdit={onEdit} style={{ color: muted }} />
+          </div>
+        </div>
+        <div style={{ fontSize: `${fs}pt`, color: accent, fontWeight: "bold", marginTop: 1 }}>
+          <EditableSpan value={contact.title || ""} onChange={(v) => onEdit("contact", "title", v)} bold style={{ color: accent }} />
+        </div>
+      </div>
+    ),
+  });
+
+  sections.forEach((sec, si) => {
+    if (sec.type === "text") {
+      blocks.push({
+        id: `sec-${si}`,
+        node: (
+          <div>
+            <SectionHead label={sec.label} />
+            <p style={{ fontFamily: font, fontSize: `${fs - 0.5}pt`, lineHeight: lh - 0.1, color: ink, margin: "2px 0 5px" }}>
+              <EditableSpan value={sec.content || ""} onChange={(v) => onEdit("section-text", si, v)} multiline />
+            </p>
+          </div>
+        ),
+      });
+    }
+
+    if (sec.type === "bullets") {
+      blocks.push({
+        id: `sec-${si}`,
+        node: (
+          <div>
+            <SectionHead label={sec.label} />
+            <ul style={{ margin: "2px 0 4px", paddingLeft: 15, columns: 2, columnGap: 14 }}>
+              {(sec.items || []).map((item, ii) => (
+                <li key={ii} style={{ fontFamily: font, fontSize: `${fs - 0.5}pt`, lineHeight: lh - 0.1, marginBottom: 1, color: ink, breakInside: "avoid" }}>
+                  <EditableSpan value={item} onChange={(v) => onEdit("bullet", si, ii, v)} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ),
+      });
+    }
+
+    if (sec.type === "jobs") {
+      (sec.jobs || []).forEach((job, ji) => {
+        const bullets = job.bullets || [];
+        blocks.push({
+          id: `sec-${si}-job-${ji}-head`,
+          node: (
+            <div>
+              {ji === 0 && <SectionHead label={sec.label} />}
+              <div style={{ marginBottom: bullets.length > 1 ? 0 : 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <div style={{ fontFamily: font, fontSize: `${fs - 0.5}pt` }}>
+                    <strong><EditableSpan value={job.role || ""} onChange={(v) => onEdit("job-role", si, ji, v)} bold /></strong>
+                    <span style={{ color: muted, marginLeft: 5 }}>
+                      <EditableSpan value={job.company || ""} onChange={(v) => onEdit("job-company", si, ji, v)} />
+                      {job.location && <span> · <EditableSpan value={job.location || ""} onChange={(v) => onEdit("job-location", si, ji, v)} /></span>}
+                    </span>
+                  </div>
+                  <span style={{ fontFamily: font, fontSize: `${fs - 1.5}pt`, color: muted, whiteSpace: "nowrap", marginLeft: 6 }}>
+                    <EditableSpan value={job.period || ""} onChange={(v) => onEdit("job-period", si, ji, v)} />
+                  </span>
+                </div>
+                {bullets.length > 0 && (
+                  <ul style={{ margin: "1px 0 1px", paddingLeft: 15 }}>
+                    <li style={{ fontFamily: font, fontSize: `${fs - 0.5}pt`, lineHeight: lh - 0.1, marginBottom: 1, color: ink }}>
+                      <EditableSpan value={bullets[0]} onChange={(v) => onEdit("job-bullet", si, ji, 0, v)} />
+                    </li>
+                  </ul>
+                )}
+              </div>
+            </div>
+          ),
+        });
+
+        bullets.slice(1).forEach((b, idx) => {
+          const bi = idx + 1;
+          const isLast = bi === bullets.length - 1;
+          blocks.push({
+            id: `sec-${si}-job-${ji}-bullet-${bi}`,
+            node: (
+              <ul style={{ margin: "0 0 1px", paddingLeft: 15, marginBottom: isLast ? 6 : 1 }}>
+                <li style={{ fontFamily: font, fontSize: `${fs - 0.5}pt`, lineHeight: lh - 0.1, marginBottom: 1, color: ink }}>
+                  <EditableSpan value={b} onChange={(v) => onEdit("job-bullet", si, ji, bi, v)} />
+                </li>
+              </ul>
+            ),
+          });
+        });
+      });
+    }
+
+    if (sec.type === "education") {
+      (sec.degrees || []).forEach((deg, di) => {
+        blocks.push({
+          id: `sec-${si}-deg-${di}`,
+          node: (
+            <div>
+              {di === 0 && <SectionHead label={sec.label} />}
+              <div style={{ marginBottom: 3 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <div style={{ fontFamily: font, fontSize: `${fs - 0.5}pt` }}>
+                    <strong><EditableSpan value={deg.degree || ""} onChange={(v) => onEdit("deg-degree", si, di, v)} bold /></strong>
+                    <span style={{ color: muted }}>
+                      {" · "}<EditableSpan value={deg.school || ""} onChange={(v) => onEdit("deg-school", si, di, v)} />
+                      {" · "}<EditableSpan value={deg.location || ""} onChange={(v) => onEdit("deg-location", si, di, v)} />
+                    </span>
+                  </div>
+                  <span style={{ fontFamily: font, fontSize: `${fs - 1.5}pt`, color: muted, fontStyle: "italic", whiteSpace: "nowrap", marginLeft: 6 }}>
+                    <EditableSpan value={deg.period || ""} onChange={(v) => onEdit("deg-period", si, di, v)} />
+                  </span>
+                </div>
+              </div>
+            </div>
+          ),
+        });
+      });
+    }
+  });
+
+  return blocks;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// EXECUTIVE — centered header with a bold double rule, section labels in
+// a solid accent-colored pill rather than plain colored text, generous
+// spacing throughout. Built for a senior/leadership-style resume where a
+// little more visual weight reads as authority, not clutter.
+// ═══════════════════════════════════════════════════════════════════════
+export function buildExecutiveBlocks({ resume, font, accent, fs, lh, onEdit }) {
+  const { contact, sections } = resume;
+  const blocks = [];
+  const ink = "#1A1A1A";
+  const muted = "#595959";
+
+  const SectionHead = ({ label }) => (
+    <div style={{ marginTop: 18, marginBottom: 8 }}>
+      <span style={{ fontFamily: font, fontSize: `${fs - 0.5}pt`, fontWeight: "bold", color: "#fff", letterSpacing: "0.08em", textTransform: "uppercase", background: accent, padding: "3px 10px", borderRadius: 3 }}>
+        {label}
+      </span>
+    </div>
+  );
+
+  blocks.push({
+    id: "header",
+    node: (
+      <div style={{ textAlign: "center", marginBottom: 16, paddingBottom: 10, borderBottom: `3px double ${accent}` }}>
+        <div style={{ fontSize: `${fs + 8}pt`, fontWeight: "bold", color: ink, letterSpacing: "0.04em", marginBottom: 4 }}>
+          <EditableSpan value={contact.name || ""} onChange={(v) => onEdit("contact", "name", v)} bold style={{ color: ink }} />
+        </div>
+        <div style={{ fontSize: `${fs + 1.5}pt`, color: accent, fontWeight: "bold", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 7 }}>
+          <EditableSpan value={contact.title || ""} onChange={(v) => onEdit("contact", "title", v)} bold style={{ color: accent }} />
+        </div>
+        <div style={{ fontSize: `${fs - 1}pt`, color: muted }}>
+          <ContactLine contact={contact} onEdit={onEdit} style={{ color: muted }} />
+        </div>
+      </div>
+    ),
+  });
+
+  sections.forEach((sec, si) => {
+    if (sec.type === "text") {
+      blocks.push({
+        id: `sec-${si}`,
+        node: (
+          <div>
+            <SectionHead label={sec.label} />
+            <p style={{ fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh + 0.1, color: ink, margin: "0 0 10px" }}>
+              <EditableSpan value={sec.content || ""} onChange={(v) => onEdit("section-text", si, v)} multiline />
+            </p>
+          </div>
+        ),
+      });
+    }
+
+    if (sec.type === "bullets") {
+      blocks.push({
+        id: `sec-${si}`,
+        node: (
+          <div>
+            <SectionHead label={sec.label} />
+            <ul style={{ margin: "0 0 8px", paddingLeft: 20 }}>
+              {(sec.items || []).map((item, ii) => (
+                <li key={ii} style={{ fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh + 0.1, marginBottom: 3, color: ink }}>
+                  <EditableSpan value={item} onChange={(v) => onEdit("bullet", si, ii, v)} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ),
+      });
+    }
+
+    if (sec.type === "jobs") {
+      (sec.jobs || []).forEach((job, ji) => {
+        const bullets = job.bullets || [];
+        blocks.push({
+          id: `sec-${si}-job-${ji}-head`,
+          node: (
+            <div>
+              {ji === 0 && <SectionHead label={sec.label} />}
+              <div style={{ marginBottom: bullets.length > 1 ? 0 : 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <div style={{ fontFamily: font, fontSize: `${fs + 0.5}pt`, color: accent }}>
+                    <strong><EditableSpan value={job.role || ""} onChange={(v) => onEdit("job-role", si, ji, v)} bold style={{ color: accent }} /></strong>
+                  </div>
+                  <span style={{ fontFamily: font, fontSize: `${fs - 1}pt`, color: muted, whiteSpace: "nowrap", marginLeft: 8, fontStyle: "italic" }}>
+                    <EditableSpan value={job.period || ""} onChange={(v) => onEdit("job-period", si, ji, v)} />
+                  </span>
+                </div>
+                <div style={{ fontFamily: font, fontSize: `${fs}pt`, color: muted, marginBottom: 2 }}>
+                  <EditableSpan value={job.company || ""} onChange={(v) => onEdit("job-company", si, ji, v)} />
+                  {job.location && <span> · <EditableSpan value={job.location || ""} onChange={(v) => onEdit("job-location", si, ji, v)} /></span>}
+                </div>
+                {bullets.length > 0 && (
+                  <ul style={{ margin: "3px 0 3px", paddingLeft: 20 }}>
+                    <li style={{ fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh + 0.1, marginBottom: 3, color: ink }}>
+                      <EditableSpan value={bullets[0]} onChange={(v) => onEdit("job-bullet", si, ji, 0, v)} />
+                    </li>
+                  </ul>
+                )}
+              </div>
+            </div>
+          ),
+        });
+
+        bullets.slice(1).forEach((b, idx) => {
+          const bi = idx + 1;
+          const isLast = bi === bullets.length - 1;
+          blocks.push({
+            id: `sec-${si}-job-${ji}-bullet-${bi}`,
+            node: (
+              <ul style={{ margin: "0 0 3px", paddingLeft: 20, marginBottom: isLast ? 10 : 3 }}>
+                <li style={{ fontFamily: font, fontSize: `${fs}pt`, lineHeight: lh + 0.1, marginBottom: 3, color: ink }}>
+                  <EditableSpan value={b} onChange={(v) => onEdit("job-bullet", si, ji, bi, v)} />
+                </li>
+              </ul>
+            ),
+          });
+        });
+      });
+    }
+
+    if (sec.type === "education") {
+      (sec.degrees || []).forEach((deg, di) => {
+        blocks.push({
+          id: `sec-${si}-deg-${di}`,
+          node: (
+            <div>
+              {di === 0 && <SectionHead label={sec.label} />}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <div style={{ fontFamily: font, fontSize: `${fs + 0.5}pt`, color: accent }}>
+                    <strong><EditableSpan value={deg.degree || ""} onChange={(v) => onEdit("deg-degree", si, di, v)} bold style={{ color: accent }} /></strong>
+                  </div>
+                  <span style={{ fontFamily: font, fontSize: `${fs - 1}pt`, color: muted, fontStyle: "italic", whiteSpace: "nowrap", marginLeft: 8 }}>
+                    <EditableSpan value={deg.period || ""} onChange={(v) => onEdit("deg-period", si, di, v)} />
+                  </span>
+                </div>
+                <div style={{ fontFamily: font, fontSize: `${fs}pt`, color: muted }}>
+                  <EditableSpan value={deg.school || ""} onChange={(v) => onEdit("deg-school", si, di, v)} />
+                  {" · "}<EditableSpan value={deg.location || ""} onChange={(v) => onEdit("deg-location", si, di, v)} />
+                </div>
+              </div>
+            </div>
+          ),
+        });
+      });
+    }
+  });
+
+  return blocks;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // SIDEBAR — two columns. `contactNode` (name/title/contact lines) is short
 // and fixed-height, so it repeats in full at the top of every page. Every
 // "bullets"-type section (skills, languages, certifications, whatever an
@@ -517,4 +822,6 @@ export function buildSidebarContent({ resume, font, accent, fs, lh, onEdit }) {
 export const LAYOUT_BUILDERS = {
   classic: buildClassicBlocks,
   minimal: buildMinimalBlocks,
+  compact: buildCompactBlocks,
+  executive: buildExecutiveBlocks,
 };
