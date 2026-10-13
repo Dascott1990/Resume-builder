@@ -76,30 +76,32 @@ function TemplateCard({ combo, selected, onSelect, name, thumbWidth, pageSize })
   );
 }
 
-// Plain pill-row filter — "All" plus one chip per real option, same small
-// control repeated for layout/accent/font so narrowing 180 cards down
-// doesn't mean an endless scroll to find one specific combination.
-function FilterRow({ options, value, onChange, allLabel }) {
+// A labeled, filled "tray" per filter group — plain flex-wrap chips of
+// uneven text width (e.g. "Minimal" next to "Times New Roman") wrapped
+// raggedly, a different number per row depending on word length, worst
+// in the narrow w-72 aside. A fixed 2-column grid instead of flex-wrap
+// means every chip lands in a clean, aligned cell regardless of its own
+// text length; the soft filled background (no border — "frameless") is
+// what reads as one grouped control instead of loose chips floating
+// directly on the aside's own background.
+function FilterRow({ label, options, value, onChange, allLabel }) {
+  const chip = (id, text, active) => (
+    <button
+      key={id ?? "all"} type="button" onClick={() => onChange(id)} title={text}
+      className={`truncate rounded-md px-2.5 py-1.5 text-left text-[11.5px] font-semibold [-webkit-tap-highlight-color:transparent] ${
+        active ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"
+      }`}
+    >
+      {text}
+    </button>
+  );
   return (
-    <div className="flex flex-wrap gap-1.5">
-      <button
-        type="button" onClick={() => onChange(null)}
-        className={`rounded-full border px-3 py-1 text-[11.5px] font-semibold [-webkit-tap-highlight-color:transparent] ${
-          value === null ? "border-primary bg-primary/10 text-primary-text" : "border-border text-muted-foreground"
-        }`}
-      >
-        {allLabel}
-      </button>
-      {options.map((o) => (
-        <button
-          key={o.id} type="button" onClick={() => onChange(o.id)}
-          className={`rounded-full border px-3 py-1 text-[11.5px] font-semibold [-webkit-tap-highlight-color:transparent] ${
-            value === o.id ? "border-primary bg-primary/10 text-primary-text" : "border-border text-muted-foreground"
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
+    <div>
+      <p className="m-0 mb-1.5 text-[11px] font-semibold text-muted-foreground/80">{label}</p>
+      <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/50 p-1.5">
+        {chip(null, allLabel, value === null)}
+        {options.map((o) => chip(o.id, o.label, value === o.id))}
+      </div>
     </div>
   );
 }
@@ -249,9 +251,9 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
 
   const filterRows = filtersOpen && (
     <div className="mb-5 flex flex-col gap-2.5 rounded-xl border border-border bg-muted/30 p-3">
-      <FilterRow options={LAYOUTS.map((l) => ({ id: l.id, label: l.label }))} value={filterLayout} onChange={setFilterLayout} allLabel={t("templates.filterAllLayouts")} />
-      <FilterRow options={ACCENTS.map((a) => ({ id: a.id, label: a.label }))} value={filterAccent} onChange={setFilterAccent} allLabel={t("templates.filterAllColors")} />
-      <FilterRow options={FONTS.map((f) => ({ id: f.id, label: f.label }))} value={filterFont} onChange={setFilterFont} allLabel={t("templates.filterAllFonts")} />
+      <FilterRow label={t("styleTab.layout")} options={LAYOUTS.map((l) => ({ id: l.id, label: l.label }))} value={filterLayout} onChange={setFilterLayout} allLabel={t("templates.filterAllLayouts")} />
+      <FilterRow label={t("styleTab.accentColor")} options={ACCENTS.map((a) => ({ id: a.id, label: a.label }))} value={filterAccent} onChange={setFilterAccent} allLabel={t("templates.filterAllColors")} />
+      <FilterRow label={t("styleTab.fontFamily")} options={FONTS.map((f) => ({ id: f.id, label: f.label }))} value={filterFont} onChange={setFilterFont} allLabel={t("templates.filterAllFonts")} />
     </div>
   );
 
@@ -326,9 +328,9 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
         <div>
           <p className="m-0 mb-2.5 font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{t("templates.filters")}</p>
           <div className="flex flex-col gap-3">
-            <FilterRow options={LAYOUTS.map((l) => ({ id: l.id, label: l.label }))} value={filterLayout} onChange={setFilterLayout} allLabel={t("templates.filterAllLayouts")} />
-            <FilterRow options={ACCENTS.map((a) => ({ id: a.id, label: a.label }))} value={filterAccent} onChange={setFilterAccent} allLabel={t("templates.filterAllColors")} />
-            <FilterRow options={FONTS.map((f) => ({ id: f.id, label: f.label }))} value={filterFont} onChange={setFilterFont} allLabel={t("templates.filterAllFonts")} />
+            <FilterRow label={t("styleTab.layout")} options={LAYOUTS.map((l) => ({ id: l.id, label: l.label }))} value={filterLayout} onChange={setFilterLayout} allLabel={t("templates.filterAllLayouts")} />
+            <FilterRow label={t("styleTab.accentColor")} options={ACCENTS.map((a) => ({ id: a.id, label: a.label }))} value={filterAccent} onChange={setFilterAccent} allLabel={t("templates.filterAllColors")} />
+            <FilterRow label={t("styleTab.fontFamily")} options={FONTS.map((f) => ({ id: f.id, label: f.label }))} value={filterFont} onChange={setFilterFont} allLabel={t("templates.filterAllFonts")} />
           </div>
         </div>
       </aside>
