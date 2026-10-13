@@ -16,7 +16,7 @@ one of models.FUNNEL_EVENTS.
 from flask import Blueprint, request, jsonify
 from app import db, limiter
 from app.models import SiteVisit, FunnelEvent, FUNNEL_EVENTS
-from app.utils.geoip import client_ip, lookup_geo
+from app.utils.geoip import client_ip, lookup_geo, resolve_country_code
 
 meta_bp = Blueprint("meta", __name__)
 
@@ -24,8 +24,16 @@ meta_bp = Blueprint("meta", __name__)
 @meta_bp.route("/location", methods=["GET"])
 @limiter.limit("30 per minute")
 def location():
-    geo = lookup_geo(client_ip(request))
-    return jsonify({"success": True, "data": geo or {}}), 200
+    geo = dict(lookup_geo(client_ip(request)) or {})
+    # resolve_country_code prefers the CF-IPCountry header (free, instant,
+    # and what this app already trusts for login-geo tracking) over
+    # ip-api.com's own country_code — only overwrite it if that stronger
+    # source actually resolved to something, so a missing Cloudflare
+    # header (local dev) still falls back to whatever lookup_geo found.
+    cc = resolve_country_code(request)
+    if cc:
+        geo["country_code"] = cc
+    return jsonify({"success": True, "data": geo}), 200
 
 
 @meta_bp.route("/track-visit", methods=["POST"])
