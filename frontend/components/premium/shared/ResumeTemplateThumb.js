@@ -25,9 +25,13 @@
 import { ResumeDocument } from "./ResumeDocument";
 import { RESUMES } from "./prebuiltResumes";
 
-const PAGE_WIDTH = 816;
-const PAGE_HEIGHT = 1056;
-const THUMB_STYLE = { font: "calibri", fontSize: 11, lineHeight: 1.4, accent: "navy" };
+const LETTER_WIDTH = 816;
+const LETTER_HEIGHT = 1056;
+// Real A4 ratio (210mm:297mm), same constants LivePreview.js's own guest
+// Mode A4 page already uses — not a new size invented here.
+const A4_WIDTH = 794;
+const A4_HEIGHT = 1123;
+const THUMB_STYLE = { fontSize: 11, lineHeight: 1.4 };
 const FALLBACK_NAME = RESUMES.it.contact.name; // "John Doe" — the existing sample default
 
 // Sized to an actual Letter-page ratio (~0.77) so each one reads as a real
@@ -41,14 +45,23 @@ const FALLBACK_NAME = RESUMES.it.contact.name; // "John Doe" — the existing sa
 // bug, not just tight spacing: the old fixed "lg" width (172px) was
 // wider than its own 2-column grid cell on every phone from 320–414px,
 // so the thumbnail bled into the neighboring card instead of resizing.
-export function DocThumb({ layoutId, active, size = "md", name, width }) {
+// accent/font: optional overrides for the Templates gallery's full
+// (layout, accent, font) combinatorial grid — default to the same
+// "navy"/"calibri" every caller already relied on before these existed,
+// so Dashboard's own carousel (which never passes them) looks identical
+// to before. pageSize: "letter" (default, unchanged) or "a4" — the real
+// per-region page size the Templates gallery picks (see
+// lib/resumeRegions.js), not a new size invented for this component.
+export function DocThumb({ layoutId, active, size = "md", name, width, accent = "navy", font = "calibri", pageSize = "letter" }) {
+  const pageWidth = pageSize === "a4" ? A4_WIDTH : LETTER_WIDTH;
+  const pageHeight = pageSize === "a4" ? A4_HEIGHT : LETTER_HEIGHT;
   const dims = width
     ? { w: width }
     : size === "lg"
       ? { w: active ? 172 : 148 }
       : { w: active ? 148 : 122 };
-  const scale = dims.w / PAGE_WIDTH;
-  const h = PAGE_HEIGHT * scale;
+  const scale = dims.w / pageWidth;
+  const h = pageHeight * scale;
 
   const resume = {
     ...RESUMES.it,
@@ -79,10 +92,10 @@ export function DocThumb({ layoutId, active, size = "md", name, width }) {
       <div className="pointer-events-none [-webkit-touch-callout:none] select-none">
         <ResumeDocument
           resume={resume}
-          style={{ ...THUMB_STYLE, layout: layoutId }}
+          style={{ ...THUMB_STYLE, accent, font, layout: layoutId }}
           scale={scale}
-          pageWidth={PAGE_WIDTH}
-          pageHeight={PAGE_HEIGHT}
+          pageWidth={pageWidth}
+          pageHeight={pageHeight}
           shadowClassName=""
         />
       </div>
