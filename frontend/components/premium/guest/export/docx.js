@@ -12,13 +12,14 @@ export function buildDocx(resume, docStyle) {
   const sz        = Math.round((docStyle.fontSize || 11) * 2);
   const szSm      = sz - 2;
   const szLg      = sz + 8;
-  // Which of the three real on-screen layouts (see shared/resumeLayouts/
+  // Which of the real on-screen layouts (see shared/resumeLayouts/
   // registry.js — the same list the Style tab's own picker reads) this
   // download should match. Previously ignored entirely: every download was
   // the classic centered layout no matter what someone picked on screen —
-  // confirmed live, a "Modern Sidebar" or "Minimal" resume's .docx never
-  // matched its own preview.
-  const layout = docStyle.layout === "sidebar" || docStyle.layout === "minimal" ? docStyle.layout : "classic";
+  // confirmed live (twice: first for sidebar/minimal, then again for
+  // compact/executive the moment those two were added — same bug, same
+  // hardcoded allowlist not having grown with the registry).
+  const layout = ["sidebar", "minimal", "compact", "executive"].includes(docStyle.layout) ? docStyle.layout : "classic";
 
   function esc(s) {
     return String(s || "")
@@ -32,7 +33,12 @@ export function buildDocx(resume, docStyle) {
     const size  = opts.sz ?? sz;
     const col   = opts.color ? `<w:color w:val="${opts.color}"/>` : "";
     const spc   = opts.spacing ? `<w:spacing w:val="${opts.spacing}"/>` : "";
-    return `<w:rPr><w:rFonts w:ascii="${fontName}" w:hAnsi="${fontName}" w:cs="${fontName}"/>${b}${i}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/>${col}${spc}</w:rPr>`;
+    // Character-level shading — a real solid-fill "pill" behind the run's
+    // own text, the Word equivalent of the Executive layout's own
+    // `background: accent` section-label badge (blockBuilders.js's
+    // buildExecutiveBlocks), not approximated as plain colored text.
+    const shd   = opts.shade ? `<w:shd w:val="clear" w:color="auto" w:fill="${opts.shade}"/>` : "";
+    return `<w:rPr><w:rFonts w:ascii="${fontName}" w:hAnsi="${fontName}" w:cs="${fontName}"/>${b}${i}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/>${col}${spc}${shd}</w:rPr>`;
   }
 
   function r(text, opts = {}) {
@@ -42,8 +48,12 @@ export function buildDocx(resume, docStyle) {
   function ppr(opts = {}) {
     const jc     = opts.align  ? `<w:jc w:val="${opts.align}"/>` : "";
     const sp     = `<w:spacing w:before="${opts.before ?? 0}" w:after="${opts.after ?? 120}"/>`;
-    const bdrSide = opts.borderTop ? "top" : "bottom";
-    const bdr    = opts.border ? `<w:pBdr><w:${bdrSide} w:val="single" w:sz="${opts.bdrSz ?? 6}" w:space="1" w:color="${opts.bdrColor ?? accentHex}"/></w:pBdr>` : "";
+    // borderLeft: the Compact layout's own short accent rule beside each
+    // section label (blockBuilders.js's buildCompactBlocks: `borderLeft:
+    // 3px solid accent`), not the full-width underline every other layout
+    // uses — a real Word paragraph border, not an approximation of one.
+    const bdrSide = opts.borderLeft ? "left" : opts.borderTop ? "top" : "bottom";
+    const bdr    = (opts.border || opts.borderLeft) ? `<w:pBdr><w:${bdrSide} w:val="${opts.bdrVal || "single"}" w:sz="${opts.bdrSz ?? 6}" w:space="${opts.bdrSpace ?? 1}" w:color="${opts.bdrColor ?? accentHex}"/></w:pBdr>` : "";
     // numId 2 is the Minimal layout's own en-dash marker (see the
     // numbering.xml built below) — the on-screen Minimal layout renders
     // every bullet with "listStyleType: \"'– '\"", never the round dot
@@ -74,6 +84,18 @@ export function buildDocx(resume, docStyle) {
       return p(
         r(label.toUpperCase(), { bold: true, sz: sz, color: "1A1A1A", spacing: 60 }),
         { before: 260, after: 100, border: true, borderTop: true, bdrSz: 4 }
+      );
+    }
+    if (layout === "compact") {
+      return p(
+        r(label.toUpperCase(), { bold: true, sz: sz - 1, color: "1A1A1A", spacing: 50 }),
+        { before: 140, after: 40, borderLeft: true, bdrSz: 18, bdrSpace: 4, indent: 120 }
+      );
+    }
+    if (layout === "executive") {
+      return p(
+        r(` ${label.toUpperCase()} `, { bold: true, sz: sz - 1, color: "FFFFFF", spacing: 50, shade: accentHex }),
+        { before: 280, after: 120 }
       );
     }
     return p(
@@ -192,11 +214,25 @@ export function buildDocx(resume, docStyle) {
       </w:tr>
     </w:tbl>`;
   } else {
-    // Header
-    body += p(r(contact.name || "", { bold: true, sz: szLg, color: layout === "minimal" ? "1A1A1A" : accentHex, spacing: 20 }), { align: layout === "minimal" ? "left" : "center", after: 40 });
-    body += p(r(contact.title || "", { italic: layout !== "minimal", sz: sz + 2, color: "595959" }), { align: layout === "minimal" ? "left" : "center", after: 60 });
+    // Header — each layout's own real identity, not one shared shape with
+    // two colors swapped. Left-aligned for Minimal/Compact (matches their
+    // on-screen left-aligned header); Compact's title is bold accent color
+    // (buildCompactBlocks), not the plain italic grey every other layout
+    // uses; Executive gets a heavier double rule underneath, matching its
+    // own on-screen `border-bottom: 3px double accent`.
+    const leftAligned = layout === "minimal" || layout === "compact";
+    const headerAlign = leftAligned ? "left" : "center";
+    const nameColor = leftAligned ? "1A1A1A" : accentHex;
+    const titleColor = layout === "compact" ? accentHex : "595959";
+    const hasContactRule = layout !== "minimal" && layout !== "compact";
+
+    body += p(r(contact.name || "", { bold: true, sz: szLg, color: nameColor, spacing: 20 }), { align: headerAlign, after: 40 });
+    body += p(r(contact.title || "", { italic: !leftAligned, bold: layout === "compact", sz: sz + 2, color: titleColor }), { align: headerAlign, after: 60 });
     const contactParts = [contact.location, contact.phone, contact.email].filter(Boolean);
-    body += p(r(contactParts.join("  |  "), { sz: szSm, color: "595959" }), { align: layout === "minimal" ? "left" : "center", after: 200, border: layout !== "minimal", bdrSz: 6 });
+    body += p(
+      r(contactParts.join("  |  "), { sz: szSm, color: "595959" }),
+      { align: headerAlign, after: 200, border: hasContactRule, bdrSz: layout === "executive" ? 18 : 6, bdrVal: layout === "executive" ? "double" : "single" }
+    );
 
     for (const sec of (sections || [])) body += sectionBody(sec);
   }
