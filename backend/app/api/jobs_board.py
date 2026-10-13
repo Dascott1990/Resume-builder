@@ -22,9 +22,10 @@ from flask import Blueprint, request, jsonify
 
 from app import db, limiter
 from app.middleware.error_handlers import APIError
-from app.models import Job, JobsIngestRun
+from app.models import Job, JobsIngestRun, SavedJob
 from app.jobs_ingest.categories import CATEGORIES
 from app.jobs_ingest.trending import TRENDING_FIELDS, trending_counts, field_matches
+from app.utils.auth import get_scope
 
 jobs_board_bp = Blueprint("jobs_board", __name__)
 
@@ -144,6 +145,64 @@ def jobs_trending():
     counts = trending_counts(live_jobs)
     fields = [{**f, "live_count": counts.get(f["id"], 0)} for f in TRENDING_FIELDS]
     return jsonify({"success": True, "data": fields}), 200
+
+
+def _saved_scope_filter(query):
+    user_id, guest_id = get_scope(request)
+    if user_id:
+        return query.filter_by(user_id=user_id)
+    if guest_id:
+        return query.filter_by(guest_id=guest_id)
+    return query.filter(db.false())
+
+
+@jobs_board_bp.route("/<job_id>/save", methods=["POST"])
+def save_job(job_id):
+    """Idempotent — tapping an already-lit heart twice (a slow double-tap,
+    a retried request) must never create a second row for the same job."""
+    user_id, guest_id = get_scope(request)
+    if not user_id and not guest_id:
+        raise APIError("Missing X-Guest-Id header", 400)
+    if not Job.query.get(job_id):
+        raise APIError("Job not found", 404)
+    existing = _saved_scope_filter(SavedJob.query.filter_by(job_id=job_id)).first()
+    if not existing:
+        db.session.add(SavedJob(job_id=job_id, user_id=user_id, guest_id=None if user_id else guest_id))
+        db.session.commit()
+    return jsonify({"success": True}), 200
+
+
+@jobs_board_bp.route("/<job_id>/save", methods=["DELETE"])
+def unsave_job(job_id):
+    row = _saved_scope_filter(SavedJob.query.filter_by(job_id=job_id)).first()
+    if row:
+        db.session.delete(row)
+        db.session.commit()
+    return jsonify({"success": True}), 200
+
+
+@jobs_board_bp.route("/saved", methods=["GET"])
+def list_saved_jobs():
+    """Full job objects, newest-saved first — not filtered to still-live
+    postings, on purpose: a job disappearing from here the moment it
+    expires would be a confusing, unexplained vanish for a personal "jobs
+    I liked" list. Applying from an expired one simply won't work, same
+    as it wouldn't from the main board."""
+    saved = _saved_scope_filter(SavedJob.query).order_by(SavedJob.created_at.desc()).all()
+    job_ids = [s.job_id for s in saved]
+    jobs_by_id = {j.id: j for j in Job.query.filter(Job.id.in_(job_ids)).all()}
+    jobs = [jobs_by_id[jid].to_dict() for jid in job_ids if jid in jobs_by_id]
+    return jsonify({"success": True, "data": {"jobs": jobs, "total": len(jobs)}}), 200
+
+
+@jobs_board_bp.route("/saved/ids", methods=["GET"])
+def list_saved_job_ids():
+    """Just the ids — cheap enough to call once on every Jobs Board load
+    so every card can light up its own heart correctly, without pulling
+    full job objects (and re-rendering the whole list) just to know
+    which handful of ids are saved."""
+    saved = _saved_scope_filter(SavedJob.query).all()
+    return jsonify({"success": True, "data": [s.job_id for s in saved]}), 200
 
 
 def _clean_pagination(default_limit=30, max_limit=100):

@@ -209,6 +209,22 @@ class Job(db.Model):
         }
 
 
+class SavedJob(db.Model):
+    """One row per job a visitor has hearted on the Jobs Board — "I like
+    this, might apply later," distinct from JobApplication (which means
+    "I actually applied," lives in the Tracker). Same dual guest_id/
+    user_id scoping as every other anonymous-by-default feature in this
+    app, even though the Jobs Board itself (see api/jobs_board.py) is
+    otherwise a shared, unscoped catalog — saving one is a real per-
+    visitor action, browsing isn't."""
+    __tablename__ = "saved_jobs"
+    id = db.Column(db.String(32), primary_key=True, default=_gen_id)
+    job_id = db.Column(db.String(64), db.ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    guest_id = db.Column(db.String(64), index=True, nullable=True)
+    user_id = db.Column(db.String(32), db.ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class JobsIngestRun(db.Model):
     """
     One row per ingestion run — the admin Jobs board tab's own health

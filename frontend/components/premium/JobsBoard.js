@@ -22,12 +22,12 @@
  * a third column.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import {
-  ArrowLeft, ExternalLink, ShieldCheck, ShieldQuestion, MapPin, Search,
-  ChevronDown, Loader2, Inbox, Info, X, Flame, TrendingUp,
-  Bell, Moon, Sun, Building2, ArrowRight, Home, Briefcase, ClipboardList, CircleUser, Check,
+  ArrowLeft, Search,
+  ChevronDown, Loader2, Inbox, Info, X, Flame, TrendingUp, Heart,
+  Bell, Moon, Sun, Building2, Home, Briefcase, ClipboardList, CircleUser, Check,
 } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import { Btn } from "./guest/components/primitives";
@@ -37,7 +37,7 @@ import { firstNameOf } from "./shared/artisanDisplay";
 import { MobileFloatingNav } from "./shared/MobileFloatingNav";
 import { NotificationsDialog } from "./shared/NotificationsDialog";
 import { JobDetail } from "./JobDetail";
-import { SOURCE_LABELS, SOURCES_WITHOUT_DIRECT_LINK, timeAgo } from "./shared/jobsBoardShared";
+import { SOURCE_LABELS, timeAgo } from "./shared/jobsBoardShared";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
 import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
@@ -93,164 +93,20 @@ function countryName(code) {
   }
 }
 
-function VerificationBadge({ verification }) {
-  const { t } = useLanguage();
-  const { level, checks_not_attempted } = verification;
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState(null);
-  const btnRef = useRef(null);
-  const label = level >= 3 ? t("jobsBoard.domainAgeVerified") : level === 2 ? t("jobsBoard.domainConfirmed") : t("jobsBoard.sourceVerified");
-  const Icon = level >= 2 ? ShieldCheck : ShieldQuestion;
-
-  // Every job card has its own backdrop-filter (.glass-surface's blur),
-  // and backdrop-filter creates a new CSS stacking context — a z-20
-  // absolute child can never paint above a SIBLING card once each card
-  // is its own isolated stacking context, confirmed live: the popover was
-  // rendering underneath the next card in the grid instead of on top of
-  // it. Portaling straight to document.body escapes every card's own
-  // stacking context entirely, the same way Radix/shadcn's own
-  // Dialog/Popover primitives already do for this exact reason.
-  const toggle = (e) => {
-    e.stopPropagation();
-    if (!open && btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
-      const left = Math.min(r.left, window.innerWidth - 272);
-      setPos({ top: r.bottom + 6, left: Math.max(8, left) });
-    }
-    setOpen((v) => !v);
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    const close = () => setOpen(false);
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
-    return () => { window.removeEventListener("scroll", close, true); window.removeEventListener("resize", close); };
-  }, [open]);
-
-  return (
-    <div className="relative">
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={toggle}
-        className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10.5px] font-bold text-primary-text [-webkit-tap-highlight-color:transparent]"
-      >
-        <Icon className="size-3" /> Level {level} · {label}
-      </button>
-      {open && pos && typeof document !== "undefined" && createPortal(
-        <>
-          <div className="fixed inset-0 z-[90]" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="fixed z-[91] w-64 rounded-xl border border-border bg-card p-3 shadow-lg"
-            style={{ top: pos.top, left: pos.left }}
-          >
-            <p className="m-0 mb-1.5 text-[11px] font-bold text-foreground">{t("jobsBoard.whatWasChecked")}</p>
-            <ul className="m-0 grid gap-1 p-0 pl-4 text-[11px] text-muted-foreground">
-              {verification.checks_passed.map((c) => <li key={c}>{c.replace(/^level\d_/, "").replace(/_/g, " ")}</li>)}
-            </ul>
-            {checks_not_attempted?.length > 0 && (
-              <p className="m-0 mt-1.5 text-[10.5px] text-muted-foreground/70">
-                {t("jobsBoard.notAttempted", { list: checks_not_attempted.map((c) => c.replace(/^level\d_/, "").replace(/_/g, " ")).join(", ") })}
-              </p>
-            )}
-          </div>
-        </>,
-        document.body
-      )}
-    </div>
-  );
-}
-
-// Same card architecture as Dashboard.js's RecommendedJobCard — company-
-// initials logo tile, title/company, meta line, a real salary line when
-// the source actually has one, Apply as its own pill rather than the
-// whole card being one giant anchor (that also fixes VerificationBadge's
-// inner button being invalid HTML nested inside an <a>, same "no
-// interactive element inside another one" issue TrendingChip's own
-// comment already documents below). Jobs Board keeps the extra trust
-// content Dashboard's compact teaser doesn't need — category/remote
-// chips, the verification badge, source attribution — this screen's
-// whole reason to exist per its own docstring above.
-function JobCard({ job, applied, onOpen }) {
-  const { t } = useLanguage();
-  // The card itself opens JobDetail on click — Apply and the verification
-  // popover are real nested interactive elements, so each stops its own
-  // click from bubbling up to the card (otherwise tapping Apply would
-  // open both the external link AND the detail screen at once).
-  return (
-    <div
-      role="button" tabIndex={0} onClick={onOpen}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(); }}
-      className="glass-surface flex cursor-pointer flex-col gap-2.5 rounded-2xl p-4 text-left [-webkit-tap-highlight-color:transparent]"
-    >
-      <div className="flex items-center gap-2.5">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-muted font-mono text-[11px] font-bold text-muted-foreground">
-          {job.company_name.slice(0, 2).toUpperCase()}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="m-0 truncate text-[14px] font-bold text-foreground">{job.title}</p>
-          <p className="m-0 truncate text-[12px] text-muted-foreground">{job.company_name}</p>
-        </div>
-        {applied && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10.5px] font-bold text-success">
-            <Check className="size-3" /> {t("status.applied")}
-          </span>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-bold text-muted-foreground">{job.category}</span>
-        {job.remote && <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10.5px] font-bold text-success">{t("common.remote")}</span>}
-        {job.location && (
-          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            <MapPin className="size-3" /> {job.location}
-          </span>
-        )}
-      </div>
-
-      {/* Real, employer-entered text (see sources.py's fetch_remotive) —
-          only Remotive exposes real compensation data today, so this is
-          absent, not guessed, on every other source's jobs. */}
-      {job.salary && <p className="m-0 text-[12.5px] font-bold text-success">{job.salary}</p>}
-
-      {SOURCES_WITHOUT_DIRECT_LINK.has(job.source) && (
-        <p className="m-0 text-[10.5px] text-muted-foreground/70">{t("jobsBoard.opensCompanyPage", { company: job.company_name })}</p>
-      )}
-
-      {/* flex-wrap — both children are shrink-0 (the badge must never
-          wrap its own text into the distorted rounded-full blob that
-          caused live, see VerificationBadge above) so at a squeezed
-          card width the "via ..." text drops to its own line below
-          instead of forcing the row wider than the card. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <VerificationBadge verification={job.verification} />
-        <span className="shrink-0 text-[10.5px] text-muted-foreground/70">
-          {t("jobsBoard.viaSource", { source: SOURCE_LABELS[job.source] || job.source })} · {timeAgo(job.posted_at, t)}
-        </span>
-      </div>
-
-      <a
-        href={job.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
-        className="flex w-fit items-center gap-1 self-start rounded-[10px] bg-primary px-3.5 py-1.5 text-[12px] font-bold text-primary-foreground [-webkit-tap-highlight-color:transparent]"
-      >
-        {t("jobsBoard.apply")} <ExternalLink className="size-3" />
-      </a>
-    </div>
-  );
-}
-
-// Mobile-only replacement for JobCard — the strict monochrome "invisible
-// container" treatment from the approved mobile reference: no border, no
-// colored tag fills, a line-weight building glyph instead of a colored
-// company-initials tile. Spec pills only ever show REAL fields this
-// backend actually returns (category/remote/location) — no fabricated
-// employment-type or experience-level tags, since nothing in the real job
-// object carries that data (see jobs_board.py's own documented shape).
-// Tapping the card (not a separate Apply button) opens JobDetail — Apply
-// itself now lives on that screen's sticky action bar.
-function JobCardMobile({ job, applied, onOpen }) {
+// One row, joined to its neighbors by a hairline divider instead of each
+// job floating as its own separate boxed card — a plain, borderless list
+// reads cleaner and sharper than a stack of bordered/shadowed tiles, and
+// it's the same shape on both breakpoints now (desktop used to be a
+// 2-column grid of heavier cards; a joined list doesn't really work in
+// two columns, so this replaces that too). Decluttered on purpose:
+// verification, source attribution, and the real Apply action already
+// live on JobDetail (opened by tapping the row) — nothing here is lost,
+// just deferred until someone's actually looking at one job, not
+// skimming the whole list. The heart lets someone mark a job worth
+// coming back to without committing to Apply right now — see
+// toggleSaveJob/savedIds in the main component below, and the "Loved"
+// toggle that filters down to just these.
+function JobRow({ job, applied, saved, onToggleSave, onOpen }) {
   const { t } = useLanguage();
   const specs = [
     job.category,
@@ -259,45 +115,39 @@ function JobCardMobile({ job, applied, onOpen }) {
   ].filter(Boolean);
 
   return (
-    <button
-      type="button" onClick={onOpen}
-      className="flex w-full flex-col gap-2.5 rounded-2xl border-none bg-background p-4 text-left [-webkit-tap-highlight-color:transparent]"
-      style={{ boxShadow: "var(--job-card-shadow)" }}
+    <div
+      role="button" tabIndex={0} onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(); }}
+      className="flex cursor-pointer items-center gap-3 py-3.5 text-left [-webkit-tap-highlight-color:transparent]"
     >
-      <div className="flex items-start gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
-          <Building2 className="size-[18px] text-muted-foreground/70" strokeWidth={1.75} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <p className="m-0 truncate text-[15px] font-bold tracking-tight text-foreground">{job.title}</p>
-            {applied && <Check className="size-3.5 shrink-0 text-foreground" strokeWidth={2.5} />}
-          </div>
-          <p className="m-0 truncate text-[12px] font-medium text-muted-foreground/70">
-            {job.company_name}{applied ? ` · ${t("status.applied")}` : ""}
-          </p>
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
+        <Building2 className="size-[18px] text-muted-foreground/70" strokeWidth={1.75} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <p className="m-0 truncate text-[14px] font-bold tracking-tight text-foreground">{job.title}</p>
+          {applied && <Check className="size-3.5 shrink-0 text-success" strokeWidth={2.5} />}
         </div>
-        {job.salary && (
-          <span className="shrink-0 pt-0.5 text-[13px] font-bold tracking-tight text-foreground">{job.salary}</span>
-        )}
+        <p className="m-0 truncate text-[12px] font-medium text-muted-foreground/70">
+          {job.company_name}{specs.length > 0 ? ` · ${specs.join(" · ")}` : ""}
+        </p>
       </div>
-
-      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 pl-[52px]">
-        {specs.map((s, i) => (
-          <span key={s} className="flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground/60">
-            {i > 0 && <span className="text-muted-foreground/30">&middot;</span>} {s}
-          </span>
-        ))}
-        {job.posted_at && (
-          <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground/60">
-            {specs.length > 0 && <span className="text-muted-foreground/30">&middot;</span>} {timeAgo(job.posted_at, t)}
-          </span>
-        )}
-        <span className="ml-auto shrink-0 text-muted-foreground/40">
-          <ArrowRight className="size-4" strokeWidth={1.75} />
-        </span>
-      </div>
-    </button>
+      {/* Real, employer-entered text (see sources.py's fetch_remotive) —
+          only Remotive exposes real compensation data today, so this is
+          absent, not guessed, on every other source's jobs. */}
+      {job.salary && (
+        <span className="hidden shrink-0 text-[13px] font-bold tracking-tight text-foreground sm:inline">{job.salary}</span>
+      )}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onToggleSave(job); }}
+        aria-label={saved ? t("jobsBoard.unlove") : t("jobsBoard.love")}
+        aria-pressed={saved}
+        className="flex size-8 shrink-0 items-center justify-center rounded-full border-none bg-transparent text-muted-foreground/40 [-webkit-tap-highlight-color:transparent] hover:text-destructive"
+      >
+        <Heart className="size-[18px]" strokeWidth={1.75} fill={saved ? "currentColor" : "none"} style={saved ? { color: "var(--destructive)" } : undefined} />
+      </button>
+    </div>
   );
 }
 
@@ -484,6 +334,26 @@ function CollapsedControls({ onExpand, filtersActive }) {
   );
 }
 
+// Flips the whole list between the normal filtered board and the
+// visitor's own saved set (see savedOnly/toggleSaveJob in the main
+// component) — "view all the jobs you loved, apply once you're ready,"
+// not a filter layered on top of category/search/trending.
+function LovedToggle({ active, count, onClick }) {
+  const { t } = useLanguage();
+  return (
+    <button
+      type="button" onClick={onClick} aria-pressed={active}
+      className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-[12.5px] font-bold [-webkit-tap-highlight-color:transparent] ${
+        active ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      <Heart className="size-3.5" fill={active ? "currentColor" : "none"} strokeWidth={1.75} />
+      {active ? t("jobsBoard.allJobs") : t("jobsBoard.loved")}
+      {!active && count > 0 ? ` (${count})` : ""}
+    </button>
+  );
+}
+
 // Drifts sideways on its own — a slow, continuous ping-pong scroll (not a
 // hard jump-reset at the end, which would read as a glitch) — while
 // staying a real, fully manual-scrollable track: any touch/pointer down
@@ -617,6 +487,48 @@ export default function JobsBoard({ onClose, onNavigate }) {
     apiRequest("/api/v1/applications").catch(() => []).then((apps) => setApplications(apps || []));
   }, [user?.id]);
 
+  // Just the ids, loaded once up front — cheap enough to call on every
+  // board load so every row can light up its own heart correctly without
+  // pulling full job objects it doesn't need yet (those only get fetched
+  // when "Loved" is actually opened, see savedOnly below).
+  const [savedIds, setSavedIds] = useState(new Set());
+  useEffect(() => {
+    apiRequest("/api/v1/jobs/saved/ids").catch(() => []).then((ids) => setSavedIds(new Set(ids || [])));
+  }, []);
+
+  const toggleSaveJob = (job) => {
+    const wasSaved = savedIds.has(job.id);
+    // Optimistic — a heart that waits for the round-trip before filling in
+    // reads as unresponsive on a slow connection; reverted in .catch if
+    // the request actually fails.
+    setSavedIds((cur) => {
+      const next = new Set(cur);
+      wasSaved ? next.delete(job.id) : next.add(job.id);
+      return next;
+    });
+    const req = wasSaved
+      ? apiRequest(`/api/v1/jobs/${job.id}/save`, { method: "DELETE" })
+      : apiRequest(`/api/v1/jobs/${job.id}/save`, { method: "POST" });
+    req.catch(() => {
+      setSavedIds((cur) => {
+        const next = new Set(cur);
+        wasSaved ? next.add(job.id) : next.delete(job.id);
+        return next;
+      });
+      toast.error(t("jobsBoard.saveFailed"));
+    });
+    // Dropping a job from the Loved view the instant it's unhearted reads
+    // better than leaving it sitting there unfilled until the next load.
+    if (savedOnly && wasSaved) setJobs((list) => list.filter((j) => j.id !== job.id));
+  };
+
+  // Flips the list's data source entirely rather than client-filtering
+  // the currently-loaded page — a job loved last week may not be in
+  // today's filtered/paginated results at all, so "view all loved jobs"
+  // has to mean a real fetch of the full saved set, not a filter over
+  // whatever happens to already be on screen.
+  const [savedOnly, setSavedOnly] = useState(false);
+
   // JobApplication only ever stores company/role as free text, and the
   // two real paths that create a row disagree about what "company" even
   // means: a manually-tracked JobTracker entry has a real typed name
@@ -745,7 +657,8 @@ export default function JobsBoard({ onClose, onNavigate }) {
   const load = useCallback(() => {
     const id = ++requestIdRef.current;
     setLoading(true);
-    apiRequest(`/api/v1/jobs?${buildParams(0)}`)
+    const url = savedOnly ? "/api/v1/jobs/saved" : `/api/v1/jobs?${buildParams(0)}`;
+    apiRequest(url)
       .then((d) => {
         if (requestIdRef.current !== id) return;
         setJobs(d.jobs); setTotal(d.total);
@@ -755,7 +668,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
         setJobs([]); setTotal(0);
       })
       .finally(() => { if (requestIdRef.current === id) setLoading(false); });
-  }, [buildParams]);
+  }, [buildParams, savedOnly]);
 
   useEffect(load, [load]);
   useEffect(() => {
@@ -794,25 +707,23 @@ export default function JobsBoard({ onClose, onNavigate }) {
   ) : jobs.length === 0 ? (
     <div className="grid justify-items-center gap-2.5 py-16 text-center">
       <div className="flex size-11 items-center justify-center rounded-full border border-border bg-card">
-        <Inbox className="size-[18px] text-muted-foreground" />
+        {savedOnly ? <Heart className="size-[18px] text-muted-foreground" /> : <Inbox className="size-[18px] text-muted-foreground" />}
       </div>
-      <p className="m-0 text-[13.5px] font-bold text-foreground">{t("jobsBoard.noJobsMatch")}</p>
-      <p className="m-0 text-[12.5px] text-muted-foreground">{t("jobsBoard.tryClearing")}</p>
+      <p className="m-0 text-[13.5px] font-bold text-foreground">{savedOnly ? t("jobsBoard.noLovedJobs") : t("jobsBoard.noJobsMatch")}</p>
+      <p className="m-0 text-[12.5px] text-muted-foreground">{savedOnly ? t("jobsBoard.noLovedJobsHint") : t("jobsBoard.tryClearing")}</p>
     </div>
   ) : (
     <>
-      {/* grid-cols-1, not a bare "grid" — Tailwind's grid-cols-1 sets
-          grid-template-columns: repeat(1, minmax(0, 1fr)), which is
-          what actually lets a long, untruncated job title be
-          constrained to the container's width instead of the
-          browser's default "auto" track sizing growing the whole
-          column (and every card in it) to that title's natural
-          content width — confirmed live: without this, cards were
-          rendering ~350px wider than the 390px mobile viewport,
-          silently clipped by the screen's own overflow-hidden
-          instead of visibly overflowing. */}
-      <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
-        {jobs.map((j) => <JobCard key={j.id} job={j} applied={isJobApplied(j)} onOpen={() => setSelectedJob(j)} />)}
+      {/* A plain block container, not a grid/flex one — each row is
+          naturally held to the container's own width (block children
+          fill their parent by default), which is what keeps a long,
+          untruncated job title from forcing the row wider than the
+          screen. Joined by a hairline divider instead of each job
+          floating as its own separate bordered/shadowed card. */}
+      <div className="divide-y divide-border">
+        {jobs.map((j) => (
+          <JobRow key={j.id} job={j} applied={isJobApplied(j)} saved={savedIds.has(j.id)} onToggleSave={toggleSaveJob} onOpen={() => setSelectedJob(j)} />
+        ))}
       </div>
       {jobs.length < total && (
         <div className="mt-4 flex justify-center">
@@ -868,34 +779,39 @@ export default function JobsBoard({ onClose, onNavigate }) {
 
         <main className="relative min-w-0 flex-1 overflow-y-auto" onScroll={handleScroll}>
           <div className="mx-auto w-full max-w-4xl px-8 py-8">
-            <div className="mb-5">
-              <p className="m-0 text-[22px] font-bold text-foreground">{t("jobsBoard.jobsBoard")}</p>
-              {meta?.last_run_at && (
-                <p className="m-0 mt-1 text-[12.5px] text-muted-foreground">{t("jobsBoard.updated", { time: timeAgo(meta.last_run_at, t), total })}</p>
-              )}
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="m-0 text-[22px] font-bold text-foreground">{savedOnly ? t("jobsBoard.loved") : t("jobsBoard.jobsBoard")}</p>
+                {meta?.last_run_at && !savedOnly && (
+                  <p className="m-0 mt-1 text-[12.5px] text-muted-foreground">{t("jobsBoard.updated", { time: timeAgo(meta.last_run_at, t), total })}</p>
+                )}
+              </div>
+              <LovedToggle active={savedOnly} count={savedIds.size} onClick={() => setSavedOnly((v) => !v)} />
             </div>
 
-            <div className="sticky top-0 z-10 -mx-8 mb-4 bg-background px-8 pt-1 pb-3">
-              <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
-              <AnimatePresence mode="wait" initial={false}>
-                {controlsCollapsed ? (
-                  <motion.div key="collapsed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                    <CollapsedControls onExpand={expandControls} filtersActive={filtersActive} />
-                  </motion.div>
-                ) : (
-                  <motion.div key="expanded" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                    {searchOrActiveTrending}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              <ActiveFilterChips
-                search={search} setSearch={setSearch}
-                category={category} setCategory={setCategory}
-                country={country} setCountry={setCountry}
-                remote={remote} setRemote={setRemote}
-                minLevel={minLevel} setMinLevel={setMinLevel}
-              />
-            </div>
+            {!savedOnly && (
+              <div className="sticky top-0 z-10 -mx-8 mb-4 bg-background px-8 pt-1 pb-3">
+                <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
+                <AnimatePresence mode="wait" initial={false}>
+                  {controlsCollapsed ? (
+                    <motion.div key="collapsed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                      <CollapsedControls onExpand={expandControls} filtersActive={filtersActive} />
+                    </motion.div>
+                  ) : (
+                    <motion.div key="expanded" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                      {searchOrActiveTrending}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <ActiveFilterChips
+                  search={search} setSearch={setSearch}
+                  category={category} setCategory={setCategory}
+                  country={country} setCountry={setCountry}
+                  remote={remote} setRemote={setRemote}
+                  minLevel={minLevel} setMinLevel={setMinLevel}
+                />
+              </div>
+            )}
 
             {resultsList}
           </div>
@@ -939,15 +855,17 @@ export default function JobsBoard({ onClose, onNavigate }) {
   ) : jobs.length === 0 ? (
     <div className="grid justify-items-center gap-2.5 py-16 text-center">
       <div className="flex size-11 items-center justify-center rounded-full bg-muted">
-        <Inbox className="size-[18px] text-muted-foreground" />
+        {savedOnly ? <Heart className="size-[18px] text-muted-foreground" /> : <Inbox className="size-[18px] text-muted-foreground" />}
       </div>
-      <p className="m-0 text-[13.5px] font-bold text-foreground">{t("jobsBoard.noJobsMatch")}</p>
-      <p className="m-0 text-[12.5px] text-muted-foreground">{t("jobsBoard.tryClearing")}</p>
+      <p className="m-0 text-[13.5px] font-bold text-foreground">{savedOnly ? t("jobsBoard.noLovedJobs") : t("jobsBoard.noJobsMatch")}</p>
+      <p className="m-0 text-[12.5px] text-muted-foreground">{savedOnly ? t("jobsBoard.noLovedJobsHint") : t("jobsBoard.tryClearing")}</p>
     </div>
   ) : (
     <>
-      <div className="grid grid-cols-1 gap-2.5">
-        {jobs.map((j) => <JobCardMobile key={j.id} job={j} applied={isJobApplied(j)} onOpen={() => setSelectedJob(j)} />)}
+      <div className="divide-y divide-border">
+        {jobs.map((j) => (
+          <JobRow key={j.id} job={j} applied={isJobApplied(j)} saved={savedIds.has(j.id)} onToggleSave={toggleSaveJob} onOpen={() => setSelectedJob(j)} />
+        ))}
       </div>
       {jobs.length < total && (
         <div className="mt-4 flex justify-center">
@@ -1062,13 +980,20 @@ export default function JobsBoard({ onClose, onNavigate }) {
           fold for no real benefit. Jobs Board opens straight into the
           thing it's for: real listings. */}
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4" style={{ paddingBottom: "calc(110px + env(safe-area-inset-bottom, 0px))" }}>
-        <CategoryPills categoryOptions={categoryOptions} value={category} onChange={setCategory} />
+        <div className="mb-3 flex justify-end">
+          <LovedToggle active={savedOnly} count={savedIds.size} onClick={() => setSavedOnly((v) => !v)} />
+        </div>
 
-        <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
+        {!savedOnly && (
+          <>
+            <CategoryPills categoryOptions={categoryOptions} value={category} onChange={setCategory} />
+            <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
+          </>
+        )}
 
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-[11px] font-bold tracking-[0.12em] text-foreground/70 uppercase">{t("jobsBoard.jobMatch")}</span>
-          {(category || activeTrending || search) && (
+          <span className="text-[11px] font-bold tracking-[0.12em] text-foreground/70 uppercase">{savedOnly ? t("jobsBoard.loved") : t("jobsBoard.jobMatch")}</span>
+          {!savedOnly && (category || activeTrending || search) && (
             <button
               onClick={() => { setCategory(""); setSearch(""); setActiveTrending(null); }}
               className="border-none bg-transparent p-0 text-[12px] font-bold text-foreground [-webkit-tap-highlight-color:transparent]"
