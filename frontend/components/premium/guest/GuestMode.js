@@ -49,7 +49,7 @@ import { BuilderSidebar } from "./components/workspace/BuilderSidebar";
 import { FormattingToolbar } from "./components/workspace/FormattingToolbar";
 import { AnalysisPanel } from "./components/workspace/AnalysisPanel";
 import { getToken } from "@/lib/authToken";
-import { getPreferredTemplate } from "@/lib/templatePreference";
+import { getEffectiveStyle } from "@/lib/templatePreference";
 import { apiRequest } from "../shared/api";
 import { useLanguage } from "@/lib/i18n";
 
@@ -290,11 +290,12 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
   // A draft in progress always wins (same reasoning as every other
   // draftAtMount field); failing that, an explicitly-picked template (see
   // Dashboard's Templates card / lib/templatePreference.js) beats
-  // DEFAULT_STYLE's own "classic" fallback.
-  const [docStyle,   setDocStyle]   = useState(() => draftAtMount?.docStyle || {
-    ...DEFAULT_STYLE,
-    layout: getPreferredTemplate() || DEFAULT_STYLE.layout,
-  });
+  // DEFAULT_STYLE's own "classic" fallback. getEffectiveStyle prefers the
+  // full (layout, accent, font) triple the Templates gallery's full
+  // combinatorial grid saves, falling back to the original layout-only
+  // preference for anyone who picked a template before that gallery
+  // existed — nothing silently loses a previously-set preference.
+  const [docStyle,   setDocStyle]   = useState(() => draftAtMount?.docStyle || getEffectiveStyle(DEFAULT_STYLE));
   // Restored on mount only if there's actually something worth telling the user about.
   const [draftRestored, setDraftRestored] = useState(() => !pendingImport && !pendingLoadResumeId && !!(draftAtMount?.resume || draftAtMount?.jobDesc));
   // A one-time banner distinct from draftRestored — this is "we just parsed
