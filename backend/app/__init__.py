@@ -255,6 +255,9 @@ def create_app():
     from app.api.meta import meta_bp
     app.register_blueprint(meta_bp, url_prefix="/api/v1/meta")
 
+    from app.api.landing_demo import landing_demo_bp
+    app.register_blueprint(landing_demo_bp, url_prefix="/api/v1/landing")
+
     from app.api.tokens import tokens_bp
     app.register_blueprint(tokens_bp, url_prefix="/api/v1/tokens")
 

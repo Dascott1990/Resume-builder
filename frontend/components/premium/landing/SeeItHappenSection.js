@@ -1,10 +1,11 @@
 "use client";
 import { motion, useInView } from "framer-motion";
-import { useRef } from "react";
-import { RefreshCw, Zap, FileCheck2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { RefreshCw, Zap, FileCheck2, Loader2, RotateCcw } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP, EYEBROW, CARD, SectionGlow } from "./shared";
 import { ResumeDocument } from "../shared/ResumeDocument";
-import { RESUMES } from "../shared/prebuiltResumes";
+import { apiRequest } from "../shared/api";
+import { trackEvent } from "@/lib/trackEvent";
 import { useLanguage } from "@/lib/i18n";
 
 const trust = (t) => [
@@ -19,65 +20,72 @@ const trust = (t) => [
 // measures, just displayed smaller via ResumeDocument's own `scale` prop.
 const PAGE_WIDTH = 816;
 const PAGE_HEIGHT = 1056;
-const SHOWCASE_STYLE = { font: "calibri", fontSize: 11, lineHeight: 1.4, accent: "navy" };
+const SHOWCASE_STYLE = { font: "calibri", fontSize: 11, lineHeight: 1.4, accent: "navy", layout: "classic" };
 
-// Two of the three real layouts (resumeLayouts/registry.js), same content
-// (RESUMES.it), rendered through the actual ResumeDocument renderer every
-// real resume in the app uses — never a mockup image.
-const showcaseLayouts = (t) => [
-  { layout: "classic", label: t("landing.layoutClassic") },
-  { layout: "sidebar", label: t("landing.layoutSidebar") },
+// Real, realistic (not scraped from any real employer) job posting text —
+// short but substantial enough for the AI to actually have something to
+// tailor against. One click per example, no blank textarea: a visitor
+// never has to come up with their own posting to see the real mechanism
+// work, which is the one thing nothing else in this market does free and
+// unlimited (see backend/app/api/landing_demo.py's own docstring).
+const DEMO_EXAMPLES = [
+  {
+    id: "marketing",
+    labelKey: "landing.demoExample1",
+    jobDescription:
+      "We're hiring a Marketing Manager to own campaign strategy across email, paid social, and content for our e-commerce brand. You'll run A/B tests on ad creative, manage a $40k/month paid media budget, partner with design on seasonal launches, and report weekly on CAC and ROAS to leadership. 4+ years of B2B or DTC marketing experience required, strong analytics background a must.",
+  },
+  {
+    id: "engineering",
+    labelKey: "landing.demoExample2",
+    jobDescription:
+      "Seeking a Software Engineer to build and maintain backend APIs powering our logistics platform. You'll design REST endpoints, write integration tests, optimize Postgres queries under real production load, and collaborate with frontend engineers on API contracts. 3+ years with Python or Node, comfortable with CI/CD pipelines and cloud infrastructure (AWS or GCP).",
+  },
+  {
+    id: "support",
+    labelKey: "landing.demoExample3",
+    jobDescription:
+      "Customer Support Specialist needed to handle inbound tickets across chat, email, and phone for a growing SaaS product. You'll troubleshoot billing and account issues, maintain a 95%+ CSAT score, escalate bugs to engineering with clear repro steps, and help build out our internal knowledge base. Prior SaaS or tech support experience preferred.",
+  },
 ];
 
-function ResumeMini({ layout, label }) {
-  const displayWidth = 148;
-  const scale = displayWidth / PAGE_WIDTH;
-  const displayHeight = PAGE_HEIGHT * scale;
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <div
-        className="overflow-hidden rounded-lg border border-border bg-[#f4f4f4] shadow-[0_12px_28px_-14px_rgba(0,0,0,0.35)]"
-        style={{ width: displayWidth, height: displayHeight }}
-      >
-        <ResumeDocument
-          resume={RESUMES.it}
-          style={{ ...SHOWCASE_STYLE, layout }}
-          scale={scale}
-          pageWidth={PAGE_WIDTH}
-          pageHeight={PAGE_HEIGHT}
-          shadowClassName=""
-        />
-      </div>
-      <span className="text-[11px] font-semibold text-muted-foreground">{label}</span>
-    </div>
-  );
-}
-
-// ── The "watch it happen" section — right after the Hero. Words on the
-// left name what it does; the card on the right shows it, two real
-// layouts rendered through the same component every actual resume in the
-// product uses, never a mockup.
 export function SeeItHappenSection() {
   const { t } = useLanguage();
   const TRUST = trust(t);
-  const SHOWCASE_LAYOUTS = showcaseLayouts(t);
   const containerRef = useRef(null);
   const inView = useInView(containerRef, { once: true, margin: "-15% 0px -15% 0px" });
+
+  const [status, setStatus] = useState("idle"); // idle | loading | done | error
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  const runExample = async (example) => {
+    setStatus("loading");
+    setError("");
+    try {
+      const data = await apiRequest("/api/v1/landing/demo-tailor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_description: example.jobDescription }),
+      });
+      setResult(data);
+      setStatus("done");
+      trackEvent("demo_tailor_used");
+    } catch (e) {
+      setError(e.message || t("landing.demoError"));
+      setStatus("error");
+    }
+  };
+
+  const reset = () => {
+    setStatus("idle");
+    setResult(null);
+    setError("");
+  };
 
   return (
     <section ref={containerRef} className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden py-20 sm:py-24">
       <SectionGlow color="emerald" side="right" />
-      {/* Hero above is forced dark (`.dark`, see its own file comment) no
-          matter the app's real theme, but this section isn't — in light
-          mode that's a real color underneath Hero's own dark one, cut
-          sharply at the seam between them. Hero's 90svh peek (see its own
-          comment) makes that seam visible immediately on load now, not
-          just after scrolling into it, so the cut needs to actually blend
-          instead of just existing. `.dark` scopes var(--background) to
-          the dark token for this one small band regardless of the app's
-          real mode, fading to transparent — in light mode that reveals
-          this section's real (lighter) background gradually; in dark
-          mode the two colors already match, so this paints as a no-op. */}
       <div
         aria-hidden="true"
         className="dark pointer-events-none absolute inset-x-0 top-0 h-28 bg-background sm:h-36"
@@ -111,10 +119,65 @@ export function SeeItHappenSection() {
             </ul>
           </Reveal>
 
-          <Reveal delay={0.1} className={`${CARD} flex items-center justify-center gap-6`}>
-            {SHOWCASE_LAYOUTS.map((s) => (
-              <ResumeMini key={s.layout} {...s} />
-            ))}
+          <Reveal delay={0.1} className={`${CARD} flex flex-col items-center justify-center gap-4 p-6`}>
+            {status === "idle" && (
+              <div className="flex w-full flex-col gap-2.5">
+                {DEMO_EXAMPLES.map((ex) => (
+                  <button
+                    key={ex.id}
+                    type="button"
+                    onClick={() => runExample(ex)}
+                    className="rounded-xl border border-border bg-background px-4 py-3 text-left text-[13.5px] font-semibold text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 [-webkit-tap-highlight-color:transparent]"
+                  >
+                    {t(ex.labelKey)}
+                  </button>
+                ))}
+                <p className="m-0 mt-1 text-center text-[11.5px] text-muted-foreground/70">{t("landing.demoDisclaimer")}</p>
+              </div>
+            )}
+
+            {status === "loading" && (
+              <div className="flex h-[280px] flex-col items-center justify-center gap-3">
+                <Loader2 className="size-6 animate-spin text-primary" strokeWidth={2} />
+                <p className="m-0 text-[13px] font-semibold text-muted-foreground">{t("landing.demoLoading")}</p>
+              </div>
+            )}
+
+            {status === "error" && (
+              <div className="flex h-[280px] flex-col items-center justify-center gap-3 px-4 text-center">
+                <p className="m-0 text-[13px] font-semibold text-foreground">{error}</p>
+                <button
+                  type="button" onClick={reset}
+                  className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-[12.5px] font-semibold text-foreground [-webkit-tap-highlight-color:transparent]"
+                >
+                  <RotateCcw className="size-3.5" /> {t("landing.demoTryAnother")}
+                </button>
+              </div>
+            )}
+
+            {status === "done" && result && (
+              <div className="flex flex-col items-center gap-3">
+                <div
+                  className="overflow-hidden rounded-lg border border-border bg-[#f4f4f4] shadow-[0_12px_28px_-14px_rgba(0,0,0,0.35)]"
+                  style={{ width: 208, height: (208 / PAGE_WIDTH) * PAGE_HEIGHT }}
+                >
+                  <ResumeDocument
+                    resume={result}
+                    style={SHOWCASE_STYLE}
+                    scale={208 / PAGE_WIDTH}
+                    pageWidth={PAGE_WIDTH}
+                    pageHeight={PAGE_HEIGHT}
+                    shadowClassName=""
+                  />
+                </div>
+                <button
+                  type="button" onClick={reset}
+                  className="flex items-center gap-1.5 border-none bg-transparent p-0 text-[12.5px] font-semibold text-foreground underline [-webkit-tap-highlight-color:transparent]"
+                >
+                  <RotateCcw className="size-3.5" /> {t("landing.demoTryAnother")}
+                </button>
+              </div>
+            )}
           </Reveal>
         </div>
       </ScrollBlend>
