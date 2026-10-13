@@ -300,6 +300,40 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
   );
 
   if (isDesktop) {
+    // Same real three-column shape JobsBoard.js already uses (NavRail +
+    // main + a w-72 controls aside), not a two-column screen with
+    // leftover empty space next to it — Region and Filters live here
+    // instead of inline above the grid, always visible rather than a
+    // toggle, matching how JobsBoard's own Filters aside behaves.
+    const desktopAside = (
+      <aside className="flex w-72 shrink-0 flex-col gap-6 overflow-y-auto border-l border-border bg-card p-5">
+        <div>
+          <p className="m-0 mb-2.5 font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{t("templates.region")}</p>
+          <div className="flex flex-col gap-1.5">
+            {REGION_LIST.map((r) => (
+              <button
+                key={r.id} type="button" onClick={() => chooseRegion(r.id)}
+                className={`rounded-lg border px-3 py-2 text-left text-[12.5px] font-semibold [-webkit-tap-highlight-color:transparent] ${
+                  activeRegion.id === r.id ? "border-primary bg-primary/10 text-primary-text" : "border-border text-foreground"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          <p className="m-0 mt-2 text-[11.5px] text-muted-foreground">{t("templates.formatLabel", { docType: activeRegion.docLabel })}</p>
+        </div>
+        <div>
+          <p className="m-0 mb-2.5 font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{t("templates.filters")}</p>
+          <div className="flex flex-col gap-3">
+            <FilterRow options={LAYOUTS.map((l) => ({ id: l.id, label: l.label }))} value={filterLayout} onChange={setFilterLayout} allLabel={t("templates.filterAllLayouts")} />
+            <FilterRow options={ACCENTS.map((a) => ({ id: a.id, label: a.label }))} value={filterAccent} onChange={setFilterAccent} allLabel={t("templates.filterAllColors")} />
+            <FilterRow options={FONTS.map((f) => ({ id: f.id, label: f.label }))} value={filterFont} onChange={setFilterFont} allLabel={t("templates.filterAllFonts")} />
+          </div>
+        </div>
+      </aside>
+    );
+
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 flex bg-background font-sans text-foreground">
         <NavRail user={user} onNavigate={onNavigate} onNotifClick={() => setNotifOpen(true)} />
@@ -307,8 +341,6 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
           <div className="mx-auto w-full max-w-4xl px-8 py-8 pb-24">
             <p className="m-0 mb-1 text-[22px] font-bold text-foreground">{t("templates.heading")}</p>
             {intro}
-            {controlsRow}
-            {filterRows}
             {grid}
           </div>
           <div className="pointer-events-none sticky bottom-0 left-0 w-full bg-gradient-to-t from-background via-background to-transparent px-8 pt-8 pb-6">
@@ -317,6 +349,7 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
             </div>
           </div>
         </main>
+        {desktopAside}
         <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={() => { setNotifOpen(false); onNavigate?.("apply"); }} />
         {confirmStartDialog}
       </motion.div>
