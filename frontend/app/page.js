@@ -237,6 +237,9 @@ export default function Home() {
   // check), otherwise the server's HTML and the client's first paint
   // disagree and hydration fails outright.
   const [mounted, setMounted] = useState(false);
+  // True for a deliberate beat right after signing out — see
+  // handleSignOut below for why this exists.
+  const [signingOut, setSigningOut] = useState(false);
   useEffect(() => {
     // The bookmarklet opens this exact URL shape: /?jd=<capture id>. Takes
     // priority over the plain "have they visited before" check below —
@@ -414,8 +417,28 @@ export default function Home() {
   // NavRail's and Profile's own sign-out actions — both call this, not
   // useAuth's logout() directly, same shape as a deleted account below).
   // This clears VIEW_KEY the same way the old "close" button used to.
+  //
+  // By the time this runs, logout() (called first, by whichever screen's
+  // own signOut() wrapper invoked this) has already synchronously
+  // cleared the token and `user` from state — nothing sensitive is still
+  // reachable. What used to happen next was an instant hard cut straight
+  // to the login screen in the very same render, which is correct but
+  // reads as abrupt and gives no visible confirmation anything actually
+  // happened. `signingOut` now covers the screen with the same branded
+  // scanning treatment every other loading moment in this app already
+  // uses (ScreenLoading) for a deliberate beat, THEN lands on the real
+  // destination — a visible "your session is being cleared" moment
+  // instead of a silent instant swap, with the existing crossfade
+  // carrying both transitions (into the scan, then out of it) so neither
+  // edge is a hard cut. `view` itself doesn't change until the timeout
+  // below fires, so every view-branch check further down still matches
+  // the just-signed-out screen for this whole duration — the signingOut
+  // check at the very bottom of this function overrides whatever any of
+  // them set `content` to, which is what actually keeps that screen from
+  // staying on top during the pause.
   const handleSignOut = () => {
     try { localStorage.removeItem(VIEW_KEY); } catch { /* best-effort */ }
+    setSigningOut(true);
     // Bypasses go() on purpose (signing out isn't "navigating to login",
     // it's leaving the authenticated app), but that means returnView is
     // left pointing at whatever authenticated screen was open (e.g.
@@ -428,7 +451,10 @@ export default function Home() {
     // that's never auth-gated — means X actually goes somewhere instead
     // of looping forever.
     setReturnView("launcher");
-    setView("login");
+    setTimeout(() => {
+      setView("login");
+      setSigningOut(false);
+    }, 1400);
   };
 
   let content;
@@ -670,6 +696,17 @@ export default function Home() {
         >
           <Resume key={sessionId} onClose={() => setView(returnView)} onRequireAuth={openAuth} pendingImport={pendingImport} pendingJobDesc={pendingJobDesc} pendingLoadResumeId={pendingLoadResumeId} pendingViewAllResumes={pendingViewAllResumes} pendingQuickBuild={pendingQuickBuild} />
         </ErrorBoundary>
+      </ScreenTransition>
+    );
+  }
+
+  // Overrides whatever the view-branch checks above just set — see the
+  // long comment on handleSignOut for why this has to run last, not as
+  // an early return at the top.
+  if (signingOut) {
+    content = (
+      <ScreenTransition viewKey="signing-out">
+        <ScreenLoading />
       </ScreenTransition>
     );
   }
