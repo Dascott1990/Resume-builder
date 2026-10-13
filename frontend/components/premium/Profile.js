@@ -199,30 +199,21 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, o
                 </Card>
               </div>
 
-              <div>
+              <div className="mb-6">
                 <GroupLabel>{t("profile.grow")}</GroupLabel>
                 <Card className="p-0">
                   <Row icon={Gift} label={t("profile.inviteAFriend")} sublabel={t("profile.comingSoon")} disabled />
                 </Card>
               </div>
-            </div>
 
-            {/* Right column — Shortcuts, App, then a small separate
-                sign-out/delete card matching the reference's own
-                un-grouped final card. */}
-            <div>
-              <div className="mb-6">
-                <GroupLabel>{t("profile.shortcuts")}</GroupLabel>
-                <Card className="p-0">
-                  <Row icon={FileText} label={t("profile.myResumes")} onClick={() => go("resume", { viewAllResumes: true })} />
-                  <div className="border-t border-border"><Row icon={ScanLine} label={t("dashboard.toolCvScan")} onClick={() => go("scan")} /></div>
-                  <div className="border-t border-border"><Row icon={ClipboardList} label={t("profile.jobTracker")} onClick={() => go("jobtracker")} /></div>
-                  <div className="border-t border-border"><Row icon={Sparkles} label={t("profile.jobs")} sublabel={t("profile.applyWithAi")} onClick={() => go("apply")} /></div>
-                  <div className="border-t border-border"><Row icon={Building2} label={t("profile.jobBoard")} sublabel={t("profile.browseVerifiedListings")} onClick={() => go("jobsboard")} /></div>
-                </Card>
-              </div>
-
-              <div className="mb-6">
+              {/* App lives in the left column now, not the right — with
+                  Shortcuts' 5 rows alone, the right column ran noticeably
+                  taller than Account+Grow, forcing a scroll on desktop to
+                  reach Sign out even though the left column still had
+                  clear room left. Moving App over balances both columns
+                  close enough in height that everything fits one screen
+                  without scrolling. */}
+              <div>
                 <GroupLabel>{t("profile.app")}</GroupLabel>
                 <Card className="p-0">
                   <Row icon={Palette} label={t("profile.appearance")} onClick={() => setAppearanceOpen((v) => !v)} expanded={appearanceOpen} />
@@ -252,6 +243,22 @@ export default function Profile({ onClose, onOpenLogin, onOpenPersonalProfile, o
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground/50" />
                     </a>
                   </div>
+                </Card>
+              </div>
+            </div>
+
+            {/* Right column — Shortcuts, then a small separate sign-out/
+                delete card matching the reference's own un-grouped final
+                card. */}
+            <div>
+              <div className="mb-6">
+                <GroupLabel>{t("profile.shortcuts")}</GroupLabel>
+                <Card className="p-0">
+                  <Row icon={FileText} label={t("profile.myResumes")} onClick={() => go("resume", { viewAllResumes: true })} />
+                  <div className="border-t border-border"><Row icon={ScanLine} label={t("dashboard.toolCvScan")} onClick={() => go("scan")} /></div>
+                  <div className="border-t border-border"><Row icon={ClipboardList} label={t("profile.jobTracker")} onClick={() => go("jobtracker")} /></div>
+                  <div className="border-t border-border"><Row icon={Sparkles} label={t("profile.jobs")} sublabel={t("profile.applyWithAi")} onClick={() => go("apply")} /></div>
+                  <div className="border-t border-border"><Row icon={Building2} label={t("profile.jobBoard")} sublabel={t("profile.browseVerifiedListings")} onClick={() => go("jobsboard")} /></div>
                 </Card>
               </div>
 
