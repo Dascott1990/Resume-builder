@@ -221,13 +221,16 @@ function TemplatesCarousel({ onSeeAll, selected, user }) {
   const cardRefs = useRef([]);
   const rafId = useRef(null);
 
-  // Coverflow-style motion: every card continuously scales/fades by its
-  // own live distance from the track's center as you swipe, instead of
-  // one card just snapping between two fixed states. Plain DOM style
-  // writes driven by rAF, not React state — this runs every scroll frame,
-  // and re-rendering the whole carousel that often would be real jank for
-  // zero visible benefit (nothing else about these cards depends on
-  // scroll position).
+  // Every card continuously fades by its own live distance from the
+  // track's center as you swipe — opacity only, deliberately no scale/
+  // transform. A `transform: scale()` grows and shrinks a box symmetrically
+  // around its own center on EVERY axis, so as each card's scale changed
+  // continuously during a swipe, its top and bottom edges visibly moved
+  // up and down, not just side to side — confirmed live, it read as
+  // "bouncing," not "sliding." Plain DOM style writes driven by rAF, not
+  // React state — this runs every scroll frame, and re-rendering the
+  // whole carousel that often would be real jank for zero visible benefit
+  // (nothing else about these cards depends on scroll position).
   const updateMotion = () => {
     const track = trackRef.current;
     if (!track) return;
@@ -236,8 +239,7 @@ function TemplatesCarousel({ onSeeAll, selected, user }) {
       if (!el) return;
       const r = el.getBoundingClientRect();
       const dist = Math.min(Math.abs(r.left + r.width / 2 - centerX) / (r.width + 20), 1);
-      el.style.transform = `scale(${1.08 - dist * 0.22})`;
-      el.style.opacity = 1 - dist * 0.55;
+      el.style.opacity = 1 - dist * 0.65;
     });
   };
 
@@ -295,7 +297,7 @@ function TemplatesCarousel({ onSeeAll, selected, user }) {
             key={l.id}
             ref={(el) => { cardRefs.current[i] = el; }}
             data-preferred={selected === l.id}
-            className="shrink-0 snap-center will-change-transform"
+            className="shrink-0 snap-center will-change-[opacity]"
           >
             <DocThumb layoutId={l.id} active name={user?.name} />
           </div>

@@ -8,6 +8,7 @@ import { Navbar } from "../components/premium/landing/Navbar";
 import Dashboard from "../components/premium/Dashboard";
 import Logo from "../components/premium/Logo";
 import { getToken, hasAccountOnDevice } from "@/lib/authToken";
+import { onUnauthorized } from "../components/premium/shared/api";
 
 // Every screen here used to be a plain static import — meaning a
 // brand-new visitor's very first page load pulled down the full code for
@@ -326,12 +327,13 @@ export default function Home() {
 
   // The hard guarantee behind resolveLandingView() above: even if `view`
   // somehow ends up on an authenticated screen without a real token (a
-  // stray setView call, a future bug), yank it back before anything
-  // renders rather than silently showing dashboard/resume/etc. content to
-  // someone who was never actually signed in. brand-workspace is exempt —
-  // it was never gated on a Noqeev account to begin with.
-  useEffect(() => {
-    if (!mounted || getToken() || view === "brand-workspace") return;
+  // stray setView call, a future bug, or a token that expired/was
+  // rejected mid-session), yank it back before anything renders rather
+  // than silently showing dashboard/resume/etc. content to someone who
+  // isn't actually signed in anymore. brand-workspace is exempt — it was
+  // never gated on a Noqeev account to begin with.
+  const bounceIfSignedOut = () => {
+    if (getToken() || view === "brand-workspace") return;
     if (RESTORABLE_VIEWS.has(view)) {
       setView(hasAccountOnDevice() ? "login" : "launcher");
       // Whatever landed `view` on an auth-gated screen with no token
@@ -344,6 +346,20 @@ export default function Home() {
       // this is the one value that's always safe to land X on.
       setReturnView("launcher");
     }
+  };
+
+  // Catches "view stayed on dashboard the whole time" — the case the
+  // effect below (keyed on `view` changing) can't catch on its own, since
+  // a 401 arriving mid-session clears the token without ever touching
+  // `view` itself. Confirmed live: a session that expired from
+  // inactivity left the Dashboard shell fully rendered, with every
+  // request underneath it failing silently, instead of bouncing to
+  // login/landing the moment the token actually died.
+  useEffect(() => mounted ? onUnauthorized(bounceIfSignedOut) : undefined, [mounted, view]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    bounceIfSignedOut();
   }, [mounted, view]);
 
   // Remembers whichever restorable screen is current, so a refresh lands
