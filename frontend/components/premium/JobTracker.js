@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import {
   X, RefreshCw, ClipboardList, FileText, Clock, ExternalLink,
   Calendar, AlertTriangle, Sparkles, Copy, Plus, Download, ChevronRight,
+  Home, Briefcase, CircleUser,
 } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import { apiListSaved } from "./guest/api";
@@ -21,6 +22,7 @@ import { IconTile } from "./shared/IconTile";
 import { tapFeedback } from "@/lib/haptics";
 import Logo from "./Logo";
 import { NavRail } from "./shared/NavRail";
+import { MobileFloatingNav } from "./shared/MobileFloatingNav";
 import { NotificationsDialog } from "./shared/NotificationsDialog";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
@@ -55,6 +57,19 @@ const EMPTY_FORM = {
 // free-text notes) with no persistence at all was silently wiped on a
 // refresh (see formDraft.js).
 const JOB_FORM_DRAFT_KEY = "resumeBuilder:jobTrackerDraft:v1";
+
+// Same set/order/icons as Dashboard.js's and JobsBoard.js's own copies
+// (each screen keeps its own — see those files' comments on why this
+// isn't shared) — this one was missing entirely, which meant the mobile
+// bottom nav bar silently didn't exist on this one screen: no way back
+// to Home/Jobs/Profile except the header's own X button, every other
+// screen in the app has it.
+const mobileNavItems = (t) => [
+  { id: "home", Icon: Home, label: t("navItem.home") },
+  { id: "jobsboard", Icon: Briefcase, label: t("navItem.jobs") },
+  { id: "jobtracker", Icon: ClipboardList, label: t("navItem.applications") },
+  { id: "profile", Icon: CircleUser, label: t("navItem.profile") },
+];
 
 // Plain YYYY-MM-DD string -> local Date at midnight, same free-text
 // convention date_applied/interview_date already use. Returns null for
@@ -774,9 +789,19 @@ export default function JobTracker({ onClose, onNavigate }) {
           sized for mobile and never got a desktop-specific widen, leaving
           real dead space next to a list-of-cards screen that actually
           benefits from the extra room. */}
-      <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-5 py-6 sm:px-8 lg:max-w-4xl">
+      <div
+        className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-5 py-6 sm:px-8 lg:max-w-4xl"
+        style={{ paddingBottom: "calc(110px + env(safe-area-inset-bottom, 0px))" }}
+      >
         {body}
       </div>
+
+      <MobileFloatingNav
+        items={mobileNavItems(t)}
+        active="jobtracker"
+        onChange={(id) => go(id)}
+        onCreate={() => go("resume", { quickBuild: true })}
+      />
     </motion.div>
   );
 }
