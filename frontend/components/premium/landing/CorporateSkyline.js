@@ -218,16 +218,20 @@ function Tower({ w, d, h, tier, glow, palette, lightsOn, delay }) {
 
 // `lightsOverride`: null (default) follows the automatic day/night read
 // below exactly as this always has — true/false is the street-light
-// switch's manual override, independent of what time of day the facade
-// colors themselves are showing.
+// switch's manual override, and it swaps the whole scene's mood (facade
+// colors AND lit windows together), not just the window glow on its own
+// — flipping it should read as "it's night now" / "it's day now," not
+// as a handful of dots appearing on an otherwise unchanged daytime
+// building.
 export function CorporateSkyline({ lightsOverride = null }) {
   // Fixed, neutral default until mount (server/client first-render
   // parity — see file comment); corrects to the visitor's real local
   // time immediately after.
   const [period, setPeriod] = useState("night");
   useEffect(() => { setPeriod(getPeriod()); }, []);
-  const palette = PALETTES[period];
-  const lightsOn = lightsOverride == null ? period === "night" : lightsOverride;
+  const effectivePeriod = lightsOverride == null ? period : (lightsOverride ? "night" : "afternoon");
+  const palette = PALETTES[effectivePeriod];
+  const lightsOn = effectivePeriod === "night";
 
   return (
     <div className="relative flex h-full w-full items-end justify-center overflow-hidden" style={{ perspective: 1400 }}>
