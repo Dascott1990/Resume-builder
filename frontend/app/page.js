@@ -9,6 +9,7 @@ import Dashboard from "../components/premium/Dashboard";
 import Logo from "../components/premium/Logo";
 import { getToken, hasAccountOnDevice } from "@/lib/authToken";
 import { onUnauthorized } from "../components/premium/shared/api";
+import { VIEW_TO_PATH, PATH_TO_VIEW } from "@/lib/viewRoutes";
 
 // Every screen here used to be a plain static import — meaning a
 // brand-new visitor's very first page load pulled down the full code for
@@ -311,10 +312,52 @@ export default function Home() {
         if (savedToken) { setWorkspaceToken(savedToken); setView("brand-workspace"); }
         else setView(resolveLandingView());
       } else {
-        setView(resolveLandingView());
+        // A real path (noqeev.com/resume, /profile, /tracker, ...) wins
+        // over the stored last-view restore below — someone who typed,
+        // bookmarked, or refreshed one of these wants THAT screen, not
+        // wherever they happened to leave off last time. This is exactly
+        // what app/[view]/page.js exists to make work on a cold load, not
+        // just client-side navigation. Still goes through the same
+        // auth-gate safety net as every other view (the effect further
+        // down bounces to login/launcher if this one needs a token this
+        // browser doesn't have) — a real URL for a screen was never
+        // supposed to be a way around that.
+        const pathView = PATH_TO_VIEW[window.location.pathname.replace(/^\//, "")];
+        setView(pathView || resolveLandingView());
       }
     } catch { /* best-effort */ }
     setMounted(true);
+  }, []);
+
+  // Keeps the address bar honest: whichever screen `view` actually is
+  // right now is what the URL says, for every normal in-app navigation
+  // (nav rail clicks, go(), everything) — not just on a fresh load. Real
+  // history entries (pushState, not replaceState) on purpose, so the
+  // browser's own back/forward buttons genuinely work between screens
+  // instead of doing nothing, which used to be the case when every
+  // screen lived at the same bare "/". Guarded on the path already
+  // matching so this never fires redundantly right after the mount
+  // effect above already set the correct initial URL.
+  useEffect(() => {
+    if (!mounted) return;
+    const path = VIEW_TO_PATH[view];
+    if (path && window.location.pathname !== path) {
+      window.history.pushState({}, "", path);
+    }
+  }, [mounted, view]);
+
+  // The other half of real back/forward support — without this, pushState
+  // above makes the address bar correct but the actual Back button still
+  // does nothing (or worse, silently desyncs the URL from what's on
+  // screen) since nothing was listening for the browser moving through
+  // the history it just created.
+  useEffect(() => {
+    const onPopState = () => {
+      const pathView = PATH_TO_VIEW[window.location.pathname.replace(/^\//, "")];
+      setView(pathView || resolveLandingView());
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   // Admin's own "how many people click our link" ask — one raw hit per
