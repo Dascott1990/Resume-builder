@@ -18,8 +18,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { ArrowLeft, Share2, Building2, ShieldCheck, ShieldQuestion, Check } from "lucide-react";
+import { ArrowLeft, Share2, Building2, ShieldCheck, ShieldQuestion, Check, Sparkles } from "lucide-react";
 import { SOURCE_LABELS, SOURCES_WITHOUT_DIRECT_LINK, timeAgo } from "./shared/jobsBoardShared";
+import { pickTemplateForJob } from "@/lib/jobTemplateMatch";
+import { setPreferredStyle } from "@/lib/templatePreference";
 import { useLanguage } from "@/lib/i18n";
 
 const TAB_IDS = ["Description", "Company", "Review"];
@@ -166,7 +168,7 @@ function parseJobSections(text) {
   return { about: introLines.join("\n\n"), sections, metadata };
 }
 
-export function JobDetail({ job, applied, onClose }) {
+export function JobDetail({ job, applied, onClose, onNavigate }) {
   const { t } = useLanguage();
   const TAB_LABELS = { Description: t("jobDetail.tabDescription"), Company: t("jobDetail.tabCompany"), Review: t("jobDetail.tabReview") };
   const [tab, setTab] = useState("Description");
@@ -192,6 +194,22 @@ export function JobDetail({ job, applied, onClose }) {
     } catch {
       toast.error(t("jobDetail.couldntCopyLink"));
     }
+  };
+
+  // Instant, no AI call: job.category is already real, computed once at
+  // ingestion time (backend/app/jobs_ingest/categories.py's categorize())
+  // — pickTemplateForJob is a pure lookup against it (see lib/
+  // jobTemplateMatch.js for the actual reasoning), not a network round
+  // trip. setPreferredStyle is the same mechanism TemplatesGallery.js's
+  // own picker already uses — GuestMode reads it back on mount via
+  // getEffectiveStyle(). The job's own description text rides along via
+  // onNavigate's existing jobDesc passthrough (the same one the "tailor
+  // for this job" bookmarklet already uses, see app/page.js's openResume),
+  // so this lands straight on the job-posting step with both the style
+  // and the text already filled in — no separate paste needed.
+  const buildResumeForJob = () => {
+    setPreferredStyle(pickTemplateForJob(job));
+    onNavigate?.("resume", { jobDesc: stripTags(job.description_text) });
   };
 
   const { level, checks_passed, checks_not_attempted } = job.verification || {};
@@ -348,6 +366,14 @@ export function JobDetail({ job, applied, onClose }) {
         className="fixed inset-x-0 bottom-0 px-5 pt-6"
         style={{ paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", background: "linear-gradient(to top, var(--background) 55%, transparent)" }}
       >
+        {onNavigate && (
+          <button
+            type="button" onClick={buildResumeForJob}
+            className="mx-auto mb-2.5 flex h-[44px] w-full max-w-xl items-center justify-center gap-1.5 rounded-2xl border border-border bg-background text-[13.5px] font-bold text-foreground [-webkit-tap-highlight-color:transparent]"
+          >
+            <Sparkles className="size-4" strokeWidth={2} /> {t("jobDetail.buildResumeForJob")}
+          </button>
+        )}
         <a
           href={job.url} target="_blank" rel="noreferrer"
           className="mx-auto flex h-[52px] w-full max-w-xl items-center justify-center rounded-2xl text-[15px] font-bold text-white [-webkit-tap-highlight-color:transparent]"

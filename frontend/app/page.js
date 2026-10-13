@@ -513,9 +513,9 @@ export default function Home() {
     );
   }
 
-  const openResume = (resumeId, { viewAllResumes = false, quickBuild = false } = {}) => {
+  const openResume = (resumeId, { viewAllResumes = false, quickBuild = false, jobDesc = null } = {}) => {
     setPendingImport(null);
-    setPendingJobDesc(null);
+    setPendingJobDesc(jobDesc);
     setPendingLoadResumeId(typeof resumeId === "string" ? resumeId : null);
     setPendingViewAllResumes(viewAllResumes);
     setPendingQuickBuild(quickBuild);
@@ -593,7 +593,7 @@ export default function Home() {
         <Dashboard
           onSignOut={handleSignOut}
           onNavigate={(id, opts) => {
-            if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
+            if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild, jobDesc: opts?.jobDesc });
             else if (id === "scan") go("cvscan");
             else if (id === "jobtracker") go("jobtracker");
             else if (id === "news") go("news");
@@ -676,7 +676,7 @@ export default function Home() {
             onClose={() => setView(returnView)}
             onNavigate={(id, opts) => {
               if (id === "home") go("dashboard");
-              else if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
+              else if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild, jobDesc: opts?.jobDesc });
               else if (id === "scan") go("cvscan");
               else if (id === "jobsboard") go("jobsboard");
               else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); go("apply"); }
@@ -721,7 +721,7 @@ export default function Home() {
             // onNavigate id==="personal-profile" branch above for why.
             onOpenPersonalProfile={() => setView("personal-profile")}
             go={(id, opts) => {
-              if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
+              if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild, jobDesc: opts?.jobDesc });
               else if (id === "scan") go("cvscan");
               else if (id === "jobtracker") go("jobtracker");
               else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); go("apply"); }
@@ -751,7 +751,7 @@ export default function Home() {
             onClose={() => setView(returnView)}
             onNavigate={(id, opts) => {
               if (id === "home") go("dashboard");
-              else if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild });
+              else if (id === "resume") openResume(opts?.resumeId, { viewAllResumes: opts?.viewAllResumes, quickBuild: opts?.quickBuild, jobDesc: opts?.jobDesc });
               else if (id === "scan") go("cvscan");
               else if (id === "jobtracker") go("jobtracker");
               else if (id === "apply") { setPendingApplyRunId(opts?.runId || null); go("apply"); }

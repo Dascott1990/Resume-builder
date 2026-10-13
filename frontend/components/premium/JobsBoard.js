@@ -842,6 +842,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
             job={selectedJob}
             applied={isJobApplied(selectedJob)}
             onClose={() => setSelectedJob(null)}
+            onNavigate={onNavigate}
           />
         )}
 
@@ -1032,6 +1033,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
           job={selectedJob}
           applied={isJobApplied(selectedJob)}
           onClose={() => setSelectedJob(null)}
+          onNavigate={onNavigate}
         />
       )}
     </motion.div>
