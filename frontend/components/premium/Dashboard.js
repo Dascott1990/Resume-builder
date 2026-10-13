@@ -218,15 +218,54 @@ function TemplatesCarousel({ onSeeAll, selected, user }) {
   // that padding amount. vw is anchored to the real viewport instead.
   const edgePad = "calc(50vw - 74px)";
   const trackRef = useRef(null);
+  const cardRefs = useRef([]);
+  const rafId = useRef(null);
 
-  // Center the preferred card the instant this mounts — without this, a
-  // fresh page load starts the native scroll position at 0 (the track's
-  // own left edge), so the real default template sat visually left-of-
-  // center until someone touched the carousel. "auto", not "smooth": a
-  // jump on first paint should be invisible, not animated.
+  // Coverflow-style motion: every card continuously scales/fades by its
+  // own live distance from the track's center as you swipe, instead of
+  // one card just snapping between two fixed states. Plain DOM style
+  // writes driven by rAF, not React state — this runs every scroll frame,
+  // and re-rendering the whole carousel that often would be real jank for
+  // zero visible benefit (nothing else about these cards depends on
+  // scroll position).
+  const updateMotion = () => {
+    const track = trackRef.current;
+    if (!track) return;
+    const centerX = track.getBoundingClientRect().left + track.clientWidth / 2;
+    cardRefs.current.forEach((el) => {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const dist = Math.min(Math.abs(r.left + r.width / 2 - centerX) / (r.width + 20), 1);
+      el.style.transform = `scale(${1.08 - dist * 0.22})`;
+      el.style.opacity = 1 - dist * 0.55;
+    });
+  };
+
   useEffect(() => {
-    const el = trackRef.current?.querySelector('[data-active="true"]');
-    el?.scrollIntoView({ behavior: "auto", inline: "center", block: "nearest" });
+    const track = trackRef.current;
+    // Center the preferred card the instant this mounts — without this, a
+    // fresh page load starts the native scroll position at 0 (the track's
+    // own left edge), so the real default template sat visually left-of-
+    // center until someone touched the carousel. "auto", not "smooth": a
+    // jump on first paint should be invisible, not animated.
+    const preferred = track?.querySelector('[data-preferred="true"]');
+    preferred?.scrollIntoView({ behavior: "auto", inline: "center", block: "nearest" });
+    updateMotion();
+
+    const onScroll = () => {
+      if (rafId.current) return;
+      rafId.current = requestAnimationFrame(() => {
+        updateMotion();
+        rafId.current = null;
+      });
+    };
+    track?.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", updateMotion);
+    return () => {
+      track?.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", updateMotion);
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+    };
   }, []);
 
   return (
@@ -251,9 +290,14 @@ function TemplatesCarousel({ onSeeAll, selected, user }) {
         className="-mx-5 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-1 [scrollbar-width:none]"
         style={{ paddingLeft: edgePad, paddingRight: edgePad }}
       >
-        {LAYOUTS.map((l) => (
-          <div key={l.id} data-active={selected === l.id} className="shrink-0 snap-center">
-            <DocThumb layoutId={l.id} active={selected === l.id} name={user?.name} />
+        {LAYOUTS.map((l, i) => (
+          <div
+            key={l.id}
+            ref={(el) => { cardRefs.current[i] = el; }}
+            data-preferred={selected === l.id}
+            className="shrink-0 snap-center will-change-transform"
+          >
+            <DocThumb layoutId={l.id} active name={user?.name} />
           </div>
         ))}
       </div>

@@ -67,14 +67,25 @@ export function DocThumb({ layoutId, active, size = "md", name, width }) {
         border: "1px solid var(--border)",
       }}
     >
-      <ResumeDocument
-        resume={resume}
-        style={{ ...THUMB_STYLE, layout: layoutId }}
-        scale={scale}
-        pageWidth={PAGE_WIDTH}
-        pageHeight={PAGE_HEIGHT}
-        shadowClassName=""
-      />
+      {/* This renders real text (the same ResumeDocument any actual resume
+          uses), not an image — without this, a tap-and-hold on a preview
+          triggers the browser's native text-selection/callout instead of
+          (or on top of) whatever gesture the card itself is meant for,
+          here specifically the carousel's own swipe. pointer-events:none
+          lets every tap/drag pass straight through to whatever actually
+          handles it (the scroll track here, a picker button in
+          TemplatesGallery) — these previews are never themselves
+          something to select, click, or edit. */}
+      <div className="pointer-events-none [-webkit-touch-callout:none] select-none">
+        <ResumeDocument
+          resume={resume}
+          style={{ ...THUMB_STYLE, layout: layoutId }}
+          scale={scale}
+          pageWidth={PAGE_WIDTH}
+          pageHeight={PAGE_HEIGHT}
+          shadowClassName=""
+        />
+      </div>
     </div>
   );
 }
