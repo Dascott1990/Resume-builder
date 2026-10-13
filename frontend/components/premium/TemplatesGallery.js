@@ -18,7 +18,7 @@
  */
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Check, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Check, TriangleAlert, ChevronDown, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { useViewport } from "@/lib/useViewport";
 import { useUnreadNotifications } from "@/lib/useUnreadNotifications";
@@ -111,6 +111,13 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
   const { isDesktop, width: viewportWidth } = useViewport();
   const unread = useUnreadNotifications();
   const [notifOpen, setNotifOpen] = useState(false);
+  // Collapsed by default — confirmed live this needed fixing: a region
+  // explainer sentence, 4 region pills, and 3 full filter-chip rows all
+  // stacked meant scrolling past a wall of controls before a single
+  // template was visible, worst on mobile. Region is now one compact
+  // select; the three filter rows only ever show once someone actually
+  // asks to narrow things down.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Region: a manual override (set once, this device only) always wins;
   // otherwise whatever country_code actually detected, falling back to
@@ -208,29 +215,40 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
     </button>
   );
 
-  const regionRow = (
-    <div className="mb-4">
-      <p className="m-0 mb-1.5 text-[12.5px] font-semibold text-foreground">
-        {t("templates.showingFor", { region: activeRegion.label, docType: activeRegion.docLabel })}
-      </p>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11.5px] text-muted-foreground">{t("templates.notYourRegion")}</span>
-        {REGION_LIST.map((r) => (
-          <button
-            key={r.id} type="button" onClick={() => chooseRegion(r.id)}
-            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold [-webkit-tap-highlight-color:transparent] ${
-              activeRegion.id === r.id ? "border-primary bg-primary/10 text-primary-text" : "border-border text-muted-foreground"
-            }`}
-          >
-            {r.label}
-          </button>
-        ))}
+  const activeFilterCount = [filterLayout, filterAccent, filterFont].filter(Boolean).length;
+
+  // One compact line: a real native <select> for region (far less vertical
+  // space than 4 wrapping pills, and a more conventional control for "pick
+  // one of a few options" than a button row), the resulting format inline
+  // next to it, and a single "Filters" toggle on the right — the three
+  // chip rows only ever mount once that's actually opened.
+  const controlsRow = (
+    <div className="mb-4 flex flex-wrap items-center gap-2.5">
+      <div className="relative">
+        <select
+          value={activeRegion.id}
+          onChange={(e) => chooseRegion(e.target.value)}
+          className="appearance-none rounded-lg border border-border bg-background py-1.5 pr-7 pl-3 text-[12.5px] font-semibold text-foreground [-webkit-tap-highlight-color:transparent]"
+        >
+          {REGION_LIST.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+        </select>
+        <ChevronDown className="pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
       </div>
+      <span className="text-[11.5px] text-muted-foreground">{t("templates.formatLabel", { docType: activeRegion.docLabel })}</span>
+      <button
+        type="button" onClick={() => setFiltersOpen((v) => !v)}
+        className={`ml-auto flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold [-webkit-tap-highlight-color:transparent] ${
+          activeFilterCount > 0 ? "border-primary bg-primary/10 text-primary-text" : "border-border text-foreground"
+        }`}
+      >
+        <SlidersHorizontal className="size-3.5" />
+        {t("templates.filters")}{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+      </button>
     </div>
   );
 
-  const filterRows = (
-    <div className="mb-5 flex flex-col gap-2.5">
+  const filterRows = filtersOpen && (
+    <div className="mb-5 flex flex-col gap-2.5 rounded-xl border border-border bg-muted/30 p-3">
       <FilterRow options={LAYOUTS.map((l) => ({ id: l.id, label: l.label }))} value={filterLayout} onChange={setFilterLayout} allLabel={t("templates.filterAllLayouts")} />
       <FilterRow options={ACCENTS.map((a) => ({ id: a.id, label: a.label }))} value={filterAccent} onChange={setFilterAccent} allLabel={t("templates.filterAllColors")} />
       <FilterRow options={FONTS.map((f) => ({ id: f.id, label: f.label }))} value={filterFont} onChange={setFilterFont} allLabel={t("templates.filterAllFonts")} />
@@ -289,7 +307,7 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
           <div className="mx-auto w-full max-w-4xl px-8 py-8 pb-24">
             <p className="m-0 mb-1 text-[22px] font-bold text-foreground">{t("templates.heading")}</p>
             {intro}
-            {regionRow}
+            {controlsRow}
             {filterRows}
             {grid}
           </div>
@@ -317,7 +335,7 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
         {intro}
-        {regionRow}
+        {controlsRow}
         {filterRows}
         {grid}
       </div>
