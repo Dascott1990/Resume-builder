@@ -50,6 +50,35 @@ function stripTags(text) {
     .trim();
 }
 
+// Confirmed against the real, live ingested inventory (every source,
+// Greenhouse/Ashby/Arbeitnow alike): description_text routinely has ZERO
+// newlines anywhere in it, HTML-tagged or not — this isn't a rendering
+// bug losing real structure, the source genuinely hands over one
+// continuous run of prose with no paragraph breaks at all. Rendered
+// as-is, a 1500-character wall of text with no visual rest stops is
+// exactly the "everything just runs together" a reader gives up on
+// partway through. Nothing here invents content or reorders anything —
+// it only ever regroups the source's own sentences into paragraph-sized
+// chunks. A block that already has its own line breaks (recovered from
+// real <p>/<div> tags, or just short) is left alone; only a genuinely
+// structureless long run gets this treatment.
+function autoParagraphs(text) {
+  if (!text) return text;
+  return text
+    .split(/\n{2,}/)
+    .map((block) => {
+      const trimmed = block.trim();
+      if (!trimmed || trimmed.length < 400 || trimmed.includes("\n")) return trimmed;
+      const sentences = trimmed.match(/[^.!?]+[.!?]+(?:\s+|$)/g) || [trimmed];
+      const paras = [];
+      for (let i = 0; i < sentences.length; i += 3) {
+        paras.push(sentences.slice(i, i + 3).join("").trim());
+      }
+      return paras.join("\n\n");
+    })
+    .join("\n\n");
+}
+
 // Real descriptions from these sources are one unstructured plain-text
 // blob (HTML-stripped, see sources.py's _strip_html) — no separate
 // "qualifications" field exists anywhere in the pipeline. This looks for
@@ -76,7 +105,7 @@ export function JobDetail({ job, applied, onClose }) {
   const TAB_LABELS = { Description: t("jobDetail.tabDescription"), Company: t("jobDetail.tabCompany"), Review: t("jobDetail.tabReview") };
   const [tab, setTab] = useState("Description");
   const [expanded, setExpanded] = useState(false);
-  const { about, qualifications } = splitQualifications(stripTags(job.description_text));
+  const { about, qualifications } = splitQualifications(autoParagraphs(stripTags(job.description_text)));
 
   const specs = [
     job.category,
