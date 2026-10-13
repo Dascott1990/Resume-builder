@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   X, RefreshCw, ClipboardList, FileText, Clock, ExternalLink,
-  Calendar, AlertTriangle, Sparkles, Copy, Plus, Download,
+  Calendar, AlertTriangle, Sparkles, Copy, Plus, Download, ChevronRight,
 } from "lucide-react";
 import { apiRequest } from "./shared/api";
 import { apiListSaved } from "./guest/api";
@@ -638,6 +638,22 @@ export default function JobTracker({ onClose, onNavigate }) {
                 </div>
               )}
 
+              {/* The toggle now sits directly against the content it
+                  controls, not off in the Edit/Remove action row below —
+                  it used to sit BETWEEN those two, which put a frequent,
+                  constructive action right next to a destructive one (and
+                  the toggle rendered after the section it opened, which
+                  reads backwards — a disclosure control belongs right
+                  above what it discloses). */}
+              <button type="button" onClick={() => { setExpandedChecklist(checklistOpen ? null : a.id); if (!checklistOpen) ensureChecklist(a); }}
+                className="mt-2.5 flex w-full items-center gap-1.5 border-none bg-transparent p-0 text-left [-webkit-tap-highlight-color:transparent]">
+                <ClipboardList className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="text-[13px] font-bold text-foreground">{t("jobTracker.checklist")}</span>
+                {a.checklist?.length > 0 && (
+                  <span className="font-mono text-[11px] text-muted-foreground">{a.checklist.filter((it) => it.done).length}/{a.checklist.length}</span>
+                )}
+                <ChevronRight className={`ml-auto size-4 shrink-0 text-muted-foreground/50 transition-transform ${checklistOpen ? "rotate-90" : ""}`} />
+              </button>
               {checklistOpen && (
                 <ChecklistSection
                   app={a} t={t}
@@ -649,14 +665,6 @@ export default function JobTracker({ onClose, onNavigate }) {
 
               <div className="mt-2.5 flex flex-wrap gap-1.5">
                 <Btn small variant="ghost" icon="Pencil" onClick={() => startEdit(a)}>{t("jobTracker.edit")}</Btn>
-                <button type="button" onClick={() => { setExpandedChecklist(checklistOpen ? null : a.id); if (!checklistOpen) ensureChecklist(a); }}
-                  className="flex h-9 items-center gap-1.5 rounded-[10px] border border-border px-3 text-[13px] font-bold text-foreground [-webkit-tap-highlight-color:transparent] hover:bg-muted">
-                  <ClipboardList className="size-3.5" />
-                  {t("jobTracker.checklist")}
-                  {a.checklist?.length > 0 && (
-                    <span className="font-mono text-[11px] text-muted-foreground">{a.checklist.filter((it) => it.done).length}/{a.checklist.length}</span>
-                  )}
-                </button>
                 <Btn small variant="danger" icon="Trash2" onClick={() => setConfirmRemoveId(a.id)}>{t("jobTracker.remove")}</Btn>
               </div>
             </Card>
