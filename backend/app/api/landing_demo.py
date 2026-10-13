@@ -29,12 +29,18 @@ landing_demo_bp = Blueprint("landing_demo", __name__)
 # tailor sensibly against almost any real job posting a visitor pastes,
 # without needing a form. Never shown as-is; only its tailored-for-this-
 # posting result is.
+#
+# Deliberately no invented person's name/email/phone here — "Jordan Rivera"
+# read as a real, specific individual, not a placeholder, which this
+# product's own stance (no fabricated people, no fake testimonials) rules
+# out. "Your Name" etc. make it unambiguous this is a template standing in
+# for the visitor, not someone who supposedly exists.
 _DEMO_CANDIDATE = {
-    "name": "Jordan Rivera",
+    "name": "Your Name",
     "title": "Program Manager",
-    "location": "Austin, TX",
-    "email": "jordan.rivera@example.com",
-    "phone": "(512) 555-0142",
+    "location": "Your City",
+    "email": "you@example.com",
+    "phone": "(000) 000-0000",
     "background": "6 years leading cross-functional programs across product, operations, and customer success teams at B2B SaaS companies.",
     "experience": (
         "Program Manager, Northstar Analytics (2022-present): owned the roadmap for 3 concurrent "
