@@ -53,13 +53,39 @@ def _get_json(url, params=None, retries=3):
 
 
 _TAG_RE = re.compile(r"<[^>]+>")
+_BLOCK_CLOSE_RE = re.compile(r"</(p|div|li|h[1-6])>", re.IGNORECASE)
+_BR_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
 
 
 def _strip_html(raw, max_len=2000):
+    # Source HTML (confirmed live against Arbeitnow/Greenhouse/Ashby) really
+    # does carry real <p>/<h2>/<li> paragraph structure — turning every tag
+    # into a single space before collapsing whitespace destroyed that
+    # structure right here at ingestion, which is why description_text
+    # ended up as one flat run with zero newlines regardless of source.
+    # Converting block-closing tags to a real newline FIRST (same pattern
+    # as the frontend's own stripTags()) preserves it instead of flattening
+    # it into something a later heuristic has to reconstruct by guessing.
+    #
+    # unescape() has to run BEFORE any tag regex, not after: Greenhouse's
+    # own "content" field comes back *double-encoded* (literal "&lt;p&gt;",
+    # not "<p>") — confirmed by fetching it directly. Stripping tags first
+    # and unescaping after (the original bug) finds nothing to strip, since
+    # the tags are invisible as escaped text at that point, then unescape
+    # turns the entities into literal, visible "<p>"/"<strong>" text that
+    # ships straight into description_text. Unescaping first makes real
+    # tags out of them in time for the regexes below to actually catch them
+    # — and is a no-op for sources (Arbeitnow, Ashby) that hand over plain,
+    # already-real HTML with no double-encoding.
     if not raw:
         return ""
-    text = html.unescape(_TAG_RE.sub(" ", raw))
-    text = re.sub(r"\s+", " ", text).strip()
+    text = html.unescape(raw)
+    text = _BR_RE.sub("\n", text)
+    text = _BLOCK_CLOSE_RE.sub("\n", text)
+    text = _TAG_RE.sub(" ", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r" *\n *", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
     return text[:max_len]
 
 
