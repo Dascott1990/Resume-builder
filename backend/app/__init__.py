@@ -84,6 +84,18 @@ def create_app():
 
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    # Hard ceiling on any single request body, checked by Werkzeug before a
+    # single route even runs. Every upload already validates its own size
+    # (uploads.py's validate_upload), but those checks only run after Flask
+    # has fully read the body into memory — with no ceiling here at all, a
+    # request with no matching per-field check (or just an attacker sending
+    # an oversized body to any endpoint) could still force the server to
+    # buffer an arbitrarily large payload. Set above the largest real
+    # legitimate upload (brand_workspace.py's EXPORT_KINDS story_export,
+    # 60MB) with headroom for multipart overhead, not at the size of a
+    # normal request — this is a backstop against unbounded bodies, not a
+    # replacement for each endpoint's own tighter check.
+    app.config["MAX_CONTENT_LENGTH"] = 75 * 1024 * 1024
     if not is_sqlite_fallback:
         # Neon (like most serverless/autosuspend Postgres) only suspends
         # its compute endpoint once it sees ZERO open connections —
@@ -167,6 +179,27 @@ def create_app():
 
     db.init_app(app)
     limiter.init_app(app)
+
+    # Baseline security headers on every response. This is a JSON API (the
+    # real frontend is a separate Next.js app), so these matter less than on
+    # a server that renders attacker-reachable HTML — but every response
+    # still goes over the wire with no headers at all protecting it today,
+    # and these are a correct, standard backstop regardless: nosniff stops
+    # a browser from ever guessing a response is something more executable
+    # than its actual Content-Type; X-Frame-Options and the CSP's
+    # frame-ancestors both close clickjacking-by-framing even though no
+    # route here currently renders a frameable page; HSTS only has teeth
+    # once a browser has received it at least once over a real HTTPS
+    # connection (true in production on Render; a no-op over local http,
+    # which is why it's harmless to always send).
+    @app.after_request
+    def _set_security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
 
     # Register error handlers
     from app.middleware.error_handlers import register_error_handlers
