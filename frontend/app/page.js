@@ -7,8 +7,8 @@ import LandingPage from "../components/premium/landing/LandingPage";
 import { Navbar } from "../components/premium/landing/Navbar";
 import Dashboard from "../components/premium/Dashboard";
 import Logo from "../components/premium/Logo";
-import { getToken, hasAccountOnDevice } from "@/lib/authToken";
-import { onUnauthorized } from "../components/premium/shared/api";
+import { getToken, setToken, hasAccountOnDevice } from "@/lib/authToken";
+import { apiRequest, onUnauthorized } from "../components/premium/shared/api";
 import { VIEW_TO_PATH, PATH_TO_VIEW } from "@/lib/viewRoutes";
 
 // Every screen here used to be a plain static import — meaning a
@@ -241,92 +241,142 @@ export default function Home() {
   // True for a deliberate beat right after signing out — see
   // handleSignOut below for why this exists.
   const [signingOut, setSigningOut] = useState(false);
+  // False until the FIRST load has confirmed (or ruled out needing to
+  // confirm) that a locally-stored token is actually still good on the
+  // server. Exists because of a real gap: resolveLandingView() only ever
+  // checks getToken() — a token STRING being present in localStorage,
+  // not whether the server still honors it. A long-expired/invalidated
+  // token is still a non-empty string, so the optimistic restore below
+  // used to render the real, fully-interactive dashboard (every button
+  // live, including things like upload) immediately, and only corrected
+  // itself once some actual request came back 401 — a real window where
+  // a signed-out visitor could use a signed-in screen. The mount gate
+  // further down now also waits on this, not just `mounted`, before ever
+  // showing an auth-gated view's real content.
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // One real server round-trip before revealing whatever view was just
+  // optimistically resolved — only when that view actually needs a
+  // session (public screens never pay this latency). A non-401 failure
+  // (a network blip, a transient 503) doesn't bounce anything, same
+  // reasoning useAuth.js's own refreshUser already follows elsewhere —
+  // only a real 401 means the token itself is actually no good.
+  const verifyThenReveal = async (resolvedView) => {
+    if (getToken() && RESTORABLE_VIEWS.has(resolvedView)) {
+      try {
+        await apiRequest("/api/v1/auth/me");
+      } catch (err) {
+        if (err.status === 401) {
+          setToken(null);
+          setReturnView("launcher");
+          setView(hasAccountOnDevice() ? "login" : "launcher");
+        }
+      }
+    }
+    setAuthChecked(true);
+  };
+
   useEffect(() => {
-    // The bookmarklet opens this exact URL shape: /?jd=<capture id>. Takes
-    // priority over the plain "have they visited before" check below —
-    // someone clicking the bookmarklet wants the job posting they were
-    // just reading, not just their last-used screen.
-    const jdId = new URLSearchParams(window.location.search).get("jd");
-    if (jdId) {
-      // Strip the param immediately so a later refresh of this tab doesn't
-      // try to redeem an id that's already been consumed (capture rows are
-      // single-use — see backend/app/api/capture.py).
-      window.history.replaceState({}, "", window.location.pathname);
-      // Plain fetch, not the shared apiRequest helper — that helper always
-      // attaches an X-Guest-Id header, and this endpoint's CORS is
-      // deliberately narrower/more permissive-by-origin than the rest of
-      // the API (see backend/app/__init__.py) since it also has to accept
-      // calls from arbitrary job board pages via the bookmarklet. Capture
-      // rows aren't scoped to a guest/user anyway, so there's nothing for
-      // that header to do here except fail the preflight.
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/capture/jd/${jdId}`)
-        .then((r) => { if (!r.ok) throw new Error("capture fetch failed"); return r.json(); })
-        .then((json) => {
+    (async () => {
+      // The bookmarklet opens this exact URL shape: /?jd=<capture id>.
+      // Takes priority over the plain "have they visited before" check
+      // below — someone clicking the bookmarklet wants the job posting
+      // they were just reading, not just their last-used screen.
+      const jdId = new URLSearchParams(window.location.search).get("jd");
+      if (jdId) {
+        // Strip the param immediately so a later refresh of this tab
+        // doesn't try to redeem an id that's already been consumed
+        // (capture rows are single-use — see backend/app/api/capture.py).
+        window.history.replaceState({}, "", window.location.pathname);
+        let resolved = "resume";
+        try {
+          // Plain fetch, not the shared apiRequest helper — that helper
+          // always attaches an X-Guest-Id header, and this endpoint's
+          // CORS is deliberately narrower/more permissive-by-origin than
+          // the rest of the API (see backend/app/__init__.py) since it
+          // also has to accept calls from arbitrary job board pages via
+          // the bookmarklet. Capture rows aren't scoped to a guest/user
+          // anyway, so there's nothing for that header to do here except
+          // fail the preflight.
+          const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/capture/jd/${jdId}`);
+          if (!r.ok) throw new Error("capture fetch failed");
+          const json = await r.json();
           setPendingImport(null);
           setPendingJobDesc(json.data.text);
           setSessionId((id) => id + 1);
           setView("resume");
-        })
-        .catch(() => {
-          // Expired/already used/network hiccup — fall back to the normal
-          // landing-resolution flow below rather than stalling on a blank
-          // screen.
-          try { setView(resolveLandingView()); } catch { /* best-effort */ }
-        })
-        // Held until the fetch settles either way — flipping this straight
-        // away would flash the marketing launcher for a moment (view is
-        // still its initial "launcher" value) before the redirect lands.
-        .finally(() => setMounted(true));
-      return;
-    }
-
-    // The branding workspace's own deep link: /?ws=<token>. Same shape
-    // as ?jd= above, same priority over the plain restore-last-view
-    // check below — someone opening this link wants the workspace, not
-    // whatever screen they last had open. Unlike ?jd= (single-use), the
-    // token is kept (not just consumed) — there's no login to re-derive
-    // it from later, so WORKSPACE_TOKEN_KEY is what lets a refresh (or
-    // just re-opening the tab) land back in the same workspace without
-    // needing the ?ws= link again.
-    const wsToken = new URLSearchParams(window.location.search).get("ws");
-    if (wsToken) {
-      window.history.replaceState({}, "", window.location.pathname);
-      try { localStorage.setItem(WORKSPACE_TOKEN_KEY, wsToken); } catch { /* best-effort */ }
-      setWorkspaceToken(wsToken);
-      setView("brand-workspace");
-      setMounted(true);
-      return;
-    }
-
-    try {
-      // Brand-workspace is the one exception to the auth gating below —
-      // see WORKSPACE_TOKEN_KEY's own comment — so it's checked on its own
-      // saved token, independent of whether this browser has ever signed
-      // up or signed in.
-      if (localStorage.getItem(VIEW_KEY) === "brand-workspace") {
-        const savedToken = localStorage.getItem(WORKSPACE_TOKEN_KEY);
-        // No saved token somehow (cleared storage, a different browser) —
-        // there's nothing this screen can do without one, so fall back to
-        // the normal landing resolution instead of a workspace view stuck
-        // showing its own "invalid link" state forever.
-        if (savedToken) { setWorkspaceToken(savedToken); setView("brand-workspace"); }
-        else setView(resolveLandingView());
-      } else {
-        // A real path (noqeev.com/resume, /profile, /tracker, ...) wins
-        // over the stored last-view restore below — someone who typed,
-        // bookmarked, or refreshed one of these wants THAT screen, not
-        // wherever they happened to leave off last time. This is exactly
-        // what app/[view]/page.js exists to make work on a cold load, not
-        // just client-side navigation. Still goes through the same
-        // auth-gate safety net as every other view (the effect further
-        // down bounces to login/launcher if this one needs a token this
-        // browser doesn't have) — a real URL for a screen was never
-        // supposed to be a way around that.
-        const pathView = PATH_TO_VIEW[window.location.pathname.replace(/^\//, "")];
-        setView(pathView || resolveLandingView());
+        } catch {
+          // Expired/already used/network hiccup — fall back to the
+          // normal landing-resolution flow rather than stalling on a
+          // blank screen.
+          try { resolved = resolveLandingView(); setView(resolved); } catch { /* best-effort */ }
+        }
+        await verifyThenReveal(resolved);
+        setMounted(true);
+        return;
       }
-    } catch { /* best-effort */ }
-    setMounted(true);
+
+      // The branding workspace's own deep link: /?ws=<token>. Same shape
+      // as ?jd= above, same priority over the plain restore-last-view
+      // check below — someone opening this link wants the workspace, not
+      // whatever screen they last had open. Unlike ?jd= (single-use), the
+      // token is kept (not just consumed) — there's no login to re-derive
+      // it from later, so WORKSPACE_TOKEN_KEY is what lets a refresh (or
+      // just re-opening the tab) land back in the same workspace without
+      // needing the ?ws= link again. Exempt from the auth check above —
+      // this view was never gated on a Noqeev account token to begin
+      // with (the ?ws= token IS its own access control).
+      const wsToken = new URLSearchParams(window.location.search).get("ws");
+      if (wsToken) {
+        window.history.replaceState({}, "", window.location.pathname);
+        try { localStorage.setItem(WORKSPACE_TOKEN_KEY, wsToken); } catch { /* best-effort */ }
+        setWorkspaceToken(wsToken);
+        setView("brand-workspace");
+        setAuthChecked(true);
+        setMounted(true);
+        return;
+      }
+
+      let resolved = "launcher";
+      try {
+        // Brand-workspace is the one exception to the auth gating below —
+        // see WORKSPACE_TOKEN_KEY's own comment — so it's checked on its
+        // own saved token, independent of whether this browser has ever
+        // signed up or signed in.
+        if (localStorage.getItem(VIEW_KEY) === "brand-workspace") {
+          const savedToken = localStorage.getItem(WORKSPACE_TOKEN_KEY);
+          // No saved token somehow (cleared storage, a different
+          // browser) — there's nothing this screen can do without one,
+          // so fall back to the normal landing resolution instead of a
+          // workspace view stuck showing its own "invalid link" state
+          // forever.
+          if (savedToken) {
+            setWorkspaceToken(savedToken);
+            setView("brand-workspace");
+            setAuthChecked(true);
+            setMounted(true);
+            return;
+          }
+          resolved = resolveLandingView();
+          setView(resolved);
+        } else {
+          // A real path (noqeev.com/resume, /profile, /tracker, ...) wins
+          // over the stored last-view restore below — someone who typed,
+          // bookmarked, or refreshed one of these wants THAT screen, not
+          // wherever they happened to leave off last time. This is
+          // exactly what app/[view]/page.js exists to make work on a
+          // cold load, not just client-side navigation. Still goes
+          // through the same auth-gate safety net as every other view —
+          // a real URL for a screen was never supposed to be a way
+          // around that.
+          const pathView = PATH_TO_VIEW[window.location.pathname.replace(/^\//, "")];
+          resolved = pathView || resolveLandingView();
+          setView(resolved);
+        }
+      } catch { /* best-effort */ }
+      await verifyThenReveal(resolved);
+      setMounted(true);
+    })();
   }, []);
 
   // Keeps the address bar honest: whichever screen `view` actually is
@@ -421,7 +471,7 @@ export default function Home() {
     } catch { /* best-effort */ }
   }, [mounted, view]);
 
-  if (!mounted) {
+  if (!mounted || !authChecked) {
     // The real root cause, found after chasing CSS theories that didn't
     // fix it: the server-rendered HTML for EVERY page load literally has
     // no navbar in it at all — mounted starts false on both server and
@@ -438,6 +488,16 @@ export default function Home() {
     // before mount resolves, then LandingPage (if that's where they land)
     // renders its own identical Navbar in its place, or the dashboard
     // replaces it entirely.
+    //
+    // The `!authChecked` half of this guard is what actually closes the
+    // real gap this was built for: a stale-but-present token used to let
+    // resolveLandingView() optimistically render the real, fully-
+    // interactive dashboard (every button live) before any request had
+    // confirmed the server still honors that token — a signed-out
+    // visitor could use a signed-in screen for however long the first
+    // real request took to come back 401. Now the dashboard (or whatever
+    // auth-gated view was resolved) simply doesn't render until
+    // verifyThenReveal's own check has actually settled.
     return (
       <>
         <Navbar onOpenSignup={() => openAuth("signup")} />
