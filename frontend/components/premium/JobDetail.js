@@ -79,25 +79,82 @@ function autoParagraphs(text) {
     .join("\n\n");
 }
 
-// Real descriptions from these sources are one unstructured plain-text
-// blob (HTML-stripped, see sources.py's _strip_html) — no separate
-// "qualifications" field exists anywhere in the pipeline. This looks for
-// a real heading line the source's own text already contains ("Qualifications:",
-// "Requirements:", etc.) and, only when one's actually there, splits
-// everything after it into real bullet items. No heading found means no
-// Qualifications section is rendered at all — never invented bullets.
-function splitQualifications(text) {
-  if (!text) return { about: "", qualifications: [] };
+// Real postings (confirmed against live Indeed-style listings) carry real
+// named section headings — "Key Responsibilities", "Qualifications and
+// Skills", "Nice to have:", "Benefits:" — plus a trailing block of short
+// factual fields ("Job Type: Full-time", "Schedule:", "Experience:",
+// "Language:") that are sometimes inline ("Label: value" on one line) and
+// sometimes a heading with its values as bullets underneath. Nothing here
+// invents a heading or a value — every section/field rendered is one the
+// source text actually contained; text with none of these just stays one
+// "About this role" block, same as before.
+const CONTENT_HEADING_RE =
+  /^(key responsibilities|responsibilities( and duties)?|duties( and responsibilities)?|roles and responsibilities|what you.ll do|day.to.day responsibilities|(required |minimum |preferred )?qualifications( and skills)?|(job )?requirements|skills( required)?|what you.ll need|what you bring|who you are|nice to have|good to have|bonus points|benefits( and perks)?|perks|what we offer)$/i;
+
+const METADATA_LABELS = [
+  "job type", "schedule", "experience", "language", "education",
+  "pay", "salary", "work location", "shift", "travel",
+];
+const METADATA_INLINE_RE = new RegExp(`^(${METADATA_LABELS.join("|")})\\s*:\\s*(.+)$`, "i");
+const METADATA_HEADING_RE = new RegExp(`^(${METADATA_LABELS.join("|")})$`, "i");
+
+function titleCase(s) {
+  return s.replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+function parseJobSections(text) {
+  if (!text) return { about: "", sections: [], metadata: [] };
   const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-  const headingIdx = lines.findIndex((l) =>
-    /^(qualifications|requirements|what you.ll need|what you bring|who you are|skills( required)?)[:\s]*$/i.test(l)
-  );
-  if (headingIdx === -1) return { about: text.trim(), qualifications: [] };
-  const about = lines.slice(0, headingIdx).join("\n\n");
-  const qualifications = lines.slice(headingIdx + 1)
-    .map((l) => l.replace(/^[-•*]\s*/, "").trim())
-    .filter(Boolean);
-  return { about, qualifications };
+
+  const introLines = [];
+  const sections = [];
+  const metadata = [];
+  let current = null; // { title, lines } for a content section
+  let metaCollector = null; // { label, lines } for a heading-style metadata field
+
+  const closeMetaCollector = () => {
+    if (metaCollector && metaCollector.lines.length > 0) {
+      metadata.push({ label: titleCase(metaCollector.label), value: metaCollector.lines.join(", ") });
+    }
+    metaCollector = null;
+  };
+  const closeSection = () => {
+    if (current && current.lines.length > 0) sections.push(current);
+    current = null;
+  };
+
+  for (const rawLine of lines) {
+    const bareHeading = rawLine.replace(/:\s*$/, "").trim();
+    const inlineMeta = rawLine.match(METADATA_INLINE_RE);
+
+    if (inlineMeta) {
+      closeMetaCollector();
+      metadata.push({ label: titleCase(inlineMeta[1]), value: inlineMeta[2].trim() });
+      continue;
+    }
+    if (METADATA_HEADING_RE.test(bareHeading)) {
+      closeSection();
+      closeMetaCollector();
+      metaCollector = { label: bareHeading, lines: [] };
+      continue;
+    }
+    if (CONTENT_HEADING_RE.test(bareHeading)) {
+      closeSection();
+      closeMetaCollector();
+      current = { title: titleCase(bareHeading), lines: [] };
+      continue;
+    }
+
+    const cleaned = rawLine.replace(/^[-•*]\s*/, "").trim();
+    if (!cleaned) continue;
+    if (metaCollector) metaCollector.lines.push(cleaned);
+    else if (current) current.lines.push(cleaned);
+    else introLines.push(cleaned);
+  }
+  closeSection();
+  closeMetaCollector();
+
+  return { about: introLines.join("\n\n"), sections, metadata };
 }
 
 export function JobDetail({ job, applied, onClose }) {
@@ -105,7 +162,8 @@ export function JobDetail({ job, applied, onClose }) {
   const TAB_LABELS = { Description: t("jobDetail.tabDescription"), Company: t("jobDetail.tabCompany"), Review: t("jobDetail.tabReview") };
   const [tab, setTab] = useState("Description");
   const [expanded, setExpanded] = useState(false);
-  const { about, qualifications } = splitQualifications(autoParagraphs(stripTags(job.description_text)));
+  const { about: rawAbout, sections, metadata } = parseJobSections(stripTags(job.description_text));
+  const about = autoParagraphs(rawAbout);
 
   const specs = [
     job.category,
@@ -201,16 +259,30 @@ export function JobDetail({ job, applied, onClose }) {
                     )}
                   </p>
                 </div>
-              ) : qualifications.length === 0 ? (
+              ) : sections.length === 0 ? (
                 <p className="m-0 text-[13px] text-muted-foreground">{t("jobDetail.noDescriptionProvided")}</p>
               ) : null}
 
-              {qualifications.length > 0 && (
-                <div>
-                  <h2 className="m-0 mb-2 text-[15px] font-bold text-foreground">{t("jobDetail.qualifications")}</h2>
+              {sections.map((s) => (
+                <div key={s.title} className="mb-6">
+                  <h2 className="m-0 mb-2 text-[15px] font-bold text-foreground">{s.title}</h2>
                   <ul className="m-0 flex list-disc flex-col gap-3 pl-5 text-[13.5px] leading-relaxed text-neutral-700 dark:text-neutral-300">
-                    {qualifications.map((q, i) => <li key={i}>{q}</li>)}
+                    {s.lines.map((line, i) => <li key={i}>{line}</li>)}
                   </ul>
+                </div>
+              ))}
+
+              {metadata.length > 0 && (
+                <div>
+                  <h2 className="m-0 mb-2.5 text-[11px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{t("jobDetail.jobDetails")}</h2>
+                  <dl className="m-0 flex flex-col gap-2">
+                    {metadata.map((m) => (
+                      <div key={m.label} className="flex items-baseline justify-between gap-4 border-b border-border/60 py-1.5 text-[13px]">
+                        <dt className="shrink-0 font-medium text-muted-foreground">{m.label}</dt>
+                        <dd className="m-0 text-right font-semibold text-foreground">{m.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
                 </div>
               )}
             </>
