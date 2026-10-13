@@ -19,7 +19,11 @@ import { NotificationsDialog } from "./shared/NotificationsDialog";
 import { DocThumb } from "./shared/ResumeTemplateThumb";
 import { layouts } from "./shared/resumeLayouts/registry";
 import { getPreferredTemplate, setPreferredTemplate } from "@/lib/templatePreference";
-import { clearDraft } from "./guest/useGuestDraft";
+import { loadDraft, clearDraft } from "./guest/useGuestDraft";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { useLanguage } from "@/lib/i18n";
 
 // Sharp, image-first collection item — no description or ATS paragraph
@@ -103,10 +107,25 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
   // otherwise silently override the layout someone just picked (GuestMode
   // reads docStyle from that draft first — confirmed live, picking Minimal
   // here and hitting Done without this landed back in an old Classic
-  // draft instead of starting fresh).
-  const done = () => {
+  // draft instead of starting fresh). That clear is silent and
+  // irreversible, though — if there's actually real unfinished work
+  // sitting in it (a pasted job description, a generated resume, a cover
+  // letter), confirm first instead of wiping it the instant Done is
+  // tapped. An empty/never-touched draft (or just leftover tab/step/
+  // docStyle navigation state) needs no prompt — nothing real to lose.
+  const [confirmStartOpen, setConfirmStartOpen] = useState(false);
+  const hasRealDraftContent = () => {
+    const d = loadDraft();
+    return !!(d && (d.jobDesc?.trim() || d.genResult || d.resume || d.coverLetter || d.interviewTips || d.application));
+  };
+  const startFresh = () => {
+    setConfirmStartOpen(false);
     clearDraft();
     onNavigate?.("resume");
+  };
+  const done = () => {
+    if (hasRealDraftContent()) setConfirmStartOpen(true);
+    else startFresh();
   };
 
   const renderDoneButton = (fullWidth) => (
@@ -133,6 +152,24 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
     </p>
   );
 
+  // Shared between both breakpoint branches below — isDesktop forks into
+  // two separate return trees past this point, so this needs to be
+  // mounted in each one explicitly rather than once at the bottom.
+  const confirmStartDialog = (
+    <AlertDialog open={confirmStartOpen} onOpenChange={setConfirmStartOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t("templates.confirmStartTitle")}</AlertDialogTitle>
+          <AlertDialogDescription>{t("templates.confirmStartDescription")}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+          <AlertDialogAction onClick={startFresh}>{t("templates.confirmStartAction")}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   if (isDesktop) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 flex bg-background font-sans text-foreground">
@@ -150,6 +187,7 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
           </div>
         </main>
         <NotificationsDialog open={notifOpen} onClose={() => setNotifOpen(false)} items={unread.items} onOpenItem={() => { setNotifOpen(false); onNavigate?.("apply"); }} />
+        {confirmStartDialog}
       </motion.div>
     );
   }
@@ -171,6 +209,7 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
       <div className="shrink-0 border-t border-border bg-background px-5 pt-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
         {renderDoneButton(true)}
       </div>
+      {confirmStartDialog}
     </motion.div>
   );
 }

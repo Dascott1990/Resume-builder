@@ -32,6 +32,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { useLanguage } from "@/lib/i18n";
 
 const statuses = (t) => [
@@ -159,6 +163,7 @@ export default function JobTracker({ onClose, onNavigate }) {
   const [highlightId, setHighlightId] = useState(null);
   const [templateAppId, setTemplateAppId] = useState(null);
   const [expandedChecklist, setExpandedChecklist] = useState(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState(null);
   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
   const [feedUrl, setFeedUrl] = useState(null);
   const [dailyPromptDismissed, setDailyPromptDismissed] = useState(() => {
@@ -375,6 +380,7 @@ export default function JobTracker({ onClose, onNavigate }) {
   };
 
   const remove = async (id) => {
+    setConfirmRemoveId(null);
     try {
       await apiRequest(`/api/v1/applications/${id}`, { method: "DELETE" });
       tapFeedback();
@@ -651,7 +657,7 @@ export default function JobTracker({ onClose, onNavigate }) {
                     <span className="font-mono text-[11px] text-muted-foreground">{a.checklist.filter((it) => it.done).length}/{a.checklist.length}</span>
                   )}
                 </button>
-                <Btn small variant="danger" icon="Trash2" onClick={() => remove(a.id)}>{t("jobTracker.remove")}</Btn>
+                <Btn small variant="danger" icon="Trash2" onClick={() => setConfirmRemoveId(a.id)}>{t("jobTracker.remove")}</Btn>
               </div>
             </Card>
             </div>
@@ -704,6 +710,24 @@ export default function JobTracker({ onClose, onNavigate }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!confirmRemoveId} onOpenChange={(o) => !o && setConfirmRemoveId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("jobTracker.removeConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const a = items.find((x) => x.id === confirmRemoveId);
+                return a ? t("jobTracker.removeConfirmDescription", { role: a.role, company: a.company }) : "";
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => remove(confirmRemoveId)}>{t("jobTracker.remove")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 
