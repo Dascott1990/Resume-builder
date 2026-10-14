@@ -25,18 +25,22 @@
 // "the best" or "proven to convert" — there's no outcome data anywhere
 // in this app to back a stronger claim than that.
 
-const SENIOR_TITLE_RE = /\b(senior|sr\.?|lead|director|vp|vice president|head of|chief|principal|president)\b/i;
+// Exported so profileTemplateMatch.js (the CareerProfile-driven sibling of
+// this picker) reasons about layout/font from the exact same maps — a job
+// pick and a profile pick must never disagree on what a given category or
+// seniority signal implies.
+export const SENIOR_TITLE_RE = /\b(senior|sr\.?|lead|director|vp|vice president|head of|chief|principal|president)\b/i;
 
-const CATEGORY_LAYOUT = {
+export const CATEGORY_LAYOUT = {
   "Finance": "compact",
   "Operations": "compact",
   "Cybersecurity": "minimal",
   "Data & Analytics": "minimal",
   "Engineering": "minimal",
 };
-const DEFAULT_LAYOUT = "classic";
+export const DEFAULT_LAYOUT = "classic";
 
-const SERIF_CATEGORIES = new Set(["Finance", "People & HR", "Operations"]);
+export const SERIF_CATEGORIES = new Set(["Finance", "People & HR", "Operations"]);
 
 export function pickTemplateForJob(job) {
   const category = job?.category || "Other";

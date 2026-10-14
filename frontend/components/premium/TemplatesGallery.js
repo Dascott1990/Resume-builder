@@ -38,10 +38,11 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { useLanguage } from "@/lib/i18n";
+import { useTemplateSuggestion } from "@/lib/useTemplateSuggestion";
 
 const BATCH_SIZE = 24;
 
-function TemplateCard({ combo, selected, onSelect, name, thumbWidth, pageSize }) {
+function TemplateCard({ combo, selected, suggested, onSelect, name, thumbWidth, pageSize }) {
   const { t } = useLanguage();
   const { layout, accent, font } = combo;
   const atsTitle = layout.atsSafe ? t("templates.atsSafe") : layout.atsNote;
@@ -53,20 +54,33 @@ function TemplateCard({ combo, selected, onSelect, name, thumbWidth, pageSize })
       aria-pressed={selected}
       className="flex flex-col items-center gap-2 border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
     >
-      <div className={`relative rounded-xl p-1 transition-colors ${selected ? "bg-primary/10 ring-2 ring-primary/50" : "ring-1 ring-border"}`}>
+      <div
+        className={`relative rounded-xl p-1 transition-transform ${
+          selected ? "bg-primary/10 ring-2 ring-primary/50" : "ring-1 ring-border"
+        } lg:hover:scale-[1.02] lg:hover:ring-2 lg:hover:ring-primary/30`}
+      >
         <DocThumb layoutId={layout.id} active width={thumbWidth} name={name} accent={accent.id} font={font.id} pageSize={pageSize} />
         {selected && (
           <span className="absolute top-2 right-2 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
             <Check className="size-3" strokeWidth={3} />
           </span>
         )}
+        {suggested && !selected && (
+          <span className="absolute top-2 left-2 rounded-full bg-primary px-2 py-0.5 text-[9.5px] font-bold text-primary-foreground shadow">
+            {t("templates.suggestedBadge")}
+          </span>
+        )}
+        {/* A visible text pill, not just an icon + hover-only title — the
+            icon-only version was invisible to anyone on a touch device
+            with no hover, so the ATS signal never reached mobile users. */}
         <span
           title={atsTitle}
-          className={`absolute bottom-2 left-2 flex size-5 items-center justify-center rounded-full shadow ${
+          className={`absolute bottom-2 left-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[9.5px] font-bold shadow ${
             layout.atsSafe ? "bg-success text-white" : "bg-warning text-white"
           }`}
         >
-          {layout.atsSafe ? <Check className="size-3" strokeWidth={3} /> : <TriangleAlert className="size-3" strokeWidth={2.5} />}
+          {layout.atsSafe ? <Check className="size-2.5" strokeWidth={3} /> : <TriangleAlert className="size-2.5" strokeWidth={2.5} />}
+          {layout.atsSafe ? t("templates.atsSafeShort") : t("templates.atsRiskShort")}
         </span>
       </div>
       <span className="text-center text-[11.5px] font-bold text-foreground">
@@ -110,6 +124,7 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
   const { t } = useLanguage();
   const LAYOUTS = layouts(t);
   const { user } = useAuth();
+  const suggestion = useTemplateSuggestion();
   const { isDesktop, width: viewportWidth } = useViewport();
   const unread = useUnreadNotifications();
   const [notifOpen, setNotifOpen] = useState(false);
@@ -262,7 +277,9 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {visibleCombos.slice(0, shown).map((c) => (
           <TemplateCard
-            key={c.id} combo={c} selected={selected === c.id} onSelect={() => pick(c)}
+            key={c.id} combo={c} selected={selected === c.id}
+            suggested={!!suggestion && c.layout.id === suggestion.layout && c.accent.id === suggestion.accent && c.font.id === suggestion.font}
+            onSelect={() => pick(c)}
             name={user?.name} thumbWidth={thumbWidth} pageSize={activeRegion.pageSize}
           />
         ))}
@@ -281,9 +298,16 @@ export default function TemplatesGallery({ onClose, onNavigate }) {
   );
 
   const intro = (
-    <p className="m-0 mb-4 text-[13px] leading-relaxed text-muted-foreground">
-      {t("templates.pickLayoutIntro")}
-    </p>
+    <>
+      <p className="m-0 mb-4 text-[13px] leading-relaxed text-muted-foreground">
+        {t("templates.pickLayoutIntro")}
+      </p>
+      {suggestion && (
+        <p className="m-0 mb-4 text-[12.5px] leading-relaxed text-muted-foreground">
+          {t("templates.suggestionReason", { role: suggestion.role || suggestion.category })}
+        </p>
+      )}
+    </>
   );
 
   const confirmStartDialog = (

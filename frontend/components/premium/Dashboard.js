@@ -62,6 +62,7 @@ import { DASHBOARD_ART } from "./shared/dashboardArt";
 import { Skeleton } from "@/components/ui/skeleton";
 import { layouts } from "./shared/resumeLayouts/registry";
 import { getPreferredTemplate } from "@/lib/templatePreference";
+import { useTemplateSuggestion } from "@/lib/useTemplateSuggestion";
 import Logo from "./Logo";
 import { DocThumb } from "./shared/ResumeTemplateThumb";
 import { firstNameOf } from "./shared/artisanDisplay";
@@ -208,14 +209,20 @@ function RecommendedCard({ jobs, loading, onSeeAll }) {
 // templatePreference write) and scrolls it to center, so the active
 // template always sits confidently in the middle of the frame, never
 // off to one side.
-function TemplatesCarousel({ onSeeAll, selected, user }) {
+function TemplatesCarousel({ onSeeAll, selected, user, suggestion }) {
   const { t } = useLanguage();
   // Dashboard stays a quick 3-card preview on purpose — the registry now
   // has 5 (plus every accent/font combination once the full Templates
   // gallery expands, see TemplatesGallery.js), but this carousel is a
   // glance, not the real picker; "See all" (onSeeAll below) is where that
-  // full set actually lives.
-  const LAYOUTS = layouts(t).slice(0, 3);
+  // full set actually lives. When there's a real suggestion (a confirmed
+  // CareerProfile with a usable role/skills signal — useTemplateSuggestion
+  // returns null otherwise), it leads the teaser instead of always
+  // showing the same hardcoded first-3.
+  const ALL_LAYOUTS = layouts(t);
+  const LAYOUTS = suggestion
+    ? [ALL_LAYOUTS.find((l) => l.id === suggestion.layout), ...ALL_LAYOUTS.filter((l) => l.id !== suggestion.layout)].filter(Boolean).slice(0, 3)
+    : ALL_LAYOUTS.slice(0, 3);
   // 50vw, not 50% — this track bleeds past its own parent's padded column
   // via -mx-5 below, so percentages here would resolve against that
   // narrower containing block (the padded column), not the actual screen
@@ -302,9 +309,14 @@ function TemplatesCarousel({ onSeeAll, selected, user }) {
             key={l.id}
             ref={(el) => { cardRefs.current[i] = el; }}
             data-preferred={selected === l.id}
-            className="shrink-0 snap-center will-change-[opacity]"
+            className="relative shrink-0 snap-center will-change-[opacity]"
           >
             <DocThumb layoutId={l.id} active name={user?.name} />
+            {suggestion && l.id === suggestion.layout && (
+              <span className="absolute top-1 left-1 rounded-full bg-primary px-2 py-0.5 text-[9.5px] font-bold text-primary-foreground shadow">
+                {t("templates.suggestedBadge")}
+              </span>
+            )}
           </div>
         ))}
       </div>
@@ -316,22 +328,31 @@ function TemplatesCarousel({ onSeeAll, selected, user }) {
 // column with Recommended anymore, see DashboardContent) so each card
 // actually sits centered within its own grid cell instead of being
 // squeezed against the next one.
-function TemplatesGridDesktop({ onSeeAll, selected, user }) {
+function TemplatesGridDesktop({ onSeeAll, selected, user, suggestion }) {
   const { t } = useLanguage();
   // Dashboard stays a quick 3-card preview on purpose — the registry now
   // has 5 (plus every accent/font combination once the full Templates
   // gallery expands, see TemplatesGallery.js), but this carousel is a
   // glance, not the real picker; "See all" (onSeeAll below) is where that
-  // full set actually lives.
-  const LAYOUTS = layouts(t).slice(0, 3);
+  // full set actually lives. Same suggestion-leads-the-teaser behavior as
+  // the mobile carousel above.
+  const ALL_LAYOUTS = layouts(t);
+  const LAYOUTS = suggestion
+    ? [ALL_LAYOUTS.find((l) => l.id === suggestion.layout), ...ALL_LAYOUTS.filter((l) => l.id !== suggestion.layout)].filter(Boolean).slice(0, 3)
+    : ALL_LAYOUTS.slice(0, 3);
   return (
     <div className="mb-8">
       <SectionHeader onViewAll={onSeeAll} viewAllLabel={t("common.seeAll")}>{t("dashboard.templates")}</SectionHeader>
       {/* Preview-only, same as the mobile carousel — not the real picker. */}
       <div className="grid grid-cols-3 content-center justify-items-center gap-8 py-2">
         {LAYOUTS.map((l) => (
-          <div key={l.id}>
+          <div key={l.id} className="relative">
             <DocThumb layoutId={l.id} active={selected === l.id} size="lg" name={user?.name} />
+            {suggestion && l.id === suggestion.layout && (
+              <span className="absolute top-1 left-1 rounded-full bg-primary px-2 py-0.5 text-[9.5px] font-bold text-primary-foreground shadow">
+                {t("templates.suggestedBadge")}
+              </span>
+            )}
           </div>
         ))}
       </div>
@@ -679,6 +700,7 @@ function DashboardContent({
   // just show which one already is. Real selection lives in the full
   // Templates gallery (go("templates")).
   const [selectedTemplate] = useState(() => getPreferredTemplate() || "classic");
+  const templateSuggestion = useTemplateSuggestion();
 
   const greetingRow = (
     <div className="flex items-center gap-3">
@@ -771,9 +793,9 @@ function DashboardContent({
           each one centered in its own container. */}
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }}>
         {isDesktop ? (
-          <TemplatesGridDesktop onSeeAll={() => go("templates")} selected={selectedTemplate} user={user} />
+          <TemplatesGridDesktop onSeeAll={() => go("templates")} selected={selectedTemplate} user={user} suggestion={templateSuggestion} />
         ) : (
-          <TemplatesCarousel onSeeAll={() => go("templates")} selected={selectedTemplate} user={user} />
+          <TemplatesCarousel onSeeAll={() => go("templates")} selected={selectedTemplate} user={user} suggestion={templateSuggestion} />
         )}
         {isDesktop ? (
           <RecommendedCard jobs={recommendedJobs} loading={recommendedLoading} onSeeAll={() => go("jobsboard")} />
