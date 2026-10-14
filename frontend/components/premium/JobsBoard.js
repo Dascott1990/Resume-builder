@@ -337,7 +337,10 @@ function CollapsedControls({ onExpand, filtersActive }) {
 // Flips the whole list between the normal filtered board and the
 // visitor's own saved set (see savedOnly/toggleSaveJob in the main
 // component) — "view all the jobs you loved, apply once you're ready,"
-// not a filter layered on top of category/search/trending.
+// not a filter layered on top of category/search/trending. Desktop-only
+// now — mobile's own loved/saved toggle lives in the fixed header instead
+// (next to Bell/Theme/Search), so it stays reachable while the list below
+// it scrolls instead of scrolling away with it.
 function LovedToggle({ active, count, onClick }) {
   const { t } = useLanguage();
   return (
@@ -805,48 +808,56 @@ export default function JobsBoard({ onClose, onNavigate }) {
 
         <main className="relative min-w-0 flex-1 overflow-y-auto" onScroll={handleScroll}>
           <div className="mx-auto w-full max-w-4xl px-8 py-8">
-            <div className="mb-5 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="m-0 text-[22px] font-bold text-foreground">{savedOnly ? t("jobsBoard.loved") : t("jobsBoard.jobsBoard")}</p>
-                {meta?.last_run_at && !savedOnly && (
-                  <p className="m-0 mt-1 text-[12.5px] text-muted-foreground">{t("jobsBoard.updated", { time: timeAgo(meta.last_run_at, t), total })}</p>
-                )}
-              </div>
-              <LovedToggle active={savedOnly} count={savedIds.size} onClick={() => setSavedOnly((v) => !v)} />
+            <div className="mb-5">
+              <p className="m-0 text-[22px] font-bold text-foreground">{savedOnly ? t("jobsBoard.loved") : t("jobsBoard.jobsBoard")}</p>
+              {meta?.last_run_at && !savedOnly && (
+                <p className="m-0 mt-1 text-[12.5px] text-muted-foreground">{t("jobsBoard.updated", { time: timeAgo(meta.last_run_at, t), total })}</p>
+              )}
             </div>
 
-            {!savedOnly && (
-              <div className="sticky top-0 z-10 -mx-8 mb-4 bg-background px-8 pt-1 pb-3">
-                {trendingHidden ? (
-                  <button
-                    type="button" onClick={showTrending}
-                    className="mb-2 flex items-center gap-1.5 border-none bg-transparent p-0 text-[11px] font-semibold text-muted-foreground/60 [-webkit-tap-highlight-color:transparent]"
-                  >
-                    <Flame className="size-3.5" /> {t("jobsBoard.showTrending")}
-                  </button>
-                ) : (
-                  <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} onHide={hideTrending} />
-                )}
-                <AnimatePresence mode="wait" initial={false}>
-                  {controlsCollapsed ? (
-                    <motion.div key="collapsed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                      <CollapsedControls onExpand={expandControls} filtersActive={filtersActive} />
-                    </motion.div>
-                  ) : (
-                    <motion.div key="expanded" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                      {searchOrActiveTrending}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <ActiveFilterChips
-                  search={search} setSearch={setSearch}
-                  category={category} setCategory={setCategory}
-                  country={country} setCountry={setCountry}
-                  remote={remote} setRemote={setRemote}
-                  minLevel={minLevel} setMinLevel={setMinLevel}
-                />
+            {/* Always sticky (not just when !savedOnly) — the Loved
+                toggle itself needs to stay reachable while viewing the
+                Loved list too, same as it does browsing the full board.
+                It used to live inline next to the title above, outside
+                this sticky container entirely, so it scrolled away with
+                the title the instant you scrolled the list at all. */}
+            <div className="sticky top-0 z-10 -mx-8 mb-4 bg-background px-8 pt-1 pb-3">
+              <div className="mb-2 flex justify-end">
+                <LovedToggle active={savedOnly} count={savedIds.size} onClick={() => setSavedOnly((v) => !v)} />
               </div>
-            )}
+              {!savedOnly && (
+                <>
+                  {trendingHidden ? (
+                    <button
+                      type="button" onClick={showTrending}
+                      className="mb-2 flex items-center gap-1.5 border-none bg-transparent p-0 text-[11px] font-semibold text-muted-foreground/60 [-webkit-tap-highlight-color:transparent]"
+                    >
+                      <Flame className="size-3.5" /> {t("jobsBoard.showTrending")}
+                    </button>
+                  ) : (
+                    <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} onHide={hideTrending} />
+                  )}
+                  <AnimatePresence mode="wait" initial={false}>
+                    {controlsCollapsed ? (
+                      <motion.div key="collapsed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                        <CollapsedControls onExpand={expandControls} filtersActive={filtersActive} />
+                      </motion.div>
+                    ) : (
+                      <motion.div key="expanded" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                        {searchOrActiveTrending}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <ActiveFilterChips
+                    search={search} setSearch={setSearch}
+                    category={category} setCategory={setCategory}
+                    country={country} setCountry={setCountry}
+                    remote={remote} setRemote={setRemote}
+                    minLevel={minLevel} setMinLevel={setMinLevel}
+                  />
+                </>
+              )}
+            </div>
 
             {resultsList}
           </div>
@@ -955,6 +966,21 @@ export default function JobsBoard({ onClose, onNavigate }) {
             <Search className="size-[18px]" strokeWidth={1.75} />
             {filtersActive && <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary" />}
           </button>
+          {/* In this same fixed header, not down in the scrollable list —
+              that's exactly what was wrong before: the only other place it
+              lived scrolled out of view along with everything else the
+              instant you scrolled the job list at all. */}
+          <button
+            onClick={() => setSavedOnly((v) => !v)} aria-label={savedOnly ? t("jobsBoard.allJobs") : t("jobsBoard.loved")} aria-pressed={savedOnly}
+            className={`relative flex size-9 items-center justify-center rounded-full [-webkit-tap-highlight-color:transparent] ${savedOnly ? "text-destructive" : "text-foreground hover:bg-muted"}`}
+          >
+            <Heart className="size-[18px]" fill={savedOnly ? "currentColor" : "none"} strokeWidth={1.75} />
+            {!savedOnly && savedIds.size > 0 && (
+              <span className="absolute top-0 right-0 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                {savedIds.size > 9 ? "9+" : savedIds.size}
+              </span>
+            )}
+          </button>
         </div>
       </header>
 
@@ -1016,10 +1042,6 @@ export default function JobsBoard({ onClose, onNavigate }) {
           fold for no real benefit. Jobs Board opens straight into the
           thing it's for: real listings. */}
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4" style={{ paddingBottom: "calc(110px + env(safe-area-inset-bottom, 0px))" }}>
-        <div className="mb-3 flex justify-end">
-          <LovedToggle active={savedOnly} count={savedIds.size} onClick={() => setSavedOnly((v) => !v)} />
-        </div>
-
         {!savedOnly && (
           <>
             <CategoryPills categoryOptions={categoryOptions} value={category} onChange={setCategory} />
@@ -1036,7 +1058,7 @@ export default function JobsBoard({ onClose, onNavigate }) {
           </>
         )}
 
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-2">
           <span className="text-[11px] font-bold tracking-[0.12em] text-foreground/70 uppercase">{savedOnly ? t("jobsBoard.loved") : t("jobsBoard.jobMatch")}</span>
           {!savedOnly && (category || activeTrending || search) && (
             <button
