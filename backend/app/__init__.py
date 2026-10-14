@@ -1,5 +1,6 @@
 import os
 import re
+import tempfile
 from datetime import datetime, timezone
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -71,7 +72,18 @@ def _exempt_cors_preflight():
 
 
 def create_app():
-    app = Flask(__name__)
+    # Flask's default instance_path lives next to this package on disk
+    # (/var/task on Vercel) — flask_sqlalchemy's init_app unconditionally
+    # os.makedirs()'s it (_apply_driver_defaults, even for a non-sqlite
+    # DATABASE_URL), and /var/task is read-only in a Vercel Python
+    # function. Confirmed live: every single request was 500ing with
+    # FUNCTION_INVOCATION_FAILED, "OSError: [Errno 30] Read-only file
+    # system: '/var/task/instance'" — the app never even finished
+    # importing. Nothing in this codebase actually reads/writes
+    # app.instance_path itself, so redirecting it to the one directory
+    # every one of these environments guarantees is writable (/tmp
+    # locally and on Vercel) costs nothing and fixes boot everywhere.
+    app = Flask(__name__, instance_path=os.path.join(tempfile.gettempdir(), "noqeev_instance"))
 
     # Database configuration
     db_url = os.environ.get("DATABASE_URL")
