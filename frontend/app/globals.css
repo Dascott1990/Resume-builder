@@ -240,6 +240,24 @@ select {
   50%      { transform: scale(1.05); opacity: 1; }
 }
 
+/* LedgerTicker.js (Hero background layer, behind CorporateSkyline) — a
+   horizontal marquee for each page's résumé-line tape, plus the slow
+   whole-ledger "breathe" and spine "bell pulse" that stand in for the
+   market open/close rhythm without a literal bell graphic. */
+@keyframes ledger-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes ledger-breathe {
+  0%, 100% { opacity: 0.86; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.012); }
+}
+@keyframes ledger-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(232,195,132,0.55); }
+  8%   { box-shadow: 0 0 0 26px rgba(232,195,132,0); }
+  100% { box-shadow: 0 0 0 26px rgba(232,195,132,0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.001ms !important;
