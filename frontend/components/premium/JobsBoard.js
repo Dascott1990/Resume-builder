@@ -362,7 +362,7 @@ function LovedToggle({ active, count, onClick }) {
 // animation. Respects prefers-reduced-motion (the drift itself is purely
 // decorative; manual scroll and tapping a chip both still work either
 // way).
-function TrendingRow({ fields, activeId, onPick }) {
+function TrendingRow({ fields, activeId, onPick, onHide }) {
   const { t } = useLanguage();
   const trackRef = useRef(null);
   const directionRef = useRef(1);
@@ -420,6 +420,14 @@ function TrendingRow({ fields, activeId, onPick }) {
       <div className="mb-2 flex items-center gap-1.5">
         <Flame className="size-3.5 text-primary" />
         <span className="font-mono text-[10.5px] font-bold tracking-[0.1em] text-muted-foreground/60 uppercase">{t("jobsBoard.hottestRightNow")}</span>
+        {onHide && (
+          <button
+            type="button" onClick={onHide} aria-label={t("jobsBoard.hideTrending")} title={t("jobsBoard.hideTrending")}
+            className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-full border-none bg-transparent text-muted-foreground/50 [-webkit-tap-highlight-color:transparent]"
+          >
+            <X className="size-3.5" />
+          </button>
+        )}
       </div>
       {/* relative + an absolute fade on the right edge — horizontal-only
           scroll (no vertical drift, no wrapping) that reads as an
@@ -452,6 +460,24 @@ export default function JobsBoard({ onClose, onNavigate }) {
   const [total, setTotal] = useState(0);
   const [meta, setMeta] = useState(null);
   const [trending, setTrending] = useState([]);
+  // Persisted, not just session state — "Hottest right now" eats real
+  // vertical space (it's inside the sticky header on desktop), and a
+  // visitor who hides it once almost certainly wants that to stick
+  // across visits, not reset on the next reload. Safe to read localStorage
+  // directly in the initializer: this whole screen is ssr:false (see
+  // app/page.js's dynamicScreen), so there's no server render to mismatch
+  // against.
+  const [trendingHidden, setTrendingHidden] = useState(() => {
+    try { return localStorage.getItem("noqeev_hide_trending") === "1"; } catch { return false; }
+  });
+  const hideTrending = () => {
+    setTrendingHidden(true);
+    try { localStorage.setItem("noqeev_hide_trending", "1"); } catch { /* best-effort */ }
+  };
+  const showTrending = () => {
+    setTrendingHidden(false);
+    try { localStorage.removeItem("noqeev_hide_trending"); } catch { /* best-effort */ }
+  };
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
@@ -791,7 +817,16 @@ export default function JobsBoard({ onClose, onNavigate }) {
 
             {!savedOnly && (
               <div className="sticky top-0 z-10 -mx-8 mb-4 bg-background px-8 pt-1 pb-3">
-                <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
+                {trendingHidden ? (
+                  <button
+                    type="button" onClick={showTrending}
+                    className="mb-2 flex items-center gap-1.5 border-none bg-transparent p-0 text-[11px] font-semibold text-muted-foreground/60 [-webkit-tap-highlight-color:transparent]"
+                  >
+                    <Flame className="size-3.5" /> {t("jobsBoard.showTrending")}
+                  </button>
+                ) : (
+                  <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} onHide={hideTrending} />
+                )}
                 <AnimatePresence mode="wait" initial={false}>
                   {controlsCollapsed ? (
                     <motion.div key="collapsed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
@@ -988,7 +1023,16 @@ export default function JobsBoard({ onClose, onNavigate }) {
         {!savedOnly && (
           <>
             <CategoryPills categoryOptions={categoryOptions} value={category} onChange={setCategory} />
-            <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} />
+            {trendingHidden ? (
+              <button
+                type="button" onClick={showTrending}
+                className="mb-3 flex items-center gap-1.5 border-none bg-transparent p-0 text-[11px] font-semibold text-muted-foreground/60 [-webkit-tap-highlight-color:transparent]"
+              >
+                <Flame className="size-3.5" /> {t("jobsBoard.showTrending")}
+              </button>
+            ) : (
+              <TrendingRow fields={trending} activeId={activeTrending} onPick={pickTrending} onHide={hideTrending} />
+            )}
           </>
         )}
 
