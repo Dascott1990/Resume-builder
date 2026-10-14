@@ -54,11 +54,7 @@ function TemplateCard({ combo, selected, suggested, onSelect, name, thumbWidth, 
       aria-pressed={selected}
       className="flex flex-col items-center gap-2 border-none bg-transparent p-0 [-webkit-tap-highlight-color:transparent]"
     >
-      <div
-        className={`relative rounded-xl p-1 transition-transform ${
-          selected ? "bg-primary/10 ring-2 ring-primary/50" : "ring-1 ring-border"
-        } lg:hover:scale-[1.02] lg:hover:ring-2 lg:hover:ring-primary/30`}
-      >
+      <div className="relative rounded-xl p-1 ring-1 ring-border transition-transform lg:hover:scale-[1.02] lg:hover:ring-2 lg:hover:ring-primary/30">
         <DocThumb layoutId={layout.id} active width={thumbWidth} name={name} accent={accent.id} font={font.id} pageSize={pageSize} />
         {selected && (
           <span className="absolute top-2 right-2 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
