@@ -456,7 +456,7 @@ export default function JobTracker({ onClose, onNavigate }) {
               </button>
             )}
           </div>
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+          <div className="-mx-1 flex gap-2 overflow-x-auto overflow-y-hidden touch-pan-x px-1 pb-1 [scrollbar-width:none]">
             {upcomingInterviews.map(({ a, date }) => {
               const dd = daysFromToday(date);
               const dayLabel = dd === 0 ? t("jobTracker.todayLabel") : dd === 1 ? t("jobTracker.tomorrowLabel") : date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });

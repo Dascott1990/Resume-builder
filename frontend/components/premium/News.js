@@ -192,7 +192,7 @@ export default function News({ onClose }) {
                 horizontal strip. */}
             <div className={showAllFeed
               ? "grid grid-cols-2 gap-2.5 sm:grid-cols-3"
-              : "-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden"
+              : "-mx-5 flex gap-2.5 overflow-x-auto overflow-y-hidden touch-pan-x px-5 pb-1 [scrollbar-width:none] sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden"
             }>
               {worldFeed.slice(0, showAllFeed ? 40 : 8).map((item) => {
                 const meta = FEED_CATEGORY_META[item.category] || FEED_CATEGORY_META.world;

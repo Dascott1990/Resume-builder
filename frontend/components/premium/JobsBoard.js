@@ -162,7 +162,7 @@ function CategoryPills({ categoryOptions, value, onChange }) {
       ? "rounded-full bg-foreground px-4 py-2 text-background"
       : "rounded-full bg-transparent px-3 py-2 text-muted-foreground/60";
   return (
-    <div className="-mx-5 mb-6 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
+    <div className="-mx-5 mb-6 flex gap-2 overflow-x-auto overflow-y-hidden touch-pan-x px-5 pb-1 [scrollbar-width:none]">
       <button type="button" onClick={() => onChange("")} className={`shrink-0 border-none text-[13px] font-semibold [-webkit-tap-highlight-color:transparent] ${chipClass(value === "")}`}>
         {t("jobsBoard.all")}
       </button>
@@ -432,7 +432,7 @@ function TrendingRow({ fields, activeId, onPick }) {
           onPointerUp={scheduleResume}
           onPointerCancel={scheduleResume}
           onPointerLeave={scheduleResume}
-          className="flex gap-2 overflow-x-auto overflow-y-hidden pr-6 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex gap-2 overflow-x-auto overflow-y-hidden touch-pan-x pr-6 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {fields.map((f) => <TrendingChip key={f.id} field={f} active={f.id === activeId} onClick={() => onPick(f)} />)}
         </div>

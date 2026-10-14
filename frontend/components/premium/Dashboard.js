@@ -301,7 +301,7 @@ function TemplatesCarousel({ onSeeAll, selected, user, suggestion }) {
           now: no click target, nothing for a swipe to accidentally hit. */}
       <div
         ref={trackRef}
-        className="-mx-5 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-1 [scrollbar-width:none]"
+        className="-mx-5 flex snap-x snap-mandatory gap-5 overflow-x-auto overflow-y-hidden touch-pan-x pb-1 [scrollbar-width:none]"
         style={{ paddingLeft: edgePad, paddingRight: edgePad }}
       >
         {LAYOUTS.map((l, i) => (
