@@ -105,3 +105,37 @@ export function SectionGlow({ color = "emerald", side = "right" }) {
     />
   );
 }
+
+// ── Real device frames — plain CSS, no image assets, shared by every
+// section that embeds an app screen recording (HowItWorks.js,
+// SeeItHappenSection.js) so "what a real iPhone/iPad looks like" is
+// defined once, not redrawn slightly differently per section.
+export function IPhoneFrame({ children, className = "" }) {
+  return (
+    <div className={`relative ${className}`}>
+      <div className="relative rounded-[30px] border-[5px] border-[#1d1d1f] bg-[#1d1d1f] shadow-[0_20px_50px_-16px_rgba(0,0,0,0.45)]">
+        <div className="relative overflow-hidden rounded-[25px] bg-black">
+          <div className="absolute top-0 left-1/2 z-10 h-[14px] w-[46%] -translate-x-1/2 rounded-b-[10px] bg-[#1d1d1f]" />
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// iPad-style: a uniform bezel on all sides (no notch — real iPads don't
+// have one) and a centered camera dot on the long top edge, landscape by
+// default since that's the orientation the real split-screen workspace
+// this wraps (SeeItHappenSection's desktop/tablet recording) is shaped for.
+export function IPadFrame({ children, className = "" }) {
+  return (
+    <div className={`relative ${className}`}>
+      <div className="relative rounded-[22px] border-[10px] border-[#1d1d1f] bg-[#1d1d1f] shadow-[0_24px_55px_-18px_rgba(0,0,0,0.45)]">
+        <div className="absolute top-1/2 left-0 z-10 size-[4px] -translate-y-1/2 translate-x-[3px] rounded-full bg-[#49494b]" />
+        <div className="overflow-hidden rounded-[10px] bg-black">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}

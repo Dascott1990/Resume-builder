@@ -1,9 +1,59 @@
 "use client";
-import { motion } from "framer-motion";
+import { motion, useInView } from "framer-motion";
+import { useRef } from "react";
 import { ArrowRight } from "lucide-react";
 import { Reveal, ScrollBlend, SECTION_WRAP, CARD, SectionGlow } from "./shared";
 import { LogoMark } from "../Logo";
 import { useLanguage } from "@/lib/i18n";
+
+// The closing moment of the page, so the brand mark gets its own small
+// reveal instead of just sitting there static — the mark scales/fades in,
+// a single light sweep crosses it (same "scanning" language the app's own
+// ScreenLoading uses while something real is loading, borrowed here as a
+// one-shot flourish rather than an infinite loop), then the wordmark
+// slides in after it settles. Plays once (`once: true`), the same rule
+// every other scroll-reveal on this page already follows — a premium
+// closing beat settles, it doesn't replay every time someone scrolls past.
+function AnimatedLockup({ size = 80 }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: "-10%" });
+  return (
+    <div ref={ref} className="flex items-center gap-4">
+      <div className="relative overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={inView ? { opacity: 1, scale: 1 } : {}}
+          transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <LogoMark size={size} />
+        </motion.div>
+        <motion.div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2"
+          style={{ background: "linear-gradient(90deg, transparent, color-mix(in oklch, var(--primary) 60%, transparent), transparent)" }}
+          initial={{ x: "0%", opacity: 0 }}
+          animate={inView ? { x: ["0%", "260%"], opacity: [0, 1, 1, 0] } : {}}
+          transition={{ duration: 1, delay: 0.35, ease: "easeInOut" }}
+        />
+      </div>
+      <motion.span
+        initial={{ opacity: 0, x: -22 }}
+        animate={inView ? { opacity: 1, x: 0 } : {}}
+        transition={{ duration: 0.6, delay: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        style={{
+          fontFamily: "var(--font-wordmark)",
+          fontSize: Math.round(size * 0.52),
+          fontWeight: 800,
+          letterSpacing: "0.02em",
+          color: "var(--foreground)",
+          lineHeight: 1,
+        }}
+      >
+        NOQEEV
+      </motion.span>
+    </div>
+  );
+}
 
 // No overflow-hidden on this section's own className below — same fix as
 // WhyNoqeev.js: lets this glow bleed upward into FAQ above instead of
@@ -17,7 +67,7 @@ export function FinalCTA({ onOpenSignup }) {
       <ScrollBlend className={`${SECTION_WRAP} relative`}>
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <Reveal className={`${CARD} order-2 flex items-center justify-center lg:order-1`}>
-            <LogoMark size={88} />
+            <AnimatedLockup size={80} />
           </Reveal>
 
           {/* order-1 on mobile so the words sit at the top of the stack,

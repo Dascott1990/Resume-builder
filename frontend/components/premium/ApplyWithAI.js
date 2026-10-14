@@ -246,7 +246,7 @@ function UrlForm({ onStarted }) {
       <Input
         value={url} onChange={(e) => setUrl(e.target.value)}
         placeholder="https://jobs.example.com/apply/123"
-        className="h-12 text-center"
+        className="h-[52px] rounded-[10px] text-center text-base"
         autoFocus
       />
       <Btn variant="gold" type="submit" disabled={starting} loading={starting} className="mt-3 w-full">
