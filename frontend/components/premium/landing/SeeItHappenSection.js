@@ -27,10 +27,22 @@ export function SeeItHappenSection() {
   return (
     <section ref={containerRef} className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden py-10 sm:py-24">
       <SectionGlow color="emerald" side="right" />
+      {/* The hero-to-this-section handoff — deliberately a long, eased
+          falloff (not a short linear one) so the dark hero and this
+          section's own light background never read as two panels
+          meeting at a seam. A plain 0%-to-100% linear mask over a short
+          distance still shows a perceptible "line" around its own
+          midpoint, since contrast there is still changing fast per
+          pixel; stretching the same fade over roughly double the
+          distance and easing through more intermediate stops spreads
+          that change thin enough nothing reads as an edge. */}
       <div
         aria-hidden="true"
-        className="dark pointer-events-none absolute inset-x-0 top-0 h-28 bg-background sm:h-36"
-        style={{ WebkitMaskImage: "linear-gradient(to bottom, black, transparent)", maskImage: "linear-gradient(to bottom, black, transparent)" }}
+        className="dark pointer-events-none absolute inset-x-0 top-0 h-56 bg-background sm:h-80"
+        style={{
+          WebkitMaskImage: "linear-gradient(to bottom, black 0%, rgba(0,0,0,0.92) 15%, rgba(0,0,0,0.65) 38%, rgba(0,0,0,0.32) 62%, rgba(0,0,0,0.08) 85%, transparent 100%)",
+          maskImage: "linear-gradient(to bottom, black 0%, rgba(0,0,0,0.92) 15%, rgba(0,0,0,0.65) 38%, rgba(0,0,0,0.32) 62%, rgba(0,0,0,0.08) 85%, transparent 100%)",
+        }}
       />
       <ScrollBlend className={SECTION_WRAP}>
         <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-2 lg:gap-16">
