@@ -164,18 +164,37 @@ _LOGO_PNG_BYTES = base64.b64decode(_LOGO_PNG_BASE64)
 _LOGO_WIDTH = 190
 _LOGO_HEIGHT = 53  # 190 * (124 / 446), rounded — preserves the source PNG's aspect ratio
 
-# RENDER_EXTERNAL_URL: platform-injected on every Render service, no
-# dashboard setup needed — unlike FRONTEND_URL (see mail.py's own
-# docstring on that one), there's no "declared in render.yaml but never
-# actually synced onto the live service" gap possible here, since this
-# isn't a value anyone has to declare at all. BACKEND_URL is a plain
-# manual override for the rare case this ever needs to point somewhere
-# else on purpose. Local dev falls back to the same port run.py itself
-# listens on.
+# This used to check ONLY BACKEND_URL then RENDER_EXTERNAL_URL (a
+# Render-platform-injected var), else fall straight to localhost — a
+# correct check back when this only ever ran on Render, but this app has
+# since moved to Vercel (confirmed live via a real production crash
+# whose stack trace pointed at Vercel's own /var/task), which never sets
+# RENDER_EXTERNAL_URL. With no override, that meant every single email
+# sent from production almost certainly embedded
+# "http://localhost:5002/api/v1/email-logo.png" as the logo <img> src:
+# unreachable from any real recipient, the exact silent-in-prod,
+# correct-in-dev failure mode this whole file's own docstring already
+# describes once for a different root cause.
+#
+# VERCEL/RENDER (both platform-injected, no dashboard setup needed)
+# gate the fix: ONLY on an actually-deployed instance does this reuse
+# FRONTEND_URL's domain, since vercel.json rewrites /api/* onto that
+# exact same public domain there (see its own rewrites block) — wherever
+# the frontend is reachable, so is this backend's own
+# /api/v1/email-logo.png. Checking FRONTEND_URL unconditionally would
+# have been wrong: locally frontend (:3000) and backend (:5002) are
+# genuinely different ports, so local dev still falls through to
+# localhost:5002 below exactly as before, never FRONTEND_URL's value.
 if os.environ.get("BACKEND_URL"):
     _BACKEND_URL = os.environ["BACKEND_URL"].rstrip("/")
 elif os.environ.get("RENDER_EXTERNAL_URL"):
     _BACKEND_URL = os.environ["RENDER_EXTERNAL_URL"].rstrip("/")
+elif os.environ.get("VERCEL") or os.environ.get("RENDER"):
+    if os.environ.get("FRONTEND_URL"):
+        _BACKEND_URL = os.environ["FRONTEND_URL"].rstrip("/")
+    else:
+        print("CRITICAL: no BACKEND_URL/FRONTEND_URL set on a deployed instance — email logo falling back to https://noqeev.com. Set FRONTEND_URL in the deploy environment.")
+        _BACKEND_URL = "https://noqeev.com"
 else:
     _BACKEND_URL = "http://localhost:5002"
 
