@@ -27,6 +27,7 @@ import { loadFormDraft, saveFormDraft, clearFormDraft } from "@/lib/formDraft";
 import { Btn } from "./guest/components/primitives";
 import { IconTile } from "./shared/IconTile";
 import { tapFeedback } from "@/lib/haptics";
+import { useClickThrottle } from "@/lib/useClickThrottle";
 import Logo from "./Logo";
 import { NavRail } from "./shared/NavRail";
 import { MobileFloatingNav } from "./shared/MobileFloatingNav";
@@ -116,6 +117,13 @@ export default function JobTracker({ onClose, onNavigate }) {
   const [confirmRemoveId, setConfirmRemoveId] = useState(null);
   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
   const [feedUrl, setFeedUrl] = useState(null);
+  // "Copy link" and "Add to calendar" both resolve too fast for a
+  // disabled-while-pending guard to do anything — confirmed live, 20
+  // rapid clicks on "Copy link" stacked 20 "Copied" toasts, since each
+  // one finishes before the next click even lands. A time-based cooldown
+  // (not an in-flight check) is what actually stops that.
+  const canFireCopy = useClickThrottle();
+  const canFireDownloadIcs = useClickThrottle();
   // Read once, synchronously, before first render — same pattern as
   // GuestMode.js's own draftAtMount.
   const jobDraftAtMount = useRef(loadFormDraft(JOB_FORM_DRAFT_KEY)).current;
@@ -161,6 +169,7 @@ export default function JobTracker({ onClose, onNavigate }) {
   };
 
   const copyTemplate = async (body) => {
+    if (!canFireCopy()) return;
     try {
       await navigator.clipboard.writeText(body);
       toast.success(t("jobTracker.copied"));
@@ -173,6 +182,7 @@ export default function JobTracker({ onClose, onNavigate }) {
   // this endpoint returns a raw .ics file. Same auth headers it would send,
   // just handled as a blob instead.
   const downloadIcs = async (a) => {
+    if (!canFireDownloadIcs()) return;
     try {
       const headers = { "X-Guest-Id": getGuestId() };
       const token = getToken();
