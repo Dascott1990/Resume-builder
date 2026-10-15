@@ -151,6 +151,22 @@ function resolveLandingView() {
   return "launcher";
 }
 
+// A /login or /signup entry in browser history (every account has one —
+// everyone goes through signup, everyone who's logged in again went
+// through login) must never override an ALREADY-valid session just
+// because that's literally what the path says. Confirmed live: a mobile
+// "swipe back" gesture popping through history onto one of these two
+// paths sent a currently-signed-in user straight to the sign-in screen —
+// the plain PATH_TO_VIEW lookup at both call sites below trusted the URL
+// over the session, with none of RESTORABLE_VIEWS' own auth-gate logic
+// applying to these two paths. Falling through to resolveLandingView()
+// instead gives a real session its correct screen back (restoreView()),
+// exactly as if no path had matched at all.
+function resolvePathView(pathView) {
+  if ((pathView === "login" || pathView === "signup") && getToken()) return null;
+  return pathView;
+}
+
 export default function Home() {
   const [view, setView] = useState("launcher"); // "launcher" | "dashboard" | "login" | "signup" | "resume" | "cvscan" | "jobtracker" | "apply" | "settings"
   // Bumped on "Try Again" (and on any fresh entry into the studio) to force
@@ -385,7 +401,7 @@ export default function Home() {
           // a real URL for a screen was never supposed to be a way
           // around that.
           const pathView = PATH_TO_VIEW[window.location.pathname.replace(/^\//, "")];
-          resolved = pathView || resolveLandingView();
+          resolved = resolvePathView(pathView) || resolveLandingView();
           setView(resolved);
         }
       } catch { /* best-effort */ }
@@ -419,7 +435,7 @@ export default function Home() {
   useEffect(() => {
     const onPopState = () => {
       const pathView = PATH_TO_VIEW[window.location.pathname.replace(/^\//, "")];
-      setView(pathView || resolveLandingView());
+      setView(resolvePathView(pathView) || resolveLandingView());
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
