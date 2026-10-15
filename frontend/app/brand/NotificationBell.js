@@ -15,9 +15,10 @@
  * backend/app/utils/task_reminders.py for the scheduler that notices a
  * task come due with nobody in the app to see it happen.
  *
- * No admin gate — /brand is standalone, same as the rest of the page
- * (see api/brand.py's module docstring): unlisted in product nav is the
- * only thing keeping this from customers, not a login wall.
+ * No gate of its own — this whole component only ever mounts inside
+ * app/brand/page.js, which is itself wrapped in AdminGate
+ * (components/admin/AdminGate.js), so by the time this renders there's
+ * already a confirmed admin session in hand.
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -27,7 +28,6 @@ import {
 } from "lucide-react";
 import { apiRequest } from "@/components/premium/shared/api";
 import { getToken } from "@/lib/authToken";
-import { getBrandKey, setBrandKey } from "@/lib/brandKey";
 import { Btn } from "@/components/premium/guest/components/primitives";
 import { Input } from "@/components/ui/input";
 import { downloadBlob } from "./assetKit";
@@ -42,12 +42,8 @@ const BASE = process.env.NEXT_PUBLIC_API_URL;
 // uses) is what actually lets the token reach the request.
 async function downloadTaskIcs(taskId, title) {
   const token = getToken();
-  const brandKey = getBrandKey();
   const res = await fetch(`${BASE}/api/v1/brand/tasks/${taskId}/ics`, {
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(brandKey ? { "X-Brand-Key": brandKey } : {}),
-    },
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) throw new Error("ics_fetch_failed");
   downloadBlob(await res.blob(), `${(title || "task").slice(0, 40).replace(/[^\w\- ]/g, "")}.ics`);
@@ -307,59 +303,14 @@ function NewsComposer({ onPosted, onAuthError }) {
   );
 }
 
-// Tasks/news-write are the "genuinely internal-only" routes require_brand_key
-// gates (see backend/app/utils/auth.py) — a shared secret, not a login, to
-// match /brand's own no-login-wall design. Nothing in the browser knew that
-// secret until now: this is the one place it gets entered and stashed
-// locally so every apiRequest call can attach it (see shared/api.js).
-function BrandKeyGate({ onUnlocked }) {
-  const { t } = useLanguage();
-  const [value, setValue] = useState("");
-  const [checking, setChecking] = useState(false);
-
-  const unlock = async () => {
-    if (!value.trim()) return;
-    setChecking(true);
-    setBrandKey(value.trim());
-    try {
-      await apiRequest("/api/v1/brand/tasks"); // confirms the key is actually right before trusting it
-      toast.success(t("brandShell.unlocked"));
-      onUnlocked();
-    } catch (e) {
-      setBrandKey(null);
-      toast.error(e.status === 401 ? t("brandShell.keyNotRight") : (e.message || t("brandShell.tryAgain")));
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  return (
-    <div className="space-y-2 rounded-lg border border-dashed border-border p-2.5">
-      <p className="m-0 text-[12px] font-semibold text-foreground">{t("brandShell.unlockTasksAndNews")}</p>
-      <p className="m-0 text-[11px] text-muted-foreground">{t("brandShell.browserNoBrandKey")}</p>
-      <div className="flex gap-1.5">
-        <Input
-          type="password" value={value} onChange={(e) => setValue(e.target.value)} autoFocus autoComplete="off"
-          placeholder={t("brandShell.brandKeyPlaceholder")} className="h-8 rounded-[6px] text-[12.5px]"
-          onKeyDown={(e) => { if (e.key === "Enter") unlock(); }}
-        />
-        <Btn small variant="gold" onClick={unlock} disabled={checking} loading={checking}>{t("brandShell.unlock")}</Btn>
-      </div>
-    </div>
-  );
-}
-
 export function NotificationBell() {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [tasks, setTasks] = useState({ open: [], done: [] });
   const [news, setNews] = useState([]);
-  const [needsBrandKey, setNeedsBrandKey] = useState(false);
 
   const loadTasks = () => {
-    apiRequest("/api/v1/brand/tasks")
-      .then((d) => { setTasks(d); setNeedsBrandKey(false); })
-      .catch((e) => { if (e.status === 401 || e.status === 503) setNeedsBrandKey(true); });
+    apiRequest("/api/v1/brand/tasks").then(setTasks).catch(() => {});
   };
   const loadNews = () => {
     apiRequest("/api/v1/brand/news").then(setNews).catch(() => setNews([]));
@@ -370,13 +321,12 @@ export function NotificationBell() {
     loadTasks();
   }, []);
 
-  // Shared by every write action below: a key that was valid a moment ago
-  // (rotated on the backend, or just wrong) should re-lock instead of
-  // repeating a confusing raw error every time.
-  const onAuthError = (e) => {
-    if (e.status === 401 || e.status === 503) { setBrandKey(null); setNeedsBrandKey(true); return true; }
-    return false;
-  };
+  // A 401 here means the admin session itself just died — AdminGate's own
+  // global onUnauthorized listener (components/admin/AdminGate.js) is
+  // already bouncing the whole /brand page back to sign-in the instant
+  // that happens, so suppress the toast rather than show a confusing
+  // error in the split second before that takes over.
+  const onAuthError = (e) => e.status === 401;
 
   const toggleDone = async (task, done) => {
     setTasks((t) => ({ ...t, open: t.open.filter((x) => x.id !== task.id) })); // optimistic
@@ -431,19 +381,13 @@ export function NotificationBell() {
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="glass-surface absolute top-11 right-0 z-20 max-h-[75vh] w-80 overflow-y-auto rounded-xl p-1.5 shadow-[0_8px_28px_rgba(0,0,0,0.25)]">
-            {needsBrandKey ? (
-              <BrandKeyGate onUnlocked={loadTasks} />
-            ) : (
-              <>
-                <QuickAddTask onAdded={loadTasks} onAuthError={onAuthError} />
-                <TaskSection label={t("brandShell.overdue")} tasks={buckets.overdue} overdue {...taskHandlers} />
-                <TaskSection label={t("brandShell.dueToday")} tasks={buckets.today} {...taskHandlers} />
-                <TaskSection label={t("brandShell.upcoming")} tasks={buckets.upcoming} {...taskHandlers} />
-                <TaskSection label={t("brandShell.noDate")} tasks={buckets.noDate} {...taskHandlers} />
-                {tasks.open.length === 0 && (
-                  <p className="m-0 px-2 pb-1 text-[12.5px] text-muted-foreground">{t("brandShell.noOpenTasks")}</p>
-                )}
-              </>
+            <QuickAddTask onAdded={loadTasks} onAuthError={onAuthError} />
+            <TaskSection label={t("brandShell.overdue")} tasks={buckets.overdue} overdue {...taskHandlers} />
+            <TaskSection label={t("brandShell.dueToday")} tasks={buckets.today} {...taskHandlers} />
+            <TaskSection label={t("brandShell.upcoming")} tasks={buckets.upcoming} {...taskHandlers} />
+            <TaskSection label={t("brandShell.noDate")} tasks={buckets.noDate} {...taskHandlers} />
+            {tasks.open.length === 0 && (
+              <p className="m-0 px-2 pb-1 text-[12.5px] text-muted-foreground">{t("brandShell.noOpenTasks")}</p>
             )}
 
             <div className="mt-1 border-t border-border pt-1">
@@ -464,7 +408,7 @@ export function NotificationBell() {
 
             <div className="mt-1 border-t border-border pt-1">
               <PushToggle />
-              {!needsBrandKey && <NewsComposer onPosted={loadNews} onAuthError={onAuthError} />}
+              <NewsComposer onPosted={loadNews} onAuthError={onAuthError} />
             </div>
           </div>
         </>

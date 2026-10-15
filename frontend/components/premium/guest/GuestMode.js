@@ -68,7 +68,7 @@ function useAutoDismiss(visible, setVisible, delayMs = NOTICE_AUTO_DISMISS_MS) {
   }, [visible, setVisible, delayMs]);
 }
 
-export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pendingLoadResumeId, pendingViewAllResumes, pendingQuickBuild, onRequireAuth }) {
+export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pendingJobCompany, pendingLoadResumeId, pendingViewAllResumes, pendingQuickBuild, onRequireAuth }) {
   const { t } = useLanguage();
   const { isPhone, isTablet, isDesktop } = useViewport();
   const { user } = useAuth();
@@ -130,7 +130,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
           resume_id: resume?.saved_id || genResult?.saved_id || null,
         }),
       });
-      toast.success(t("guestMode.addedToJobTracker"));
+      toast.success(t("guestMode.addedToJobTrackerNamed", { company, role }));
     } catch (e) {
       toast.error(e.message || t("guestMode.couldntSaveApplication"));
     }
@@ -406,6 +406,45 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
     }, 400);
     return () => clearTimeout(profileSaveTimer.current);
   }, [info]);
+
+  // Best-guess company name for DidYouApplyModal, resolved in the
+  // background while someone's still building — by the time they download
+  // and get asked "did you apply?", this has long since finished, so that
+  // moment never has to make anyone wait on an AI call. A real Jobs Board
+  // listing already supplies this with certainty (pendingJobCompany, see
+  // JobDetail.js/page.js) and skips the guess entirely; every other entry
+  // point (bookmarklet capture, a bare paste) falls back to asking the
+  // backend to read it out of the pasted text itself.
+  const [detectedCompany, setDetectedCompany] = useState(pendingJobCompany || null);
+  const companyDetectedForRef = useRef(pendingJobCompany ? jobDesc : null);
+  const companyDetectTimer = useRef(null);
+  useEffect(() => {
+    if (detectedCompany || companyDetectedForRef.current === jobDesc) return;
+    if (jobDesc.trim().length < 40) return; // too short to realistically name a company
+    if (companyDetectTimer.current) clearTimeout(companyDetectTimer.current);
+    companyDetectTimer.current = setTimeout(async () => {
+      const forDesc = jobDesc;
+      try {
+        const data = await apiRequest("/api/v1/applications/extract-company", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description: forDesc }),
+        });
+        companyDetectedForRef.current = forDesc;
+        if (data.company) setDetectedCompany(data.company);
+      } catch { /* best-effort — DidYouApplyModal's single-field fallback covers this */ }
+    }, 1200);
+    return () => clearTimeout(companyDetectTimer.current);
+  }, [jobDesc, detectedCompany]);
+  // The job description changed out from under a previous detection (a
+  // fresh paste replacing an earlier one, "Build another," etc.) — a
+  // stale guess from the OLD posting must never survive onto the new one.
+  useEffect(() => {
+    if (companyDetectedForRef.current !== null && companyDetectedForRef.current !== jobDesc) {
+      companyDetectedForRef.current = null;
+      setDetectedCompany(null);
+    }
+  }, [jobDesc]);
 
   // Used to ask "are you sure, you'll lose your work" here — but the draft
   // autosaves (see draftSaveTimer above) and restores itself on the next
@@ -1154,6 +1193,7 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
         open={appliedPromptOpen}
         onClose={() => setAppliedPromptOpen(false)}
         defaultRole={info.title}
+        detectedCompany={detectedCompany}
         onConfirm={saveApplication}
       />
       <AtsScoreModal

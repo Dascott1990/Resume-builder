@@ -147,7 +147,7 @@ def create_app():
             # failing its CORS preflight and never actually reaching the
             # server.
             "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id", "X-Workspace-Token", "X-Brand-Key"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Guest-Id", "X-Workspace-Token"],
             "supports_credentials": True,
             # X-Quality-Report (api/story.py's render endpoint) rides
             # alongside the downloaded video file as a response header —

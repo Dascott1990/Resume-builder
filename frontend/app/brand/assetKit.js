@@ -255,18 +255,16 @@ export function saveSignatureTheme(theme) {
 // this list is only a validation guard (falls back to DEFAULT_UI_STATE
 // for a zone id that no longer exists), not the display metadata.
 const UI_STATE_KEY = "noqeev_brand_ui_state";
-const ZONES = ["today", "assets", "create", "story", "capture", "seo", "reference"];
-const DEFAULT_UI_STATE = {
-  zone: "today",
-  openSections: { reference: ["mark"] },
-};
+const ZONES = ["today", "assets", "create", "story", "capture"];
+const DEFAULT_UI_STATE = { zone: "today" };
 export function loadBrandUiState() {
   try {
     const raw = JSON.parse(localStorage.getItem(UI_STATE_KEY) || "null");
     // Guards against a stale shape from before the Tools zone split into
-    // Assets/Create/Capture (e.g. zone: "tools") — fall back rather than
+    // Assets/Create/Capture (e.g. zone: "tools"), and from before SEO/
+    // Reference were cut from this nav entirely — fall back rather than
     // land on a destination that no longer exists.
-    if (raw && ZONES.includes(raw.zone) && raw.openSections) return raw;
+    if (raw && ZONES.includes(raw.zone)) return raw;
     return DEFAULT_UI_STATE;
   } catch {
     return DEFAULT_UI_STATE;

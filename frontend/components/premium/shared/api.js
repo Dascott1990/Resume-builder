@@ -8,7 +8,6 @@
  */
 import { getGuestId } from "@/lib/guestId";
 import { getToken } from "@/lib/authToken";
-import { getBrandKey } from "@/lib/brandKey";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL;
 
@@ -48,11 +47,6 @@ export async function apiRequest(path, options = {}) {
   // across devices" true for whoever opts into an account.
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  // Only the handful of /brand routes require_brand_key actually gates
-  // check this header — sending it everywhere else is a harmless no-op,
-  // same reasoning X-Guest-Id above already relies on.
-  const brandKey = getBrandKey();
-  if (brandKey) headers["X-Brand-Key"] = brandKey;
 
   let res;
   try {

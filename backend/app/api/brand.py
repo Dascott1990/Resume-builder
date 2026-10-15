@@ -48,11 +48,14 @@ per-visitor data — posting a news item fans a real push notification out
 to every subscriber, and tasks are the team's own to-do list, not
 anyone's personal one. Those writes (and all of tasks, reads included —
 an internal to-do list has no business being world-readable) require
-require_brand_key(request): an X-Brand-Key header checked against
-BRAND_INTERNAL_KEY, fails closed if that env var isn't set. This used to
-rely on "unlinked from product nav" as its only protection, which stopped
-being true the moment /brand/news shipped as a real linked page — a URL
-being unlinked was never actual access control.
+require_admin(request) — the same JWT + is_admin check every
+/api/v1/admin/* route already uses, not a separate credential. This used
+to rely on "unlinked from product nav" as its only protection, which
+stopped being true the moment /brand/news shipped as a real linked page —
+a URL being unlinked was never actual access control. A shared-secret gate
+(a brand key typed into a text box) replaced that in between, but the
+secret was never actually set in production, making it a permanent dead
+end; requiring a real admin account fixes that too.
 """
 import base64
 import json
@@ -66,7 +69,7 @@ from app import db, limiter
 from app.middleware.error_handlers import APIError
 from app.models import BrandNews, BrandTask, PushSubscription, WorldFeedItem
 from app.utils.ai_client import ai_complete
-from app.utils.auth import require_brand_key
+from app.utils.auth import require_admin
 from app.utils.mail import send_email, wrap_email_html
 from app.utils.push import VAPID_PUBLIC_KEY, push_configured, send_push_to_all
 from app.utils.task_reminders import build_ics, next_occurrence
@@ -559,7 +562,7 @@ def list_news():
 @brand_bp.route("/news", methods=["POST"])
 @limiter.limit("30 per hour")
 def post_news():
-    require_brand_key(request)
+    require_admin(request)
     body = request.get_json(force=True) or {}
     title = _clean_str(body.get("title"), 140)
     news_body = _clean_str(body.get("body"), 500)
@@ -592,7 +595,7 @@ def post_news():
 @brand_bp.route("/news/<news_id>", methods=["PATCH"])
 @limiter.limit("60 per hour")
 def update_news(news_id):
-    require_brand_key(request)
+    require_admin(request)
     item = db.session.get(BrandNews, news_id)
     if not item:
         raise APIError("Not found", 404)
@@ -624,7 +627,7 @@ def update_news(news_id):
 @brand_bp.route("/news/<news_id>", methods=["DELETE"])
 @limiter.limit("30 per hour")
 def delete_news(news_id):
-    require_brand_key(request)
+    require_admin(request)
     item = db.session.get(BrandNews, news_id)
     if not item:
         raise APIError("Not found", 404)
@@ -650,7 +653,7 @@ def list_world_feed():
 @brand_bp.route("/world-feed/<item_id>", methods=["DELETE"])
 @limiter.limit("60 per hour")
 def dismiss_world_feed_item(item_id):
-    require_brand_key(request)
+    require_admin(request)
     item = db.session.get(WorldFeedItem, item_id)
     if not item:
         raise APIError("Not found", 404)
@@ -723,7 +726,7 @@ def _parse_due_at(value):
 @brand_bp.route("/tasks", methods=["GET"])
 @limiter.limit("120 per hour")
 def list_tasks():
-    require_brand_key(request)
+    require_admin(request)
     # Open tasks (any due date, including none) plus the 10 most recently
     # completed — enough to undo an accidental check-off without the list
     # growing forever with done items nobody needs to see again.
@@ -740,7 +743,7 @@ def list_tasks():
 @brand_bp.route("/tasks", methods=["POST"])
 @limiter.limit("60 per hour")
 def create_task():
-    require_brand_key(request)
+    require_admin(request)
     body = request.get_json(force=True) or {}
     title = _clean_str(body.get("title"), 140)
     if not title:
@@ -760,7 +763,7 @@ def create_task():
 @brand_bp.route("/tasks/<task_id>", methods=["PATCH"])
 @limiter.limit("120 per hour")
 def update_task(task_id):
-    require_brand_key(request)
+    require_admin(request)
     task = db.session.get(BrandTask, task_id)
     if not task:
         raise APIError("Not found", 404)
@@ -810,7 +813,7 @@ def update_task(task_id):
 @brand_bp.route("/tasks/<task_id>", methods=["DELETE"])
 @limiter.limit("60 per hour")
 def delete_task(task_id):
-    require_brand_key(request)
+    require_admin(request)
     task = db.session.get(BrandTask, task_id)
     if not task:
         raise APIError("Not found", 404)
@@ -821,7 +824,7 @@ def delete_task(task_id):
 
 @brand_bp.route("/tasks/<task_id>/ics", methods=["GET"])
 def task_ics(task_id):
-    require_brand_key(request)
+    require_admin(request)
     task = db.session.get(BrandTask, task_id)
     if not task:
         raise APIError("Not found", 404)

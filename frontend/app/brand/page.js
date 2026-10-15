@@ -1,9 +1,6 @@
 "use client";
 /**
- * app/brand/page.js — the design record for the Noqeev mark, kept as a
- * real route in this app (not an external doc) so it survives alongside
- * the code it describes and stays reviewable in git history the same way
- * everything else here does.
+ * app/brand/page.js — the brand toolkit's front door.
  *
  * Flat destinations, not a scrolling stack — switched via a fixed bottom
  * nav (components/premium/shared/BottomNav.js, the same one Dashboard.js
@@ -11,167 +8,37 @@
  * costs a scroll-to-top first. Each opens to exactly the one thing it's
  * for; nothing to scroll past to reach another tool.
  *
- * Bottom nav only carries the 5 zones someone actually taps daily —
- * Today (the fixed status panel, see TodayPanel.js), Assets (logo
- * exports + this month's signature color), Create (the post composer),
- * Story (the multi-clip story composer), Capture (the screenshot
- * studio). SEO (Search Console + Core Web Vitals, admin-gated — a
- * weekly check at most) and Reference (the mark's own rationale, read-
- * only — looked at once, basically ever) don't belong competing for the
- * same thumb-reach real estate as those, so they live in the small
- * "More" menu next to NotificationBell instead — one tap away, not
- * fighting for a bottom-nav slot. A 7-item bottom nav (what this used
- * to be) is real crowding on a phone-width screen, not just a style
- * preference — 5 stays comfortable.
+ * Today (the fixed status panel, see TodayPanel.js), Assets (logo exports
+ * + this month's signature color), Create (the post composer), Story (the
+ * multi-clip story composer), Capture (the screenshot studio) — the 5
+ * tools someone actually reaches for daily. SEO (Search Console stats)
+ * and Reference (the mark's own design rationale, read-only docs) used to
+ * live in a "More" menu here; both got cut for being low-frequency
+ * clutter competing with the daily tools. SEO stats still exist, just not
+ * in this nav — see components/premium/brand/BrandWorkspaceView.js.
  *
- * Which destination — and which Reference sections — were left open is
- * remembered per device (assetKit.js's loadBrandUiState/
- * saveBrandUiState) so returning here picks up exactly where someone
- * left off, regardless of which menu got them there.
- *
- * The shipped mark's preview below renders through the real
- * <LogoMark>/<Logo> components, not a hand-copied SVG duplicate — this
- * page can never drift out of sync with what the app actually ships.
+ * Which destination was left open is remembered per device
+ * (assetKit.js's loadBrandUiState/saveBrandUiState) so returning here
+ * picks up exactly where someone left off.
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Logo, { LogoMark, MARK_PATH, MARK_STROKE } from "@/components/premium/Logo";
+import Logo from "@/components/premium/Logo";
 import { BottomNav } from "@/components/premium/shared/BottomNav";
-import { Sparkles, Type, Layers, Clapperboard, Camera, Archive, ArrowLeft, TrendingUp, CalendarClock, Loader2, MoreHorizontal, Check } from "lucide-react";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { Section } from "./BrandSection";
+import { Sparkles, Layers, Clapperboard, Camera, ArrowLeft, CalendarClock, Loader2 } from "lucide-react";
 import { LogoDownloads } from "./LogoDownloads";
 import { PostComposer } from "./PostComposer";
 import { StoryComposer } from "./story/StoryComposer";
 import { SignatureTheme } from "./SignatureTheme";
 import { ScreenshotStudio } from "./ScreenshotStudio";
 import { NotificationBell } from "./NotificationBell";
-import { SeoStatus } from "@/components/premium/brand/SeoStatus";
 import { TodayPanel } from "@/components/premium/brand/TodayPanel";
 import { apiRequest } from "@/components/premium/shared/api";
-import { getBrandKey, setBrandKey } from "@/lib/brandKey";
+import { AdminGate } from "@/components/admin/AdminGate";
 import { Btn } from "@/components/premium/guest/components/primitives";
-import { Input } from "@/components/ui/input";
 import { DEFAULT_ACCENT } from "./postTemplates";
 import { loadBrandUiState, saveBrandUiState } from "./assetKit";
 import { useLanguage } from "@/lib/i18n";
-
-// GET /workspace/default now requires the brand key (see
-// backend/api/brand_workspace.py — it used to hand out full write access
-// to anyone who loaded this URL). Same unlock shape NotificationBell.js's
-// own BrandKeyGate already uses for Tasks/News, just full-page instead of
-// a small popover panel — this gates the whole workspace, not one feature
-// inside it, and there's no page content underneath worth showing yet.
-function WorkspaceKeyGate({ onUnlocked }) {
-  const { t } = useLanguage();
-  const [value, setValue] = useState("");
-  const [checking, setChecking] = useState(false);
-  const [error, setError] = useState("");
-
-  const unlock = async () => {
-    if (!value.trim()) return;
-    setChecking(true);
-    setError("");
-    setBrandKey(value.trim());
-    try {
-      const ws = await apiRequest("/api/v1/workspace/default");
-      onUnlocked(ws.token);
-    } catch (e) {
-      setBrandKey(null);
-      setError(e.status === 401 ? t("brandShell.keyNotRight") : (e.message || t("brandShell.tryAgain")));
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  return (
-    <div className="mx-auto mt-10 max-w-sm rounded-2xl border border-border bg-card p-6 text-center">
-      <p className="m-0 text-[15px] font-bold text-foreground">{t("brandShell.enterBrandKey")}</p>
-      <p className="m-0 mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
-        {t("brandShell.workspaceNeedsKey")}
-      </p>
-      <div className="mt-4 flex flex-col gap-2">
-        <Input
-          type="password" value={value} onChange={(e) => setValue(e.target.value)} autoFocus autoComplete="off"
-          placeholder={t("brandShell.brandKeyPlaceholder")} className="h-11 rounded-[10px] text-center text-[13.5px]"
-          onKeyDown={(e) => { if (e.key === "Enter") unlock(); }}
-        />
-        <Btn variant="gold" onClick={unlock} disabled={checking} loading={checking}>{t("brandShell.unlock")}</Btn>
-      </div>
-      {error && <p className="m-0 mt-2.5 text-[12px] font-semibold text-destructive">{error}</p>}
-    </div>
-  );
-}
-
-function Swatch({ hex, label }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="size-[18px] shrink-0 rounded border border-border" style={{ background: hex }} />
-      <span className="font-mono text-[11.5px] text-muted-foreground">{hex}{label ? ` — ${label}` : ""}</span>
-    </div>
-  );
-}
-
-function SizeProof({ path, stroke }) {
-  const sizes = [
-    { px: 28, cap: "28px" },
-    { px: 20, cap: "20px" },
-    { px: 16, cap: "16px" },
-  ];
-  return (
-    <div className="flex items-end gap-6">
-      {sizes.map((s) => (
-        <div key={s.px} className="flex flex-col items-center gap-2">
-          <svg viewBox="0 0 100 100" width={s.px} height={s.px}>
-            <defs>
-              <linearGradient id={`sp-${s.px}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#F6E6B3" />
-                <stop offset="38%" stopColor="#f59e0b" />
-                <stop offset="100%" stopColor="#5C4419" />
-              </linearGradient>
-            </defs>
-            <path d={path} fill="none" stroke={`url(#sp-${s.px})`} strokeWidth={stroke} strokeLinecap="butt" strokeLinejoin="round" />
-          </svg>
-          <span className="font-mono text-[9.5px] whitespace-nowrap text-muted-foreground/60">{s.cap}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// The two directions that were explored and set aside — hand-drawn here
-// since they never became real components, unlike the shipped mark above.
-function RisingLinesPreview() {
-  return (
-    <svg viewBox="0 0 100 100" width="88" height="88">
-      <defs>
-        <linearGradient id="rl" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#F6E6B3" /><stop offset="38%" stopColor="#f59e0b" /><stop offset="100%" stopColor="#5C4419" />
-        </linearGradient>
-      </defs>
-      <g transform="rotate(-9 50 50)">
-        <rect x="22" y="20" width="56" height="11" rx="5.5" fill="url(#rl)" />
-        <rect x="22" y="37" width="40" height="11" rx="5.5" fill="url(#rl)" />
-        <rect x="22" y="54" width="48" height="11" rx="5.5" fill="url(#rl)" />
-        <rect x="22" y="71" width="28" height="11" rx="5.5" fill="url(#rl)" />
-      </g>
-    </svg>
-  );
-}
-function TurningPointPreview() {
-  return (
-    <svg viewBox="0 0 100 100" width="88" height="88">
-      <defs>
-        <linearGradient id="tp" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#F6E6B3" /><stop offset="38%" stopColor="#f59e0b" /><stop offset="100%" stopColor="#5C4419" />
-        </linearGradient>
-      </defs>
-      <path d="M 26 86 L 26 20 L 60 20 L 84 4 L 96 26 L 74 26 L 74 86 Z" fill="url(#tp)" />
-      <rect x="36" y="46" width="28" height="5" rx="2.5" fill="#0a0a0a" opacity="0.28" />
-      <rect x="36" y="58" width="20" height="5" rx="2.5" fill="#0a0a0a" opacity="0.28" />
-    </svg>
-  );
-}
 
 // Colors only — the mark + wordmark already show in the header just
 // above, so repeating them here would just be the same thing twice.
@@ -187,9 +54,7 @@ function AtAGlanceStrip() {
 
 // "Today" first — not appended at the end. Its entire purpose is "here's
 // what's happening," which by convention belongs where a returning
-// visitor's eye lands first (see TodayPanel.js's own docstring). Only 5
-// here on purpose — see this file's own header comment for why SEO and
-// Reference live in the "More" menu instead.
+// visitor's eye lands first (see TodayPanel.js's own docstring).
 const ZONES = [
   { id: "today", Icon: CalendarClock, label: "Today" },
   { id: "assets", Icon: Sparkles, label: "Assets" },
@@ -198,59 +63,36 @@ const ZONES = [
   { id: "capture", Icon: Camera, label: "Capture" },
 ];
 
-const MORE_ZONES = [
-  { id: "seo", Icon: TrendingUp, label: "SEO" },
-  { id: "reference", Icon: Archive, label: "Reference" },
-];
-
-// Real Radix dropdown-menu (components/ui/dropdown-menu.jsx), not a
-// hand-rolled useState+absolute-panel — that version had no collision
-// detection (could overflow off a narrow phone screen near the right
-// edge), no focus trap, no Escape-to-close. This gets all of that free.
-function MoreMenu({ zone, zones, onSelect, t }) {
+export default function BrandPage() {
+  const { t } = useLanguage();
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button" aria-label={t("brandShell.more")}
-          className="flex size-10 items-center justify-center rounded-full border border-border bg-muted text-foreground [-webkit-tap-highlight-color:transparent]"
-        >
-          <MoreHorizontal className="size-[18px]" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-44">
-        {zones.map((z) => (
-          <DropdownMenuItem key={z.id} onSelect={() => onSelect(z.id)}>
-            <z.Icon className="size-4 text-muted-foreground" />
-            {z.label}
-            {zone === z.id && <Check className="ml-auto size-3.5 text-primary" />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <AdminGate title={t("brandShell.adminSignInTitle")} subtitle={t("brandShell.adminSignInSubtitle")}>
+      {() => <BrandWorkspaceShell />}
+    </AdminGate>
   );
 }
 
-export default function BrandPage() {
+function BrandWorkspaceShell() {
   const { t } = useLanguage();
   const [accent, setAccent] = useState(DEFAULT_ACCENT);
   const [zone, setZone] = useState("today");
-  const [openSections, setOpenSections] = useState({ reference: ["mark"] });
   const [uiLoaded, setUiLoaded] = useState(false);
   // This product is single-tenant — there's exactly one "our workspace"
   // behind this whole page, not a per-visitor concept. Resolved once on
   // load via GET /workspace/default (auto-creates it the first time
-  // anything needs it), no token in the URL, no login — same trust
-  // posture every other zone on this page already has (deliberately
-  // gated by the brand key now — see WorkspaceKeyGate above and this
-  // route's own docstring in backend/api/brand_workspace.py for why).
+  // anything needs it), no token in the URL. By the time this component
+  // ever mounts, AdminGate (see the default export above) has already
+  // confirmed a real admin session, and apiRequest already attaches that
+  // same session's Authorization header to every request automatically
+  // (see components/premium/shared/api.js) — nothing left to gate here.
   const [workspaceToken, setWorkspaceToken] = useState(null);
-  const [needsBrandKey, setNeedsBrandKey] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState(false);
 
   const loadWorkspace = () => {
+    setWorkspaceError(false);
     apiRequest("/api/v1/workspace/default")
-      .then((ws) => { setWorkspaceToken(ws.token); setNeedsBrandKey(false); })
-      .catch((e) => { if (e.status === 401 || e.status === 503) setNeedsBrandKey(true); });
+      .then((ws) => setWorkspaceToken(ws.token))
+      .catch(() => setWorkspaceError(true));
   };
   useEffect(loadWorkspace, []);
 
@@ -262,26 +104,15 @@ export default function BrandPage() {
   useEffect(() => {
     const stored = loadBrandUiState();
     setZone(stored.zone);
-    setOpenSections(stored.openSections);
     setUiLoaded(true);
   }, []);
 
   useEffect(() => {
     if (!uiLoaded) return; // don't clobber the stored state with pre-load defaults
-    saveBrandUiState({ zone, openSections });
-  }, [zone, openSections, uiLoaded]);
+    saveBrandUiState({ zone });
+  }, [zone, uiLoaded]);
 
   const zonesLocalized = ZONES.map((z) => ({ ...z, label: t(`brandShell.zone${z.id.charAt(0).toUpperCase()}${z.id.slice(1)}`) }));
-  const moreZonesLocalized = MORE_ZONES.map((z) => ({ ...z, label: t(`brandShell.zone${z.id.charAt(0).toUpperCase()}${z.id.slice(1)}`) }));
-
-  const isOpen = (id) => (openSections.reference || []).includes(id);
-  const toggleSection = (id) => {
-    setOpenSections((prev) => {
-      const current = prev.reference || [];
-      const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
-      return { ...prev, reference: next };
-    });
-  };
 
   return (
     <div className="min-h-[100dvh] w-full bg-background font-sans text-foreground">
@@ -310,7 +141,6 @@ export default function BrandPage() {
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell />
-            <MoreMenu zone={zone} zones={moreZonesLocalized} onSelect={setZone} t={t} />
           </div>
         </div>
 
@@ -318,8 +148,11 @@ export default function BrandPage() {
 
         {zone === "today" && (
           <div className="mt-4">
-            {needsBrandKey ? (
-              <WorkspaceKeyGate onUnlocked={(token) => { setWorkspaceToken(token); setNeedsBrandKey(false); }} />
+            {workspaceError ? (
+              <div className="mx-auto max-w-sm rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-center">
+                <p className="m-0 mb-3 text-[13px] font-semibold text-destructive">{t("brandShell.couldntLoadWorkspace")}</p>
+                <Btn small variant="ghost" onClick={loadWorkspace}>{t("brandShell.tryAgain")}</Btn>
+              </div>
             ) : workspaceToken ? (
               <TodayPanel token={workspaceToken} />
             ) : (
@@ -352,88 +185,6 @@ export default function BrandPage() {
         {zone === "capture" && (
           <div className="mt-4">
             <ScreenshotStudio />
-          </div>
-        )}
-
-        {zone === "seo" && (
-          <div className="mt-4">
-            <SeoStatus />
-          </div>
-        )}
-
-        {zone === "reference" && (
-          <div className="mt-4 grid gap-6">
-            {/* ── Shipped mark ── */}
-            <Section
-              icon={Sparkles}
-              eyebrow={t("brandShell.shipped")}
-              title="Ascending Q"
-              open={isOpen("mark")}
-              onOpenChange={() => toggleSection("mark")}
-            >
-              <div className="grid grid-cols-1 gap-8 sm:grid-cols-[auto_1fr] sm:items-start">
-                <div className="flex size-32 shrink-0 items-center justify-center rounded-2xl border border-border bg-background">
-                  <LogoMark size={92} />
-                </div>
-                <div className="grid gap-4">
-                  <div className="flex items-center gap-3 rounded-xl border border-border bg-[#0a0a0a] px-5 py-4">
-                    <Logo size={26} />
-                  </div>
-
-                  <SizeProof path={MARK_PATH} stroke={MARK_STROKE} />
-
-                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border pt-4">
-                    <Swatch hex="#F6E6B3" />
-                    <Swatch hex="#f59e0b" label={t("brandShell.primary")} />
-                    <Swatch hex="#5C4419" />
-                  </div>
-                </div>
-              </div>
-            </Section>
-
-            {/* ── Wordmark / type ── */}
-            <Section
-              icon={Type}
-              eyebrow={t("brandShell.wordmark")}
-              open={isOpen("wordmark")}
-              onOpenChange={() => toggleSection("wordmark")}
-            >
-              <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <span
-                  className="text-[34px] font-extrabold text-foreground"
-                  style={{ fontFamily: "var(--font-wordmark)", letterSpacing: "0.02em" }}
-                >
-                  NOQEEV
-                </span>
-                <span className="font-mono text-[11.5px] text-muted-foreground">Unbounded · 800</span>
-              </div>
-            </Section>
-
-            {/* ── Explored, set aside ── */}
-            <Section
-              icon={Archive}
-              eyebrow={t("brandShell.rejected")}
-              open={isOpen("explored")}
-              onOpenChange={() => toggleSection("explored")}
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-border bg-background p-6">
-                  <div className="mb-4 flex size-24 items-center justify-center rounded-xl border border-border bg-[#0a0a0a]">
-                    <RisingLinesPreview />
-                  </div>
-                  <h3 className="m-0 text-[15px] font-bold text-foreground">{t("brandShell.risingLines")}</h3>
-                  <p className="m-0 mt-1 text-[12px] text-muted-foreground">{t("brandShell.tooEasyToCopy")}</p>
-                </div>
-
-                <div className="rounded-2xl border border-border bg-background p-6">
-                  <div className="mb-4 flex size-24 items-center justify-center rounded-xl border border-border bg-[#0a0a0a]">
-                    <TurningPointPreview />
-                  </div>
-                  <h3 className="m-0 text-[15px] font-bold text-foreground">{t("brandShell.turningPoint")}</h3>
-                  <p className="m-0 mt-1 text-[12px] text-muted-foreground">{t("brandShell.tooGenericShape")}</p>
-                </div>
-              </div>
-            </Section>
           </div>
         )}
       </div>

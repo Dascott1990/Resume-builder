@@ -287,6 +287,29 @@ def application_insight(app_id):
     return jsonify({"success": True, "data": {"text": text}}), 200
 
 
+@applications_bp.route("/extract-company", methods=["POST"])
+@limiter.limit("60 per hour")
+def extract_company():
+    """Best-guess company name from a pasted job description — the one
+    thing DidYouApplyModal.js can't reliably reuse from elsewhere, so it's
+    worth a cheap AI call run in the background while someone's still
+    building (see GuestMode.js), not something they wait on."""
+    body = request.get_json(force=True) or {}
+    description = (body.get("description") or "").strip()[:4000]
+    if not description:
+        return jsonify({"success": True, "data": {"company": None}}), 200
+
+    text = ai_complete(
+        system="You extract the hiring company's name from a job posting. Reply with ONLY the company name, nothing else — no punctuation, no \"Company:\" prefix. If the posting genuinely doesn't name the company (e.g. it's an anonymized/agency listing), reply with exactly: UNKNOWN",
+        prompt=description,
+        effort="low", max_tokens=20,
+    )
+    company = (text or "").strip().strip(".\"'")
+    if not company or company.upper() == "UNKNOWN" or len(company) > 100:
+        company = None
+    return jsonify({"success": True, "data": {"company": company}}), 200
+
+
 @applications_bp.route("/<app_id>", methods=["DELETE"])
 def delete_application(app_id):
     query, _, _ = _scope_filter(JobApplication.query.filter_by(id=app_id))

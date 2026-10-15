@@ -115,8 +115,7 @@ Open `http://localhost:3000`. The public landing page loads first; sign up (emai
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web push notifications |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Google sign-in |
 | `BREAK_GLASS_ADMIN_USERNAME` / `BREAK_GLASS_ADMIN_PASSWORD_HASH` | Emergency admin login that works even if the database is down |
-| `ADMIN_BOOTSTRAP_EMAIL` | First account auto-granted admin on signup |
-| `BRAND_INTERNAL_KEY` | Internal auth for `/brand`'s own scheduled jobs |
+| `ADMIN_BOOTSTRAP_EMAIL` | First account auto-granted admin on signup — also the only account that can open `/brand`, which now requires real admin login |
 | `CRUX_API_KEY` / `SCRAPEGRAPHAI_API_KEY` | Job-ingestion data sources |
 | `FRONTEND_URL` | Used in generated links (emails, OAuth redirects) |
 | `SENTRY_DSN` *(optional)* | Error tracking. The app runs fine without it, but you won't hear about crashes except from users. |
