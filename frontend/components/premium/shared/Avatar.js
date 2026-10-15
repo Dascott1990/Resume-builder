@@ -11,6 +11,7 @@
  * through here instead so a real upload actually shows up everywhere an
  * avatar does, not just on the screen that uploaded it.
  */
+import { UserRound } from "lucide-react";
 import Emoji3D from "./Emoji3D";
 import { tintFor, initialsOf } from "./artisanDisplay";
 
@@ -22,19 +23,31 @@ export function avatarPhotoUrl(userId, version) {
 }
 
 export function Avatar({ user, size = 36, emojiSize, className = "" }) {
-  const name = user?.name || user?.email || "?";
-  const showInitials = !user?.has_avatar_photo && !user?.avatar_emoji;
+  // A bare "?" character used to stand in here whenever there was
+  // nothing at all to go on (no photo, no emoji, and — during the brief
+  // window before a profile finishes loading, or for a genuinely
+  // name/email-less account — no name or email to derive initials from
+  // either). Confirmed live: that read as a broken/placeholder-looking
+  // icon, not an intentional empty state. A real person-outline glyph
+  // (the same industry-standard "generic profile" shape every major app
+  // uses) reads as "no photo set yet," not "something's wrong."
+  const hasIdentity = !!(user?.name || user?.email);
+  const name = user?.name || user?.email || "";
+  const showInitials = !user?.has_avatar_photo && !user?.avatar_emoji && hasIdentity;
+  const showGenericIcon = !user?.has_avatar_photo && !user?.avatar_emoji && !hasIdentity;
   return (
     <div
-      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border ${showInitials ? "font-mono font-bold" : ""} ${tintFor(name)} ${className}`}
+      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border ${showInitials ? "font-mono font-bold" : ""} ${showGenericIcon ? "border-border bg-muted text-muted-foreground" : tintFor(name)} ${className}`}
       style={{ width: size, height: size, fontSize: Math.round(size * 0.32) }}
     >
       {user?.has_avatar_photo ? (
         <img src={avatarPhotoUrl(user.id, user.avatar_photo_version)} alt="" className="size-full object-cover" />
       ) : user?.avatar_emoji ? (
         <Emoji3D emoji={user.avatar_emoji} size={emojiSize || size} />
-      ) : (
+      ) : hasIdentity ? (
         initialsOf(name)
+      ) : (
+        <UserRound size={Math.round(size * 0.58)} strokeWidth={2} />
       )}
     </div>
   );
