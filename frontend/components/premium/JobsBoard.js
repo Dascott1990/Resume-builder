@@ -93,12 +93,15 @@ function countryName(code) {
   }
 }
 
-// One row, joined to its neighbors by a hairline divider instead of each
-// job floating as its own separate boxed card — a plain, borderless list
-// reads cleaner and sharper than a stack of bordered/shadowed tiles, and
-// it's the same shape on both breakpoints now (desktop used to be a
-// 2-column grid of heavier cards; a joined list doesn't really work in
-// two columns, so this replaces that too). Decluttered on purpose:
+// One row, its own soft card — a subtle shadow and a gap to its neighbors
+// instead of a hairline divider. Confirmed live that the old joined-list
+// (every row flush against the next, split only by a 1px line) made
+// adjacent postings genuinely hard to tell apart at a glance; a border
+// would fix that but reads as heavier/boxier than this does. No border
+// anywhere here on purpose — elevation (shadow) does the separating, not
+// an outline. Same shape on both breakpoints (desktop used to be a
+// 2-column grid of heavier cards; this replaces that too). Decluttered on
+// purpose:
 // verification, source attribution, and the real Apply action already
 // live on JobDetail (opened by tapping the row) — nothing here is lost,
 // just deferred until someone's actually looking at one job, not
@@ -106,7 +109,7 @@ function countryName(code) {
 // coming back to without committing to Apply right now — see
 // toggleSaveJob/savedIds in the main component below, and the "Loved"
 // toggle that filters down to just these.
-function JobRow({ job, applied, saved, onToggleSave, onOpen }) {
+function JobRow({ job, applied, saved, seen, onToggleSave, onOpen }) {
   const { t } = useLanguage();
   const specs = [
     job.category,
@@ -118,14 +121,18 @@ function JobRow({ job, applied, saved, onToggleSave, onOpen }) {
     <div
       role="button" tabIndex={0} onClick={onOpen}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(); }}
-      className="flex cursor-pointer items-center gap-3 py-3.5 text-left [-webkit-tap-highlight-color:transparent]"
+      className="flex cursor-pointer items-center gap-3 rounded-2xl bg-card px-3.5 py-3.5 text-left shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-shadow [-webkit-tap-highlight-color:transparent] hover:shadow-[0_4px_14px_-6px_rgba(0,0,0,0.14)]"
     >
       <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
         <Building2 className="size-[18px] text-muted-foreground/70" strokeWidth={1.75} />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <p className="m-0 truncate text-[14px] font-bold tracking-tight text-foreground">{job.title}</p>
+          {/* Dimmed to muted-foreground once opened — same convention
+              real job boards use for "you've already seen this one,"
+              read at a glance across the whole list without a separate
+              badge competing for space on an already-compact row. */}
+          <p className={`m-0 truncate text-[14px] font-bold tracking-tight ${seen ? "text-muted-foreground" : "text-foreground"}`}>{job.title}</p>
           {applied && <Check className="size-3.5 shrink-0 text-success" strokeWidth={2.5} />}
         </div>
         <p className="m-0 truncate text-[12px] font-medium text-muted-foreground/70">
@@ -486,6 +493,27 @@ export default function JobsBoard({ onClose, onNavigate }) {
   const [healthOpen, setHealthOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
+  // Which jobs this browser has already opened the detail view for —
+  // lets the list itself answer "have I seen this one before" at a
+  // glance (JobRow dims an already-viewed title, same convention real
+  // job boards use) instead of someone having to click back into a
+  // posting to find out. Per-browser, not per-account: same guest-first
+  // scoping every other preference in this app already uses, and nothing
+  // here is sensitive enough to need server persistence. Capped at the
+  // most recent 500 so this never grows unbounded across months of
+  // browsing.
+  const [seenIds, setSeenIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("noqeev_seen_jobs") || "[]")); } catch { return new Set(); }
+  });
+  useEffect(() => {
+    if (!selectedJob || seenIds.has(selectedJob.id)) return;
+    setSeenIds((prev) => {
+      const next = new Set(prev);
+      next.add(selectedJob.id);
+      try { localStorage.setItem("noqeev_seen_jobs", JSON.stringify([...next].slice(-500))); } catch { /* best-effort */ }
+      return next;
+    });
+  }, [selectedJob]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Mobile's own search/filters trigger — deliberately NOT the same
   // controlsCollapsed state desktop's sticky header uses below. That one
@@ -743,15 +771,12 @@ export default function JobsBoard({ onClose, onNavigate }) {
     </div>
   ) : (
     <>
-      {/* A plain block container, not a grid/flex one — each row is
-          naturally held to the container's own width (block children
-          fill their parent by default), which is what keeps a long,
-          untruncated job title from forcing the row wider than the
-          screen. Joined by a hairline divider instead of each job
-          floating as its own separate bordered/shadowed card. */}
-      <div className="divide-y divide-border">
+      {/* flex-col + gap, not divide-y — each row is its own card now (see
+          JobRow's own comment on why), so what separates them is a real
+          gap, not a shared border between flush-against-each-other rows. */}
+      <div className="flex flex-col gap-2">
         {jobs.map((j) => (
-          <JobRow key={j.id} job={j} applied={isJobApplied(j)} saved={savedIds.has(j.id)} onToggleSave={toggleSaveJob} onOpen={() => setSelectedJob(j)} />
+          <JobRow key={j.id} job={j} applied={isJobApplied(j)} saved={savedIds.has(j.id)} seen={seenIds.has(j.id)} onToggleSave={toggleSaveJob} onOpen={() => setSelectedJob(j)} />
         ))}
       </div>
       {jobs.length < total && (
@@ -909,9 +934,9 @@ export default function JobsBoard({ onClose, onNavigate }) {
     </div>
   ) : (
     <>
-      <div className="divide-y divide-border">
+      <div className="flex flex-col gap-2">
         {jobs.map((j) => (
-          <JobRow key={j.id} job={j} applied={isJobApplied(j)} saved={savedIds.has(j.id)} onToggleSave={toggleSaveJob} onOpen={() => setSelectedJob(j)} />
+          <JobRow key={j.id} job={j} applied={isJobApplied(j)} saved={savedIds.has(j.id)} seen={seenIds.has(j.id)} onToggleSave={toggleSaveJob} onOpen={() => setSelectedJob(j)} />
         ))}
       </div>
       {jobs.length < total && (
