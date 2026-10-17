@@ -907,6 +907,52 @@ def optimize_resume():
     return jsonify({"success": True, "data": parsed}), 201
 
 
+_HR_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+
+
+@resume_bp.route("/suggest-hr-email", methods=["POST"])
+@limiter.limit("30 per hour")
+def suggest_hr_email():
+    """Best-guess HR contact for the "Email HR" button on PackagePreviewModal
+    (frontend/components/premium/guest/components/EmailHrModal.js). A real
+    email already written in the posting always wins over any guess. Short
+    of that, only guesses the LOCAL PART of an address (careers@, hr@, ...)
+    when a real company domain is already known — inventing the domain
+    itself from a bare company name is unreliable enough not to be worth
+    the false confidence. No DB write, no auth: same pre-account guest-flow
+    posture as /optimize itself."""
+    body = request.get_json(force=True) or {}
+    description = (body.get("job_description") or "").strip()[:4000]
+    domain = (body.get("company_domain") or "").strip()
+    company = (body.get("company") or "").strip()
+
+    found = _HR_EMAIL_RE.search(description) if description else None
+    if found:
+        return jsonify({"success": True, "data": {"email": found.group(0), "confidence": "found_in_posting"}}), 200
+
+    if not domain:
+        return jsonify({"success": True, "data": {"email": None, "confidence": None}}), 200
+
+    text = _ai_complete(
+        system=(
+            f"You suggest a plausible HR/recruiting contact email's LOCAL PART ONLY "
+            f"(the part before the @) for outreach to a company, given its real domain \"{domain}\". "
+            "Reply with ONLY the local part — no @, no domain, nothing else. Common patterns: "
+            "careers, hr, jobs, talent, recruiting, people. If you have no reasonable basis to guess, "
+            "reply with exactly: UNKNOWN"
+        ),
+        prompt=f"Company: {company or 'unknown'}\nJob posting excerpt:\n{description[:800]}",
+        effort="low", max_tokens=10,
+    )
+    local = (text or "").strip().strip(".\"'@")
+    # Defends against the model echoing back a full address instead of just
+    # the local part it was asked for — "@" or "." in the reply means it
+    # didn't follow the instruction, so treat it the same as no guess.
+    if not local or local.upper() == "UNKNOWN" or len(local) > 40 or "@" in local or "." in local:
+        return jsonify({"success": True, "data": {"email": None, "confidence": None}}), 200
+    return jsonify({"success": True, "data": {"email": f"{local}@{domain}", "confidence": "guessed"}}), 200
+
+
 INTERVIEW_CHAT_SYSTEM = """You are a warm, encouraging mock-interview coach helping someone practice
 for a specific job before the real thing. You are NOT a resume writer here — you ask questions and react
 to answers, nothing else.

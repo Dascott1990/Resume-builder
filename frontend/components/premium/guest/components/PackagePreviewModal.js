@@ -6,6 +6,7 @@ import { Btn, TextLink } from "./primitives";
 import { CoverLetterView } from "./CoverLetterView";
 import { ApplyBanner } from "./ApplyBanner";
 import { InterviewChat } from "./InterviewChat";
+import { EmailHrModal } from "./EmailHrModal";
 import { useLanguage } from "@/lib/i18n";
 
 // ── Package preview modal ─────────────────────────────────────────────────────
@@ -16,6 +17,7 @@ export function PackagePreviewModal({
   open, onClose, genResult, application, coverLetter, interviewTips, jobDescription,
   onCopyCoverLetter, copied, onDownloadAll, downloading,
   onCoverLetterDocx, onCoverLetterPdf, onCoverLetterChange,
+  info, hrEmail, hrEmailConfidence, emailHrOpen, onOpenEmailHr, onCloseEmailHr,
 }) {
   const { t } = useLanguage();
   const [practiceOpen, setPracticeOpen] = useState(false);
@@ -60,6 +62,9 @@ export function PackagePreviewModal({
                     loading={downloading === "cl-pdf"} disabled={!!downloading} small>
                     PDF
                   </Btn>
+                  <Btn variant="ghost" icon="Mail" onClick={onOpenEmailHr} small>
+                    {t("packagePreview.emailHr")}
+                  </Btn>
                 </div>
               </div>
               <CoverLetterView value={coverLetter} onChange={onCoverLetterChange} />
@@ -93,6 +98,15 @@ export function PackagePreviewModal({
           onClose={() => setPracticeOpen(false)}
           jobDescription={jobDescription}
           interviewTips={interviewTips}
+        />
+
+        <EmailHrModal
+          open={emailHrOpen}
+          onClose={onCloseEmailHr}
+          hrEmail={hrEmail}
+          hrEmailConfidence={hrEmailConfidence}
+          coverLetter={coverLetter}
+          info={info}
         />
 
         {/* Footer — pinned, stacked full-width so the primary action is

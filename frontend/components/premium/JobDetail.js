@@ -241,7 +241,7 @@ export function JobDetail({ job, applied, onClose, onNavigate }) {
       } catch { /* best-effort — falls back to the normal empty step 1 */ }
     }
     setPreferredStyle(pickTemplateForJob(job));
-    onNavigate?.("resume", { jobDesc: stripTags(job.description_text), jobCompany: job.company_name });
+    onNavigate?.("resume", { jobDesc: stripTags(job.description_text), jobCompany: job.company_name, jobDomain: job.company_domain });
   };
 
   const { level, checks_passed, checks_not_attempted } = job.verification || {};

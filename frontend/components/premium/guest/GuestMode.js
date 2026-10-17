@@ -68,7 +68,7 @@ function useAutoDismiss(visible, setVisible, delayMs = NOTICE_AUTO_DISMISS_MS) {
   }, [visible, setVisible, delayMs]);
 }
 
-export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pendingJobCompany, pendingLoadResumeId, pendingViewAllResumes, pendingQuickBuild, onRequireAuth }) {
+export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pendingJobCompany, pendingJobDomain, pendingLoadResumeId, pendingViewAllResumes, pendingQuickBuild, onRequireAuth }) {
   const { t } = useLanguage();
   const { isPhone, isTablet, isDesktop } = useViewport();
   const { user } = useAuth();
@@ -445,6 +445,49 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
       setDetectedCompany(null);
     }
   }, [jobDesc]);
+
+  // Same background-resolve shape as detectedCompany above, for the
+  // "Email HR" button on PackagePreviewModal (EmailHrModal.js) — resolved
+  // well before anyone reaches that screen, so opening the modal never
+  // waits on an AI call. Always fires once jobDesc is long enough, even
+  // with no known pendingJobDomain: the backend checks the pasted text
+  // itself for a real email first (a hiring-manager's own contact,
+  // sometimes written right into the posting) before ever trying to
+  // guess one from a domain.
+  const [hrEmail, setHrEmail] = useState(null);
+  const [hrEmailConfidence, setHrEmailConfidence] = useState(null);
+  const hrEmailForRef = useRef(null);
+  const hrEmailTimer = useRef(null);
+  useEffect(() => {
+    if (hrEmail || hrEmailForRef.current === jobDesc) return;
+    if (jobDesc.trim().length < 40) return;
+    if (hrEmailTimer.current) clearTimeout(hrEmailTimer.current);
+    hrEmailTimer.current = setTimeout(async () => {
+      const forDesc = jobDesc;
+      try {
+        const data = await apiRequest("/api/v1/resume/suggest-hr-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            job_description: forDesc,
+            company_domain: pendingJobDomain || "",
+            company: detectedCompany || pendingJobCompany || "",
+          }),
+        });
+        hrEmailForRef.current = forDesc;
+        if (data.email) { setHrEmail(data.email); setHrEmailConfidence(data.confidence); }
+      } catch { /* best-effort — EmailHrModal's empty "To" field with a manual-paste prompt covers this */ }
+    }, 1200);
+    return () => clearTimeout(hrEmailTimer.current);
+  }, [jobDesc, hrEmail]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (hrEmailForRef.current !== null && hrEmailForRef.current !== jobDesc) {
+      hrEmailForRef.current = null;
+      setHrEmail(null);
+      setHrEmailConfidence(null);
+    }
+  }, [jobDesc]);
+  const [emailHrOpen, setEmailHrOpen] = useState(false);
 
   // Used to ask "are you sure, you'll lose your work" here — but the draft
   // autosaves (see draftSaveTimer above) and restores itself on the next
@@ -1181,6 +1224,12 @@ export default function GuestMode({ onClose, pendingImport, pendingJobDesc, pend
         onCoverLetterDocx={handleCoverLetterDocx}
         onCoverLetterPdf={handleCoverLetterPdf}
         onCoverLetterChange={setCoverLetter}
+        info={info}
+        hrEmail={hrEmail}
+        hrEmailConfidence={hrEmailConfidence}
+        emailHrOpen={emailHrOpen}
+        onOpenEmailHr={() => setEmailHrOpen(true)}
+        onCloseEmailHr={() => setEmailHrOpen(false)}
       />
 
       <SignupNudgeModal open={signupNudge.show} onDismiss={signupNudge.dismiss} />
