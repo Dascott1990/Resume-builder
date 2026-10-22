@@ -1114,3 +1114,63 @@ class GuestDownloadCount(db.Model):
 
     def to_dict(self):
         return {"count": self.count, "capped": self.count >= 3}
+
+
+class UserSearchIntent(db.Model):
+    """
+    Search-intent tracking for dynamic crawler scaling. Captures sanitized search
+    queries from the Jobs Board, abstracts them into normalized keyword clusters,
+    and feeds active targets into jobs_ingest.
+    """
+    __tablename__ = "user_search_intents"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    keyword = db.Column(db.String(255), nullable=False, index=True)
+    normalized_title = db.Column(db.String(255), nullable=True)
+    hit_count = db.Column(db.Integer, default=1, nullable=False)
+    is_active_ingestion_target = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+    __table_args__ = (
+        db.Index("idx_keyword_ingestion", "is_active_ingestion_target", "hit_count"),
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "keyword": self.keyword,
+            "normalized_title": self.normalized_title,
+            "hit_count": self.hit_count,
+            "is_active_ingestion_target": self.is_active_ingestion_target,
+            "created_at": _iso_utc(self.created_at),
+            "updated_at": _iso_utc(self.updated_at),
+        }
+
+
+class ExtensionCaptureLog(db.Model):
+    """
+    Audit log of Chrome Extension extractions. Tracks URL, domain, and the
+    parsing strategy ('json_ld', 'open_graph', 'fallback_llm', 'manual') used to
+    extract job metadata before saving to JobApplication.
+    """
+    __tablename__ = "extension_capture_logs"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.String(32), db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    guest_id = db.Column(db.String(64), nullable=True, index=True)
+    source_url = db.Column(db.String(1024), nullable=False)
+    domain = db.Column(db.String(255), nullable=False)
+    parsing_strategy = db.Column(db.String(50), nullable=False)  # 'json_ld', 'open_graph', 'fallback_llm', 'manual'
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "guest_id": self.guest_id,
+            "source_url": self.source_url,
+            "domain": self.domain,
+            "parsing_strategy": self.parsing_strategy,
+            "created_at": _iso_utc(self.created_at),
+        }

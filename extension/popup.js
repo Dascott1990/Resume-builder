@@ -1,10 +1,7 @@
-// popup.js — the extension's only real logic. No content_scripts entry in
-// the manifest on purpose: scripting.executeScript + "activeTab" only
-// touches the page the user is actually looking at, at the moment they
-// click the extension icon, instead of asking Chrome for standing
-// permission to run on every job board site. Same reasoning as the
-// existing bookmarklet (generic document.body.innerText extraction, not
-// fragile per-site selectors) — see frontend/lib/bookmarklet.js.
+// popup.js — Universal DOM job extractor and save logic.
+// Manifest V3: Uses scripting.executeScript + activeTab to inspect the active job posting.
+// Extracts Schema.org JobPosting microdata, OpenGraph tags, or falls back to
+// asynchronous backend parsing.
 const API_BASE = "https://resume-builder-blfc.onrender.com";
 const TOKEN_KEY = "noqeev_pat";
 const JD_LIMIT = 6000;
@@ -21,42 +18,104 @@ function showSetup(show) {
   $("setup").style.display = show ? "block" : "none";
 }
 
-// Injected into the active tab — must be a standalone function (no
-// closure over this file's scope), since scripting.executeScript sends
-// only its source across to the page.
+function showBadge(text, color = "#146c43", bg = "#eef5ea") {
+  const badge = $("detectionBadge");
+  if (!badge) return;
+  if (!text) {
+    badge.style.display = "none";
+    return;
+  }
+  badge.textContent = text;
+  badge.style.color = color;
+  badge.style.backgroundColor = bg;
+  badge.style.display = "block";
+}
+
+// Injected into the active tab — standalone function executed in page context.
 function extractJobPageInfo() {
-  const text = (document.title || "") + "\n" + (document.body?.innerText || "");
-  const metaCompany =
-    document.querySelector('meta[property="og:site_name"]')?.content ||
-    document.querySelector('meta[name="author"]')?.content || "";
+  // 1. Extract all Schema.org JSON-LD scripts
+  let jsonLdCandidates = [];
+  const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+  for (const s of scripts) {
+    try {
+      const parsed = JSON.parse(s.textContent || "");
+      if (parsed) jsonLdCandidates.push(parsed);
+    } catch (e) {}
+  }
+
+  // 2. Extract OpenGraph and standard meta tags
+  const meta = {
+    "og:title": document.querySelector('meta[property="og:title"]')?.content || "",
+    "og:site_name": document.querySelector('meta[property="og:site_name"]')?.content || "",
+    "og:description": document.querySelector('meta[property="og:description"]')?.content || "",
+    "author": document.querySelector('meta[name="author"]')?.content || "",
+    "description": document.querySelector('meta[name="description"]')?.content || "",
+  };
+
+  // 3. Extract semantic body content (prefer main or article containers)
+  const mainEl = document.querySelector('main, article, [role="main"]') || document.body;
+  const bodyText = (mainEl?.innerText || document.body?.innerText || "").slice(0, 10000);
+
   return {
     title: document.title || "",
     url: location.href,
-    metaCompany,
-    bodyText: (document.body?.innerText || "").slice(0, 8000),
+    json_ld: jsonLdCandidates.length ? jsonLdCandidates : null,
+    meta,
+    body_text: bodyText,
   };
 }
 
-function guessRoleAndCompany(pageTitle) {
-  // Common job-board <title> shapes: "Role at Company | Site",
-  // "Role - Company - Site", "Company hiring Role". Best-effort only —
-  // always left editable, never trusted blindly (see popup.html).
-  const cleaned = (pageTitle || "").replace(/\s*[|·]\s*(LinkedIn|Indeed|Glassdoor).*$/i, "").trim();
+function parseClientSideJobPosting(jsonLdCandidates) {
+  if (!jsonLdCandidates || !jsonLdCandidates.length) return null;
+
+  for (const item of jsonLdCandidates) {
+    let list = Array.isArray(item) ? item : (item["@graph"] || [item]);
+    for (const obj of list) {
+      if (obj && String(obj["@type"] || "").toLowerCase().includes("jobposting")) {
+        const title = obj.title || obj.name || "";
+        const org = obj.hiringOrganization;
+        const company = (typeof org === "object" ? org?.name : org) || "";
+        const desc = obj.description ? obj.description.replace(/<[^>]+>/g, " ").trim() : "";
+        if (title && (company || desc)) {
+          return { role: title, company, description: desc, strategy: "json_ld" };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function guessRoleAndCompany(pageTitle, meta) {
+  const metaCompany = meta?.["og:site_name"] || meta?.author || "";
+  const cleaned = (pageTitle || "").replace(/\s*[|·]\s*(LinkedIn|Indeed|Glassdoor|ZipRecruiter).*$/i, "").trim();
+
   let m = cleaned.match(/^(.*?)\s+at\s+(.*?)(?:\s*[-|].*)?$/i);
-  if (m) return { role: m[1].trim(), company: m[2].trim() };
+  if (m) return { role: m[1].trim(), company: m[2].trim(), strategy: "open_graph" };
+
   m = cleaned.match(/^(.*?)\s*[-–]\s*(.*?)(?:\s*[-|].*)?$/);
-  if (m) return { role: m[1].trim(), company: m[2].trim() };
-  return { role: cleaned, company: "" };
+  if (m) return { role: m[1].trim(), company: m[2].trim(), strategy: "open_graph" };
+
+  if (cleaned && metaCompany) {
+    return { role: cleaned, company: metaCompany, strategy: "open_graph" };
+  }
+
+  return { role: cleaned, company: metaCompany || "", strategy: "manual" };
 }
 
 async function apiRequest(path, options = {}) {
   const token = (await chrome.storage.local.get(TOKEN_KEY))[TOKEN_KEY];
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {})
+    },
   });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok || body.success === false) throw new Error(body.error || `Request failed (${res.status})`);
+  if (!res.ok || body.success === false) {
+    throw new Error(body.error || `Request failed (${res.status})`);
+  }
   return body.data;
 }
 
@@ -67,23 +126,73 @@ async function init() {
     return;
   }
   showSetup(false);
+  showBadge("");
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
-      const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractJobPageInfo });
-      if (result) {
-        const guess = guessRoleAndCompany(result.title);
-        $("company").value = guess.company || result.metaCompany || "";
-        $("role").value = guess.role || "";
-        $("jd").value = result.bodyText.slice(0, JD_LIMIT);
-        $("save").dataset.url = result.url || tab.url || "";
+    if (!tab?.id) return;
+
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: extractJobPageInfo
+    });
+
+    if (!result) return;
+    $("save").dataset.url = result.url || tab.url || "";
+
+    // Step A: Immediate local extraction from JSON-LD
+    const localLd = parseClientSideJobPosting(result.json_ld);
+    if (localLd && localLd.role && localLd.company) {
+      $("company").value = localLd.company;
+      $("role").value = localLd.role;
+      $("jd").value = (localLd.description || result.body_text || "").slice(0, JD_LIMIT);
+      $("save").dataset.strategy = "json_ld";
+      showBadge("✓ Detected via Schema.org JSON-LD");
+      return;
+    }
+
+    // Step B: Immediate local extraction from OpenGraph heuristics
+    const ogGuess = guessRoleAndCompany(result.title, result.meta);
+    if (ogGuess.role && ogGuess.company) {
+      $("company").value = ogGuess.company;
+      $("role").value = ogGuess.role;
+      $("jd").value = (result.meta?.["og:description"] || result.body_text || "").slice(0, JD_LIMIT);
+      $("save").dataset.strategy = "open_graph";
+      showBadge("✓ Detected via OpenGraph Metadata");
+      return;
+    }
+
+    // Step C: Fallback to Backend Universal Parser
+    showBadge("Analyzing page structure…", "#8a6d00", "#fff8e6");
+    $("company").value = ogGuess.company || "";
+    $("role").value = ogGuess.role || "";
+    $("jd").value = (result.body_text || "").slice(0, JD_LIMIT);
+
+    try {
+      const parsed = await apiRequest("/api/v1/extension/parse", {
+        method: "POST",
+        body: JSON.stringify(result)
+      });
+      if (parsed) {
+        if (parsed.company) $("company").value = parsed.company;
+        if (parsed.role) $("role").value = parsed.role;
+        if (parsed.job_description) $("jd").value = parsed.job_description.slice(0, JD_LIMIT);
+        $("save").dataset.strategy = parsed.strategy || "fallback_llm";
+
+        if (parsed.strategy === "fallback_llm") {
+          showBadge("✦ Structured via AI Extractor", "#146c43", "#eef5ea");
+        } else if (parsed.strategy === "json_ld") {
+          showBadge("✓ Detected via Schema.org", "#146c43", "#eef5ea");
+        } else {
+          showBadge("✓ Extracted from Page Content", "#146c43", "#eef5ea");
+        }
       }
+    } catch (parseErr) {
+      // Keep existing manual heuristic fields on parse failure
+      showBadge("");
     }
   } catch (e) {
-    // Can't inject into chrome:// pages, the Chrome Web Store, etc. —
-    // leave the form blank rather than show a scary error for something
-    // that isn't actually a job page anyway.
+    // Restricted tabs (chrome://, webstore) — leave fields manual
   }
 }
 
@@ -98,12 +207,14 @@ $("save").addEventListener("click", async () => {
   $("save").disabled = true;
   setStatus(status, "Saving…");
   try {
-    await apiRequest("/api/v1/extension/capture", {
+    const res = await apiRequest("/api/v1/extension/capture", {
       method: "POST",
       body: JSON.stringify({
-        company, role,
+        company,
+        role,
         url: $("save").dataset.url || "",
         job_description: $("jd").value.trim(),
+        strategy: $("save").dataset.strategy || "manual",
       }),
     });
     setStatus(status, "Saved to your Job Tracker.", "success");

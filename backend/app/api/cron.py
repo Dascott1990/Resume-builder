@@ -35,3 +35,15 @@ def due_reminders():
     _require_cron_secret(request)
     result = check_due_scheduled_posts()
     return jsonify({"success": True, "data": result}), 200
+
+
+@cron_bp.route("/aggregate-search-intents", methods=["POST"])
+def aggregate_intents():
+    _require_cron_secret(request)
+    from app.jobs_ingest.intent_clustering import aggregate_and_cluster_intents
+    body = request.get_json(silent=True) or {}
+    min_hits = body.get("min_hits", 3)
+    top_limit = body.get("top_limit", 20)
+    result = aggregate_and_cluster_intents(min_hits=int(min_hits), top_limit=int(top_limit))
+    return jsonify({"success": True, "data": result}), 200
+

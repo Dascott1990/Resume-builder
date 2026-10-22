@@ -26,11 +26,12 @@ import time
 import logging
 from datetime import datetime, timezone
 
-from .sources import fetch_remotive, fetch_arbeitnow, fetch_greenhouse, fetch_ashby, fetch_scrapegraph, _stable_id
+from .sources import fetch_remotive, fetch_arbeitnow, fetch_greenhouse, fetch_ashby, fetch_scrapegraph, fetch_intent_targets, _stable_id
 from .verify import verify_job, reset_run_caches
 from .categories import categorize, CATEGORIES
 from .geo_guess import guess_country
 from .company_seeds import GREENHOUSE_COMPANIES, ASHBY_COMPANIES
+from .intent_clustering import aggregate_and_cluster_intents, get_active_ingestion_targets
 
 logger = logging.getLogger("jobs_ingest")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -99,6 +100,15 @@ def run_ingestion(app):
         source_errors = {}
         all_new = {}
 
+        # Intent-driven crawling: cluster recent search intents and determine active target keywords
+        try:
+            intent_summary = aggregate_and_cluster_intents()
+            active_targets = get_active_ingestion_targets()
+        except Exception as e:
+            logger.warning("intent clustering pre-run step failed: %s", e)
+            active_targets = []
+            intent_summary = {}
+
         for name, fetch_fn in (("remotive", fetch_remotive), ("arbeitnow", fetch_arbeitnow),
                                 ("greenhouse", fetch_greenhouse), ("ashby", fetch_ashby),
                                 ("scrapegraphai", fetch_scrapegraph)):
@@ -109,6 +119,16 @@ def run_ingestion(app):
                 logger.exception("source %s failed entirely", name)
                 source_errors[name] = str(e)
                 source_stats.setdefault(name, {"fetched": 0, "verified": 0, "rejected": 0})
+
+        # Dynamic intent targets fetch
+        if active_targets:
+            try:
+                raw_intents = fetch_intent_targets(active_targets)
+                all_new.update(_normalize_and_verify(raw_intents, source_stats, "intent_targets"))
+            except Exception as e:
+                logger.exception("intent_targets fetch failed")
+                source_errors["intent_targets"] = str(e)
+                source_stats.setdefault("intent_targets", {"fetched": 0, "verified": 0, "rejected": 0})
 
         total_fetched_this_run = sum(s["fetched"] for s in source_stats.values())
         if total_fetched_this_run == 0 and not previous_rows:
@@ -183,6 +203,8 @@ def run_ingestion(app):
             "total_jobs": total_live,
             "new_jobs_this_run": newly_added_count,
             "expired_this_run": expired_this_run,
+            "active_intent_targets": active_targets,
+            "intent_summary": intent_summary,
         }
 
         db.session.add(JobsIngestRun(run_meta=run_meta))

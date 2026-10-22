@@ -142,10 +142,10 @@ def fetch_remotive(limit=100):
 _ARBEITNOW_OWN_DOMAINS = {"arbeitnow.com", "arbeitnow.co.uk"}
 
 
-def fetch_arbeitnow(limit=150):
+def fetch_arbeitnow(limit=150, search=None):
     """Real pagination, real volume (300+/page, verified live) — page 1
     only, capped at `limit` to keep one run's processing/verification
-    bounded.
+    bounded. Supports optional search parameter to target specific intent keywords.
 
     `url` is NOT reliably the employer's own site — checked live against a
     150-job sample while building this: ~99% of entries point back at
@@ -158,7 +158,10 @@ def fetch_arbeitnow(limit=150):
     Filtered out below; only a genuine employer domain is kept, so these
     jobs cap at Level 1 same as Remotive UNLESS Arbeitnow happens to give
     a real one."""
-    data = _get_json("https://www.arbeitnow.com/api/job-board-api")
+    params = {}
+    if search:
+        params["search"] = search
+    data = _get_json("https://www.arbeitnow.com/api/job-board-api", params=params if params else None)
     if not data:
         return []
     jobs = []
@@ -310,10 +313,26 @@ def fetch_scrapegraph(companies=None):
     return jobs
 
 
+def fetch_intent_targets(targets, limit_per_target=25):
+    """Dynamically fetches jobs targeting high-volume user search intents.
+    Uses Arbeitnow's search query API to pull listings matching top intent keywords."""
+    jobs = []
+    seen_ids = set()
+    for term in (targets or [])[:5]:
+        results = fetch_arbeitnow(limit=limit_per_target, search=term)
+        for j in results:
+            if j["source_id"] not in seen_ids:
+                seen_ids.add(j["source_id"])
+                jobs.append(j)
+    return jobs
+
+
 SOURCE_FETCHERS = {
     "remotive": fetch_remotive,
     "arbeitnow": fetch_arbeitnow,
     "greenhouse": fetch_greenhouse,
     "ashby": fetch_ashby,
     "scrapegraphai": fetch_scrapegraph,
+    "intent_targets": fetch_intent_targets,
 }
+

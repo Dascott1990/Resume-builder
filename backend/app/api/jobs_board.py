@@ -26,6 +26,7 @@ from app.models import Job, JobsIngestRun, SavedJob
 from app.jobs_ingest.categories import CATEGORIES
 from app.jobs_ingest.trending import TRENDING_FIELDS, trending_counts, field_matches
 from app.utils.auth import get_scope
+from app.utils.telemetry import record_search_intent_async
 
 jobs_board_bp = Blueprint("jobs_board", __name__)
 
@@ -79,6 +80,7 @@ def list_jobs():
 
     search = (request.args.get("search") or "").strip().lower()
     if search:
+        record_search_intent_async(search)
         like = f"%{search}%"
         q = q.filter(db.or_(db.func.lower(Job.title).like(like), db.func.lower(Job.company_name).like(like)))
 
